@@ -265,7 +265,7 @@ function MainContent({
 
   if (!activeWorkspaceId) {
     return (
-      <main className="flex flex-col flex-1 items-center justify-center bg-bg-primary">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-primary">
         <EmptyState
           icon={
             <span className="text-4xl" aria-hidden="true">
@@ -282,7 +282,7 @@ function MainContent({
 
   if (!activeRepoId) {
     return (
-      <main className="flex flex-col flex-1 items-center justify-center bg-bg-primary">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-primary">
         <EmptyState
           icon={<FolderOpen size={32} />}
           title="No repository selected"
@@ -294,7 +294,7 @@ function MainContent({
   }
 
   return (
-    <main className="flex flex-col flex-1 bg-bg-primary overflow-hidden">
+    <main className="flex flex-col h-full min-h-0 bg-bg-primary overflow-hidden">
       {selectedCommitOid ? (
         <DiffViewer commitOid={selectedCommitOid} />
       ) : (

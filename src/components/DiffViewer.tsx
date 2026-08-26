@@ -258,7 +258,7 @@ export function DiffViewer({
   }
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full min-h-0 overflow-auto">
       {/* Toolbar */}
       <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-bg-primary border-b border-border-subtle">
         <span className="text-sm text-text-secondary">
