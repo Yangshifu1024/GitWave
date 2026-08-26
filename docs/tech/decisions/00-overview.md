@@ -10,6 +10,7 @@
 | 0002 | Workspace 抽象：无 FS 实体 | 已采纳 |
 | 0003 | 凭证策略：混合（Keychain + git helper） | 已采纳 |
 | 0004 | AI 双轨：写 = 确定性，建议 = AI | 已采纳 |
+| 0005 | 前端 UI 库栈：Tailwind v4 + Radix + Lucide + Shiki | 已采纳 |
 
 ---
 
@@ -129,3 +130,54 @@ Workspace = 数据库中的一行；零 FS 实体。
 - **正面**：与 P1 完全一致；AI 误生成不会直接改仓库；用户保留完全控制权；审计路径清晰
 - **负面**：commit message 多 commit 累积理解需在 UI 层做"上下文拼装"再交给 AI；AI 能力被刻意收窄
 - **风险**：conflict 解释面板必须明确"AI 解释仅供参考，冲突解决仍由确定性引擎执行"——UI 措辞是关键
+---
+
+## 0005 · 前端 UI 库栈
+
+### 上下文
+
+Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 模板默认）。这种实现对 WorkspaceSwitcher / RepoList / SshKeyManager 这类简单 UI 够用，但要承载 Sprint 3+ 的 history 图、diff viewer、interactive rebase、command palette 远远不够：
+
+- **a11y**：HTMLDialogElement 直接使用 + 自己写 focus trap → 出错风险高，screen reader 体验差
+- **变体管理**：Button / Input 各处用 className 字符串拼装 → 重复 + 难维护
+- **主题**：light / dark mode 用 CSS @media + 重复样式 → 难扩展
+- **虚拟滚动**：history graph 10k commit 流畅目标需要专门的库
+- **动效**：模态进出 / toast 现在没有 motion → 体验僵硬
+
+自建 primitives 工作量过大；引入"开箱即用"的库（如 Material UI）会锁定 macOS feel。
+
+### 备选
+
+- **库组合 A：自建 primitives + 纯 CSS**：完全控制 / 最小体积；但 Button / Input / Tooltip / Tabs / ContextMenu / ListItem / StatusBadge / Split 全自建，估计 1500 行 + 大量 a11y 测试。否决。
+- **库组合 B：shadcn/ui**：组件全 + a11y；但复制后属于我们的代码需自己维护，v0.1 时间紧引入价值有限。保留为 v0.2 备选。
+- **库组合 C：Radix Primitives + Tailwind v4 + cva（推荐）**：覆盖最常用的交互原语，a11y 完整；Tailwind + cva 配变体管理；每个库单一职责可按需替换；体积可控。
+- **库组合 D：Mantine / Chakra / Radix Themes**：完整组件库；但主题锁定与 macOS feel 目标冲突。否决。
+
+### 决策
+
+采用**库组合 C**：
+
+| 用途 | 库 |
+|---|---|
+| Utility CSS | Tailwind CSS v4 |
+| 交互原语 | Radix UI Primitives |
+| 变体管理 | class-variance-authority (cva) + tailwind-merge |
+| 图标 | Lucide React |
+| 语法高亮（Sprint 3）| Shiki |
+| 虚拟滚动（Sprint 3）| @tanstack/react-virtual |
+| 动效（v0.1 可选 / Sprint 6）| Framer Motion |
+
+**总开销**（除 Shiki 外）：约 50KB gzip。Shiki 在 Sprint 3 才引入。
+
+### 后果
+
+- **正面**：a11y 完整；主题切换干净；变体管理标准化；Sprint 3 引入 Shiki / react-virtual 风险低
+- **负面**：学习成本（Radix API + cva 模式）；自定义样式需熟悉 Tailwind v4 CSS-first
+- **风险**：Tailwind v4 较新，生态适配可能滞后；Radix 各 Primitives 独立发布，需手动同步版本。缓解：固定 package.json 版本范围，季度升级
+
+### 关联
+
+- `docs/design/00-overview.md`：设计总览
+- `docs/design/01-tokens.md`：tokens
+- `docs/design/02-components.md`：组件 API
+- `docs/design/03-layout.md`：3-pane 布局

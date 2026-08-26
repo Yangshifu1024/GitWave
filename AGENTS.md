@@ -12,7 +12,8 @@
 4. [03-roadmap.md](./docs/pm/core/03-roadmap.md) — 版本路线
 5. [docs/pm/features/README.md](./docs/pm/features/README.md) — 功能提案流程
 6. [docs/tech/README.md](./docs/tech/README.md) — 技术文档索引（架构 / 选型 / ADR）
-7. [docs/tasks/README.md](./docs/tasks/README.md) — 任务追踪（plan / review）
+7. [docs/design/00-overview.md](./docs/design/00-overview.md) — UI/UX 设计总览（3-pane / token / 组件 / 布局）
+8. [docs/tasks/README.md](./docs/tasks/README.md) — 任务追踪（plan / review）
 
 ## 核心约束（来自产品原则）
 
