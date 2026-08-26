@@ -1,7 +1,7 @@
-//! SQLite adapter — connection, WAL setup, migration runner.
+//! SQLite adapter — connection, WAL setup, and migration wiring.
 //!
-//! Uses bundled SQLite (no system dependency). Future migration files will
-//! live in `migrations/NNNN-name.sql` and be embedded via `include_str!`.
+//! Uses bundled SQLite (no system dependency). Migration SQL is embedded
+//! via `migrations.rs`; see that file for the migration list.
 
 use std::path::{Path, PathBuf};
 
@@ -39,14 +39,8 @@ pub fn open() -> Result<Connection> {
         .map_err(map_sqlite_err)?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(map_sqlite_err)?;
-    migrate(&conn)?;
+    super::migrations::apply(&conn)?;
     Ok(conn)
-}
-
-/// Apply pending migrations. Sprint 0 stub: no migrations yet. Sprint 1
-/// will introduce the `workspaces` and `repos` tables.
-fn migrate(_conn: &Connection) -> Result<()> {
-    Ok(())
 }
 
 fn map_sqlite_err(e: rusqlite::Error) -> AppError {
@@ -64,13 +58,6 @@ mod tests {
             .query_row("SELECT sqlite_version()", [], |r| r.get(0))
             .expect("query");
         assert!(!v.is_empty());
-    }
-
-    #[test]
-    fn migrate_is_idempotent_on_empty_db() {
-        let conn = Connection::open_in_memory().expect("in-memory sqlite");
-        migrate(&conn).expect("first migrate");
-        migrate(&conn).expect("second migrate");
     }
 
     #[test]

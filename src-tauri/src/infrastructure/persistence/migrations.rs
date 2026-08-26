@@ -1,0 +1,116 @@
+//! Embedded migration runner.
+//!
+//! Migrations live in `src-tauri/migrations/NNNN-name.sql` and are embedded
+//! at compile time via `include_str!`. The `schema_version` table tracks
+//! which migrations have been applied. New migrations are added by appending
+//! a `Migration` entry to `MIGRATIONS` and the corresponding SQL file.
+
+use std::collections::HashSet;
+
+use rusqlite::Connection;
+
+use crate::domain::error::{AppError, Result};
+
+/// All migrations, in version order. Add new entries here as files are
+/// added to `migrations/`.
+const MIGRATIONS: &[Migration] = &[Migration {
+    version: 1,
+    name: "workspaces-repos",
+    sql: include_str!("../../../migrations/0001-workspaces-repos.sql"),
+}];
+
+struct Migration {
+    version: i64,
+    name: &'static str,
+    sql: &'static str,
+}
+
+/// Apply pending migrations. Idempotent: re-running on a fully migrated
+/// database is a no-op.
+pub fn apply(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY NOT NULL)",
+    )
+    .map_err(map_sqlite_err)?;
+
+    let applied: HashSet<i64> = conn
+        .prepare("SELECT version FROM schema_version")
+        .map_err(map_sqlite_err)?
+        .query_map([], |r| r.get::<_, i64>(0))
+        .map_err(map_sqlite_err)?
+        .filter_map(std::result::Result::ok)
+        .collect();
+
+    for migration in MIGRATIONS {
+        if applied.contains(&migration.version) {
+            continue;
+        }
+        let tx = conn.unchecked_transaction().map_err(map_sqlite_err)?;
+        tx.execute_batch(migration.sql).map_err(map_sqlite_err)?;
+        tx.execute(
+            "INSERT INTO schema_version (version) VALUES (?1)",
+            [migration.version],
+        )
+        .map_err(map_sqlite_err)?;
+        tx.commit().map_err(map_sqlite_err)?;
+        tracing::info!(
+            version = migration.version,
+            name = migration.name,
+            "applied migration"
+        );
+    }
+
+    Ok(())
+}
+
+fn map_sqlite_err(e: rusqlite::Error) -> AppError {
+    AppError::Unknown(format!("sqlite migration: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn in_memory() -> Connection {
+        Connection::open_in_memory().expect("in-memory sqlite")
+    }
+
+    #[test]
+    fn apply_creates_workspaces_and_repos_tables() {
+        let conn = in_memory();
+        apply(&conn).expect("apply migrations");
+
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .collect();
+
+        assert!(tables.contains(&"workspaces".to_string()));
+        assert!(tables.contains(&"repos".to_string()));
+        assert!(tables.contains(&"schema_version".to_string()));
+    }
+
+    #[test]
+    fn apply_is_idempotent() {
+        let conn = in_memory();
+        apply(&conn).expect("first");
+        apply(&conn).expect("second");
+    }
+
+    #[test]
+    fn apply_records_versions_in_schema_version() {
+        let conn = in_memory();
+        apply(&conn).expect("apply");
+        let versions: Vec<i64> = conn
+            .prepare("SELECT version FROM schema_version ORDER BY version")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .collect();
+        assert_eq!(versions, vec![1]);
+    }
+}

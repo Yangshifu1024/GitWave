@@ -14,6 +14,11 @@
   font-size: 1.75rem;
 }
 
+.container h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.15rem;
+}
+
 .container p {
   margin: 0.5rem 0;
 }
@@ -26,9 +31,176 @@
   border-radius: 4px;
 }
 
+button {
+  cursor: pointer;
+  font: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.error {
+  color: #c0392b;
+}
+
+.empty {
+  color: #888;
+  font-style: italic;
+}
+
+/* Workspace switcher */
+.workspace-switcher {
+  margin-top: 1rem;
+}
+
+.workspace-switcher header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.workspace-switcher header button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f7f7f7;
+}
+
+.workspace-switcher ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  border: 1px solid #e3e3e3;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.workspace-switcher li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.workspace-switcher li:last-child {
+  border-bottom: none;
+}
+
+.workspace-switcher li.active {
+  background: rgba(0, 122, 255, 0.08);
+}
+
+.workspace-switcher li .name {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  flex: 1;
+  font-size: 1rem;
+  color: inherit;
+}
+
+.workspace-switcher li .actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.workspace-switcher li .actions button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.workspace-switcher li .actions button.danger {
+  color: #c0392b;
+  border-color: #e7c5be;
+}
+
+/* Modals */
+dialog {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 0;
+  background: #fff;
+  color: inherit;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.modal-inner {
+  padding: 1.25rem 1.5rem;
+  min-width: 320px;
+}
+
+.modal-inner h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.modal-inner input {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.modal-actions button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f7f7f7;
+}
+
+.modal-actions button.danger {
+  color: #c0392b;
+  border-color: #e7c5be;
+}
+
 @media (prefers-color-scheme: dark) {
   .container {
     color: #f0f0f0;
     background-color: #1a1a1a;
+  }
+  .workspace-switcher ul {
+    border-color: #333;
+  }
+  .workspace-switcher li {
+    border-bottom-color: #2a2a2a;
+  }
+  .workspace-switcher li.active {
+    background: rgba(0, 122, 255, 0.18);
+  }
+  .workspace-switcher header button,
+  .workspace-switcher li .actions button,
+  .modal-actions button {
+    background: #2a2a2a;
+    border-color: #444;
+    color: inherit;
+  }
+  dialog {
+    background: #1f1f1f;
+    border-color: #444;
+  }
+  .modal-inner input {
+    background: #2a2a2a;
+    border-color: #444;
+    color: inherit;
   }
 }

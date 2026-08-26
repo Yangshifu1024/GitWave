@@ -1,33 +1,12 @@
 //! Application layer — orchestrates domain operations, enforces use cases.
 //!
-//! Concrete use cases (e.g., `CreateWorkspace`, `SwitchActiveRepo`) land
-//! here in subsequent sprints.
+//! See `docs/tech/architecture/00-overview.md` for the layer responsibilities.
+//! Use cases depend only on `domain` + `infrastructure` types; no Tauri or
+//! framework imports.
 
-/// Placeholder for the application-layer context that ties together
-/// infrastructure adapters (DB, git, AI) and exposes use cases to the
-/// presentation layer.
-pub struct AppContext;
+pub mod use_cases;
 
-impl AppContext {
-    #[must_use]
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for AppContext {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn app_context_constructs() {
-        let _ = AppContext::new();
-        let _ = AppContext;
-    }
-}
+pub use use_cases::{
+    create_workspace, delete_workspace, list_workspaces, rename_workspace, set_active_repo,
+    AppContext,
+};

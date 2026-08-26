@@ -7,4 +7,4 @@ pub mod error;
 pub mod workspace;
 
 pub use error::{AppError, Result};
-pub use workspace::{PromptTemplates, RepoRef, Workspace, WorkspaceSettings};
+pub use workspace::{PromptTemplates, RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};

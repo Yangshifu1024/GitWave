@@ -40,6 +40,16 @@ pub struct RepoRef {
     pub settings_override: Option<WorkspaceSettings>,
 }
 
+/// Lightweight projection of `Workspace` for sidebar/listing UIs.
+/// Omits `repos` and full `settings` to keep list responses cheap.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WorkspaceSummary {
+    pub id: String,
+    pub name: String,
+    pub last_active_repo_id: Option<String>,
+    pub updated_at: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,5 +80,18 @@ mod tests {
         assert!(s.commit_convention.is_none());
         assert!(s.theme_override.is_none());
         assert!(s.key_binding_profile.is_none());
+    }
+
+    #[test]
+    fn workspace_summary_roundtrip() {
+        let summary = WorkspaceSummary {
+            id: "ws-1".into(),
+            name: "Default".into(),
+            last_active_repo_id: Some("r-1".into()),
+            updated_at: 1000,
+        };
+        let json = serde_json::to_string(&summary).expect("serialize");
+        let back: WorkspaceSummary = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(summary, back);
     }
 }
