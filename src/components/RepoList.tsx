@@ -25,6 +25,11 @@ function detectProtocol(url: string): "ssh" | "https" {
   return "https";
 }
 
+function basename(path: string): string {
+  const idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return idx >= 0 ? path.slice(idx + 1) : path;
+}
+
 function deriveDestName(url: string): string {
   const trimmed = url.trim();
   if (trimmed.startsWith("git@")) {
@@ -212,8 +217,11 @@ export function RepoList({
                   </span>
                 }
               >
-                <span className="truncate font-mono text-xs text-text-secondary">
-                  {r.path}
+                <span
+                  className="truncate font-mono text-xs text-text-secondary"
+                  title={r.path}
+                >
+                  {basename(r.path)}
                 </span>
               </ListItem>
             </li>
