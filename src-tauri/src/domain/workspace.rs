@@ -32,16 +32,42 @@ pub struct PromptTemplates {
     pub pr: Option<String>,
 }
 
+/// Lifecycle status of a repo reference. `Missing` indicates the repo's
+/// `path` no longer points at a valid git working tree; the user can
+/// relink it via `WorkspaceRepository::relink_repo`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RepoStatus {
+    #[default]
+    Active,
+    Missing,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoRef {
     pub id: String,
+    pub workspace_id: String,
     pub path: String,
     pub nickname: Option<String>,
     pub settings_override: Option<WorkspaceSettings>,
+    #[serde(default)]
+    pub status: RepoStatus,
+    #[serde(default)]
+    pub missing_since: Option<i64>,
+    pub added_at: i64,
 }
 
-/// Lightweight projection of `Workspace` for sidebar/listing UIs.
-/// Omits `repos` and full `settings` to keep list responses cheap.
+/// Lightweight projection of `RepoRef` for sidebar/listing UIs.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RepoSummary {
+    pub id: String,
+    pub workspace_id: String,
+    pub path: String,
+    pub nickname: Option<String>,
+    pub status: RepoStatus,
+    pub is_active: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkspaceSummary {
     pub id: String,
@@ -93,5 +119,27 @@ mod tests {
         let json = serde_json::to_string(&summary).expect("serialize");
         let back: WorkspaceSummary = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(summary, back);
+    }
+
+    #[test]
+    fn repo_ref_defaults_status_to_active() {
+        let r: RepoRef = serde_json::from_str(
+            r#"{"id":"r-1","workspace_id":"ws-1","path":"/tmp","added_at":1000}"#,
+        )
+        .expect("deserialize");
+        assert_eq!(r.status, RepoStatus::Active);
+        assert_eq!(r.missing_since, None);
+    }
+
+    #[test]
+    fn repo_status_serializes_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&RepoStatus::Missing).unwrap(),
+            "\"missing\""
+        );
+        assert_eq!(
+            serde_json::to_string(&RepoStatus::Active).unwrap(),
+            "\"active\""
+        );
     }
 }

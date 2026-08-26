@@ -145,6 +145,24 @@ dialog::backdrop {
   font-size: 1.05rem;
 }
 
+.modal-inner label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.modal-inner label input {
+  margin-top: 0.3rem;
+}
+
+.modal-inner label small {
+  display: block;
+  margin-top: 0.3rem;
+  color: #888;
+  font-size: 0.75rem;
+}
+
 .modal-inner input {
   width: 100%;
   padding: 0.5rem 0.6rem;
@@ -171,6 +189,193 @@ dialog::backdrop {
 .modal-actions button.danger {
   color: #c0392b;
   border-color: #e7c5be;
+}
+
+/* Repo list */
+.repo-list {
+  margin-top: 1rem;
+}
+
+.repo-list header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.repo-list header .add-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.repo-list header button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f7f7f7;
+}
+
+.repo-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  border: 1px solid #e3e3e3;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.repo-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.repo-list li:last-child {
+  border-bottom: none;
+}
+
+.repo-list li.missing {
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.repo-list li .path {
+  flex: 1;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.repo-list li .badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  background: #c0392b;
+  color: #fff;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.repo-list li .actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.repo-list li .actions button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.repo-list li .actions button.danger {
+  color: #c0392b;
+  border-color: #e7c5be;
+}
+
+/* SSH key manager */
+.ssh-key-manager {
+  margin-top: 1rem;
+}
+
+.ssh-key-manager header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ssh-key-manager header .actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.ssh-key-manager header button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #f7f7f7;
+}
+
+.ssh-key-manager ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  border: 1px solid #e3e3e3;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ssh-key-manager li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.ssh-key-manager li:last-child {
+  border-bottom: none;
+}
+
+.ssh-key-manager li .path {
+  flex: 1;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.ssh-key-manager li .fingerprint code {
+  font-size: 0.75rem;
+  background: rgba(127, 127, 127, 0.08);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+.ssh-key-manager li .row-actions button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.ssh-key-manager li .row-actions button.danger {
+  color: #c0392b;
+  border-color: #e7c5be;
+}
+
+.ssh-test-ok,
+.ssh-test-fail {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.ssh-test-ok {
+  background: rgba(46, 204, 113, 0.12);
+  border: 1px solid #2ecc71;
+}
+
+.ssh-test-fail {
+  background: rgba(192, 57, 43, 0.1);
+  border: 1px solid #e74c3c;
+}
+
+.ssh-test-ok pre,
+.ssh-test-fail pre {
+  margin: 0.4rem 0 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
 }
 
 @media (prefers-color-scheme: dark) {

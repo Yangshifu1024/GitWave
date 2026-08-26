@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 
+import { RepoList } from "@/components/RepoList";
+import { SshKeyManager } from "@/components/SshKeyManager";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { formatAppError, getAppVersion } from "@/lib/api";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
   const [error, setError] = useState<string>("");
+  const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
 
   useEffect(() => {
     getAppVersion()
@@ -22,6 +26,10 @@ function App(): React.JSX.Element {
       {error ? <p className="error">{error}</p> : null}
 
       <WorkspaceSwitcher />
+
+      {activeWorkspaceId ? <RepoList workspaceId={activeWorkspaceId} /> : null}
+
+      <SshKeyManager />
     </main>
   );
 }

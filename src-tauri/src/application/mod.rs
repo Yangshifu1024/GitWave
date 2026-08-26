@@ -7,6 +7,7 @@
 pub mod use_cases;
 
 pub use use_cases::{
-    create_workspace, delete_workspace, list_workspaces, rename_workspace, set_active_repo,
-    AppContext,
+    add_local_repo, add_ssh_key, clone_repo, create_workspace, delete_ssh_key, delete_workspace,
+    init_repo, list_repos, list_ssh_keys, list_workspaces, relink_repo, remove_repo,
+    rename_workspace, set_active_repo, test_ssh_connection, AppContext,
 };

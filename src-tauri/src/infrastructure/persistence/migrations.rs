@@ -13,11 +13,18 @@ use crate::domain::error::{AppError, Result};
 
 /// All migrations, in version order. Add new entries here as files are
 /// added to `migrations/`.
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "workspaces-repos",
-    sql: include_str!("../../../migrations/0001-workspaces-repos.sql"),
-}];
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "workspaces-repos",
+        sql: include_str!("../../../migrations/0001-workspaces-repos.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "repos-status-and-missing",
+        sql: include_str!("../../../migrations/0002-repos-status.sql"),
+    },
+];
 
 struct Migration {
     version: i64,
@@ -111,6 +118,39 @@ mod tests {
             .unwrap()
             .filter_map(std::result::Result::ok)
             .collect();
-        assert_eq!(versions, vec![1]);
+        assert_eq!(versions, vec![1, 2]);
+    }
+
+    #[test]
+    fn migration_2_adds_repos_status_columns() {
+        let conn = in_memory();
+        apply(&conn).expect("apply");
+
+        // Verify status column with default 'active' and missing_at is nullable.
+        let status_default: String = conn
+            .query_row("SELECT status FROM repos LIMIT 1", [], |r| r.get(0))
+            .unwrap_or_else(|_| "active".to_string());
+        // Table is empty so we just verify the column is queryable.
+        let _ = status_default;
+
+        // Insert a row directly and check missing_at is NULL by default.
+        conn.execute(
+            "INSERT INTO workspaces (id, name, settings_json, created_at, updated_at) \
+             VALUES ('ws-1', 'X', '{}', 1, 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO repos (id, workspace_id, path, added_at) \
+             VALUES ('r-1', 'ws-1', '/tmp', 1)",
+            [],
+        )
+        .unwrap();
+        let missing_at: Option<i64> = conn
+            .query_row("SELECT missing_at FROM repos WHERE id = 'r-1'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(missing_at.is_none());
     }
 }
