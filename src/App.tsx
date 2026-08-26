@@ -43,12 +43,10 @@ function App(): React.JSX.Element {
           isMacOS() ? "pl-20 pr-4" : "px-4"
         } gap-4 bg-bg-secondary border-b border-border-subtle`}
       >
-        {/* Left: Workspace switcher (DropdownMenu: select + create) */}
-        <div
-          className="shrink-0"
-          data-tauri-no-drag-region
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        >
+        {/* Left: Workspace switcher (DropdownMenu: select + create).
+            drag.js auto-blocks <button> children, so no explicit
+            no-drag-region needed on the wrapper. */}
+        <div className="shrink-0">
           <WorkspaceSwitcherDropdown />
         </div>
 
@@ -57,12 +55,10 @@ function App(): React.JSX.Element {
           GitWave
         </h1>
 
-        {/* Right: theme, SSH, help, version (+ window controls on non-macOS) */}
-        <div
-          className="ml-auto flex items-center gap-1"
-          data-tauri-no-drag-region
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        >
+        {/* Right: theme, SSH, help, version (+ window controls on non-macOS).
+            drag.js auto-blocks <button> children, so no explicit
+            no-drag-region needed on the wrapper. */}
+        <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
           <SshKeyManagerPopover />
           <Button variant="ghost" size="sm" className="p-1" aria-label="Help">
