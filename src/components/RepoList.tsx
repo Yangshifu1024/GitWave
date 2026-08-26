@@ -397,10 +397,14 @@ export function RepoList({
         <Modal
           open={true}
           onOpenChange={(open) => { if (!open) setRemoving(null); }}
-          title={`Remove "${removing.path}"?`}
-          description="Removes the workspace reference. The local directory and its .git/ folder are not touched."
+          title={`Remove "${basename(removing.path)}"?`}
+          description={removing.path}
           size="sm"
         >
+          <p className="text-sm text-text-secondary">
+            Removes the workspace reference. The local directory and its
+            .git/ folder are not touched.
+          </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => setRemoving(null)}>Cancel</Button>
             <Button
