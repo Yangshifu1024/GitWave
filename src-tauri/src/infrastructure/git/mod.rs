@@ -14,6 +14,7 @@ pub mod merge;
 pub mod rebase;
 pub mod remote;
 pub mod repo_adapter;
+pub mod stash;
 pub mod working_copy;
 
 #[cfg(test)]

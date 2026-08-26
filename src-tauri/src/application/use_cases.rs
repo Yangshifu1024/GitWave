@@ -10,6 +10,7 @@ use crate::domain::branch::BranchInfo;
 use crate::domain::diff::FileDiff;
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::CommitSummary;
+use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
@@ -31,6 +32,10 @@ use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, Merg
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::remote::{
     fetch as infra_fetch, pull as infra_pull, push as infra_push,
+};
+use crate::infrastructure::git::stash::{
+    apply_stash as infra_apply_stash, drop_stash as infra_drop_stash, list_stashes as infra_list_stashes,
+    pop_stash as infra_pop_stash, save_stash as infra_save_stash, stash_diff as infra_stash_diff,
 };
 use crate::infrastructure::git::working_copy::{
     commit as infra_commit, stage_all as infra_stage_all, stage_paths as infra_stage_paths,
@@ -502,6 +507,44 @@ pub fn push(ctx: &AppContext, workspace_id: &str, remote: Option<String>) -> Res
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_push(&repo, remote.as_deref().unwrap_or("origin"))
+}
+
+// ─── Stash (Sprint 5) ───────────────────────────────────────────────────────
+
+pub fn list_stashes(ctx: &AppContext, workspace_id: &str) -> Result<Vec<StashEntry>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let mut repo = ctx.open_repo(&repo_path)?;
+    infra_list_stashes(&mut repo)
+}
+
+pub fn save_stash(ctx: &AppContext, workspace_id: &str, message: Option<String>) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let mut repo = ctx.open_repo(&repo_path)?;
+    infra_save_stash(&mut repo, message.as_deref())
+}
+
+pub fn apply_stash(ctx: &AppContext, workspace_id: &str, index: u32) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let mut repo = ctx.open_repo(&repo_path)?;
+    infra_apply_stash(&mut repo, index as usize)
+}
+
+pub fn pop_stash(ctx: &AppContext, workspace_id: &str, index: u32) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let mut repo = ctx.open_repo(&repo_path)?;
+    infra_pop_stash(&mut repo, index as usize)
+}
+
+pub fn drop_stash(ctx: &AppContext, workspace_id: &str, index: u32) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let mut repo = ctx.open_repo(&repo_path)?;
+    infra_drop_stash(&mut repo, index as usize)
+}
+
+pub fn get_stash_diff(ctx: &AppContext, workspace_id: &str, oid: &str) -> Result<DiffSummary> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_stash_diff(&repo, oid)
 }
 
 // ─── Helper ─────────────────────────────────────────────────────────────────

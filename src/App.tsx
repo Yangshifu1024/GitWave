@@ -18,6 +18,7 @@ import { FolderOpen, HelpCircle } from "lucide-react";
 import { CommitGraph } from "@/components/CommitGraph";
 import { DiffViewer } from "@/components/DiffViewer";
 import { BranchList } from "@/components/BranchList";
+import { StashPanel } from "@/components/StashPanel";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
@@ -198,17 +199,8 @@ function FeatureNav({
           <BranchList />
         </TabsContent>
 
-        <TabsContent value="stash" className="flex-1 min-h-0 overflow-auto p-4">
-          <EmptyState
-            icon={
-              <span className="text-2xl" aria-hidden="true">
-                &#x25D0;
-              </span>
-            }
-            title="Stash"
-            description="Stash list coming in Sprint 5."
-            className="py-8"
-          />
+        <TabsContent value="stash" className="flex-1 min-h-0 overflow-hidden p-0">
+          <StashPanel />
         </TabsContent>
 
         <TabsContent value="tags" className="flex-1 min-h-0 overflow-auto p-4">

@@ -16,18 +16,20 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    add_local_repo, add_ssh_key, checkout_branch, clone_repo, commit, create_branch,
-    create_workspace, delete_branch, delete_ssh_key, delete_workspace, fetch, get_ahead_behind,
-    get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff, get_workdir_diff,
-    get_working_copy, init_repo, list_repos, list_ssh_keys, list_workspaces, merge_branch, pull,
-    push, rebase_branch, relink_repo, remove_repo, rename_workspace, set_active_repo, stage_all,
-    stage_files, test_ssh_connection, unstage_files, AheadBehind, AppContext,
+    add_local_repo, add_ssh_key, apply_stash, checkout_branch, clone_repo, commit, create_branch,
+    create_workspace, delete_branch, delete_ssh_key, delete_workspace, drop_stash, fetch,
+    get_ahead_behind, get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff,
+    get_stash_diff, get_workdir_diff, get_working_copy, init_repo, list_repos, list_ssh_keys,
+    list_stashes, list_workspaces, merge_branch, pop_stash, pull, push, rebase_branch, relink_repo,
+    remove_repo, rename_workspace, save_stash, set_active_repo, stage_all, stage_files,
+    test_ssh_connection, unstage_files, AheadBehind, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
 use domain::diff::FileDiff;
 use domain::error::AppError;
 use domain::history::CommitSummary;
+use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSummary};
 use infrastructure::git::diff::DiffSummary;
@@ -347,6 +349,59 @@ async fn cmd_push(
     push(&ctx, &workspace_id, remote)
 }
 
+#[tauri::command]
+async fn cmd_list_stashes(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<StashEntry>, AppError> {
+    list_stashes(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_save_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    message: Option<String>,
+) -> Result<String, AppError> {
+    save_stash(&ctx, &workspace_id, message)
+}
+
+#[tauri::command]
+async fn cmd_apply_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    index: u32,
+) -> Result<(), AppError> {
+    apply_stash(&ctx, &workspace_id, index)
+}
+
+#[tauri::command]
+async fn cmd_pop_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    index: u32,
+) -> Result<(), AppError> {
+    pop_stash(&ctx, &workspace_id, index)
+}
+
+#[tauri::command]
+async fn cmd_drop_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    index: u32,
+) -> Result<(), AppError> {
+    drop_stash(&ctx, &workspace_id, index)
+}
+
+#[tauri::command]
+async fn cmd_get_stash_diff(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    oid: String,
+) -> Result<DiffSummary, AppError> {
+    get_stash_diff(&ctx, &workspace_id, &oid)
+}
+
 // ─── App startup ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -405,6 +460,12 @@ pub fn run() {
             cmd_fetch,
             cmd_pull,
             cmd_push,
+            cmd_list_stashes,
+            cmd_save_stash,
+            cmd_apply_stash,
+            cmd_pop_stash,
+            cmd_drop_stash,
+            cmd_get_stash_diff,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

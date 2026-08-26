@@ -388,3 +388,38 @@ export function pullRemote(workspaceId: string, remote?: string): Promise<void> 
 export function pushRemote(workspaceId: string, remote?: string): Promise<void> {
   return invoke<void>("cmd_push", { workspaceId, remote: remote ?? null });
 }
+
+// ─── Stash ───────────────────────────────────────────────────────────────────
+
+export interface StashEntry {
+  index: number;
+  message: string;
+  oid: string;
+}
+
+export function listStashes(workspaceId: string): Promise<StashEntry[]> {
+  return invoke<StashEntry[]>("cmd_list_stashes", { workspaceId });
+}
+
+export function saveStash(workspaceId: string, message?: string): Promise<string> {
+  return invoke<string>("cmd_save_stash", {
+    workspaceId,
+    message: message ?? null,
+  });
+}
+
+export function applyStash(workspaceId: string, index: number): Promise<void> {
+  return invoke<void>("cmd_apply_stash", { workspaceId, index });
+}
+
+export function popStash(workspaceId: string, index: number): Promise<void> {
+  return invoke<void>("cmd_pop_stash", { workspaceId, index });
+}
+
+export function dropStash(workspaceId: string, index: number): Promise<void> {
+  return invoke<void>("cmd_drop_stash", { workspaceId, index });
+}
+
+export function getStashDiff(workspaceId: string, oid: string): Promise<DiffSummary> {
+  return invoke<DiffSummary>("cmd_get_stash_diff", { workspaceId, oid });
+}
