@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DiffSummary, FileDiff, DiffHunk, DiffLine } from "@/lib/api";
-import { getCommitDiff, getWorkdirDiff } from "@/lib/api";
+import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -191,14 +191,16 @@ export function DiffViewer({
   path: _path,
 }: DiffViewerProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const [diff, setDiff] = useState<DiffSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<DiffViewMode>("unified");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeWorkspaceId) {
+    if (!activeWorkspaceId || !activeRepoId) {
       setDiff(null);
+      setError(null);
       return;
     }
     setLoading(true);
@@ -212,14 +214,22 @@ export function DiffViewer({
 
     promise
       .then(setDiff)
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(formatAppError(e)))
       .finally(() => setLoading(false));
-  }, [activeWorkspaceId, commitOid, workdir]);
+  }, [activeWorkspaceId, activeRepoId, commitOid, workdir]);
 
   if (!activeWorkspaceId) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
         Select a workspace to view diff
+      </div>
+    );
+  }
+
+  if (!activeRepoId) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+        Select a repository to view diff
       </div>
     );
   }
@@ -234,7 +244,9 @@ export function DiffViewer({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full text-danger text-sm">{error}</div>
+      <div className="flex items-center justify-center h-full text-danger text-sm px-4 text-center">
+        {error}
+      </div>
     );
   }
 

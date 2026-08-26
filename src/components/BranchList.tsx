@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BranchInfo } from "@/lib/api";
-import { getBranches, checkoutBranch, deleteBranch } from "@/lib/api";
+import { formatAppError, getBranches, checkoutBranch, deleteBranch } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -78,22 +78,24 @@ interface BranchListProps {
 
 export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeWorkspaceId) {
+    if (!activeWorkspaceId || !activeRepoId) {
       setBranches([]);
+      setError(null);
       return;
     }
     setLoading(true);
     setError(null);
     getBranches(activeWorkspaceId)
       .then(setBranches)
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(formatAppError(e)))
       .finally(() => setLoading(false));
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, activeRepoId]);
 
   const handleCheckout = async (name: string) => {
     if (!activeWorkspaceId) return;
@@ -124,6 +126,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
         Select a workspace to view branches
+      </div>
+    );
+  }
+
+  if (!activeRepoId) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+        Select a repository to view branches
       </div>
     );
   }

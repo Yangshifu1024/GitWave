@@ -2,7 +2,7 @@ import React from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useState } from "react";
 import type { CommitSummary } from "@/lib/api";
-import { getCommitLog } from "@/lib/api";
+import { formatAppError, getCommitLog } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 
@@ -97,22 +97,29 @@ interface CommitGraphProps {
 
 export function CommitGraph({ onCommitSelect }: CommitGraphProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const [commits, setCommits] = useState<CommitSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!activeWorkspaceId) {
+    if (!activeWorkspaceId || !activeRepoId) {
       setCommits([]);
+      setError(null);
       return;
     }
     setLoading(true);
+    setError(null);
     getCommitLog(activeWorkspaceId, 200)
       .then(setCommits)
-      .catch(() => setCommits([]))
+      .catch((e) => {
+        setCommits([]);
+        setError(formatAppError(e));
+      })
       .finally(() => setLoading(false));
-  }, [activeWorkspaceId]);
+  }, [activeWorkspaceId, activeRepoId]);
 
   const virtualizer = useVirtualizer({
     count: commits.length,
@@ -134,10 +141,26 @@ export function CommitGraph({ onCommitSelect }: CommitGraphProps): React.JSX.Ele
     );
   }
 
+  if (!activeRepoId) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+        Select a repository to view commit history
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
         Loading history...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full text-danger text-sm px-4 text-center">
+        {error}
       </div>
     );
   }

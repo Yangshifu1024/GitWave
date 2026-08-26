@@ -9,8 +9,10 @@ import {
   listRepos,
   relinkRepo,
   removeRepo,
+  setActiveRepo,
   type RepoRef,
 } from "@/lib/api";
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
@@ -46,6 +48,8 @@ type AddKind = "init" | "clone" | "local" | null;
 
 export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
 
   const [adding, setAdding] = useState<AddKind>(null);
   const [relinking, setRelinking] = useState<RepoRef | null>(null);
@@ -70,7 +74,14 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
 
   const refresh = (): void => {
     void queryClient.invalidateQueries({ queryKey: ["repos", workspaceId] });
+    void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
   };
+
+  async function activateRepo(repoId: string): Promise<void> {
+    await setActiveRepo(workspaceId, repoId);
+    setActiveRepoId(repoId);
+    void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+  }
 
   function startAdd(kind: Exclude<AddKind, null>): void {
     setAdding(kind);
@@ -87,38 +98,45 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
 
   const initMut = useMutation({
     mutationFn: ({ path }: { path: string }) => initRepo(workspaceId, path),
-    onSuccess: () => {
+    onSuccess: (repo) => {
       refresh();
       setInitPath("");
       endAdd();
+      void activateRepo(repo.id);
     },
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
 
   const cloneMut = useMutation({
     mutationFn: ({ url, dest }: { url: string; dest: string }) => cloneRepo(workspaceId, url, dest),
-    onSuccess: () => {
+    onSuccess: (repo) => {
       refresh();
       setCloneUrl("");
       setCloneDest("");
       endAdd();
+      void activateRepo(repo.id);
     },
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
 
   const localMut = useMutation({
     mutationFn: ({ path }: { path: string }) => addLocalRepo(workspaceId, path),
-    onSuccess: () => {
+    onSuccess: (repo) => {
       refresh();
       setLocalPath("");
       endAdd();
+      void activateRepo(repo.id);
     },
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
 
   const removeMut = useMutation({
     mutationFn: (repoId: string) => removeRepo(workspaceId, repoId),
-    onSuccess: () => {
+    onSuccess: async (_void, repoId) => {
+      if (activeRepoId === repoId) {
+        await setActiveRepo(workspaceId, null);
+        setActiveRepoId(null);
+      }
       refresh();
       setRemoving(null);
     },
@@ -165,6 +183,9 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
       </div>
 
       {/* List */}
+      {actionError && !adding && !relinking ? (
+        <p className="px-3 py-2 text-sm text-danger">{actionError}</p>
+      ) : null}
       {isLoading ? (
         <p className="px-3 py-2 text-sm text-text-muted">Loading repos…</p>
       ) : error ? (
@@ -182,7 +203,13 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           {repos.map((r) => (
             <li key={r.id}>
               <ListItem
-                selected={false}
+                selected={r.id === activeRepoId}
+                onClick={() => {
+                  if (r.status === "missing" || r.id === activeRepoId) return;
+                  void activateRepo(r.id).catch((e: unknown) =>
+                    setActionError(formatAppError(e)),
+                  );
+                }}
                 leading={null}
                 trailing={
                   <span className="flex items-center gap-1">
@@ -218,7 +245,14 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
                   </span>
                 }
               >
-                <span className="truncate font-mono text-xs text-text-secondary" title={r.path}>
+                <span
+                  className={
+                    r.id === activeRepoId
+                      ? "truncate font-mono text-xs text-text-primary font-medium"
+                      : "truncate font-mono text-xs text-text-secondary"
+                  }
+                  title={r.path}
+                >
                   {basename(r.path)}
                 </span>
               </ListItem>

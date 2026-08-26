@@ -23,6 +23,7 @@ function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
 
   // Initialize theme immediately so the <html> class is correct on first render
   useTheme();
@@ -35,7 +36,7 @@ function App(): React.JSX.Element {
       });
   }, []);
 
-  const showWorkingCopy = activeWorkspaceId !== null;
+  const showWorkingCopy = activeWorkspaceId !== null && activeRepoId !== null;
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary">
@@ -113,7 +114,7 @@ function App(): React.JSX.Element {
       </div>
 
       {/* ── Working Copy Bar ─────────────────────────────────────────────── */}
-      {showWorkingCopy && <WorkingCopyBar repoId={null} initialHeight={120} />}
+      {showWorkingCopy && <WorkingCopyBar repoId={activeRepoId} initialHeight={120} />}
     </div>
   );
 }
@@ -242,6 +243,7 @@ function FeatureNav(): React.JSX.Element {
 /** Main content area — shows diff for selected commit or working copy */
 function MainContent(): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
 
   if (!activeWorkspaceId) {
     return (
@@ -254,6 +256,19 @@ function MainContent(): React.JSX.Element {
           }
           title="Welcome to GitWave"
           description="Select a workspace from the sidebar to get started."
+          className="py-16"
+        />
+      </main>
+    );
+  }
+
+  if (!activeRepoId) {
+    return (
+      <main className="flex flex-col flex-1 items-center justify-center bg-bg-primary">
+        <EmptyState
+          icon={<FolderOpen size={32} />}
+          title="No repository selected"
+          description="Select a repository from the sidebar to view history and diffs."
           className="py-16"
         />
       </main>
