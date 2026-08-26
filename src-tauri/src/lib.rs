@@ -16,17 +16,18 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    abort_merge, add_local_repo, add_ssh_key, add_worktree, apply_stash, checkout_branch,
-    clear_ai_api_key, clone_repo, commit, create_branch, create_workspace, delete_branch,
-    delete_ssh_key, delete_workspace, drop_stash, explain_conflict, fetch, generate_commit_message,
-    get_ahead_behind, get_ai_key_status, get_blame, get_branches, get_commit_diff, get_commit_log,
-    get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff, get_working_copy,
-    get_workspace, init_repo, list_conflicts, list_repos, list_ssh_keys, list_stashes,
-    list_workspaces, list_worktrees, merge_branch, merge_in_progress, pop_stash, probe_ollama, pull,
-    push, rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace,
-    resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files,
-    test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus,
-    AppContext,
+    abort_interactive_rebase_pause, abort_merge, add_local_repo, add_ssh_key, add_worktree,
+    apply_stash, checkout_branch, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
+    create_branch, create_workspace, delete_branch, delete_ssh_key, delete_workspace, drop_stash,
+    execute_interactive_rebase, explain_conflict, fetch, generate_commit_message, get_ahead_behind,
+    get_ai_key_status, get_blame, get_branches, get_commit_diff, get_commit_log, get_conflict_sides,
+    get_file_diff, get_stash_diff, get_workdir_diff, get_working_copy, get_workspace, init_repo,
+    interactive_rebase_paused, list_conflicts, list_repos, list_ssh_keys, list_stashes,
+    list_workspaces, list_worktrees, merge_branch, merge_in_progress, plan_interactive_rebase,
+    pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
+    rename_workspace, resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all,
+    stage_files, test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind,
+    AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -39,6 +40,7 @@ use domain::worktree::WorktreeInfo;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
 use infrastructure::git::conflict::{ConflictFile, ConflictSides};
 use infrastructure::git::diff::DiffSummary;
+use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, InteractiveRebaseTodo};
 use infrastructure::git::merge::MergeResult;
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
@@ -390,6 +392,49 @@ async fn cmd_rebase_branch(
 }
 
 #[tauri::command]
+async fn cmd_plan_interactive_rebase(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    upstream: String,
+) -> Result<Vec<InteractiveRebaseTodo>, AppError> {
+    plan_interactive_rebase(&ctx, &workspace_id, &upstream)
+}
+
+#[tauri::command]
+async fn cmd_execute_interactive_rebase(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    upstream: String,
+    todos: Vec<InteractiveRebaseTodo>,
+) -> Result<InteractiveRebaseResult, AppError> {
+    execute_interactive_rebase(&ctx, &workspace_id, &upstream, todos)
+}
+
+#[tauri::command]
+async fn cmd_continue_interactive_rebase(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<InteractiveRebaseResult, AppError> {
+    continue_interactive_rebase(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_abort_interactive_rebase_pause(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    abort_interactive_rebase_pause(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_interactive_rebase_paused(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<bool, AppError> {
+    interactive_rebase_paused(&ctx, &workspace_id)
+}
+
+#[tauri::command]
 async fn cmd_get_working_copy(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -604,6 +649,11 @@ pub fn run() {
             cmd_merge_in_progress,
             cmd_explain_conflict,
             cmd_rebase_branch,
+            cmd_plan_interactive_rebase,
+            cmd_execute_interactive_rebase,
+            cmd_continue_interactive_rebase,
+            cmd_abort_interactive_rebase_pause,
+            cmd_interactive_rebase_paused,
             cmd_get_working_copy,
             cmd_stage_files,
             cmd_unstage_files,

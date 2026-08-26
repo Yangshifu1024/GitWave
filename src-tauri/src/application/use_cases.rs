@@ -36,6 +36,14 @@ use crate::infrastructure::git::history::{
     list_branches as infra_list_branches,
 };
 use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
+use crate::infrastructure::git::interactive_rebase::{
+    abort_interactive_rebase_pause as infra_abort_irebase_pause,
+    continue_interactive_rebase as infra_continue_irebase,
+    execute_interactive_rebase as infra_execute_irebase,
+    interactive_rebase_paused as infra_irebase_paused,
+    plan_interactive_rebase as infra_plan_irebase, InteractiveRebaseResult,
+    InteractiveRebaseTodo,
+};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::remote::{
     fetch as infra_fetch, pull as infra_pull, push as infra_push,
@@ -667,6 +675,48 @@ pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Re
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_rebase_branch(&repo, upstream)
+}
+
+pub fn plan_interactive_rebase(
+    ctx: &AppContext,
+    workspace_id: &str,
+    upstream: &str,
+) -> Result<Vec<InteractiveRebaseTodo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_plan_irebase(&repo, upstream)
+}
+
+pub fn execute_interactive_rebase(
+    ctx: &AppContext,
+    workspace_id: &str,
+    upstream: &str,
+    todos: Vec<InteractiveRebaseTodo>,
+) -> Result<InteractiveRebaseResult> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_execute_irebase(&repo, upstream, &todos)
+}
+
+pub fn continue_interactive_rebase(
+    ctx: &AppContext,
+    workspace_id: &str,
+) -> Result<InteractiveRebaseResult> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_continue_irebase(&repo)
+}
+
+pub fn abort_interactive_rebase_pause(ctx: &AppContext, workspace_id: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_abort_irebase_pause(&repo)
+}
+
+pub fn interactive_rebase_paused(ctx: &AppContext, workspace_id: &str) -> Result<bool> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    Ok(infra_irebase_paused(&repo))
 }
 
 // ─── Working copy (Sprint 4) ────────────────────────────────────────────────

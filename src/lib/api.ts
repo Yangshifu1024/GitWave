@@ -371,6 +371,71 @@ export function rebaseBranch(workspaceId: string, upstream: string): Promise<Reb
   return invoke<RebaseResult>("cmd_rebase_branch", { workspaceId, upstream });
 }
 
+// ─── Interactive rebase ──────────────────────────────────────────────────────
+
+export type InteractiveRebaseAction =
+  | "pick"
+  | "reword"
+  | "edit"
+  | "squash"
+  | "fixup"
+  | "drop";
+
+export interface InteractiveRebaseTodo {
+  oid: string;
+  summary: string;
+  action: InteractiveRebaseAction;
+  message: string | null;
+}
+
+export type InteractiveRebaseKind =
+  | "clean"
+  | "already_up_to_date"
+  | "conflicts"
+  | "paused_for_edit";
+
+export interface InteractiveRebaseResult {
+  kind: InteractiveRebaseKind;
+  conflicts: string[];
+  new_head: string | null;
+}
+
+export function planInteractiveRebase(
+  workspaceId: string,
+  upstream: string,
+): Promise<InteractiveRebaseTodo[]> {
+  return invoke<InteractiveRebaseTodo[]>("cmd_plan_interactive_rebase", {
+    workspaceId,
+    upstream,
+  });
+}
+
+export function executeInteractiveRebase(
+  workspaceId: string,
+  upstream: string,
+  todos: InteractiveRebaseTodo[],
+): Promise<InteractiveRebaseResult> {
+  return invoke<InteractiveRebaseResult>("cmd_execute_interactive_rebase", {
+    workspaceId,
+    upstream,
+    todos,
+  });
+}
+
+export function continueInteractiveRebase(
+  workspaceId: string,
+): Promise<InteractiveRebaseResult> {
+  return invoke<InteractiveRebaseResult>("cmd_continue_interactive_rebase", { workspaceId });
+}
+
+export function abortInteractiveRebasePause(workspaceId: string): Promise<void> {
+  return invoke<void>("cmd_abort_interactive_rebase_pause", { workspaceId });
+}
+
+export function interactiveRebasePaused(workspaceId: string): Promise<boolean> {
+  return invoke<boolean>("cmd_interactive_rebase_paused", { workspaceId });
+}
+
 // ─── Conflicts ───────────────────────────────────────────────────────────────
 
 export interface ConflictFile {

@@ -11,6 +11,7 @@ pub mod credentials;
 pub mod diff;
 pub mod git2_adapter;
 pub mod history;
+pub mod interactive_rebase;
 pub mod merge;
 pub mod rebase;
 pub mod remote;

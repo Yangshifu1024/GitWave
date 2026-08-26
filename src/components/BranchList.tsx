@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BranchInfo } from "@/lib/api";
 import {
+  abortInteractiveRebasePause,
+  continueInteractiveRebase,
   checkoutBranch,
   createBranch,
   deleteBranch,
   formatAppError,
   getBranches,
+  interactiveRebasePaused,
   mergeBranch,
   rebaseBranch,
 } from "@/lib/api";
@@ -15,8 +18,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ListItem } from "@/components/ui/ListItem";
-import { ArrowRight, GitBranch, GitMerge, GitPullRequestArrow, Plus, Trash2 } from "lucide-react";
-
+import { InteractiveRebaseDialog } from "@/components/InteractiveRebaseDialog";
+import { ArrowRight, GitBranch, GitMerge, GitPullRequestArrow, ListOrdered, Plus, Trash2 } from "lucide-react";
 function BranchIcon({ kind }: { kind: "local" | "remote" }): React.JSX.Element {
   return (
     <GitBranch
@@ -33,6 +36,7 @@ interface BranchRowProps {
   onDelete: (name: string) => void;
   onMerge: (name: string) => void;
   onRebaseOnto: (name: string) => void;
+  onInteractiveRebase: (name: string) => void;
 }
 
 function BranchRow({
@@ -42,6 +46,7 @@ function BranchRow({
   onDelete,
   onMerge,
   onRebaseOnto,
+  onInteractiveRebase,
 }: BranchRowProps): React.JSX.Element {
   return (
     <ListItem
@@ -85,6 +90,19 @@ function BranchRow({
                 title={`Rebase current onto ${branch.name}`}
               >
                 <GitPullRequestArrow size={12} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1"
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onInteractiveRebase(branch.name);
+                }}
+                title={`Interactive rebase onto ${branch.name}`}
+              >
+                <ListOrdered size={12} />
               </Button>
               <Button
                 variant="ghost"
@@ -135,6 +153,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const [notice, setNotice] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [irebaseOnto, setIrebaseOnto] = useState<string | null>(null);
+  const [irebasePaused, setIrebasePaused] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!activeWorkspaceId) return;
@@ -147,6 +167,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (!activeWorkspaceId || !activeRepoId) {
       setBranches([]);
       setError(null);
+      setIrebasePaused(false);
       return;
     }
     setLoading(true);
@@ -155,6 +176,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       .then(setBranches)
       .catch((e) => setError(formatAppError(e)))
       .finally(() => setLoading(false));
+    interactiveRebasePaused(activeWorkspaceId)
+      .then(setIrebasePaused)
+      .catch(() => setIrebasePaused(false));
   }, [activeWorkspaceId, activeRepoId]);
 
   const run = async (fn: () => Promise<void>) => {
@@ -165,6 +189,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     try {
       await fn();
       await refresh();
+      const paused = await interactiveRebasePaused(activeWorkspaceId);
+      setIrebasePaused(paused);
     } catch (e) {
       setError(formatAppError(e));
     } finally {
@@ -226,6 +252,24 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       }
     });
 
+  const handleContinueIrebase = () =>
+    void run(async () => {
+      const result = await continueInteractiveRebase(activeWorkspaceId!);
+      if (result.kind === "conflicts") {
+        setNotice(`Continue rebase conflicts: ${result.conflicts.join(", ")}`);
+      } else if (result.kind === "paused_for_edit") {
+        setNotice("Still paused for edit — amend then Continue again.");
+      } else {
+        setNotice(`Continued interactive rebase (${result.kind.replace(/_/g, " ")})`);
+      }
+    });
+
+  const handleAbortIrebasePause = () =>
+    void run(async () => {
+      await abortInteractiveRebasePause(activeWorkspaceId!);
+      setNotice("Cleared interactive rebase pause state");
+    });
+
   if (!activeWorkspaceId) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
@@ -269,6 +313,16 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           <span className="text-xs text-text-muted truncate">
             from <span className="text-text-secondary font-medium">{current.name}</span>
           </span>
+        ) : null}
+        {irebasePaused ? (
+          <>
+            <Button variant="primary" size="sm" disabled={busy} onClick={handleContinueIrebase}>
+              Continue rebase
+            </Button>
+            <Button variant="ghost" size="sm" disabled={busy} onClick={handleAbortIrebasePause}>
+              Discard pause
+            </Button>
+          </>
         ) : null}
       </div>
 
@@ -323,6 +377,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                     onDelete={handleDelete}
                     onMerge={handleMerge}
                     onRebaseOnto={handleRebaseOnto}
+                    onInteractiveRebase={(name) => setIrebaseOnto(name)}
                   />
                 ))}
               </div>
@@ -342,6 +397,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                     onDelete={handleDelete}
                     onMerge={handleMerge}
                     onRebaseOnto={handleRebaseOnto}
+                    onInteractiveRebase={(name) => setIrebaseOnto(name)}
                   />
                 ))}
               </div>
@@ -349,6 +405,20 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           </>
         )}
       </div>
+
+      {irebaseOnto && activeWorkspaceId ? (
+        <InteractiveRebaseDialog
+          open={true}
+          workspaceId={activeWorkspaceId}
+          upstream={irebaseOnto}
+          onClose={() => setIrebaseOnto(null)}
+          onDone={(msg) => {
+            setNotice(msg);
+            void refresh();
+            void interactiveRebasePaused(activeWorkspaceId).then(setIrebasePaused);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
