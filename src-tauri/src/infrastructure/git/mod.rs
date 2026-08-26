@@ -16,6 +16,7 @@ pub mod remote;
 pub mod repo_adapter;
 pub mod stash;
 pub mod working_copy;
+pub mod worktree;
 
 #[cfg(test)]
 mod test_helpers;

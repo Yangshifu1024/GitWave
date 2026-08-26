@@ -19,6 +19,7 @@ import { CommitGraph } from "@/components/CommitGraph";
 import { DiffViewer } from "@/components/DiffViewer";
 import { BranchList } from "@/components/BranchList";
 import { StashPanel } from "@/components/StashPanel";
+import { WorktreePanel } from "@/components/WorktreePanel";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
@@ -229,17 +230,8 @@ function FeatureNav({
           />
         </TabsContent>
 
-        <TabsContent value="worktrees" className="flex-1 min-h-0 overflow-auto p-4">
-          <EmptyState
-            icon={
-              <span className="text-2xl" aria-hidden="true">
-                &#x25A1;
-              </span>
-            }
-            title="Worktrees"
-            description="Worktree list coming in Sprint 5."
-            className="py-8"
-          />
+        <TabsContent value="worktrees" className="flex-1 min-h-0 overflow-hidden p-0">
+          <WorktreePanel />
         </TabsContent>
       </Tabs>
     </div>

@@ -423,3 +423,37 @@ export function dropStash(workspaceId: string, index: number): Promise<void> {
 export function getStashDiff(workspaceId: string, oid: string): Promise<DiffSummary> {
   return invoke<DiffSummary>("cmd_get_stash_diff", { workspaceId, oid });
 }
+
+// ─── Worktree ────────────────────────────────────────────────────────────────
+
+export interface WorktreeInfo {
+  name: string;
+  path: string;
+  is_main: boolean;
+  is_locked: boolean;
+  branch: string | null;
+}
+
+export function listWorktrees(workspaceId: string): Promise<WorktreeInfo[]> {
+  return invoke<WorktreeInfo[]>("cmd_list_worktrees", { workspaceId });
+}
+
+export function addWorktree(
+  workspaceId: string,
+  name: string,
+  path: string,
+  branch: string,
+  createBranch: boolean,
+): Promise<WorktreeInfo> {
+  return invoke<WorktreeInfo>("cmd_add_worktree", {
+    workspaceId,
+    name,
+    path,
+    branch,
+    createBranch,
+  });
+}
+
+export function removeWorktree(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_remove_worktree", { workspaceId, name });
+}

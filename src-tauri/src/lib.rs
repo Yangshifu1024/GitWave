@@ -16,13 +16,14 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    add_local_repo, add_ssh_key, apply_stash, checkout_branch, clone_repo, commit, create_branch,
-    create_workspace, delete_branch, delete_ssh_key, delete_workspace, drop_stash, fetch,
-    get_ahead_behind, get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff,
+    add_local_repo, add_ssh_key, add_worktree, apply_stash, checkout_branch, clone_repo, commit,
+    create_branch, create_workspace, delete_branch, delete_ssh_key, delete_workspace, drop_stash,
+    fetch, get_ahead_behind, get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff,
     get_stash_diff, get_workdir_diff, get_working_copy, init_repo, list_repos, list_ssh_keys,
-    list_stashes, list_workspaces, merge_branch, pop_stash, pull, push, rebase_branch, relink_repo,
-    remove_repo, rename_workspace, save_stash, set_active_repo, stage_all, stage_files,
-    test_ssh_connection, unstage_files, AheadBehind, AppContext,
+    list_stashes, list_workspaces, list_worktrees, merge_branch, pop_stash, pull, push,
+    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, save_stash,
+    set_active_repo, stage_all, stage_files, test_ssh_connection, unstage_files, AheadBehind,
+    AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -31,6 +32,7 @@ use domain::error::AppError;
 use domain::history::CommitSummary;
 use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
+use domain::worktree::WorktreeInfo;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSummary};
 use infrastructure::git::diff::DiffSummary;
 use infrastructure::git::merge::MergeResult;
@@ -402,6 +404,35 @@ async fn cmd_get_stash_diff(
     get_stash_diff(&ctx, &workspace_id, &oid)
 }
 
+#[tauri::command]
+async fn cmd_list_worktrees(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<WorktreeInfo>, AppError> {
+    list_worktrees(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_add_worktree(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    path: String,
+    branch: String,
+    create_branch: bool,
+) -> Result<WorktreeInfo, AppError> {
+    add_worktree(&ctx, &workspace_id, name, path, branch, create_branch)
+}
+
+#[tauri::command]
+async fn cmd_remove_worktree(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    remove_worktree(&ctx, &workspace_id, name)
+}
+
 // ─── App startup ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -466,6 +497,9 @@ pub fn run() {
             cmd_pop_stash,
             cmd_drop_stash,
             cmd_get_stash_diff,
+            cmd_list_worktrees,
+            cmd_add_worktree,
+            cmd_remove_worktree,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

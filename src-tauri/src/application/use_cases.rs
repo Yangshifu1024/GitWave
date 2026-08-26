@@ -12,6 +12,7 @@ use crate::domain::error::{AppError, Result};
 use crate::domain::history::CommitSummary;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
+use crate::domain::worktree::WorktreeInfo;
 use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
 };
@@ -40,6 +41,10 @@ use crate::infrastructure::git::stash::{
 use crate::infrastructure::git::working_copy::{
     commit as infra_commit, stage_all as infra_stage_all, stage_paths as infra_stage_paths,
     status as infra_wc_status, unstage_paths as infra_unstage_paths,
+};
+use crate::infrastructure::git::worktree::{
+    add_worktree as infra_add_worktree, list_worktrees as infra_list_worktrees,
+    remove_worktree as infra_remove_worktree,
 };
 use crate::infrastructure::persistence::workspace_repo::WorkspaceRepository;
 use crate::infrastructure::persistence::SqliteWorkspaceRepo;
@@ -545,6 +550,39 @@ pub fn get_stash_diff(ctx: &AppContext, workspace_id: &str, oid: &str) -> Result
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_stash_diff(&repo, oid)
+}
+
+// ─── Worktree (Sprint 5) ────────────────────────────────────────────────────
+
+pub fn list_worktrees(ctx: &AppContext, workspace_id: &str) -> Result<Vec<WorktreeInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_worktrees(&repo)
+}
+
+pub fn add_worktree(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: String,
+    path: String,
+    branch: String,
+    create_branch: bool,
+) -> Result<WorktreeInfo> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_add_worktree(
+        &repo,
+        &name,
+        PathBuf::from(path).as_path(),
+        &branch,
+        create_branch,
+    )
+}
+
+pub fn remove_worktree(ctx: &AppContext, workspace_id: &str, name: String) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_remove_worktree(&repo, &name)
 }
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
