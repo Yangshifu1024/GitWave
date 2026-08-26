@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { RepoList } from "@/components/RepoList";
 import { SshKeyManager } from "@/components/SshKeyManager";
+import { WorkspaceSwitcherDropdown } from "@/components/WorkspaceSwitcherDropdown";
 import { WorkingCopyBar } from "@/components/ui/WorkingCopyBar";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { getAppVersion } from "@/lib/api";
@@ -35,9 +36,9 @@ function App(): React.JSX.Element {
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary">
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <header className="flex items-center shrink-0 h-12 px-4 gap-4 bg-bg-secondary border-b border-border-subtle">
-        {/* Left: Workspace switcher */}
-        <div className="w-48 shrink-0">
-          <WorkspaceSwitcherInTopbar />
+        {/* Left: Workspace switcher (DropdownMenu: select + create) */}
+        <div className="shrink-0">
+          <WorkspaceSwitcherDropdown />
         </div>
 
         {/* Center: nothing yet (branch indicator will go here Sprint 4) */}
@@ -96,29 +97,6 @@ function App(): React.JSX.Element {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
-
-/** Compact workspace switcher for the topbar — no header, just the active ws name */
-function WorkspaceSwitcherInTopbar(): React.JSX.Element {
-  const activeId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const setActiveId = useWorkspaceUiStore((s) => s.setActiveWorkspaceId);
-  // We'll just show the active workspace name with a dropdown indicator
-  // The full switcher is rendered in the sidebar for now (Sprint 1-2 pattern)
-  // For topbar we keep it minimal
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        // In Sprint 2+ this would open a dropdown; for now just indicate selection
-        void setActiveId;
-      }}
-      className="flex items-center gap-1 text-sm font-medium text-text-primary hover:text-accent transition-colors"
-    >
-      <span className="truncate max-w-[160px]">
-        {activeId ? "Workspace" : "Select workspace"}
-      </span>
-    </button>
-  );
-}
 
 /** SshKeyManager wrapped in a ghost button that opens its own modal */
 function SshKeyManagerPopover(): React.JSX.Element {
