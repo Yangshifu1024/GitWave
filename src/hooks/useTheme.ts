@@ -17,9 +17,7 @@ function readStoredTheme(): Theme {
 
 function resolveTheme(stored: Theme): "light" | "dark" {
   if (stored === "system") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
   return stored;
 }
@@ -39,9 +37,7 @@ function applyTheme(resolved: "light" | "dark"): void {
  */
 export function useTheme(): UseThemeReturn {
   const [theme, setThemeState] = useState<Theme>(readStoredTheme);
-  const [resolved, setResolved] = useState<"light" | "dark">(() =>
-    resolveTheme(readStoredTheme()),
-  );
+  const [resolved, setResolved] = useState<"light" | "dark">(() => resolveTheme(readStoredTheme()));
 
   // Apply resolved theme to <html> whenever it changes
   useEffect(() => {

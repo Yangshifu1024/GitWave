@@ -118,7 +118,9 @@ export function WorkingCopyBar({
           ahead={data.ahead}
           behind={data.behind}
         />
-        <span>clean · {data.ahead} ↑ {data.behind} ↓</span>
+        <span>
+          clean · {data.ahead} ↑ {data.behind} ↓
+        </span>
       </div>
     );
   }
@@ -176,9 +178,7 @@ export function WorkingCopyBar({
               </div>
               <div className="px-1 pb-2">
                 {unstagedFiles.length === 0 ? (
-                  <p className="px-2 py-1 text-xs text-text-muted italic">
-                    Nounstaged changes
-                  </p>
+                  <p className="px-2 py-1 text-xs text-text-muted italic">Nounstaged changes</p>
                 ) : (
                   unstagedFiles.map((f) => (
                     <FileListItem
@@ -202,9 +202,7 @@ export function WorkingCopyBar({
               </div>
               <div className="px-1 pb-2">
                 {stagedFiles.length === 0 ? (
-                  <p className="px-2 py-1 text-xs text-text-muted italic">
-                    No staged changes
-                  </p>
+                  <p className="px-2 py-1 text-xs text-text-muted italic">No staged changes</p>
                 ) : (
                   stagedFiles.map((f) => (
                     <FileListItem

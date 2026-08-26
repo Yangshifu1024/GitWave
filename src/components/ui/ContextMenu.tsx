@@ -27,8 +27,9 @@ export const ContextMenuContent = forwardRef<
 ));
 ContextMenuContent.displayName = "ContextMenuContent";
 
-export interface ContextMenuItemProps
-  extends React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Item> {
+export interface ContextMenuItemProps extends React.ComponentPropsWithoutRef<
+  typeof ContextMenuPrimitive.Item
+> {
   destructive?: boolean;
   onSelect?: () => void;
 }

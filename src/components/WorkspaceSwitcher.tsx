@@ -1,9 +1,5 @@
 import { useState } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createWorkspace,
@@ -57,8 +53,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
   });
 
   const renameMut = useMutation({
-    mutationFn: ({ id, newName }: { id: string; newName: string }) =>
-      renameWorkspace(id, newName),
+    mutationFn: ({ id, newName }: { id: string; newName: string }) => renameWorkspace(id, newName),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       setRenaming(null);
@@ -114,9 +109,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
       {isLoading ? (
         <p className="px-3 py-2 text-sm text-text-muted">Loading…</p>
       ) : error ? (
-        <p className="px-3 py-2 text-sm text-danger">
-          Failed to load: {formatAppError(error)}
-        </p>
+        <p className="px-3 py-2 text-sm text-danger">Failed to load: {formatAppError(error)}</p>
       ) : workspaces.length === 0 ? (
         <EmptyState
           title="No workspaces"

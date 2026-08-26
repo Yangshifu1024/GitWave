@@ -45,9 +45,7 @@ export function CommitMessageBox({
       <textarea
         ref={textareaRef}
         value={value}
-        onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-          onChange(e.currentTarget.value)
-        }
+        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.currentTarget.value)}
         onKeyDown={handleKeyDown}
         placeholder="feat: your commit message here…"
         disabled={disabled}

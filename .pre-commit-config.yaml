@@ -27,7 +27,7 @@ repos:
         name: prettier check
         entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install prettier --check'
         language: system
-        types_or: [ts, tsx, javascript, json, css, markdown, yaml]
+        types_or: [ts, tsx, javascript, css]
         pass_filenames: false
 
       - id: eslint

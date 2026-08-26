@@ -36,17 +36,13 @@ export function ListItem({
       )}
     >
       {/* Leading slot */}
-      {leading ? (
-        <span className="shrink-0 text-text-muted">{leading}</span>
-      ) : null}
+      {leading ? <span className="shrink-0 text-text-muted">{leading}</span> : null}
 
       {/* Content */}
       <span className="flex-1 min-w-0">{children}</span>
 
       {/* Trailing slot */}
-      {trailing ? (
-        <span className="shrink-0 flex items-center gap-1">{trailing}</span>
-      ) : null}
+      {trailing ? <span className="shrink-0 flex items-center gap-1">{trailing}</span> : null}
     </div>
   );
 }

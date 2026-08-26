@@ -63,8 +63,7 @@ export function SshKeyManager(): React.JSX.Element {
   });
 
   const testMut = useMutation({
-    mutationFn: ({ host, user }: { host: string; user: string }) =>
-      testSshConnection(host, user),
+    mutationFn: ({ host, user }: { host: string; user: string }) => testSshConnection(host, user),
     onSuccess: (res) => {
       setTestResult(res);
     },
@@ -81,9 +80,7 @@ export function SshKeyManager(): React.JSX.Element {
     <div className="flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-          SSH Keys
-        </h2>
+        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">SSH Keys</h2>
         <span className="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -108,9 +105,7 @@ export function SshKeyManager(): React.JSX.Element {
       {isLoading ? (
         <p className="px-3 py-2 text-sm text-text-muted">Loading keys…</p>
       ) : error ? (
-        <p className="px-3 py-2 text-sm text-danger">
-          Failed to load: {formatAppError(error)}
-        </p>
+        <p className="px-3 py-2 text-sm text-danger">Failed to load: {formatAppError(error)}</p>
       ) : keys.length === 0 ? (
         <EmptyState
           title="No keys in ssh-agent"
@@ -140,12 +135,8 @@ export function SshKeyManager(): React.JSX.Element {
                 }
               >
                 <div className="flex flex-col min-w-0">
-                  <span className="truncate font-mono text-xs text-text-primary">
-                    {k.path}
-                  </span>
-                  <code className="truncate text-xs text-text-muted">
-                    {k.fingerprint}
-                  </code>
+                  <span className="truncate font-mono text-xs text-text-primary">{k.path}</span>
+                  <code className="truncate text-xs text-text-muted">{k.fingerprint}</code>
                 </div>
               </ListItem>
             </li>
@@ -178,15 +169,14 @@ export function SshKeyManager(): React.JSX.Element {
                 value={addPath}
                 onChange={setAddPath}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && addPath.trim())
-                    addMut.mutate(addPath.trim());
+                  if (e.key === "Enter" && addPath.trim()) addMut.mutate(addPath.trim());
                 }}
                 placeholder="~/.ssh/id_ed25519"
                 error={actionError}
               />
               <p className="text-xs text-text-muted">
-                Adds the key to ssh-agent (ssh-add). For passphrase-protected
-                keys, the agent may prompt via terminal.
+                Adds the key to ssh-agent (ssh-add). For passphrase-protected keys, the agent may
+                prompt via terminal.
               </p>
             </div>
           </div>
@@ -236,12 +226,7 @@ export function SshKeyManager(): React.JSX.Element {
               <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-user">
                 User
               </label>
-              <Input
-                id="ssh-test-user"
-                value={testUser}
-                onChange={setTestUser}
-                placeholder="git"
-              />
+              <Input id="ssh-test-user" value={testUser} onChange={setTestUser} placeholder="git" />
             </div>
             {actionError && <p className="text-xs text-danger">{actionError}</p>}
             {testResult && (
@@ -262,12 +247,7 @@ export function SshKeyManager(): React.JSX.Element {
             )}
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={runTest}
-              disabled={testMut.isPending}
-            >
+            <Button variant="secondary" size="sm" onClick={runTest} disabled={testMut.isPending}>
               {testMut.isPending ? "Testing…" : "Run test"}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setTesting(false)}>

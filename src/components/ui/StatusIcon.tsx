@@ -8,10 +8,7 @@ export interface StatusIconProps {
   className?: string;
 }
 
-const statusConfig: Record<
-  FileStatusKind,
-  { char: string; color: string }
-> = {
+const statusConfig: Record<FileStatusKind, { char: string; color: string }> = {
   modified: { char: "M", color: "text-branch-behind" },
   added: { char: "A", color: "text-status-active" },
   deleted: { char: "D", color: "text-danger" },

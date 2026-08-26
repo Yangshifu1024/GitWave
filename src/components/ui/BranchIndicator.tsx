@@ -36,13 +36,9 @@ export function BranchIndicator({
       ) : (
         <>
           <GitBranch size={14} className="text-branch-current shrink-0" />
-          <span className="font-medium text-text-primary truncate max-w-[200px]">
-            {branch}
-          </span>
+          <span className="font-medium text-text-primary truncate max-w-[200px]">{branch}</span>
           {upstream && (
-            <span className="text-text-muted text-xs truncate max-w-[120px]">
-              → {upstream}
-            </span>
+            <span className="text-text-muted text-xs truncate max-w-[120px]">→ {upstream}</span>
           )}
         </>
       )}

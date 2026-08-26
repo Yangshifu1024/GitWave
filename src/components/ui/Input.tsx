@@ -1,8 +1,4 @@
-import {
-  type InputHTMLAttributes,
-  type ChangeEvent,
-  forwardRef,
-} from "react";
+import { type InputHTMLAttributes, type ChangeEvent, forwardRef } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,18 +20,7 @@ function eventValue(e: ChangeEvent<HTMLInputElement>): string {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  (
-    {
-      className,
-      type = "text",
-      variant = "text",
-      error,
-      id,
-      onChange,
-      ...props
-    },
-    ref,
-  ) => {
+  ({ className, type = "text", variant = "text", error, id, onChange, ...props }, ref) => {
     const isSearch = variant === "search";
     const inputId = id ?? `input-${Math.random().toString(36).slice(2, 9)}`;
     const errorId = error ? `${inputId}-error` : undefined;

@@ -44,11 +44,7 @@ function deriveDestName(url: string): string {
 
 type AddKind = "init" | "clone" | "local" | null;
 
-export function RepoList({
-  workspaceId,
-}: {
-  workspaceId: string;
-}): React.JSX.Element {
+export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
 
   const [adding, setAdding] = useState<AddKind>(null);
@@ -100,8 +96,7 @@ export function RepoList({
   });
 
   const cloneMut = useMutation({
-    mutationFn: ({ url, dest }: { url: string; dest: string }) =>
-      cloneRepo(workspaceId, url, dest),
+    mutationFn: ({ url, dest }: { url: string; dest: string }) => cloneRepo(workspaceId, url, dest),
     onSuccess: () => {
       refresh();
       setCloneUrl("");
@@ -145,17 +140,25 @@ export function RepoList({
     <div className="flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-          Repos
-        </h2>
+        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Repos</h2>
         <span className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => startAdd("init")} aria-label="Init repo">
             <GitBranch size={14} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => startAdd("clone")} aria-label="Clone repo">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => startAdd("clone")}
+            aria-label="Clone repo"
+          >
             <FolderPlus size={14} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => startAdd("local")} aria-label="Add local repo">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => startAdd("local")}
+            aria-label="Add local repo"
+          >
             <FolderInput size={14} />
           </Button>
         </span>
@@ -183,9 +186,7 @@ export function RepoList({
                 leading={null}
                 trailing={
                   <span className="flex items-center gap-1">
-                    {r.status === "missing" && (
-                      <StatusBadge variant="missing" />
-                    )}
+                    {r.status === "missing" && <StatusBadge variant="missing" />}
                     {r.status === "missing" ? (
                       <Button
                         variant="ghost"
@@ -217,10 +218,7 @@ export function RepoList({
                   </span>
                 }
               >
-                <span
-                  className="truncate font-mono text-xs text-text-secondary"
-                  title={r.path}
-                >
+                <span className="truncate font-mono text-xs text-text-secondary" title={r.path}>
                   {basename(r.path)}
                 </span>
               </ListItem>
@@ -233,7 +231,9 @@ export function RepoList({
       {adding === "init" && (
         <Modal
           open={true}
-          onOpenChange={(open) => { if (!open) endAdd(); }}
+          onOpenChange={(open) => {
+            if (!open) endAdd();
+          }}
           title="Initialize new repo"
           size="sm"
         >
@@ -243,14 +243,15 @@ export function RepoList({
             value={initPath}
             onChange={setInitPath}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && initPath.trim())
-                initMut.mutate({ path: initPath.trim() });
+              if (e.key === "Enter" && initPath.trim()) initMut.mutate({ path: initPath.trim() });
             }}
             placeholder="Absolute path, e.g. /Users/me/projects/new"
             error={actionError}
           />
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={endAdd}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={endAdd}>
+              Cancel
+            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -267,7 +268,9 @@ export function RepoList({
       {adding === "clone" && (
         <Modal
           open={true}
-          onOpenChange={(open) => { if (!open) endAdd(); }}
+          onOpenChange={(open) => {
+            if (!open) endAdd();
+          }}
           title="Clone remote repo"
           size="sm"
         >
@@ -307,13 +310,13 @@ export function RepoList({
             {actionError && <p className="text-xs text-danger">{actionError}</p>}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={endAdd}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={endAdd}>
+              Cancel
+            </Button>
             <Button
               variant="primary"
               size="sm"
-              onClick={() =>
-                cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })
-              }
+              onClick={() => cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })}
               disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
             >
               Clone
@@ -326,7 +329,9 @@ export function RepoList({
       {adding === "local" && (
         <Modal
           open={true}
-          onOpenChange={(open) => { if (!open) endAdd(); }}
+          onOpenChange={(open) => {
+            if (!open) endAdd();
+          }}
           title="Add existing local repo"
           size="sm"
         >
@@ -343,7 +348,9 @@ export function RepoList({
             error={actionError}
           />
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={endAdd}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={endAdd}>
+              Cancel
+            </Button>
             <Button
               variant="primary"
               size="sm"
@@ -360,7 +367,9 @@ export function RepoList({
       {relinking && (
         <Modal
           open={true}
-          onOpenChange={(open) => { if (!open) setRelinking(null); }}
+          onOpenChange={(open) => {
+            if (!open) setRelinking(null);
+          }}
           title={`Relink "${relinking.path}"`}
           size="sm"
         >
@@ -377,13 +386,13 @@ export function RepoList({
             error={actionError}
           />
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setRelinking(null)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={() => setRelinking(null)}>
+              Cancel
+            </Button>
             <Button
               variant="primary"
               size="sm"
-              onClick={() =>
-                relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() })
-              }
+              onClick={() => relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() })}
               disabled={!relinkPath.trim() || relinkMut.isPending}
             >
               Relink
@@ -396,19 +405,21 @@ export function RepoList({
       {removing && (
         <Modal
           open={true}
-          onOpenChange={(open) => { if (!open) setRemoving(null); }}
+          onOpenChange={(open) => {
+            if (!open) setRemoving(null);
+          }}
           title={`Remove "${basename(removing.path)}"?`}
           description={`Path: ${removing.path}`}
           size="sm"
         >
-          <p className="text-sm text-text-secondary">
-            Removes the workspace reference.
-          </p>
+          <p className="text-sm text-text-secondary">Removes the workspace reference.</p>
           <p className="text-sm text-text-secondary">
             The local directory and its .git/ folder are not touched.
           </p>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setRemoving(null)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={() => setRemoving(null)}>
+              Cancel
+            </Button>
             <Button
               variant="danger"
               size="sm"

@@ -64,22 +64,15 @@ export function FileListItem({
       </button>
 
       {/* File path */}
-      <span
-        className="flex-1 min-w-0 truncate text-text-primary"
-        title={path}
-      >
+      <span className="flex-1 min-w-0 truncate text-text-primary" title={path}>
         {path}
       </span>
 
       {/* +/- stats */}
       {additions > 0 || deletions > 0 ? (
         <span className="shrink-0 flex items-center gap-1.5 font-mono text-xs">
-          {additions > 0 && (
-            <span className="text-status-active">+{additions}</span>
-          )}
-          {deletions > 0 && (
-            <span className="text-danger">-{deletions}</span>
-          )}
+          {additions > 0 && <span className="text-status-active">+{additions}</span>}
+          {deletions > 0 && <span className="text-danger">-{deletions}</span>}
         </span>
       ) : null}
     </div>
