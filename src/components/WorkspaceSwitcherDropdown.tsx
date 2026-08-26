@@ -24,7 +24,7 @@ import { Check, ChevronDown, FolderPlus, Pencil, Trash2 } from "lucide-react";
 export function WorkspaceSwitcherDropdown(): React.JSX.Element {
   const queryClient = useQueryClient();
   const activeId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const setActiveId = useWorkspaceUiStore((s) => s.setActiveWorkspaceId);
+  const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
 
   // ── Create ──
   const [createOpen, setCreateOpen] = useState(false);
@@ -75,7 +75,7 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
     mutationFn: (id: string) => deleteWorkspace(id),
     onSuccess: (_void, id) => {
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      if (activeId === id) setActiveId(null);
+      if (activeId === id) selectWorkspace(null);
       setDeleting(null);
     },
   });
@@ -148,7 +148,7 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
                 return (
                   <DropdownMenu.Item
                     key={ws.id}
-                    onSelect={() => setActiveId(ws.id)}
+                    onSelect={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
                     className="group flex items-center gap-2 px-2 py-1 text-sm rounded-sm cursor-pointer outline-none data-[highlighted]:bg-bg-secondary"
                   >
                     <span className="w-4 shrink-0 text-accent">

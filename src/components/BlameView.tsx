@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { BlameLine } from "@/lib/api";
-import { getBlame } from "@/lib/api";
+import { formatAppError, getBlame } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 
@@ -106,27 +106,37 @@ interface BlameViewProps {
 
 export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const [lines, setLines] = useState<BlameLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!activeWorkspaceId || !path) {
+    if (!activeWorkspaceId || !activeRepoId || !path) {
       setLines([]);
+      setError(null);
       return;
     }
     setLoading(true);
     setError(null);
     getBlame(activeWorkspaceId, path)
       .then(setLines)
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(formatAppError(e)))
       .finally(() => setLoading(false));
-  }, [activeWorkspaceId, path]);
+  }, [activeWorkspaceId, activeRepoId, path]);
 
   if (!activeWorkspaceId) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
         Select a workspace to view blame
+      </div>
+    );
+  }
+
+  if (!activeRepoId) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+        Select a repository to view blame
       </div>
     );
   }

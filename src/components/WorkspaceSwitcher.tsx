@@ -21,7 +21,7 @@ import { FolderPlus, Pencil, Trash2 } from "lucide-react";
 export function WorkspaceSwitcher(): React.JSX.Element {
   const queryClient = useQueryClient();
   const activeId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const setActiveId = useWorkspaceUiStore((s) => s.setActiveWorkspaceId);
+  const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -64,7 +64,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
     mutationFn: (id: string) => deleteWorkspace(id),
     onSuccess: (_void, id) => {
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      if (activeId === id) setActiveId(null);
+      if (activeId === id) selectWorkspace(null);
       setDeleting(null);
     },
   });
@@ -127,7 +127,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
             <li key={ws.id}>
               <ListItem
                 selected={ws.id === activeId}
-                onClick={() => setActiveId(ws.id)}
+                onClick={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
                 leading={null}
                 trailing={
                   <span className="flex items-center gap-1">
