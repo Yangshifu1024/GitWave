@@ -12,8 +12,12 @@ concurrency:
 
 jobs:
   rust-lint:
-    name: Rust lint
-    runs-on: macos-latest
+    name: Rust lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -22,6 +26,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+      - name: Install build deps (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y cmake
       - name: cargo fmt
         working-directory: src-tauri
         run: cargo fmt -- --check
@@ -30,8 +37,12 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
   frontend-lint:
-    name: Frontend lint
-    runs-on: ubuntu-latest
+    name: Frontend lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
