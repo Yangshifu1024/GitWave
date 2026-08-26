@@ -3,9 +3,50 @@ import type { DiffSummary, FileDiff, DiffHunk, DiffLine } from "@/lib/api";
 import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
+import { BlameView } from "@/components/BlameView";
 import { cn } from "@/lib/utils";
 
 type DiffViewMode = "unified" | "split";
+type PanelMode = "diff" | "blame";
+
+/** Highlight character-level changes between old and new strings. */
+function WordDiffSpans({
+  before,
+  after,
+  side,
+}: {
+  before: string;
+  after: string;
+  side: "removed" | "added";
+}): React.JSX.Element {
+  // Longest common prefix/suffix → middle is the changed span.
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) {
+    start += 1;
+  }
+  let endBefore = before.length;
+  let endAfter = after.length;
+  while (
+    endBefore > start &&
+    endAfter > start &&
+    before[endBefore - 1] === after[endAfter - 1]
+  ) {
+    endBefore -= 1;
+    endAfter -= 1;
+  }
+  const text = side === "removed" ? before : after;
+  const midStart = start;
+  const midEnd = side === "removed" ? endBefore : endAfter;
+  return (
+    <>
+      {text.slice(0, midStart)}
+      <span className={side === "removed" ? "bg-danger/30" : "bg-success/30"}>
+        {text.slice(midStart, midEnd)}
+      </span>
+      {text.slice(midEnd)}
+    </>
+  );
+}
 
 interface DiffViewerProps {
   /** If provided, show diff for this commit vs its parent */
@@ -122,14 +163,46 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
 }
 
 function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): React.JSX.Element {
+  const rendered: React.JSX.Element[] = [];
+  const lines = hunk.lines;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const next = lines[i + 1];
+    if (mode === "unified" && line.kind === "removed" && next?.kind === "added") {
+      rendered.push(
+        <div key={`w-${i}`}>
+          <div className="flex text-xs font-mono leading-5 bg-danger/10">
+            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+              {line.old_line_no ?? ""}
+            </span>
+            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums" />
+            <span className="flex-1 px-2 text-danger">
+              - <WordDiffSpans before={line.content} after={next.content} side="removed" />
+            </span>
+          </div>
+          <div className="flex text-xs font-mono leading-5 bg-success/10">
+            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums" />
+            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+              {next.new_line_no ?? ""}
+            </span>
+            <span className="flex-1 px-2 text-success">
+              + <WordDiffSpans before={line.content} after={next.content} side="added" />
+            </span>
+          </div>
+        </div>,
+      );
+      i += 1;
+      continue;
+    }
+    rendered.push(<DiffLineView key={i} line={line} mode={mode} />);
+  }
+
   return (
     <div className="border border-border-subtle rounded-md overflow-hidden mb-3">
       <div className="bg-bg-secondary px-3 py-1 text-xs text-text-muted font-mono border-b border-border-subtle">
         @@ -{hunk.old_start},{hunk.old_lines} +{hunk.new_start},{hunk.new_lines} @@
       </div>
-      {hunk.lines.map((line, i) => (
-        <DiffLineView key={i} line={line} mode={mode} />
-      ))}
+      {rendered}
     </div>
   );
 }
@@ -137,9 +210,11 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
 function FileDiffView({
   fileDiff,
   mode,
+  onBlame,
 }: {
   fileDiff: FileDiff;
   mode: DiffViewMode;
+  onBlame?: (path: string) => void;
 }): React.JSX.Element {
   // Language for future shiki integration
   void getLanguage(getExt(fileDiff.path));
@@ -157,6 +232,11 @@ function FileDiffView({
         <div className="ml-auto flex items-center gap-2 text-xs">
           <span className="text-success">+{fileDiff.additions}</span>
           <span className="text-danger">-{fileDiff.deletions}</span>
+          {onBlame ? (
+            <Button type="button" variant="ghost" size="sm" onClick={() => onBlame(fileDiff.path)}>
+              Blame
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -194,6 +274,8 @@ export function DiffViewer({
   const [diff, setDiff] = useState<DiffSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<DiffViewMode>("unified");
+  const [panel, setPanel] = useState<PanelMode>("diff");
+  const [blamePath, setBlamePath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -204,6 +286,8 @@ export function DiffViewer({
     }
     setLoading(true);
     setError(null);
+    setPanel("diff");
+    setBlamePath(null);
 
     const promise = workdir
       ? getWorkdirDiff(activeWorkspaceId)
@@ -245,6 +329,22 @@ export function DiffViewer({
     return (
       <div className="flex items-center justify-center h-full text-danger text-sm px-4 text-center">
         {error}
+      </div>
+    );
+  }
+
+  if (panel === "blame" && blamePath) {
+    return (
+      <div className="h-full min-h-0 flex flex-col overflow-hidden">
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-border-subtle">
+          <Button type="button" variant="secondary" size="sm" onClick={() => setPanel("diff")}>
+            Back to diff
+          </Button>
+          <span className="text-sm text-text-secondary font-mono truncate">{blamePath}</span>
+        </div>
+        <div className="flex-1 min-h-0">
+          <BlameView path={blamePath} />
+        </div>
       </div>
     );
   }
@@ -291,7 +391,15 @@ export function DiffViewer({
       {/* Files */}
       <div className="p-4">
         {diff.files.map((file, i) => (
-          <FileDiffView key={i} fileDiff={file} mode={mode} />
+          <FileDiffView
+            key={i}
+            fileDiff={file}
+            mode={mode}
+            onBlame={(p) => {
+              setBlamePath(p);
+              setPanel("blame");
+            }}
+          />
         ))}
       </div>
     </div>
