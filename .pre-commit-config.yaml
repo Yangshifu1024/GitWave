@@ -1,0 +1,44 @@
+# GitWave pre-commit hooks — see docs/tech/engineering/00-overview.md
+# Install: pre-commit install --install-hooks
+# Run manually: pre-commit run --all-files
+
+# Stages to install; commit-msg enables Conventional Commits via commitlint.
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --manifest-path src-tauri/Cargo.toml --
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: prettier-check
+        name: prettier check
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install prettier --check'
+        language: system
+        types_or: [ts, tsx, javascript, json, css, markdown, yaml]
+        pass_filenames: false
+
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install eslint .'
+        language: system
+        pass_filenames: false
+
+      - id: commitlint
+        name: commitlint (Conventional Commits)
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install commitlint --edit "$1"'
+        language: system
+        stages: [commit-msg]
+        pass_filenames: false

@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a new feature or improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for new features. For bugs, use the bug report template instead.
+
+  - type: input
+    id: title
+    attributes:
+      label: One-line title
+      placeholder: e.g., "Workspace import/export"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What user need does this address? Reference `docs/pm/core/01-features.md` if applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Sketch the user-visible behavior. Mention affected docs (pm/, tech/, tasks/) if known.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Suggested priority
+      options:
+        - Must (blocks v0.1)
+        - Should (high value, may slip)
+        - Could (nice to have)
+        - Won't (out of scope, request rejected)
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+    validations:
+      required: false

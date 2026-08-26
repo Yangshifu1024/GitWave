@@ -1,0 +1,39 @@
+[package]
+name = "gitwave"
+version = "0.1.0"
+description = "GitWave — local-first Git client with AI collaboration"
+authors = ["Yangzhenbiao <yangshifu1024@qq.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "gitwave_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+thiserror = "1"
+anyhow = "1"
+
+# Sprint 2 step 6: persistence + git backend
+dirs = "5"
+rusqlite = { version = "0.32", features = ["bundled"] }
+git2 = { version = "0.20", features = ["vendored-libgit2"] }
+
+# Sprint 2 step 5: typed IPC — fallback to manual typed commands for Sprint 0
+# (tauri-specta may be added in Sprint 1 once adapter signatures stabilize).
+# See docs/tasks/feat-bootstrap-tau-app/plan.md.
