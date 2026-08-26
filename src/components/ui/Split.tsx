@@ -30,15 +30,6 @@ interface ResizeHandleProps {
   className?: string;
 }
 
-interface PaneContextValue {
-  paneId: string;
-  initialSize: number | string;
-  minSize: number;
-  maxSize: number;
-}
-
-const PaneContext = createContext<PaneContextValue | null>(null);
-
 function generateId(): string {
   return `pane-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -106,16 +97,17 @@ export function Pane({
   const flexBasis = typeof initialSize === "number" ? `${initialSize}px` : initialSize;
 
   return (
-    <PaneContext.Provider value={{ paneId, initialSize, minSize, maxSize }}>
       <div
         ref={ref}
         data-pane-id={paneId}
-        className={cn("overflow-hidden min-w-0 min-h-0", className)}
+        data-pane-initial={flexBasis}
+        data-pane-min={minSize}
+        data-pane-max={Number.isFinite(maxSize) ? maxSize : undefined}
+        className={cn("overflow-hidden min-w-0 min-h-0 h-full", className)}
         style={{ flexBasis, flexGrow: 0, flexShrink: 1 }}
       >
         {children}
       </div>
-    </PaneContext.Provider>
   );
 }
 
@@ -126,7 +118,6 @@ export function Pane({
 export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Element {
   const ctx = useContext(SplitContext);
   const handleId = useRef(generateId()).current;
-  const paneContext = useContext(PaneContext);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handleMouseDown = useCallback(
@@ -137,37 +128,43 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
       const startX = e.clientX;
       const startY = e.clientY;
 
-      const paneEl = e.currentTarget.previousElementSibling as HTMLDivElement | null;
-      if (!paneEl) return;
+      // ResizeHandle is a sibling of Pane (not a child) — walk DOM, not PaneContext.
+      const prevEl = e.currentTarget.previousElementSibling as HTMLDivElement | null;
+      const nextEl = e.currentTarget.nextElementSibling as HTMLDivElement | null;
+      if (!prevEl || !nextEl) return;
 
-      const startWidth = paneEl.offsetWidth;
-      const startHeight = paneEl.offsetHeight;
+      const splitEl = prevEl.closest("[data-split-direction]");
+      const isHorizontal = splitEl?.getAttribute("data-split-direction") !== "vertical";
+
+      const prevStart = isHorizontal ? prevEl.offsetWidth : prevEl.offsetHeight;
+      const nextStart = isHorizontal ? nextEl.offsetWidth : nextEl.offsetHeight;
+      const prevMin = Number(prevEl.dataset.paneMin ?? 100);
+      const nextMin = Number(nextEl.dataset.paneMin ?? 100);
+      const prevMax = prevEl.dataset.paneMax ? Number(prevEl.dataset.paneMax) : Infinity;
+      const nextMax = nextEl.dataset.paneMax ? Number(nextEl.dataset.paneMax) : Infinity;
 
       const onMouseMove = (moveEvent: MouseEvent) => {
-        const dx = moveEvent.clientX - startX;
-        const dy = moveEvent.clientY - startY;
-
-        // Determine orientation from parent split
-        const splitEl = paneEl.closest("[data-split-direction]");
-        const isHorizontal = splitEl?.getAttribute("data-split-direction") !== "vertical";
-
-        if (isHorizontal) {
-          const newWidth = Math.max(
-            paneContext?.minSize ?? 100,
-            Math.min(paneContext?.maxSize ?? Infinity, startWidth + dx),
-          );
-          paneEl.style.flexBasis = `${newWidth}px`;
-          paneEl.style.flexShrink = "0";
-          paneEl.style.flexGrow = "0";
-        } else {
-          const newHeight = Math.max(
-            paneContext?.minSize ?? 100,
-            Math.min(paneContext?.maxSize ?? Infinity, startHeight + dy),
-          );
-          paneEl.style.flexBasis = `${newHeight}px`;
-          paneEl.style.flexShrink = "0";
-          paneEl.style.flexGrow = "0";
+        const delta = isHorizontal ? moveEvent.clientX - startX : moveEvent.clientY - startY;
+        // Grow/shrink the pair together so free space is never left empty (grow:0 trap).
+        let prevSize = prevStart + delta;
+        let nextSize = nextStart - delta;
+        prevSize = Math.max(prevMin, Math.min(prevMax, prevSize));
+        nextSize = prevStart + nextStart - prevSize;
+        if (nextSize < nextMin) {
+          nextSize = nextMin;
+          prevSize = prevStart + nextStart - nextSize;
+        } else if (nextSize > nextMax) {
+          nextSize = nextMax;
+          prevSize = prevStart + nextStart - nextSize;
         }
+        prevSize = Math.max(prevMin, Math.min(prevMax, prevSize));
+
+        prevEl.style.flexBasis = `${prevSize}px`;
+        nextEl.style.flexBasis = `${nextSize}px`;
+        prevEl.style.flexShrink = "0";
+        nextEl.style.flexShrink = "0";
+        prevEl.style.flexGrow = "0";
+        nextEl.style.flexGrow = "0";
       };
 
       const onMouseUp = () => {
@@ -180,25 +177,24 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
 
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "col-resize";
+      document.body.style.cursor = isHorizontal ? "col-resize" : "row-resize";
       document.body.style.userSelect = "none";
     },
-    [ctx, handleId, paneContext],
+    [ctx, handleId],
   );
 
-  const handleDoubleClick = useCallback(() => {
-    const paneEl = document.querySelector<HTMLDivElement>(
-      `[data-pane-id="${paneContext?.paneId}"]`,
-    );
-    if (!paneEl || paneContext == null) return;
-    const basis =
-      typeof paneContext.initialSize === "number"
-        ? `${paneContext.initialSize}px`
-        : paneContext.initialSize;
-    paneEl.style.flexBasis = basis;
-    paneEl.style.flexShrink = "1";
-    paneEl.style.flexGrow = "0";
-  }, [paneContext]);
+  const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const resetPane = (el: Element | null) => {
+      if (!(el instanceof HTMLDivElement) || !el.dataset.paneId) return;
+      const initial = el.dataset.paneInitial;
+      if (!initial) return;
+      el.style.flexBasis = initial;
+      el.style.flexShrink = "1";
+      el.style.flexGrow = "0";
+    };
+    resetPane(e.currentTarget.previousElementSibling);
+    resetPane(e.currentTarget.nextElementSibling);
+  }, []);
 
   // Determine direction from closest Split context
   const splitEl = containerRef.current?.closest("[data-split-direction]");
@@ -218,9 +214,9 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
         className,
       )}
       style={{
-        width: direction === "horizontal" ? 4 : undefined,
-        height: direction === "vertical" ? 4 : undefined,
-        cursor: "col-resize",
+        width: direction === "horizontal" ? 2 : undefined,
+        height: direction === "vertical" ? 2 : undefined,
+        cursor: direction === "horizontal" ? "col-resize" : "row-resize",
       }}
       role="separator"
       aria-orientation={direction === "horizontal" ? "vertical" : "horizontal"}
