@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   useMutation,
   useQuery,
@@ -15,35 +15,12 @@ import {
   type WorkspaceSummary,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  const dialogRef = useRef<HTMLDialogElement | null>(null);
-  useEffect(() => {
-    dialogRef.current?.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={dialogRef}
-      onClose={onClose}
-      onClick={(e) => {
-        if (e.target === dialogRef.current) onClose();
-      }}
-    >
-      <div className="modal-inner">
-        <h3>{title}</h3>
-        {children}
-      </div>
-    </dialog>
-  );
-}
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { ListItem } from "@/components/ui/ListItem";
+import { Modal } from "@/components/ui/Modal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { FolderPlus, Pencil, Trash2 } from "lucide-react";
 
 export function WorkspaceSwitcher(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -117,131 +94,185 @@ export function WorkspaceSwitcher(): React.JSX.Element {
   }
 
   return (
-    <section className="workspace-switcher">
-      <header>
-        <h2>Workspaces</h2>
-        <button type="button" onClick={() => setShowCreate(true)}>
-          New
-        </button>
-      </header>
+    <div className="flex flex-col">
+      {/* Header row */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
+        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+          Workspaces
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowCreate(true)}
+          aria-label="New workspace"
+        >
+          <FolderPlus size={14} />
+        </Button>
+      </div>
 
+      {/* List */}
       {isLoading ? (
-        <p>Loading…</p>
+        <p className="px-3 py-2 text-sm text-text-muted">Loading…</p>
       ) : error ? (
-        <p className="error">Failed to load: {formatAppError(error)}</p>
+        <p className="px-3 py-2 text-sm text-danger">
+          Failed to load: {formatAppError(error)}
+        </p>
       ) : workspaces.length === 0 ? (
-        <p className="empty">No workspaces yet. Click New to create one.</p>
+        <EmptyState
+          title="No workspaces"
+          description="Create a workspace to get started."
+          action={
+            <Button variant="secondary" size="sm" onClick={() => setShowCreate(true)}>
+              New workspace
+            </Button>
+          }
+          className="py-6"
+        />
       ) : (
-        <ul>
+        <ul className="py-1">
           {workspaces.map((ws) => (
-            <li
-              key={ws.id}
-              className={ws.id === activeId ? "active" : undefined}
-            >
-              <button
-                type="button"
-                className="name"
+            <li key={ws.id}>
+              <ListItem
+                selected={ws.id === activeId}
                 onClick={() => setActiveId(ws.id)}
+                leading={null}
+                trailing={
+                  <span className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRename(ws);
+                      }}
+                      className="p-1"
+                      aria-label={`Rename ${ws.name}`}
+                    >
+                      <Pencil size={13} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleting(ws);
+                      }}
+                      className="p-1 text-danger hover:text-danger"
+                      aria-label={`Delete ${ws.name}`}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </span>
+                }
               >
-                {ws.name}
-              </button>
-              <span className="actions">
-                <button type="button" onClick={() => openRename(ws)}>
-                  rename
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleting(ws)}
-                  className="danger"
-                >
-                  delete
-                </button>
-              </span>
+                <span className="truncate text-sm">{ws.name}</span>
+              </ListItem>
             </li>
           ))}
         </ul>
       )}
 
-      {showCreate ? (
-        <Modal title="New Workspace" onClose={() => setShowCreate(false)}>
-          <input
+      {/* Create modal */}
+      {showCreate && (
+        <Modal
+          open={showCreate}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowCreate(false);
+              setCreateName("");
+              setCreateError(null);
+            }
+          }}
+          title="New Workspace"
+          size="sm"
+        >
+          <Input
             autoFocus
             value={createName}
-            onChange={(e) => setCreateName(e.currentTarget.value)}
+            onChange={setCreateName}
             onKeyDown={(e) => {
               if (e.key === "Enter") submitCreate();
             }}
             placeholder="Workspace name"
+            error={createError}
           />
-          {createError ? <p className="error">{createError}</p> : null}
-          <div className="modal-actions">
-            <button type="button" onClick={() => setShowCreate(false)}>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={submitCreate}
               disabled={!createName.trim() || createMut.isPending}
             >
               Create
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
-      {renaming ? (
+      {/* Rename modal */}
+      {renaming && (
         <Modal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setRenaming(null);
+          }}
           title={`Rename "${renaming.name}"`}
-          onClose={() => setRenaming(null)}
+          size="sm"
         >
-          <input
+          <Input
             autoFocus
             value={renameValue}
-            onChange={(e) => setRenameValue(e.currentTarget.value)}
+            onChange={setRenameValue}
             onKeyDown={(e) => {
               if (e.key === "Enter") submitRename();
             }}
           />
-          <div className="modal-actions">
-            <button type="button" onClick={() => setRenaming(null)}>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setRenaming(null)}>
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={submitRename}
               disabled={!renameValue.trim() || renameMut.isPending}
             >
               Save
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
-      {deleting ? (
+      {/* Delete modal */}
+      {deleting && (
         <Modal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setDeleting(null);
+          }}
           title={`Delete "${deleting.name}"?`}
-          onClose={() => setDeleting(null)}
+          description="This removes the workspace and its repo references from GitWave. It does not delete the local repositories themselves."
+          size="sm"
         >
-          <p>
-            This removes the workspace and its repo references from GitWave.
-            It does not delete the local repositories themselves.
-          </p>
-          <div className="modal-actions">
-            <button type="button" onClick={() => setDeleting(null)}>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setDeleting(null)}>
               Cancel
-            </button>
-            <button
-              type="button"
-              className="danger"
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => deleteMut.mutate(deleting.id)}
               disabled={deleteMut.isPending}
             >
               Delete
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
-    </section>
+      )}
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -10,35 +10,12 @@ import {
   type SshKey,
   type SshTestResult,
 } from "@/lib/api";
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  const dialogRef = useRef<HTMLDialogElement | null>(null);
-  useEffect(() => {
-    dialogRef.current?.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={dialogRef}
-      onClose={onClose}
-      onClick={(e) => {
-        if (e.target === dialogRef.current) onClose();
-      }}
-    >
-      <div className="modal-inner">
-        <h3>{title}</h3>
-        {children}
-      </div>
-    </dialog>
-  );
-}
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { ListItem } from "@/components/ui/ListItem";
+import { Modal } from "@/components/ui/Modal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Key, Trash2, Plus, Wifi } from "lucide-react";
 
 export function SshKeyManager(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -100,123 +77,204 @@ export function SshKeyManager(): React.JSX.Element {
   }
 
   return (
-    <section className="ssh-key-manager">
-      <header>
-        <h2>SSH Keys</h2>
-        <span className="actions">
-          <button type="button" onClick={() => setTesting(true)}>
-            Test
-           
-          </button>
-          <button type="button" onClick={() => setAdding(true)}>
-            Add
-          </button>
+    <div className="flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
+        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+          SSH Keys
+        </h2>
+        <span className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setTesting(true)}
+            aria-label="Test SSH connection"
+          >
+            <Wifi size={14} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setAdding(true)}
+            aria-label="Add SSH key"
+          >
+            <Plus size={14} />
+          </Button>
         </span>
-      </header>
+      </div>
 
+      {/* List */}
       {isLoading ? (
-        <p>Loading keys…</p>
+        <p className="px-3 py-2 text-sm text-text-muted">Loading keys…</p>
       ) : error ? (
-        <p className="error">Failed to load: {formatAppError(error)}</p>
-      ) : keys.length === 0 ? (
-        <p className="empty">
-          No keys in ssh-agent. Add a key to enable SSH clone.
+        <p className="px-3 py-2 text-sm text-danger">
+          Failed to load: {formatAppError(error)}
         </p>
+      ) : keys.length === 0 ? (
+        <EmptyState
+          title="No keys in ssh-agent"
+          description="Add a key to enable SSH clone and push."
+          className="py-6"
+        />
       ) : (
-        <ul>
+        <ul className="py-1">
           {keys.map((k: SshKey) => (
             <li key={k.fingerprint}>
-              <span className="path">{k.path}</span>
-              <span className="fingerprint">
-                <code>{k.fingerprint}</code>
-              </span>
-              <span className="row-actions">
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={() => deleteMut.mutate(k.path)}
-                  disabled={deleteMut.isPending}
-                >
-                  remove
-                </button>
-              </span>
+              <ListItem
+                selected={false}
+                leading={<Key size={14} className="text-text-muted shrink-0" />}
+                trailing={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteMut.mutate(k.path);
+                    }}
+                    className="p-1 text-danger hover:text-danger"
+                    aria-label={`Remove ${k.path}`}
+                  >
+                    <Trash2 size={13} />
+                  </Button>
+                }
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate font-mono text-xs text-text-primary">
+                    {k.path}
+                  </span>
+                  <code className="truncate text-xs text-text-muted">
+                    {k.fingerprint}
+                  </code>
+                </div>
+              </ListItem>
             </li>
           ))}
         </ul>
       )}
 
-      {adding ? (
-        <Modal title="Add SSH key" onClose={() => setAdding(false)}>
-          <label>
-            Key path
-            <input
-              autoFocus
-              value={addPath}
-              onChange={(e) => setAddPath(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && addPath.trim())
-                  addMut.mutate(addPath.trim());
-              }}
-              placeholder="~/.ssh/id_ed25519"
-            />
-            <small>
-              Adds the key to ssh-agent (ssh-add). For passphrase-protected
-              keys, the agent may prompt via terminal.
-            </small>
-          </label>
-          {actionError ? <p className="error">{actionError}</p> : null}
-          <div className="modal-actions">
-            <button type="button" onClick={() => setAdding(false)}>
+      {/* Add modal */}
+      {adding && (
+        <Modal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAdding(false);
+              setAddPath("");
+              setActionError(null);
+            }
+          }}
+          title="Add SSH key"
+          size="sm"
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-key-path">
+                Key path
+              </label>
+              <Input
+                id="ssh-key-path"
+                autoFocus
+                value={addPath}
+                onChange={setAddPath}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && addPath.trim())
+                    addMut.mutate(addPath.trim());
+                }}
+                placeholder="~/.ssh/id_ed25519"
+                error={actionError}
+              />
+              <p className="text-xs text-text-muted">
+                Adds the key to ssh-agent (ssh-add). For passphrase-protected
+                keys, the agent may prompt via terminal.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setAdding(false)}>
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => addMut.mutate(addPath.trim())}
               disabled={!addPath.trim() || addMut.isPending}
             >
               Add
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
-      {testing ? (
-        <Modal title="Test SSH connection" onClose={() => setTesting(false)}>
-          <label>
-            Host
-            <input
-              value={testHost}
-              onChange={(e) => setTestHost(e.currentTarget.value)}
-            />
-          </label>
-          <label>
-            User
-            <input
-              value={testUser}
-              onChange={(e) => setTestUser(e.currentTarget.value)}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={runTest}
-            disabled={testMut.isPending}
-          >
-            {testMut.isPending ? "Testing..." : "Run"}
-          </button>
-          {actionError ? <p className="error">{actionError}</p> : null}
-          {testResult ? (
-            <div className={testResult.success ? "ssh-test-ok" : "ssh-test-fail"}>
-              <strong>{testResult.success ? "Success" : "Failed"}</strong>
-              <pre>{testResult.message}</pre>
+      {/* Test modal */}
+      {testing && (
+        <Modal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setTesting(false);
+              setTestResult(null);
+              setActionError(null);
+            }
+          }}
+          title="Test SSH connection"
+          size="sm"
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-host">
+                Host
+              </label>
+              <Input
+                id="ssh-test-host"
+                value={testHost}
+                onChange={setTestHost}
+                placeholder="github.com"
+              />
             </div>
-          ) : null}
-          <div className="modal-actions">
-            <button type="button" onClick={() => setTesting(false)}>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-user">
+                User
+              </label>
+              <Input
+                id="ssh-test-user"
+                value={testUser}
+                onChange={setTestUser}
+                placeholder="git"
+              />
+            </div>
+            {actionError && <p className="text-xs text-danger">{actionError}</p>}
+            {testResult && (
+              <div
+                className={
+                  testResult.success
+                    ? "rounded-md border border-success/30 bg-success/10 p-3"
+                    : "rounded-md border border-danger/30 bg-danger/10 p-3"
+                }
+              >
+                <p className="text-sm font-medium text-text-primary">
+                  {testResult.success ? "Success" : "Failed"}
+                </p>
+                <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-xs text-text-secondary">
+                  {testResult.message}
+                </pre>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={runTest}
+              disabled={testMut.isPending}
+            >
+              {testMut.isPending ? "Testing…" : "Run test"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setTesting(false)}>
               Close
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
-    </section>
+      )}
+    </div>
   );
 }

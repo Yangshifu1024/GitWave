@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -11,35 +11,13 @@ import {
   removeRepo,
   type RepoRef,
 } from "@/lib/api";
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  const dialogRef = useRef<HTMLDialogElement | null>(null);
-  useEffect(() => {
-    dialogRef.current?.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={dialogRef}
-      onClose={onClose}
-      onClick={(e) => {
-        if (e.target === dialogRef.current) onClose();
-      }}
-    >
-      <div className="modal-inner">
-        <h3>{title}</h3>
-        {children}
-      </div>
-    </dialog>
-  );
-}
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { ListItem } from "@/components/ui/ListItem";
+import { Modal } from "@/components/ui/Modal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { FolderPlus, GitBranch, FolderInput, Link2, Trash2 } from "lucide-react";
 
 function detectProtocol(url: string): "ssh" | "https" {
   if (url.startsWith("ssh://") || url.startsWith("git@")) return "ssh";
@@ -47,7 +25,6 @@ function detectProtocol(url: string): "ssh" | "https" {
 }
 
 function deriveDestName(url: string): string {
-  // For git@github.com:user/repo.git -> user/repo
   const trimmed = url.trim();
   if (trimmed.startsWith("git@")) {
     const after = trimmed.slice(trimmed.indexOf(":") + 1).replace(/\.git$/, "");
@@ -159,225 +136,271 @@ export function RepoList({
   });
 
   return (
-    <section className="repo-list">
-      <header>
-        <h2>Repos</h2>
-        <span className="add-group">
-          <button type="button" onClick={() => startAdd("init")}>
-            Init
-          </button>
-          <button type="button" onClick={() => startAdd("clone")}>
-            Clone
-          </button>
-          <button type="button" onClick={() => startAdd("local")}>
-            Add Local
-          </button>
+    <div className="flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
+        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+          Repos
+        </h2>
+        <span className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => startAdd("init")} aria-label="Init repo">
+            <GitBranch size={14} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => startAdd("clone")} aria-label="Clone repo">
+            <FolderPlus size={14} />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => startAdd("local")} aria-label="Add local repo">
+            <FolderInput size={14} />
+          </Button>
         </span>
-      </header>
+      </div>
 
+      {/* List */}
       {isLoading ? (
-        <p>Loading repos…</p>
+        <p className="px-3 py-2 text-sm text-text-muted">Loading repos…</p>
       ) : error ? (
-        <p className="error">Failed to load repos: {formatAppError(error)}</p>
-      ) : repos.length === 0 ? (
-        <p className="empty">
-          No repos in this workspace yet — Init / Clone / Add Local to start.
+        <p className="px-3 py-2 text-sm text-danger">
+          Failed to load repos: {formatAppError(error)}
         </p>
+      ) : repos.length === 0 ? (
+        <EmptyState
+          title="No repos"
+          description="Init, clone, or add a local repo to start."
+          className="py-6"
+        />
       ) : (
-        <ul>
+        <ul className="py-1">
           {repos.map((r) => (
-            <li key={r.id} className={r.status === "missing" ? "missing" : undefined}>
-              <span className="path">{r.path}</span>
-              {r.status === "missing" ? (
-                <span className="badge">missing</span>
-              ) : null}
-              <span className="actions">
-                {r.status === "missing" ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRelinking(r);
-                      setRelinkPath(r.path);
-                      setActionError(null);
-                    }}
-                  >
-                    relink
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => setRemoving(r)}
-                  className="danger"
-                >
-                  remove
-                </button>
-              </span>
+            <li key={r.id}>
+              <ListItem
+                selected={false}
+                leading={null}
+                trailing={
+                  <span className="flex items-center gap-1">
+                    {r.status === "missing" && (
+                      <StatusBadge variant="missing" />
+                    )}
+                    {r.status === "missing" ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRelinking(r);
+                          setRelinkPath(r.path);
+                          setActionError(null);
+                        }}
+                        className="p-1"
+                        aria-label="Relink repo"
+                      >
+                        <Link2 size={13} />
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRemoving(r);
+                      }}
+                      className="p-1 text-danger hover:text-danger"
+                      aria-label="Remove repo"
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </span>
+                }
+              >
+                <span className="truncate font-mono text-xs text-text-secondary">
+                  {r.path}
+                </span>
+              </ListItem>
             </li>
           ))}
         </ul>
       )}
 
-      {adding === "init" ? (
-        <Modal title="Initialize new repo" onClose={endAdd}>
-          <input
+      {/* Init modal */}
+      {adding === "init" && (
+        <Modal
+          open={true}
+          onOpenChange={(open) => { if (!open) endAdd(); }}
+          title="Initialize new repo"
+          size="sm"
+        >
+          <Input
             autoFocus
             value={initPath}
-            onChange={(e) => setInitPath(e.currentTarget.value)}
+            onChange={setInitPath}
             onKeyDown={(e) => {
               if (e.key === "Enter" && initPath.trim())
                 initMut.mutate({ path: initPath.trim() });
             }}
             placeholder="Absolute path, e.g. /Users/me/projects/new"
+            error={actionError}
           />
-          {actionError ? <p className="error">{actionError}</p> : null}
-          <div className="modal-actions">
-            <button type="button" onClick={endAdd}>
-              Cancel
-            </button>
-            <button
-              type="button"
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={endAdd}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => initMut.mutate({ path: initPath.trim() })}
               disabled={!initPath.trim() || initMut.isPending}
             >
               Create
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
-      {adding === "clone" ? (
-        <Modal title="Clone remote repo" onClose={endAdd}>
-          <label>
-            URL
-            <input
-              autoFocus
-              value={cloneUrl}
-              onChange={(e) => {
-                setCloneUrl(e.currentTarget.value);
-                if (cloneDest === "" || cloneDest.startsWith("./")) {
-                  setCloneDest(`./${deriveDestName(e.currentTarget.value)}`);
-                }
-              }}
-              placeholder="https://github.com/user/repo.git or git@github.com:user/repo.git"
-            />
-            <small>
-              Detected protocol: {cloneUrl ? detectProtocol(cloneUrl) : "—"}
-            </small>
-          </label>
-          <label>
-            Destination path
-            <input
-              value={cloneDest}
-              onChange={(e) => setCloneDest(e.currentTarget.value)}
-              placeholder="./repo"
-            />
-          </label>
-          {actionError ? <p className="error">{actionError}</p> : null}
-          <div className="modal-actions">
-            <button type="button" onClick={endAdd}>
-              Cancel
-            </button>
-            <button
-              type="button"
+      {/* Clone modal */}
+      {adding === "clone" && (
+        <Modal
+          open={true}
+          onOpenChange={(open) => { if (!open) endAdd(); }}
+          title="Clone remote repo"
+          size="sm"
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-text-secondary" htmlFor="clone-url">
+                URL
+              </label>
+              <Input
+                id="clone-url"
+                autoFocus
+                value={cloneUrl}
+                onChange={(v) => {
+                  setCloneUrl(v);
+                  if (cloneDest === "" || cloneDest.startsWith("./")) {
+                    setCloneDest(`./${deriveDestName(v)}`);
+                  }
+                }}
+                placeholder="https://github.com/user/repo.git or git@github.com:user/repo.git"
+              />
+              <p className="text-xs text-text-muted">
+                Detected protocol: {cloneUrl ? detectProtocol(cloneUrl) : "—"}
+              </p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-text-secondary" htmlFor="clone-dest">
+                Destination path
+              </label>
+              <Input
+                id="clone-dest"
+                value={cloneDest}
+                onChange={setCloneDest}
+                placeholder="./repo"
+              />
+            </div>
+            {actionError && <p className="text-xs text-danger">{actionError}</p>}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={endAdd}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() =>
-                cloneMut.mutate({
-                  url: cloneUrl.trim(),
-                  dest: cloneDest.trim(),
-                })
+                cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })
               }
               disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
             >
               Clone
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
-      {adding === "local" ? (
-        <Modal title="Add existing local repo" onClose={endAdd}>
-          <input
+      {/* Add local modal */}
+      {adding === "local" && (
+        <Modal
+          open={true}
+          onOpenChange={(open) => { if (!open) endAdd(); }}
+          title="Add existing local repo"
+          size="sm"
+        >
+          <Input
             autoFocus
             value={localPath}
-            onChange={(e) => setLocalPath(e.currentTarget.value)}
+            onChange={setLocalPath}
             onKeyDown={(e) => {
               if (e.key === "Enter" && localPath.trim())
                 localMut.mutate({ path: localPath.trim() });
             }}
             placeholder="Absolute path to an existing git working tree"
+            error={actionError}
           />
-          {actionError ? <p className="error">{actionError}</p> : null}
-          <div className="modal-actions">
-            <button type="button" onClick={endAdd}>
-              Cancel
-            </button>
-            <button
-              type="button"
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={endAdd}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => localMut.mutate({ path: localPath.trim() })}
               disabled={!localPath.trim() || localMut.isPending}
             >
               Add
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
-      {relinking ? (
-        <Modal title={`Relink "${relinking.path}"`} onClose={() => setRelinking(null)}>
-          <input
+      {/* Relink modal */}
+      {relinking && (
+        <Modal
+          open={true}
+          onOpenChange={(open) => { if (!open) setRelinking(null); }}
+          title={`Relink "${relinking.path}"`}
+          size="sm"
+        >
+          <Input
             autoFocus
             value={relinkPath}
-            onChange={(e) => setRelinkPath(e.currentTarget.value)}
+            onChange={setRelinkPath}
             onKeyDown={(e) => {
               if (e.key === "Enter" && relinkPath.trim())
-                relinkMut.mutate({
-                  repoId: relinking.id,
-                  newPath: relinkPath.trim(),
-                });
+                relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() });
             }}
             placeholder="New path to a valid git working tree"
+            error={actionError}
           />
-          {actionError ? <p className="error">{actionError}</p> : null}
-          <div className="modal-actions">
-            <button type="button" onClick={() => setRelinking(null)}>
-              Cancel
-            </button>
-            <button
-              type="button"
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setRelinking(null)}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() =>
-                relinkMut.mutate({
-                  repoId: relinking.id,
-                  newPath: relinkPath.trim(),
-                })
+                relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() })
               }
               disabled={!relinkPath.trim() || relinkMut.isPending}
             >
               Relink
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
-      {removing ? (
-        <Modal title={`Remove "${removing.path}"?`} onClose={() => setRemoving(null)}>
-          <p>
-            Removes the workspace reference. The local directory and its
-            .git/ folder are not touched.
-          </p>
-          <div className="modal-actions">
-            <button type="button" onClick={() => setRemoving(null)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="danger"
+      {/* Remove modal */}
+      {removing && (
+        <Modal
+          open={true}
+          onOpenChange={(open) => { if (!open) setRemoving(null); }}
+          title={`Remove "${removing.path}"?`}
+          description="Removes the workspace reference. The local directory and its .git/ folder are not touched."
+          size="sm"
+        >
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setRemoving(null)}>Cancel</Button>
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => removeMut.mutate(removing.id)}
               disabled={removeMut.isPending}
             >
               Remove
-            </button>
+            </Button>
           </div>
         </Modal>
-      ) : null}
-    </section>
+      )}
+    </div>
   );
 }
