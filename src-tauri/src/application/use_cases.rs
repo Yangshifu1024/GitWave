@@ -238,10 +238,44 @@ pub fn relink_repo(
 }
 
 pub fn list_repos(ctx: &AppContext, workspace_id: String) -> Result<Vec<RepoRef>> {
+    // Sweep filesystem presence so Missing badges stay accurate without a
+    // separate background job (W3 acceptance: missing detection on list).
+    refresh_repo_presence(ctx, &workspace_id)?;
     ctx.workspaces
         .lock()
         .expect("workspace repo mutex poisoned")
         .list_repos(&workspace_id)
+}
+
+/// Mark Active→Missing when path is gone; Missing→Active when path is a git repo again.
+fn refresh_repo_presence(ctx: &AppContext, workspace_id: &str) -> Result<()> {
+    let repos = ctx
+        .workspaces
+        .lock()
+        .expect("workspace repo mutex poisoned")
+        .list_repos(workspace_id)?;
+
+    for repo in repos {
+        let path = PathBuf::from(&repo.path);
+        let present = crate::infrastructure::git::git2_adapter::open_local(&path).is_ok();
+        match (present, repo.status) {
+            (false, RepoStatus::Active) => {
+                ctx.workspaces
+                    .lock()
+                    .expect("workspace repo mutex poisoned")
+                    .mark_repo_missing(workspace_id, &repo.id)?;
+            }
+            (true, RepoStatus::Missing) => {
+                // Same path is valid again — flip without requiring a new path from the user.
+                ctx.workspaces
+                    .lock()
+                    .expect("workspace repo mutex poisoned")
+                    .relink_repo(workspace_id, &repo.id, &repo.path)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 // ─── SSH use cases (Sprint 2) ───────────────────────────────────────────────
@@ -531,6 +565,32 @@ mod tests {
 
         remove_repo(&ctx, ws.id.clone(), repo.id).expect("remove_repo");
         assert_eq!(list_repos(&ctx, ws.id).unwrap().len(), 0);
+
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn list_repos_marks_missing_when_path_deleted() {
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        let tmp =
+            std::env::temp_dir().join(format!("gitwave-uc-missing-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        crate::infrastructure::git::repo_adapter::init(&tmp).expect("init");
+
+        add_local_repo(&ctx, ws.id.clone(), tmp.to_string_lossy().to_string()).expect("add");
+        fs::remove_dir_all(&tmp).expect("delete path");
+
+        let list = list_repos(&ctx, ws.id.clone()).expect("list");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].status, RepoStatus::Missing);
+
+        // Restore path → list should flip back to Active
+        fs::create_dir_all(&tmp).unwrap();
+        crate::infrastructure::git::repo_adapter::init(&tmp).expect("re-init");
+        let list = list_repos(&ctx, ws.id).expect("list after restore");
+        assert_eq!(list[0].status, RepoStatus::Active);
 
         fs::remove_dir_all(&tmp).ok();
     }
