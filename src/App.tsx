@@ -21,6 +21,7 @@ import { BranchList } from "@/components/BranchList";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
+  const [selectedCommitOid, setSelectedCommitOid] = useState<string | null>(null);
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -35,6 +36,10 @@ function App(): React.JSX.Element {
         setVersion("?.?.?");
       });
   }, []);
+
+  useEffect(() => {
+    setSelectedCommitOid(null);
+  }, [activeRepoId]);
 
   const showWorkingCopy = activeWorkspaceId !== null && activeRepoId !== null;
 
@@ -81,8 +86,8 @@ function App(): React.JSX.Element {
       {/* ── 3-pane body ────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden">
         <Split direction="horizontal">
-          {/* Sidebar: repo list */}
-          <Pane initialSize={240} minSize={180} maxSize={360}>
+          {/* Sidebar: 20% */}
+          <Pane initialSize="20%" minSize={180} maxSize={480}>
             <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-auto">
               {activeWorkspaceId ? (
                 <RepoList workspaceId={activeWorkspaceId} />
@@ -99,16 +104,19 @@ function App(): React.JSX.Element {
 
           <ResizeHandle />
 
-          {/* Feature Nav: tabs */}
-          <Pane initialSize={280} minSize={200} maxSize={400}>
-            <FeatureNav />
+          {/* Feature Nav: 50% */}
+          <Pane initialSize="50%" minSize={200} maxSize={900}>
+            <FeatureNav
+              selectedCommitOid={selectedCommitOid}
+              onCommitSelect={setSelectedCommitOid}
+            />
           </Pane>
 
           <ResizeHandle />
 
-          {/* Main content */}
-          <Pane initialSize={400} minSize={300}>
-            <MainContent />
+          {/* Main: 30% */}
+          <Pane initialSize="30%" minSize={240}>
+            <MainContent selectedCommitOid={selectedCommitOid} />
           </Pane>
         </Split>
       </div>
@@ -161,12 +169,18 @@ function SshKeyManagerModalWrapper({ onClose }: { onClose: () => void }): React.
 }
 
 /** Feature Nav: tab bar + content area (Sprint 3+ full content) */
-function FeatureNav(): React.JSX.Element {
+function FeatureNav({
+  selectedCommitOid,
+  onCommitSelect,
+}: {
+  selectedCommitOid: string | null;
+  onCommitSelect: (sha: string) => void;
+}): React.JSX.Element {
   const [activeTab, setActiveTab] = useState("history");
 
   return (
     <div className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-hidden">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full min-h-0">
         <TabsList className="shrink-0 px-2">
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="branches">Branches</TabsTrigger>
@@ -176,15 +190,15 @@ function FeatureNav(): React.JSX.Element {
           <TabsTrigger value="worktrees">Worktrees</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="history" className="flex-1 overflow-hidden p-0">
-          <CommitGraph />
+        <TabsContent value="history" className="flex-1 min-h-0 overflow-hidden p-0">
+          <CommitGraph selectedSha={selectedCommitOid} onCommitSelect={onCommitSelect} />
         </TabsContent>
 
-        <TabsContent value="branches" className="flex-1 overflow-hidden p-0">
+        <TabsContent value="branches" className="flex-1 min-h-0 overflow-hidden p-0">
           <BranchList />
         </TabsContent>
 
-        <TabsContent value="stash" className="flex-1 overflow-auto p-4">
+        <TabsContent value="stash" className="flex-1 min-h-0 overflow-auto p-4">
           <EmptyState
             icon={
               <span className="text-2xl" aria-hidden="true">
@@ -197,7 +211,7 @@ function FeatureNav(): React.JSX.Element {
           />
         </TabsContent>
 
-        <TabsContent value="tags" className="flex-1 overflow-auto p-4">
+        <TabsContent value="tags" className="flex-1 min-h-0 overflow-auto p-4">
           <EmptyState
             icon={
               <span className="text-2xl" aria-hidden="true">
@@ -210,7 +224,7 @@ function FeatureNav(): React.JSX.Element {
           />
         </TabsContent>
 
-        <TabsContent value="remotes" className="flex-1 overflow-auto p-4">
+        <TabsContent value="remotes" className="flex-1 min-h-0 overflow-auto p-4">
           <EmptyState
             icon={
               <span className="text-2xl" aria-hidden="true">
@@ -223,7 +237,7 @@ function FeatureNav(): React.JSX.Element {
           />
         </TabsContent>
 
-        <TabsContent value="worktrees" className="flex-1 overflow-auto p-4">
+        <TabsContent value="worktrees" className="flex-1 min-h-0 overflow-auto p-4">
           <EmptyState
             icon={
               <span className="text-2xl" aria-hidden="true">
@@ -241,7 +255,11 @@ function FeatureNav(): React.JSX.Element {
 }
 
 /** Main content area — shows diff for selected commit or working copy */
-function MainContent(): React.JSX.Element {
+function MainContent({
+  selectedCommitOid,
+}: {
+  selectedCommitOid: string | null;
+}): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
 
@@ -277,7 +295,11 @@ function MainContent(): React.JSX.Element {
 
   return (
     <main className="flex flex-col flex-1 bg-bg-primary overflow-hidden">
-      <DiffViewer workdir={true} />
+      {selectedCommitOid ? (
+        <DiffViewer commitOid={selectedCommitOid} />
+      ) : (
+        <DiffViewer workdir={true} />
+      )}
     </main>
   );
 }
