@@ -30,6 +30,7 @@ export {
 } from "./ContextMenu";
 export { KeyHint, type KeyHintProps } from "./KeyHint";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
+export { PathInput, type PathInputProps } from "./PathInput";
 
 // Working Copy primitives
 export { BranchIndicator, type BranchIndicatorProps } from "./BranchIndicator";

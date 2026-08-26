@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PathInput } from "@/components/ui/PathInput";
 import { Key, Trash2, Plus, Wifi } from "lucide-react";
 
 export function SshKeyManager(): React.JSX.Element {
@@ -171,7 +172,7 @@ export function SshKeyManager(): React.JSX.Element {
               <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-key-path">
                 Key path
               </label>
-              <Input
+              <PathInput
                 id="ssh-key-path"
                 autoFocus
                 value={addPath}

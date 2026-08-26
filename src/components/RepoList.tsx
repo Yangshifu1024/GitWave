@@ -17,6 +17,7 @@ import { ListItem } from "@/components/ui/ListItem";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { PathInput } from "@/components/ui/PathInput";
 import { FolderPlus, GitBranch, FolderInput, Link2, Trash2 } from "lucide-react";
 
 function detectProtocol(url: string): "ssh" | "https" {
@@ -228,8 +229,9 @@ export function RepoList({
           title="Initialize new repo"
           size="sm"
         >
-          <Input
+          <PathInput
             autoFocus
+            directory
             value={initPath}
             onChange={setInitPath}
             onKeyDown={(e) => {
@@ -286,8 +288,9 @@ export function RepoList({
               <label className="text-xs font-medium text-text-secondary" htmlFor="clone-dest">
                 Destination path
               </label>
-              <Input
+              <PathInput
                 id="clone-dest"
+                directory
                 value={cloneDest}
                 onChange={setCloneDest}
                 placeholder="./repo"
@@ -319,8 +322,9 @@ export function RepoList({
           title="Add existing local repo"
           size="sm"
         >
-          <Input
+          <PathInput
             autoFocus
+            directory
             value={localPath}
             onChange={setLocalPath}
             onKeyDown={(e) => {
@@ -352,8 +356,9 @@ export function RepoList({
           title={`Relink "${relinking.path}"`}
           size="sm"
         >
-          <Input
+          <PathInput
             autoFocus
+            directory
             value={relinkPath}
             onChange={setRelinkPath}
             onKeyDown={(e) => {
