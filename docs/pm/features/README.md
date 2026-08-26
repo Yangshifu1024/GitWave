@@ -54,6 +54,7 @@
 |---|---|---|---|
 | [F001](./F001-workspace-crud.md) | Workspace CRUD | 接受 | Sprint 1 |
 | [F002](./F002-repo-ingestion.md) | Repo Ingestion + SSH Key Management | 接受 | Sprint 2 |
+| [F003](./F003-history-diff-blame.md) | History Graph + File Diff + Blame + Branch Ops | 接受 | Sprint 3 |
 
 ## 相关文档
 
