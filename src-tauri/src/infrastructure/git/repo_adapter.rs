@@ -13,6 +13,16 @@ use crate::domain::error::{AppError, Result};
 
 use super::credentials::{CredentialProvider, GitCredentialHelper, SshAgentCredential};
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloneProgress {
+    pub received_objects: u64,
+    pub total_objects: u64,
+    pub indexed_deltas: u64,
+    pub total_deltas: u64,
+    pub received_bytes: u64,
+}
+
 /// Initialize a new git repository at `path`. Does NOT create a commit —
 /// see P1 (永不自动 commit). The user can stage + commit explicitly.
 pub fn init(path: &Path) -> Result<()> {
@@ -29,20 +39,50 @@ pub fn init(path: &Path) -> Result<()> {
 
 /// Clone an HTTPS repository. Credentials are obtained from the system
 /// `git credential helper`.
-pub fn clone_https(url: &str, dest: &Path) -> Result<()> {
+pub fn clone_https(
+    url: &str,
+    dest: &Path,
+    on_progress: Option<Box<dyn Fn(CloneProgress) + Send>>,
+) -> Result<()> {
     let provider: Arc<dyn CredentialProvider> = Arc::new(GitCredentialHelper::new(url.to_string()));
-    clone_with_creds(url, dest, provider)
+    clone_with_creds(url, dest, provider, on_progress)
 }
 
 /// Clone an SSH repository. Credentials are obtained from ssh-agent.
-pub fn clone_ssh(url: &str, dest: &Path) -> Result<()> {
+pub fn clone_ssh(
+    url: &str,
+    dest: &Path,
+    on_progress: Option<Box<dyn Fn(CloneProgress) + Send>>,
+) -> Result<()> {
     let provider: Arc<dyn CredentialProvider> = Arc::new(SshAgentCredential::new());
-    clone_with_creds(url, dest, provider)
+    clone_with_creds(url, dest, provider, on_progress)
 }
 
-fn clone_with_creds(url: &str, dest: &Path, creds: Arc<dyn CredentialProvider>) -> Result<()> {
+fn clone_with_creds(
+    url: &str,
+    dest: &Path,
+    creds: Arc<dyn CredentialProvider>,
+    on_progress: Option<Box<dyn Fn(CloneProgress) + Send>>,
+) -> Result<()> {
+    let mut cb = creds.callbacks();
+    if let Some(progress) = on_progress {
+        let progress = std::sync::Mutex::new(progress);
+        cb.transfer_progress(move |stats| {
+            if let Ok(guard) = progress.lock() {
+                guard(CloneProgress {
+                    received_objects: stats.received_objects() as u64,
+                    total_objects: stats.total_objects() as u64,
+                    indexed_deltas: stats.indexed_deltas() as u64,
+                    total_deltas: stats.total_deltas() as u64,
+                    received_bytes: stats.received_bytes() as u64,
+                });
+            }
+            true
+        });
+    }
+
     let mut fo = git2::FetchOptions::new();
-    fo.remote_callbacks(creds.callbacks());
+    fo.remote_callbacks(cb);
 
     let mut builder = RepoBuilder::new();
     builder.fetch_options(fo);
@@ -144,7 +184,11 @@ mod tests {
         let dest = tmp.join("repo");
         // Non-routable URL triggers network/protocol failure without
         // requiring real network in CI.
-        let err = clone_https("https://this-host-does-not-exist.invalid/repo.git", &dest)
+        let err = clone_https(
+            "https://this-host-does-not-exist.invalid/repo.git",
+            &dest,
+            None,
+        )
             .expect_err("should fail");
         let cat = err.category();
         assert!(

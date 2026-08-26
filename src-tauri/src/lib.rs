@@ -160,13 +160,40 @@ fn cmd_init_repo(
 }
 
 #[tauri::command]
-fn cmd_clone_repo(
+async fn cmd_clone_repo(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     url: String,
     dest_path: String,
+    replace_dest: Option<bool>,
 ) -> Result<RepoRef, AppError> {
-    clone_repo(&ctx, workspace_id, url, dest_path)
+    use infrastructure::git::repo_adapter::CloneProgress;
+    use tauri::Emitter;
+
+    let replace = replace_dest.unwrap_or(false);
+    let app_emit = app.clone();
+    let on_progress: Option<Box<dyn Fn(CloneProgress) + Send>> =
+        Some(Box::new(move |p: CloneProgress| {
+            let _ = app_emit.emit("clone-progress", &p);
+        }));
+
+    let workspaces = Arc::clone(&ctx.workspaces);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let local_ctx = AppContext::new(workspaces);
+        clone_repo(
+            &local_ctx,
+            workspace_id,
+            url,
+            dest_path,
+            replace,
+            on_progress,
+        )
+    })
+    .await
+    .map_err(|e| AppError::Unknown(format!("clone task join: {e}")))?;
+
+    result
 }
 
 #[tauri::command]

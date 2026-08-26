@@ -159,11 +159,25 @@ export function initRepo(workspaceId: string, path: string): Promise<RepoRef> {
   return invoke<RepoRef>("cmd_init_repo", { workspaceId, path });
 }
 
-export function cloneRepo(workspaceId: string, url: string, destPath: string): Promise<RepoRef> {
+export interface CloneProgress {
+  receivedObjects: number;
+  totalObjects: number;
+  indexedDeltas: number;
+  totalDeltas: number;
+  receivedBytes: number;
+}
+
+export function cloneRepo(
+  workspaceId: string,
+  url: string,
+  destPath: string,
+  replaceDest = false,
+): Promise<RepoRef> {
   return invoke<RepoRef>("cmd_clone_repo", {
     workspaceId,
     url,
     destPath,
+    replaceDest,
   });
 }
 

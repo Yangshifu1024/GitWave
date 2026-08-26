@@ -229,12 +229,19 @@ pub fn clone_repo(
     workspace_id: String,
     url: String,
     dest_path: String,
+    replace_dest: bool,
+    on_progress: Option<Box<dyn Fn(crate::infrastructure::git::repo_adapter::CloneProgress) + Send>>,
 ) -> Result<RepoRef> {
     let dest = PathBuf::from(&dest_path);
+    if replace_dest && dest.exists() {
+        std::fs::remove_dir_all(&dest).map_err(|e| {
+            AppError::Unknown(format!("failed to clear dest for retry: {e}"))
+        })?;
+    }
     if url.starts_with("ssh://") || url.starts_with("git@") {
-        crate::infrastructure::git::repo_adapter::clone_ssh(&url, &dest)?;
+        crate::infrastructure::git::repo_adapter::clone_ssh(&url, &dest, on_progress)?;
     } else {
-        crate::infrastructure::git::repo_adapter::clone_https(&url, &dest)?;
+        crate::infrastructure::git::repo_adapter::clone_https(&url, &dest, on_progress)?;
     }
 
     let repo = RepoRef {
