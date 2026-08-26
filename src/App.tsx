@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { Split, Pane, ResizeHandle } from "@/components/ui/Split";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
@@ -32,6 +33,18 @@ function App(): React.JSX.Element {
       });
   }, []);
 
+  // Programmatic window drag — most reliable on macOS overlay mode where
+  // the data-tauri-drag-region attribute / -webkit-app-region CSS alone
+  // didn't make the topbar draggable. Only initiate when the mousedown
+  // lands directly on the topbar (not on an interactive child with
+  // data-tauri-no-drag-region) so clicks on buttons still work.
+  const handleTopbarMouseDown = (e: React.MouseEvent<HTMLElement>): void => {
+    if (e.target === e.currentTarget) {
+      e.preventDefault();
+      void getCurrentWindow().startDragging();
+    }
+  };
+
   const showWorkingCopy = activeWorkspaceId !== null;
 
   return (
@@ -43,6 +56,7 @@ function App(): React.JSX.Element {
         // but on macOS WebKit the underlying CSS property is the actual
         // mechanism — set both for belt-and-suspenders reliability.
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        onMouseDown={handleTopbarMouseDown}
         className={`flex items-center shrink-0 h-12 ${
           isMacOS() ? "pl-20 pr-4" : "px-4"
         } gap-4 bg-bg-secondary border-b border-border-subtle`}
