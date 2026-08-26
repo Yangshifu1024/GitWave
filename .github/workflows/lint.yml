@@ -26,9 +26,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-      - name: Install build deps (Linux)
+      - name: Install Tauri Linux deps
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y cmake
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            patchelf
       - name: cargo fmt
         working-directory: src-tauri
         run: cargo fmt -- --check
