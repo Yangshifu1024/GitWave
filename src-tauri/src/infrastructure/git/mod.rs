@@ -12,6 +12,7 @@ pub mod git2_adapter;
 pub mod history;
 pub mod merge;
 pub mod rebase;
+pub mod remote;
 pub mod repo_adapter;
 pub mod working_copy;
 

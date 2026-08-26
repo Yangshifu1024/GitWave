@@ -4,10 +4,14 @@ import { cn } from "@/lib/utils";
 import { BranchIndicator } from "@/components/ui/BranchIndicator";
 import { FileListItem } from "@/components/ui/FileListItem";
 import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
+import { SyncButtons } from "@/components/ui/SyncButtons";
 import {
   commit,
+  fetchRemote,
   formatAppError,
   getWorkingCopy,
+  pullRemote,
+  pushRemote,
   stageFiles,
   unstageFiles,
   type WorkingCopy,
@@ -83,6 +87,47 @@ export function WorkingCopyBar({
     onError: (e) => setActionError(formatAppError(e)),
   });
 
+  const fetchMut = useMutation({
+    mutationFn: () => fetchRemote(workspaceId!),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (e) => setActionError(formatAppError(e)),
+  });
+  const pullMut = useMutation({
+    mutationFn: () => pullRemote(workspaceId!),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+      bumpHistory();
+    },
+    onError: (e) => setActionError(formatAppError(e)),
+  });
+  const pushMut = useMutation({
+    mutationFn: () => pushRemote(workspaceId!),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (e) => setActionError(formatAppError(e)),
+  });
+
+  const syncButtons = (ahead: number, behind: number) => (
+    <SyncButtons
+      ahead={ahead}
+      behind={behind}
+      onFetch={() => fetchMut.mutate()}
+      onPull={() => pullMut.mutate()}
+      onPush={() => pushMut.mutate()}
+      inProgress={{
+        fetch: fetchMut.isPending,
+        pull: pullMut.isPending,
+        push: pushMut.isPending,
+      }}
+    />
+  );
+
   const unstagedFiles = data?.files.filter((f) => !f.staged) ?? [];
   const stagedFiles = data?.files.filter((f) => f.staged) ?? [];
   const isDirty = unstagedFiles.length > 0 || stagedFiles.length > 0;
@@ -130,9 +175,12 @@ export function WorkingCopyBar({
           ahead={wc.ahead}
           behind={wc.behind}
         />
-        <span>
-          clean · {wc.ahead} ↑ {wc.behind} ↓
-        </span>
+        <div className="flex items-center gap-3">
+          {syncButtons(wc.ahead, wc.behind)}
+          <span>
+            clean · {wc.ahead} ↑ {wc.behind} ↓
+          </span>
+        </div>
       </div>
     );
   }
@@ -168,15 +216,18 @@ export function WorkingCopyBar({
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden border-r border-border-subtle">
-          <div className="shrink-0 px-3 py-1.5 border-b border-border-subtle">
+          <div className="shrink-0 px-3 py-1.5 border-b border-border-subtle flex items-center justify-between gap-2">
             {wc ? (
-              <BranchIndicator
-                branch={wc.branch}
-                upstream={wc.upstream}
-                sha={wc.sha}
-                ahead={wc.ahead}
-                behind={wc.behind}
-              />
+              <>
+                <BranchIndicator
+                  branch={wc.branch}
+                  upstream={wc.upstream}
+                  sha={wc.sha}
+                  ahead={wc.ahead}
+                  behind={wc.behind}
+                />
+                {syncButtons(wc.ahead, wc.behind)}
+              </>
             ) : (
               <span className="text-xs text-text-muted italic">Loading…</span>
             )}

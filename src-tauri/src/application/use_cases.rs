@@ -29,6 +29,9 @@ use crate::infrastructure::git::history::{
 };
 use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
+use crate::infrastructure::git::remote::{
+    fetch as infra_fetch, pull as infra_pull, push as infra_push,
+};
 use crate::infrastructure::git::working_copy::{
     commit as infra_commit, stage_all as infra_stage_all, stage_paths as infra_stage_paths,
     status as infra_wc_status, unstage_paths as infra_unstage_paths,
@@ -481,6 +484,24 @@ pub fn commit(ctx: &AppContext, workspace_id: &str, message: String) -> Result<S
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_commit(&repo, &message)
+}
+
+pub fn fetch(ctx: &AppContext, workspace_id: &str, remote: Option<String>) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_fetch(&repo, remote.as_deref().unwrap_or("origin"))
+}
+
+pub fn pull(ctx: &AppContext, workspace_id: &str, remote: Option<String>) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_pull(&repo, remote.as_deref().unwrap_or("origin"))
+}
+
+pub fn push(ctx: &AppContext, workspace_id: &str, remote: Option<String>) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_push(&repo, remote.as_deref().unwrap_or("origin"))
 }
 
 // ─── Helper ─────────────────────────────────────────────────────────────────

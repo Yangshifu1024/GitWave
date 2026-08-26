@@ -376,3 +376,15 @@ export function stageAll(workspaceId: string): Promise<void> {
 export function commit(workspaceId: string, message: string): Promise<string> {
   return invoke<string>("cmd_commit", { workspaceId, message });
 }
+
+export function fetchRemote(workspaceId: string, remote?: string): Promise<void> {
+  return invoke<void>("cmd_fetch", { workspaceId, remote: remote ?? null });
+}
+
+export function pullRemote(workspaceId: string, remote?: string): Promise<void> {
+  return invoke<void>("cmd_pull", { workspaceId, remote: remote ?? null });
+}
+
+export function pushRemote(workspaceId: string, remote?: string): Promise<void> {
+  return invoke<void>("cmd_push", { workspaceId, remote: remote ?? null });
+}

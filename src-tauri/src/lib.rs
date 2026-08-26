@@ -17,10 +17,10 @@ use std::sync::{Arc, Mutex};
 
 use application::{
     add_local_repo, add_ssh_key, checkout_branch, clone_repo, commit, create_branch,
-    create_workspace, delete_branch, delete_ssh_key, delete_workspace, get_ahead_behind, get_blame,
-    get_branches, get_commit_diff, get_commit_log, get_file_diff, get_workdir_diff,
-    get_working_copy, init_repo, list_repos, list_ssh_keys, list_workspaces, merge_branch,
-    rebase_branch, relink_repo, remove_repo, rename_workspace, set_active_repo, stage_all,
+    create_workspace, delete_branch, delete_ssh_key, delete_workspace, fetch, get_ahead_behind,
+    get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff, get_workdir_diff,
+    get_working_copy, init_repo, list_repos, list_ssh_keys, list_workspaces, merge_branch, pull,
+    push, rebase_branch, relink_repo, remove_repo, rename_workspace, set_active_repo, stage_all,
     stage_files, test_ssh_connection, unstage_files, AheadBehind, AppContext,
 };
 use domain::blame::BlameLine;
@@ -320,6 +320,33 @@ async fn cmd_commit(
     commit(&ctx, &workspace_id, message)
 }
 
+#[tauri::command]
+async fn cmd_fetch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    remote: Option<String>,
+) -> Result<(), AppError> {
+    fetch(&ctx, &workspace_id, remote)
+}
+
+#[tauri::command]
+async fn cmd_pull(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    remote: Option<String>,
+) -> Result<(), AppError> {
+    pull(&ctx, &workspace_id, remote)
+}
+
+#[tauri::command]
+async fn cmd_push(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    remote: Option<String>,
+) -> Result<(), AppError> {
+    push(&ctx, &workspace_id, remote)
+}
+
 // ─── App startup ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -375,6 +402,9 @@ pub fn run() {
             cmd_unstage_files,
             cmd_stage_all,
             cmd_commit,
+            cmd_fetch,
+            cmd_pull,
+            cmd_push,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
