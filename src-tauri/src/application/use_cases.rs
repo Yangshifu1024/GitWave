@@ -21,6 +21,11 @@ use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
     delete_branch as infra_delete_branch,
 };
+use crate::infrastructure::git::conflict::{
+    abort_merge as infra_abort_merge, get_conflict_sides as infra_get_conflict_sides,
+    is_merge_in_progress as infra_merge_in_progress, list_conflicts as infra_list_conflicts,
+    resolve_conflict as infra_resolve_conflict, ConflictFile, ConflictSides,
+};
 use crate::infrastructure::git::diff::{
     diff_commit_vs_parent as infra_diff_commit_vs_parent, diff_index_to_head as infra_diff_index_to_head,
     diff_paths as infra_diff_paths, diff_workdir_to_index as infra_diff_workdir_to_index,
@@ -568,6 +573,93 @@ pub fn merge_branch(
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_merge_branch(&repo, branch_name)
+}
+
+pub fn list_conflicts(ctx: &AppContext, workspace_id: &str) -> Result<Vec<ConflictFile>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_conflicts(&repo)
+}
+
+pub fn get_conflict_sides(
+    ctx: &AppContext,
+    workspace_id: &str,
+    path: String,
+) -> Result<ConflictSides> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_get_conflict_sides(&repo, &path)
+}
+
+pub fn resolve_conflict(
+    ctx: &AppContext,
+    workspace_id: &str,
+    path: String,
+    content: String,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_resolve_conflict(&repo, &path, &content)
+}
+
+pub fn abort_merge(ctx: &AppContext, workspace_id: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_abort_merge(&repo)
+}
+
+pub fn merge_in_progress(ctx: &AppContext, workspace_id: &str) -> Result<bool> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    Ok(infra_merge_in_progress(&repo))
+}
+
+/// AI explains a conflict — never writes the resolution (P1).
+pub async fn explain_conflict(
+    ctx: &AppContext,
+    workspace_id: String,
+    path: String,
+) -> Result<String> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let provider = settings
+        .ai_provider
+        .clone()
+        .ok_or_else(|| AppError::Protocol("AI provider not configured".into()))?;
+    let model = settings.ai_model.clone().unwrap_or_else(|| match provider.as_str() {
+        "anthropic" => "claude-3-5-haiku-latest".into(),
+        "ollama" => "llama3.2".into(),
+        _ => "gpt-4o-mini".into(),
+    });
+    let api_key = if provider == "ollama" {
+        None
+    } else {
+        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
+    };
+    let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
+    let system = settings.prompt_templates.conflict.unwrap_or_else(|| {
+        "You explain git merge conflicts for a human developer. \
+         Describe what each side intends and suggest a resolution approach. \
+         Do NOT output a full rewritten file unless asked. \
+         Clearly state this is advice only — the user must apply changes."
+            .into()
+    });
+    let user = format!(
+        "Conflict in `{path}`\n\n=== BASE ===\n{}\n\n=== OURS ===\n{}\n\n=== THEIRS ===\n{}\n",
+        sides.base.as_deref().unwrap_or("(missing)"),
+        sides.ours.as_deref().unwrap_or("(missing)"),
+        sides.theirs.as_deref().unwrap_or("(missing)"),
+    );
+    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
+        provider,
+        model,
+        base_url: settings.ai_base_url,
+        api_key,
+        system,
+        user,
+        offline: settings.ai_offline,
+    })
+    .await
 }
 
 /// Rebase the current HEAD onto an upstream.

@@ -16,15 +16,17 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    add_local_repo, add_ssh_key, add_worktree, apply_stash, checkout_branch, clear_ai_api_key,
-    clone_repo, commit, create_branch, create_workspace, delete_branch, delete_ssh_key,
-    delete_workspace, drop_stash, fetch, generate_commit_message, get_ahead_behind, get_ai_key_status,
-    get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff, get_stash_diff,
-    get_workdir_diff, get_working_copy, get_workspace, init_repo, list_repos, list_ssh_keys,
-    list_stashes, list_workspaces, list_worktrees, merge_branch, pop_stash, probe_ollama, pull, push,
-    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, save_stash,
-    set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection, unstage_files,
-    update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
+    abort_merge, add_local_repo, add_ssh_key, add_worktree, apply_stash, checkout_branch,
+    clear_ai_api_key, clone_repo, commit, create_branch, create_workspace, delete_branch,
+    delete_ssh_key, delete_workspace, drop_stash, explain_conflict, fetch, generate_commit_message,
+    get_ahead_behind, get_ai_key_status, get_blame, get_branches, get_commit_diff, get_commit_log,
+    get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff, get_working_copy,
+    get_workspace, init_repo, list_conflicts, list_repos, list_ssh_keys, list_stashes,
+    list_workspaces, list_worktrees, merge_branch, merge_in_progress, pop_stash, probe_ollama, pull,
+    push, rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace,
+    resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files,
+    test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus,
+    AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -35,6 +37,7 @@ use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
 use domain::worktree::WorktreeInfo;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
+use infrastructure::git::conflict::{ConflictFile, ConflictSides};
 use infrastructure::git::diff::DiffSummary;
 use infrastructure::git::merge::MergeResult;
 use infrastructure::git::rebase::RebaseResult;
@@ -326,6 +329,58 @@ async fn cmd_merge_branch(
 }
 
 #[tauri::command]
+async fn cmd_list_conflicts(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<ConflictFile>, AppError> {
+    list_conflicts(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_get_conflict_sides(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+) -> Result<ConflictSides, AppError> {
+    get_conflict_sides(&ctx, &workspace_id, path)
+}
+
+#[tauri::command]
+async fn cmd_resolve_conflict(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+    content: String,
+) -> Result<(), AppError> {
+    resolve_conflict(&ctx, &workspace_id, path, content)
+}
+
+#[tauri::command]
+async fn cmd_abort_merge(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    abort_merge(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_merge_in_progress(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<bool, AppError> {
+    merge_in_progress(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_explain_conflict(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+) -> Result<String, AppError> {
+    explain_conflict(&ctx, workspace_id, path).await
+}
+
+#[tauri::command]
 async fn cmd_rebase_branch(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -542,6 +597,12 @@ pub fn run() {
             cmd_checkout_branch,
             cmd_get_ahead_behind,
             cmd_merge_branch,
+            cmd_list_conflicts,
+            cmd_get_conflict_sides,
+            cmd_resolve_conflict,
+            cmd_abort_merge,
+            cmd_merge_in_progress,
+            cmd_explain_conflict,
             cmd_rebase_branch,
             cmd_get_working_copy,
             cmd_stage_files,

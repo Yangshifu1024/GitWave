@@ -371,6 +371,51 @@ export function rebaseBranch(workspaceId: string, upstream: string): Promise<Reb
   return invoke<RebaseResult>("cmd_rebase_branch", { workspaceId, upstream });
 }
 
+// ─── Conflicts ───────────────────────────────────────────────────────────────
+
+export interface ConflictFile {
+  path: string;
+  has_ours: boolean;
+  has_theirs: boolean;
+  has_base: boolean;
+}
+
+export interface ConflictSides {
+  path: string;
+  ours: string | null;
+  theirs: string | null;
+  base: string | null;
+  working: string | null;
+}
+
+export function listConflicts(workspaceId: string): Promise<ConflictFile[]> {
+  return invoke<ConflictFile[]>("cmd_list_conflicts", { workspaceId });
+}
+
+export function getConflictSides(workspaceId: string, path: string): Promise<ConflictSides> {
+  return invoke<ConflictSides>("cmd_get_conflict_sides", { workspaceId, path });
+}
+
+export function resolveConflict(
+  workspaceId: string,
+  path: string,
+  content: string,
+): Promise<void> {
+  return invoke<void>("cmd_resolve_conflict", { workspaceId, path, content });
+}
+
+export function abortMerge(workspaceId: string): Promise<void> {
+  return invoke<void>("cmd_abort_merge", { workspaceId });
+}
+
+export function mergeInProgress(workspaceId: string): Promise<boolean> {
+  return invoke<boolean>("cmd_merge_in_progress", { workspaceId });
+}
+
+export function explainConflict(workspaceId: string, path: string): Promise<string> {
+  return invoke<string>("cmd_explain_conflict", { workspaceId, path });
+}
+
 // ─── Working copy ────────────────────────────────────────────────────────────
 
 export type FileStatusKind =

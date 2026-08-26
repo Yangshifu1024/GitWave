@@ -36,11 +36,10 @@ pub struct MergeResult {
 /// tree is left as-is (caller should `checkout_branch` if a working
 /// tree update is needed).
 ///
-/// On ThreeWay: a merge commit is created with both branches as
-/// parents, and the working tree is updated to the merge result. If
-/// there are conflicts the working tree contains conflict markers
-/// (`<<<<<<<`, `=======`, `>>>>>>>`) and the paths are listed in
-/// `MergeResult::conflicts`.
+/// On ThreeWay without conflicts: a merge commit is created with both
+/// branches as parents. On conflicts: index + MERGE_HEAD are written,
+/// no commit is created; paths are listed in `MergeResult::conflicts`
+/// for the conflict UI to resolve.
 ///
 /// Returns AlreadyUpToDate if HEAD already contains the target.
 pub fn merge_branch(repo: &Repository, branch_name: &str) -> Result<MergeResult> {
@@ -84,31 +83,51 @@ pub fn merge_branch(repo: &Repository, branch_name: &str) -> Result<MergeResult>
         });
     }
 
-    // Real 3-way merge: find merge base, run merge_trees, write index
-    // + tree, commit.
-    let base_oid = repo.merge_base(our_oid, their_oid).map_err(map_git_err)?;
-    let base_tree = repo.find_commit(base_oid).map_err(map_git_err)?.tree()?;
-    let our_tree = repo.find_commit(our_oid).map_err(map_git_err)?.tree()?;
-    let their_tree = repo.find_commit(their_oid).map_err(map_git_err)?.tree()?;
+    // Real 3-way merge via libgit2 `merge` so MERGE_HEAD + on-disk index
+    // are set up correctly (including conflict stages).
+    let their_annotated = repo
+        .find_annotated_commit(their_oid)
+        .map_err(map_git_err)?;
+    let mut merge_opts = git2::MergeOptions::new();
+    merge_opts.find_renames(true);
+    let mut checkout = git2::build::CheckoutBuilder::new();
+    checkout
+        .force()
+        .allow_conflicts(true)
+        .conflict_style_merge(true);
+    repo.merge(
+        &[&their_annotated],
+        Some(&mut merge_opts),
+        Some(&mut checkout),
+    )
+    .map_err(map_git_err)?;
 
-    let mut opts = git2::MergeOptions::new();
-    opts.find_renames(true);
-    let mut merged_index = repo.merge_trees(&base_tree, &our_tree, &their_tree, Some(&opts))?;
-    // `conflicts()` returns `Result<IndexConflicts, Error>` in this libgit2
-    // version; unwrap and collect the conflicted paths (if any).
-    let conflicts: Vec<String> = merged_index
+    let mut index = repo.index().map_err(map_git_err)?;
+    let conflicts: Vec<String> = index
         .conflicts()
         .map_err(map_git_err)?
         .filter_map(|c| {
-            let ic = c.unwrap();
+            let ic = c.ok()?;
             ic.our
                 .or(ic.their)
                 .or(ic.ancestor)
                 .map(|e| String::from_utf8_lossy(&e.path).into_owned())
         })
         .collect();
-    let merged_tree_oid = merged_index.write_tree_to(repo)?;
 
+    if !conflicts.is_empty() {
+        let _ = std::fs::write(
+            repo.path().join("MERGE_MSG"),
+            format!("merge {branch_name}\n"),
+        );
+        return Ok(MergeResult {
+            kind: MergeKind::ThreeWay,
+            conflicts,
+            new_head: our_oid.to_string(),
+        });
+    }
+
+    let merged_tree_oid = index.write_tree().map_err(map_git_err)?;
     let sig = git2::Signature::now("GitWave", "noreply@gitwave.local").map_err(map_git_err)?;
     let our_commit = repo.find_commit(our_oid).map_err(map_git_err)?;
     let their_commit = repo.find_commit(their_oid).map_err(map_git_err)?;
@@ -122,18 +141,11 @@ pub fn merge_branch(repo: &Repository, branch_name: &str) -> Result<MergeResult>
             &[&our_commit, &their_commit],
         )
         .map_err(map_git_err)?;
-
-    // Best-effort: write the merged index back to the workdir so the
-    // user can immediately see conflict markers. If this fails (e.g.
-    // workdir is dirty), the merge is still recorded in HEAD; the
-    // frontend can recover by asking the user to resolve.
-    // `checkout_index` needs `Option<&mut Index>`; we pass a mutable
-    // reference to the owned `merged_index`.
-    let _ = repo.checkout_index(Some(&mut merged_index), None);
+    let _ = repo.cleanup_state();
 
     Ok(MergeResult {
         kind: MergeKind::ThreeWay,
-        conflicts,
+        conflicts: Vec::new(),
         new_head: new_head_oid.to_string(),
     })
 }

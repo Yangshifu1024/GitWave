@@ -21,6 +21,7 @@ import { DiffViewer } from "@/components/DiffViewer";
 import { BranchList } from "@/components/BranchList";
 import { StashPanel } from "@/components/StashPanel";
 import { WorktreePanel } from "@/components/WorktreePanel";
+import { ConflictPanel } from "@/components/ConflictPanel";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
@@ -127,6 +128,7 @@ function App(): React.JSX.Element {
 
       {/* ── Working Copy Bar ─────────────────────────────────────────────── */}
       {showWorkingCopy && <WorkingCopyBar repoId={activeRepoId} initialHeight={120} />}
+      <ConflictPanel />
     </div>
   );
 }

@@ -6,6 +6,7 @@
 
 pub mod blame;
 pub mod branch;
+pub mod conflict;
 pub mod credentials;
 pub mod diff;
 pub mod git2_adapter;
