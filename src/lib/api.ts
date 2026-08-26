@@ -327,3 +327,52 @@ export function mergeBranch(workspaceId: string, branchName: string): Promise<Me
 export function rebaseBranch(workspaceId: string, upstream: string): Promise<RebaseResult> {
   return invoke<RebaseResult>("cmd_rebase_branch", { workspaceId, upstream });
 }
+
+// ─── Working copy ────────────────────────────────────────────────────────────
+
+export type FileStatusKind =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "untracked"
+  | "renamed"
+  | "copied";
+
+export interface FileChange {
+  path: string;
+  old_path?: string | null;
+  kind: FileStatusKind;
+  staged: boolean;
+  additions: number;
+  deletions: number;
+}
+
+export interface WorkingCopy {
+  repo_id: string;
+  branch: string;
+  upstream: string | null;
+  sha: string;
+  ahead: number;
+  behind: number;
+  files: FileChange[];
+}
+
+export function getWorkingCopy(workspaceId: string): Promise<WorkingCopy> {
+  return invoke<WorkingCopy>("cmd_get_working_copy", { workspaceId });
+}
+
+export function stageFiles(workspaceId: string, paths: string[]): Promise<void> {
+  return invoke<void>("cmd_stage_files", { workspaceId, paths });
+}
+
+export function unstageFiles(workspaceId: string, paths: string[]): Promise<void> {
+  return invoke<void>("cmd_unstage_files", { workspaceId, paths });
+}
+
+export function stageAll(workspaceId: string): Promise<void> {
+  return invoke<void>("cmd_stage_all", { workspaceId });
+}
+
+export function commit(workspaceId: string, message: string): Promise<string> {
+  return invoke<string>("cmd_commit", { workspaceId, message });
+}

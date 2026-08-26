@@ -10,6 +10,7 @@ use crate::domain::branch::BranchInfo;
 use crate::domain::diff::FileDiff;
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::CommitSummary;
+use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
 };
@@ -28,6 +29,10 @@ use crate::infrastructure::git::history::{
 };
 use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
+use crate::infrastructure::git::working_copy::{
+    commit as infra_commit, stage_all as infra_stage_all, stage_paths as infra_stage_paths,
+    status as infra_wc_status, unstage_paths as infra_unstage_paths,
+};
 use crate::infrastructure::persistence::workspace_repo::WorkspaceRepository;
 use crate::infrastructure::persistence::SqliteWorkspaceRepo;
 use crate::infrastructure::ssh::keys::{SshKey, SshTestResult};
@@ -430,6 +435,52 @@ pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Re
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_rebase_branch(&repo, upstream)
+}
+
+// ─── Working copy (Sprint 4) ────────────────────────────────────────────────
+
+fn active_repo_id(ctx: &AppContext, workspace_id: &str) -> Result<String> {
+    let workspaces = ctx
+        .workspaces
+        .lock()
+        .expect("workspace repo mutex poisoned");
+    let ws = workspaces
+        .get(workspace_id)?
+        .ok_or_else(|| AppError::Protocol(format!("workspace not found: {workspace_id}")))?;
+    ws.last_active_repo_id
+        .clone()
+        .ok_or_else(|| AppError::Protocol("no active repo in workspace".into()))
+}
+
+pub fn get_working_copy(ctx: &AppContext, workspace_id: &str) -> Result<WorkingCopy> {
+    let repo_id = active_repo_id(ctx, workspace_id)?;
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_wc_status(&repo, &repo_id)
+}
+
+pub fn stage_files(ctx: &AppContext, workspace_id: &str, paths: Vec<String>) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_stage_paths(&repo, &paths)
+}
+
+pub fn unstage_files(ctx: &AppContext, workspace_id: &str, paths: Vec<String>) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_unstage_paths(&repo, &paths)
+}
+
+pub fn stage_all(ctx: &AppContext, workspace_id: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_stage_all(&repo)
+}
+
+pub fn commit(ctx: &AppContext, workspace_id: &str, message: String) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_commit(&repo, &message)
 }
 
 // ─── Helper ─────────────────────────────────────────────────────────────────

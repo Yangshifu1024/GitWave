@@ -16,17 +16,19 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    add_local_repo, add_ssh_key, checkout_branch, clone_repo, create_branch, create_workspace,
-    delete_branch, delete_ssh_key, delete_workspace, get_ahead_behind, get_blame, get_branches,
-    get_commit_diff, get_commit_log, get_file_diff, get_workdir_diff, init_repo, list_repos,
-    list_ssh_keys, list_workspaces, merge_branch, rebase_branch, relink_repo, remove_repo,
-    rename_workspace, set_active_repo, test_ssh_connection, AheadBehind, AppContext,
+    add_local_repo, add_ssh_key, checkout_branch, clone_repo, commit, create_branch,
+    create_workspace, delete_branch, delete_ssh_key, delete_workspace, get_ahead_behind, get_blame,
+    get_branches, get_commit_diff, get_commit_log, get_file_diff, get_workdir_diff,
+    get_working_copy, init_repo, list_repos, list_ssh_keys, list_workspaces, merge_branch,
+    rebase_branch, relink_repo, remove_repo, rename_workspace, set_active_repo, stage_all,
+    stage_files, test_ssh_connection, unstage_files, AheadBehind, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
 use domain::diff::FileDiff;
 use domain::error::AppError;
 use domain::history::CommitSummary;
+use domain::working_copy::WorkingCopy;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSummary};
 use infrastructure::git::diff::DiffSummary;
 use infrastructure::git::merge::MergeResult;
@@ -275,6 +277,49 @@ async fn cmd_rebase_branch(
     rebase_branch(&ctx, &workspace_id, &upstream)
 }
 
+#[tauri::command]
+async fn cmd_get_working_copy(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<WorkingCopy, AppError> {
+    get_working_copy(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_stage_files(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    stage_files(&ctx, &workspace_id, paths)
+}
+
+#[tauri::command]
+async fn cmd_unstage_files(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    unstage_files(&ctx, &workspace_id, paths)
+}
+
+#[tauri::command]
+async fn cmd_stage_all(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    stage_all(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    message: String,
+) -> Result<String, AppError> {
+    commit(&ctx, &workspace_id, message)
+}
+
 // ─── App startup ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -325,6 +370,11 @@ pub fn run() {
             cmd_get_ahead_behind,
             cmd_merge_branch,
             cmd_rebase_branch,
+            cmd_get_working_copy,
+            cmd_stage_files,
+            cmd_unstage_files,
+            cmd_stage_all,
+            cmd_commit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

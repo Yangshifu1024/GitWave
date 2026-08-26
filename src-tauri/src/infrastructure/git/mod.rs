@@ -13,6 +13,7 @@ pub mod history;
 pub mod merge;
 pub mod rebase;
 pub mod repo_adapter;
+pub mod working_copy;
 
 #[cfg(test)]
 mod test_helpers;
