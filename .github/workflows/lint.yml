@@ -12,8 +12,12 @@ concurrency:
 
 jobs:
   rust-lint:
-    name: Rust lint
-    runs-on: macos-latest
+    name: Rust lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
