@@ -38,12 +38,13 @@ function App(): React.JSX.Element {
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary">
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <header
+        data-tauri-drag-region
         className={`flex items-center shrink-0 h-12 ${
           isMacOS() ? "pl-20 pr-4" : "px-4"
         } gap-4 bg-bg-secondary border-b border-border-subtle`}
       >
         {/* Left: Workspace switcher (DropdownMenu: select + create) */}
-        <div className="shrink-0">
+        <div className="shrink-0" data-tauri-no-drag-region>
           <WorkspaceSwitcherDropdown />
         </div>
 
@@ -53,7 +54,7 @@ function App(): React.JSX.Element {
         </h1>
 
         {/* Right: theme, SSH, help, version (+ window controls on non-macOS) */}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1" data-tauri-no-drag-region>
           <ThemeToggle />
           <SshKeyManagerPopover />
           <Button variant="ghost" size="sm" className="p-1" aria-label="Help">
