@@ -5,10 +5,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { RepoList } from "@/components/RepoList";
 import { SshKeyManager } from "@/components/SshKeyManager";
+import { WindowControls } from "@/components/WindowControls";
 import { WorkspaceSwitcherDropdown } from "@/components/WorkspaceSwitcherDropdown";
 import { WorkingCopyBar } from "@/components/ui/WorkingCopyBar";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { getAppVersion } from "@/lib/api";
+import { isMacOS } from "@/lib/platform";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -35,23 +37,35 @@ function App(): React.JSX.Element {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary">
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
-      <header className="flex items-center shrink-0 h-12 px-4 gap-4 bg-bg-secondary border-b border-border-subtle">
+      <header
+        className={`flex items-center shrink-0 h-12 ${
+          isMacOS() ? "pl-20 pr-4" : "px-4"
+        } gap-4 bg-bg-secondary border-b border-border-subtle`}
+      >
         {/* Left: Workspace switcher (DropdownMenu: select + create) */}
         <div className="shrink-0">
           <WorkspaceSwitcherDropdown />
         </div>
 
-        {/* Center: nothing yet (branch indicator will go here Sprint 4) */}
-        <div className="flex-1" />
+        {/* Center: app title (absolutely centered regardless of sibling widths) */}
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-text-primary pointer-events-none">
+          GitWave
+        </h1>
 
-        {/* Right: theme, SSH, help, version */}
-        <div className="flex items-center gap-1">
+        {/* Right: theme, SSH, help, version (+ window controls on non-macOS) */}
+        <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
           <SshKeyManagerPopover />
           <Button variant="ghost" size="sm" className="p-1" aria-label="Help">
             <HelpCircle size={16} />
           </Button>
           <span className="text-xs text-text-muted pl-2">v{version}</span>
+          {!isMacOS() ? (
+            <>
+              <span className="mx-2 h-4 w-px bg-border-subtle" aria-hidden />
+              <WindowControls />
+            </>
+          ) : null}
         </div>
       </header>
 
