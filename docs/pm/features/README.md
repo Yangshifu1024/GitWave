@@ -53,6 +53,7 @@
 | 编号 | 标题 | 状态 | 关联 |
 |---|---|---|---|
 | [F001](./F001-workspace-crud.md) | Workspace CRUD | 接受 | Sprint 1 |
+| [F002](./F002-repo-ingestion.md) | Repo Ingestion + SSH Key Management | 接受 | Sprint 2 |
 
 ## 相关文档
 
