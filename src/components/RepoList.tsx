@@ -402,8 +402,10 @@ export function RepoList({
           size="sm"
         >
           <p className="text-sm text-text-secondary">
-            Removes the workspace reference. The local directory and its
-            .git/ folder are not touched.
+            Removes the workspace reference.
+          </p>
+          <p className="text-sm text-text-secondary">
+            The local directory and its .git/ folder are not touched.
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => setRemoving(null)}>Cancel</Button>
