@@ -398,7 +398,7 @@ export function RepoList({
           open={true}
           onOpenChange={(open) => { if (!open) setRemoving(null); }}
           title={`Remove "${basename(removing.path)}"?`}
-          description={removing.path}
+          description={`Path: ${removing.path}`}
           size="sm"
         >
           <p className="text-sm text-text-secondary">
