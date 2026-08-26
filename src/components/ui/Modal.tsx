@@ -16,9 +16,12 @@ export interface ModalProps {
 }
 
 const sizeClasses = {
-  sm: "max-w-[320px]",
-  md: "max-w-[480px]",
-  lg: "max-w-[720px]",
+  // Responsive: take up to 90vw, capped at the design width. Lets the
+  // modal grow with content (long paths, large lists) without overflowing
+  // the viewport.
+  sm: "w-[90vw] max-w-[480px]",
+  md: "w-[90vw] max-w-[640px]",
+  lg: "w-[90vw] max-w-[800px]",
 };
 
 export function Modal({
@@ -64,7 +67,7 @@ export function Modal({
                   {title}
                 </Dialog.Title>
                 {description ? (
-                  <Dialog.Description className="text-sm text-text-secondary">
+                  <Dialog.Description className="text-sm text-text-secondary break-words">
                     {description}
                   </Dialog.Description>
                 ) : null}
