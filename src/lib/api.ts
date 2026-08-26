@@ -170,6 +170,11 @@ export interface FileSummary {
   deletions: number;
 }
 
+export interface CommitRef {
+  name: string;
+  kind: "local_branch" | "remote_branch" | "tag" | "head";
+}
+
 export interface CommitSummary {
   sha: string;
   author: string;
@@ -178,6 +183,7 @@ export interface CommitSummary {
   message_summary: string;
   lane: number;
   parents: string[];
+  refs: CommitRef[];
 }
 
 export interface CommitDetails {

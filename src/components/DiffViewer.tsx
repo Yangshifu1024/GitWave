@@ -46,64 +46,59 @@ function getLanguage(ext: string): string {
 }
 
 function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): React.JSX.Element {
+  const prefix = line.kind === "added" ? "+" : line.kind === "removed" ? "-" : " ";
+
+  if (mode === "split") {
+    const leftContent =
+      line.kind === "added" ? (
+        <span className="flex-1 px-2 text-text-muted select-none">&nbsp;</span>
+      ) : (
+        <span
+          className={cn(
+            "flex-1 px-2",
+            line.kind === "removed" && "bg-danger/10 text-danger",
+            line.kind === "context" && "text-text-primary",
+          )}
+        >
+          {line.kind === "removed" ? `- ${line.content}` : `  ${line.content}`}
+        </span>
+      );
+
+    const rightContent =
+      line.kind === "removed" ? (
+        <span className="flex-1 px-2 text-text-muted select-none">&nbsp;</span>
+      ) : (
+        <span
+          className={cn(
+            "flex-1 px-2",
+            line.kind === "added" && "bg-success/10 text-success",
+            line.kind === "context" && "text-text-primary",
+          )}
+        >
+          {line.kind === "added" ? `+ ${line.content}` : `  ${line.content}`}
+        </span>
+      );
+
+    return (
+      <div className="flex text-xs font-mono leading-5 border-b border-border-subtle/40">
+        <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+          {line.kind === "added" ? "" : (line.old_line_no ?? "")}
+        </span>
+        <div className="flex-1 min-w-0 border-r border-border-subtle">{leftContent}</div>
+        <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+          {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
+        </span>
+        <div className="flex-1 min-w-0">{rightContent}</div>
+      </div>
+    );
+  }
+
   const bgClass =
     line.kind === "added"
       ? "bg-success/10 text-success"
       : line.kind === "removed"
         ? "bg-danger/10 text-danger"
         : "text-text-primary";
-
-  const prefix = line.kind === "added" ? "+" : line.kind === "removed" ? "-" : " ";
-
-  const lineNoLeft =
-    line.kind === "added" ? (
-      <span className="text-text-muted w-10 text-right pr-2 shrink-0 select-none"> </span>
-    ) : (
-      <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none">
-        {line.old_line_no ?? ""}
-      </span>
-    );
-
-  const lineNoRight =
-    line.kind === "removed" ? (
-      <span className="text-text-muted w-10 text-right pr-2 shrink-0 select-none"> </span>
-    ) : (
-      <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none">
-        {line.new_line_no ?? ""}
-      </span>
-    );
-
-  if (mode === "split") {
-    const isRemoved = line.kind === "removed";
-    const isAdded = line.kind === "added";
-    return (
-      <div className={cn("flex text-xs font-mono leading-5", isRemoved && "bg-danger/5")}>
-        {lineNoLeft}
-        <span
-          className={cn(
-            "flex-1 px-2",
-            bgClass,
-            isAdded && "bg-success/5",
-            isRemoved && "bg-danger/5",
-          )}
-        >
-          {prefix} {line.content}
-        </span>
-        {lineNoRight}
-        <span
-          className={cn(
-            "flex-1 px-2",
-            bgClass,
-            isAdded && "bg-success/5",
-            isRemoved && "bg-danger/5",
-          )}
-        >
-          {isAdded ? "+ " : isRemoved ? "- " : "  "}
-          {line.content}
-        </span>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -113,8 +108,12 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
         line.kind === "removed" && "bg-danger/10",
       )}
     >
-      {lineNoLeft}
-      {lineNoRight}
+      <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+        {line.kind === "added" ? "" : (line.old_line_no ?? "")}
+      </span>
+      <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+        {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
+      </span>
       <span className={cn("flex-1 px-2", bgClass)}>
         {prefix} {line.content}
       </span>
@@ -269,15 +268,19 @@ export function DiffViewer({
         <span className="text-danger text-sm">-{diff.total_deletions}</span>
         <div className="ml-auto flex gap-1">
           <Button
+            type="button"
             variant={mode === "unified" ? "primary" : "secondary"}
             size="sm"
+            aria-pressed={mode === "unified"}
             onClick={() => setMode("unified")}
           >
             Unified
           </Button>
           <Button
+            type="button"
             variant={mode === "split" ? "primary" : "secondary"}
             size="sm"
+            aria-pressed={mode === "split"}
             onClick={() => setMode("split")}
           >
             Split

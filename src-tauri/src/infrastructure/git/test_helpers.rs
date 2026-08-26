@@ -132,10 +132,14 @@ pub fn build_merge_repo() -> (std::path::PathBuf, Repository) {
     let a2_oid = make_commit(&repo, &sig, "a2", a2_tree, &[a1_oid]);
 
     // Merge commit on main with parents [a2_oid, b2_oid].
+    // After checkout to main, b.txt is gone from the workdir — re-write it
+    // before staging so the merge tree contains both files.
+    fs::write(repo.workdir().unwrap().join("b.txt"), "b2\n").unwrap();
     let merge_tree = {
         let mut index = repo.index().unwrap();
         index.add_path(std::path::Path::new("a.txt")).unwrap();
         index.add_path(std::path::Path::new("b.txt")).unwrap();
+        index.write().unwrap();
         index.write_tree().unwrap()
     };
     let _merge_oid = make_commit(&repo, &sig, "merge feature", merge_tree, &[a2_oid, b2_oid]);

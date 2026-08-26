@@ -14,7 +14,9 @@ pub use blame::BlameLine;
 pub use branch::{BranchInfo, BranchKind};
 pub use diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};
 pub use error::{AppError, Result};
-pub use history::{CommitDetails, CommitSummary, FileStatus, FileSummary};
+pub use history::{
+    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary,
+};
 pub use workspace::{
     PromptTemplates, RepoRef, RepoStatus, RepoSummary, Workspace, WorkspaceSettings,
     WorkspaceSummary,

@@ -28,6 +28,24 @@ pub struct FileSummary {
     pub deletions: u32,
 }
 
+/// Kind of a named pointer decorating a commit in the History graph.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CommitRefKind {
+    LocalBranch,
+    RemoteBranch,
+    Tag,
+    Head,
+}
+
+/// A branch / tag / HEAD label attached to a commit tip.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CommitRef {
+    /// Short display name (`main`, `origin/main`, `v1.0.0`, `HEAD`).
+    pub name: String,
+    pub kind: CommitRefKind,
+}
+
 /// Lightweight commit summary used to render the commit graph. Lane is
 /// assigned by `infrastructure::git::history::commit_log` so the
 /// frontend can position this commit in a vertical column.
@@ -47,6 +65,9 @@ pub struct CommitSummary {
     /// input (e.g. for root commits or partial server output).
     #[serde(default)]
     pub parents: Vec<String>,
+    /// Branch / tag / HEAD decorations pointing at this commit.
+    #[serde(default)]
+    pub refs: Vec<CommitRef>,
 }
 
 /// Full commit details loaded on demand when a commit is selected.
@@ -105,6 +126,10 @@ mod tests {
             message_summary: "feat: add thing".into(),
             lane: 0,
             parents: vec!["def456".into()],
+            refs: vec![CommitRef {
+                name: "main".into(),
+                kind: CommitRefKind::LocalBranch,
+            }],
         };
         let json = serde_json::to_string(&c).unwrap();
         let back: CommitSummary = serde_json::from_str(&json).unwrap();
@@ -112,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn commit_summary_default_parents_empty() {
+    fn commit_summary_default_parents_and_refs_empty() {
         let json = r#"{
             "sha": "abc",
             "author": "x",
@@ -123,6 +148,7 @@ mod tests {
         }"#;
         let c: CommitSummary = serde_json::from_str(json).unwrap();
         assert!(c.parents.is_empty());
+        assert!(c.refs.is_empty());
     }
 
     #[test]

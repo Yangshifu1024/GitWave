@@ -1,9 +1,7 @@
 //! File-level diff operations. See
 //! `docs/tasks/feat-history-graph/plan.md` step 5.
 
-use std::collections::HashMap;
-
-use git2::{Diff, DiffOptions, Oid, Repository};
+use git2::{Diff, DiffDelta, DiffOptions, Oid, Repository};
 
 use crate::domain::diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
@@ -36,6 +34,7 @@ impl DiffSummary {
 pub fn diff_workdir_to_index(repo: &Repository) -> Result<DiffSummary> {
     let mut opts = DiffOptions::new();
     opts.include_untracked(true);
+    opts.show_untracked_content(true);
     let diff = repo
         .diff_index_to_workdir(None, Some(&mut opts))
         .map_err(map_git_err)?;
@@ -85,116 +84,105 @@ fn diff_to_summary(diff: &Diff) -> Result<DiffSummary> {
     Ok(DiffSummary::new(files))
 }
 
+fn path_from_delta(delta: &DiffDelta<'_>) -> String {
+    delta
+        .new_file()
+        .path()
+        .or_else(|| delta.old_file().path())
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+fn sha_opt(id: git2::Oid) -> Option<String> {
+    let s = id.to_string();
+    if s.chars().all(|c| c == '0') {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+/// Walk the diff and build per-file `FileDiff` values **including hunks**.
 fn diff_to_files(diff: &Diff) -> Result<Vec<FileDiff>> {
-    // Collect per-file stats first using foreach.
-    // key = new_file path, value = accumulated FileDiff (hunks empty for now).
-    let mut file_stats: HashMap<String, (u32, u32, Option<String>, Option<String>)> =
-        HashMap::new();
+    // `Diff::foreach` takes four callbacks that all need to mutate the same
+    // accumulator; RefCell lets them share it without overlapping &mut borrows.
+    use std::cell::RefCell;
+
+    let files: RefCell<Vec<FileDiff>> = RefCell::new(Vec::new());
 
     diff.foreach(
-        &mut |delta, _spectate| -> bool {
-            let path = delta
-                .new_file()
-                .path()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            let _old_path = delta
-                .old_file()
-                .path()
-                .map(|p| p.to_string_lossy().into_owned());
-            let old_sha = delta.old_file().id().to_string();
-            let new_sha = delta.new_file().id().to_string();
-            // Treat zeros as None (file added or deleted)
-            let old_sha_opt = if old_sha == "0000000000000000000000000000000000000000" {
-                None
-            } else {
-                Some(old_sha)
-            };
-            let new_sha_opt = if new_sha == "0000000000000000000000000000000000000000" {
-                None
-            } else {
-                Some(new_sha)
-            };
-            file_stats.insert(path, (0, 0, old_sha_opt, new_sha_opt));
+        &mut |delta, _progress| -> bool {
+            let path = path_from_delta(&delta);
+            let old_sha = sha_opt(delta.old_file().id());
+            let new_sha = sha_opt(delta.new_file().id());
+            files.borrow_mut().push(FileDiff {
+                path,
+                old_sha,
+                new_sha,
+                additions: 0,
+                deletions: 0,
+                hunks: Vec::new(),
+            });
             true
         },
         None,
-        None,
+        Some(&mut |_delta, hunk| -> bool {
+            if let Some(file) = files.borrow_mut().last_mut() {
+                file.hunks.push(DiffHunk {
+                    old_start: hunk.old_start(),
+                    old_lines: hunk.old_lines(),
+                    new_start: hunk.new_start(),
+                    new_lines: hunk.new_lines(),
+                    lines: Vec::new(),
+                });
+            }
+            true
+        }),
         Some(&mut |_delta, _hunk, line| -> bool {
-            // Line origin: '+', '-', ' ', or 'F' for file header
-            let ch = line.origin();
-            if ch == '+' || ch == '-' {
-                // Determine which file this line belongs to by looking at the
-                // line's content to extract the path. This is imperfect;
-                // instead we rely on the fact that foreach delivers lines
-                // in order grouped by file, and we track the current path
-                // via the file callback above.
+            let mut files = files.borrow_mut();
+            let Some(file) = files.last_mut() else {
+                return true;
+            };
+            let content = std::str::from_utf8(line.content())
+                .unwrap_or("")
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
+
+            let (kind, old_line_no, new_line_no) = match line.origin() {
+                '+' => {
+                    file.additions += 1;
+                    (
+                        DiffLineKind::Added,
+                        None,
+                        Some(line.new_lineno().unwrap_or(0)),
+                    )
+                }
+                '-' => {
+                    file.deletions += 1;
+                    (
+                        DiffLineKind::Removed,
+                        Some(line.old_lineno().unwrap_or(0)),
+                        None,
+                    )
+                }
+                ' ' => (DiffLineKind::Context, line.old_lineno(), line.new_lineno()),
+                _ => return true,
+            };
+
+            if let Some(hunk) = file.hunks.last_mut() {
+                hunk.lines.push(DiffLine {
+                    kind,
+                    content,
+                    old_line_no,
+                    new_line_no,
+                });
             }
             true
         }),
     )
     .map_err(map_git_err)?;
 
-    // Collect per-file additions/deletions via print.
-    let mut current_path: Option<String> = None;
-    let mut current_add: u32 = 0;
-    let mut current_del: u32 = 0;
-
-    diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| -> bool {
-        let path = delta
-            .new_file()
-            .path()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
-        if Some(&path) != current_path.as_ref() {
-            // Switched to a new file — commit previous stats
-            if let Some(ref p) = current_path {
-                if let Some(entry) = file_stats.get_mut(p) {
-                    entry.0 = current_add;
-                    entry.1 = current_del;
-                }
-            }
-            current_path = Some(path);
-            current_add = 0;
-            current_del = 0;
-        }
-
-        match line.origin() {
-            '+' => current_add += 1,
-            '-' => current_del += 1,
-            _ => {}
-        }
-        true
-    })
-    .map_err(map_git_err)?;
-
-    // Commit last file's stats
-    if let Some(ref p) = current_path {
-        if let Some(entry) = file_stats.get_mut(p) {
-            entry.0 = current_add;
-            entry.1 = current_del;
-        }
-    }
-
-    // Now build the full FileDiff list with empty hunks.
-    // For the summary functions (diff_workdir_to_index, diff_commit_vs_parent)
-    // we don't need the hunk details — callers can call diff_paths for full detail.
-    let files: Vec<FileDiff> = file_stats
-        .into_iter()
-        .map(
-            |(path, (additions, deletions, old_sha, new_sha))| FileDiff {
-                path,
-                old_sha,
-                new_sha,
-                additions,
-                deletions,
-                hunks: Vec::new(),
-            },
-        )
-        .collect();
-
-    Ok(files)
+    Ok(files.into_inner())
 }
 
 #[cfg(test)]
@@ -222,6 +210,26 @@ mod tests {
     }
 
     #[test]
+    fn diff_commit_vs_parent_includes_hunks() {
+        let (path, repo) = build_linear_repo(2);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+
+        let summary = diff_commit_vs_parent(&repo, head.id()).unwrap();
+        cleanup(&path);
+
+        assert!(!summary.files.is_empty());
+        let file = &summary.files[0];
+        assert!(
+            !file.hunks.is_empty(),
+            "expected hunk detail, got empty hunks"
+        );
+        assert!(
+            file.hunks.iter().any(|h| !h.lines.is_empty()),
+            "expected hunk lines"
+        );
+    }
+
+    #[test]
     fn diff_paths_compares_two_commits() {
         let (path, repo) = build_linear_repo(3);
         let head = repo.head().unwrap().peel_to_commit().unwrap();
@@ -236,6 +244,10 @@ mod tests {
             !diffs.is_empty(),
             "expected at least one file diff between commits"
         );
+        assert!(
+            diffs.iter().any(|f| !f.hunks.is_empty()),
+            "expected hunks between commits"
+        );
     }
 
     #[test]
@@ -244,7 +256,6 @@ mod tests {
         let summary = diff_workdir_to_index(&repo).unwrap();
         cleanup(&path);
 
-        // Clean repo with no uncommitted changes
         assert_eq!(summary.files.len(), 0);
     }
 }
