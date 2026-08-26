@@ -39,12 +39,14 @@ function laneX(lane: number): number {
   return LANE_GAP / 2 + lane * LANE_GAP;
 }
 
-function RefBadge({ r }: { r: CommitRef }): React.JSX.Element {
+function RefBadge({ r, emphasize = false }: { r: CommitRef; emphasize?: boolean }): React.JSX.Element {
   const styles =
     r.kind === "head"
-      ? "bg-branch-current/15 text-branch-current border-branch-current/40"
+      ? "bg-branch-current text-text-inverse border-branch-current"
       : r.kind === "local_branch"
-        ? "bg-accent/10 text-accent border-accent/30"
+        ? emphasize
+          ? "bg-branch-current/20 text-branch-current border-branch-current/50 font-semibold"
+          : "bg-accent/10 text-accent border-accent/30"
         : r.kind === "tag"
           ? "bg-warning/15 text-warning border-warning/40"
           : "bg-bg-elevated text-text-muted border-border-default";
@@ -68,6 +70,7 @@ interface GraphRowProps {
   shaToIndex: Map<string, number>;
   maxLane: number;
   activeLanes: number[];
+  isHead: boolean;
 }
 
 /** Per-row SVG: through-lines, merge elbows, commit node (newest-first). */
@@ -77,11 +80,12 @@ function GraphRow({
   shaToIndex,
   maxLane,
   activeLanes,
+  isHead,
 }: GraphRowProps): React.JSX.Element {
   const width = laneX(maxLane) + LANE_GAP / 2;
   const cy = ROW_H / 2;
   const cx = laneX(commit.lane);
-  const color = laneColor(commit.lane);
+  const color = isHead ? "var(--color-branch-current)" : laneColor(commit.lane);
 
   const parentEdges = commit.parents
     .map((pSha) => {
@@ -167,12 +171,21 @@ function GraphRow({
       <circle
         cx={cx}
         cy={cy}
-        r={NODE_R}
+        r={isHead ? NODE_R + 1 : NODE_R}
         fill={color}
         stroke="var(--color-bg-primary)"
         strokeWidth={1.5}
       />
-      {commit.parents.length > 1 ? (
+      {isHead ? (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={NODE_R + 4}
+          fill="none"
+          stroke="var(--color-branch-current)"
+          strokeWidth={1.5}
+        />
+      ) : commit.parents.length > 1 ? (
         <circle
           cx={cx}
           cy={cy}
@@ -195,6 +208,7 @@ interface CommitRowProps {
   activeLanes: number[];
   onSelect: (sha: string) => void;
   isSelected: boolean;
+  isHead: boolean;
 }
 
 function CommitRow({
@@ -205,6 +219,7 @@ function CommitRow({
   activeLanes,
   onSelect,
   isSelected,
+  isHead,
 }: CommitRowProps): React.JSX.Element {
   return (
     <div
@@ -212,10 +227,18 @@ function CommitRow({
       tabIndex={0}
       onClick={() => onSelect(commit.sha)}
       onKeyDown={(e) => e.key === "Enter" && onSelect(commit.sha)}
+      aria-current={isHead ? "true" : undefined}
       className={cn(
         "flex items-center gap-3 px-3 py-0 cursor-pointer border-b border-border-subtle",
-        "hover:bg-bg-secondary transition-colors duration-fast",
-        isSelected && "bg-accent/10 border-l-2 border-l-accent",
+        "transition-colors duration-fast border-l-2 border-l-transparent",
+        // Panel is bg-secondary — hover must use a contrasting surface.
+        !isSelected && !isHead && "hover:bg-bg-elevated",
+        // Current branch tip
+        isHead &&
+          !isSelected &&
+          "bg-branch-current/10 border-l-branch-current hover:bg-branch-current/20",
+        // Selected: stronger accent fill, distinct from hover
+        isSelected && "bg-accent/20 border-l-accent hover:bg-accent/30",
       )}
       style={{ height: `${ROW_H}px` }}
     >
@@ -225,21 +248,34 @@ function CommitRow({
         shaToIndex={shaToIndex}
         maxLane={maxLane}
         activeLanes={activeLanes}
+        isHead={isHead}
       />
 
-      <span className="font-mono text-xs text-accent bg-accent/10 px-1.5 py-0.5 rounded shrink-0">
+      <span
+        className={cn(
+          "font-mono text-xs px-1.5 py-0.5 rounded shrink-0",
+          isHead
+            ? "text-branch-current bg-branch-current/15 font-semibold"
+            : "text-accent bg-accent/10",
+        )}
+      >
         {shortSha(commit.sha)}
       </span>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <p className="text-sm text-text-primary truncate font-medium leading-tight">
+          <p
+            className={cn(
+              "text-sm truncate leading-tight",
+              isHead ? "text-text-primary font-semibold" : "text-text-primary font-medium",
+            )}
+          >
             {commit.message_summary}
           </p>
           {(commit.refs ?? []).length > 0 ? (
             <span className="flex items-center gap-1 shrink-0 overflow-hidden">
               {(commit.refs ?? []).slice(0, 4).map((r) => (
-                <RefBadge key={`${r.kind}:${r.name}`} r={r} />
+                <RefBadge key={`${r.kind}:${r.name}`} r={r} emphasize={isHead && r.kind !== "remote_branch"} />
               ))}
               {(commit.refs ?? []).length > 4 ? (
                 <span className="text-[10px] text-text-muted">
@@ -254,6 +290,7 @@ function CommitRow({
           {commit.parents.length > 1 && (
             <span className="ml-1 text-accent">merge · {commit.parents.length} parents</span>
           )}
+          {isHead ? <span className="ml-1 text-branch-current font-medium">· current</span> : null}
         </p>
       </div>
     </div>
@@ -298,6 +335,7 @@ export function CommitGraph({
 }: CommitGraphProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
   const [commits, setCommits] = useState<CommitSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -335,7 +373,7 @@ export function CommitGraph({
         setError(formatAppError(e));
       })
       .finally(() => setLoading(false));
-  }, [activeWorkspaceId, activeRepoId]);
+  }, [activeWorkspaceId, activeRepoId, historyEpoch]);
 
   const virtualizer = useVirtualizer({
     count: commits.length,
@@ -421,6 +459,7 @@ export function CommitGraph({
                 activeLanes={activeLanesByIndex[virtualRow.index] ?? [commit.lane]}
                 onSelect={handleSelect}
                 isSelected={selectedSha === commit.sha}
+                isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
               />
             </div>
           );

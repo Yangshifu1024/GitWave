@@ -86,8 +86,8 @@ function App(): React.JSX.Element {
       {/* ── 3-pane body ────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden">
         <Split direction="horizontal">
-          {/* Sidebar: repo list */}
-          <Pane initialSize={240} minSize={180} maxSize={360}>
+          {/* Sidebar: 20% */}
+          <Pane initialSize="20%" minSize={180} maxSize={480}>
             <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-auto">
               {activeWorkspaceId ? (
                 <RepoList workspaceId={activeWorkspaceId} />
@@ -104,8 +104,8 @@ function App(): React.JSX.Element {
 
           <ResizeHandle />
 
-          {/* Feature Nav: tabs */}
-          <Pane initialSize={280} minSize={200} maxSize={400}>
+          {/* Feature Nav: 50% */}
+          <Pane initialSize="50%" minSize={200} maxSize={900}>
             <FeatureNav
               selectedCommitOid={selectedCommitOid}
               onCommitSelect={setSelectedCommitOid}
@@ -114,7 +114,8 @@ function App(): React.JSX.Element {
 
           <ResizeHandle />
 
-          <Pane initialSize={400} minSize={300}>
+          {/* Main: 30% */}
+          <Pane initialSize="30%" minSize={240}>
             <MainContent selectedCommitOid={selectedCommitOid} />
           </Pane>
         </Split>

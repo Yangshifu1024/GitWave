@@ -79,6 +79,7 @@ interface BranchListProps {
 export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,9 +102,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (!activeWorkspaceId) return;
     try {
       await checkoutBranch(activeWorkspaceId, name);
-      // Refresh branches
       const updated = await getBranches(activeWorkspaceId);
       setBranches(updated);
+      bumpHistoryEpoch();
       onBranchSelect?.(name);
     } catch {
       // silently fail — UI will show stale state
@@ -114,9 +115,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (!activeWorkspaceId) return;
     try {
       await deleteBranch(activeWorkspaceId, name);
-      // Refresh branches
       const updated = await getBranches(activeWorkspaceId);
       setBranches(updated);
+      bumpHistoryEpoch();
     } catch {
       // silently fail
     }

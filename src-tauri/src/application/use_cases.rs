@@ -274,7 +274,7 @@ pub fn get_commit_log(
 ) -> Result<Vec<CommitSummary>> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_commit_log(&repo, "HEAD", max)
+    infra_commit_log(&repo, max)
 }
 
 /// Get the working-copy diff (unstaged changes).

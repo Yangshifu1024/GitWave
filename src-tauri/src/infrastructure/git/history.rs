@@ -10,29 +10,52 @@ use crate::domain::branch::{BranchInfo, BranchKind};
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::{CommitRef, CommitRefKind, CommitSummary};
 
-/// Walk commits starting from `from_ref` (branch name, tag, or sha) up to
-/// `max` entries, **newest first**, and assign each a lane index for graph
-/// rendering.
+/// Walk commits across **all local and remote branch tips** (like
+/// `git log --all`), up to `max` entries, **newest first**, and assign
+/// each a lane index for graph rendering.
+///
+/// History is intentionally not limited to the current HEAD tip: switching
+/// branches must not hide other branches' commits from the DAG.
 ///
 /// Lane assignment (newest-first, matching common Git GUI graphs):
 /// 1. Maintain `columns[lane] = Some(sha)` for the next commit expected in that lane.
 /// 2. Place each commit into the column that reserved it (or allocate a free column).
 /// 3. First parent continues on the same lane; additional parents open new lanes.
 /// 4. That produces forks on side lanes and merge curves back to the main lane.
-pub fn commit_log(repo: &Repository, from_ref: &str, max: u32) -> Result<Vec<CommitSummary>> {
+pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
     let mut walk = repo.revwalk().map_err(map_git_err)?;
     // Newest-first topological order: children before parents. Required for
     // correct fork/merge lane allocation.
     walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
         .map_err(map_git_err)?;
-    // An empty repo (no commits) has no resolved HEAD ref; surface that
-    // as an empty list rather than an error so the History tab can show
-    // a "no commits yet" empty state.
-    if let Err(e) = walk.push_ref(from_ref) {
-        if e.code() == git2::ErrorCode::NotFound {
-            return Ok(Vec::new());
+
+    let mut pushed = 0u32;
+    // Push every local + remote branch tip so the graph includes the full DAG.
+    if let Ok(branches) = repo.branches(None) {
+        for item in branches.flatten() {
+            let (branch, _) = item;
+            let Some(oid) = branch.get().target() else {
+                continue;
+            };
+            if walk.push(oid).is_ok() {
+                pushed += 1;
+            }
         }
-        return Err(map_git_err(e));
+    }
+    // Detached HEAD tip (not already covered by a branch).
+    if let Ok(head) = repo.head() {
+        if !head.is_branch() {
+            if let Some(oid) = head.target() {
+                if walk.push(oid).is_ok() {
+                    pushed += 1;
+                }
+            }
+        }
+    }
+
+    if pushed == 0 {
+        // Empty / unborn repo — no tips to walk.
+        return Ok(Vec::new());
     }
 
     let refs_by_sha = collect_commit_refs(repo);
@@ -339,7 +362,7 @@ mod tests {
     #[test]
     fn commit_log_linear_returns_all_in_lane_zero() {
         let (path, repo) = build_linear_repo(5);
-        let log = commit_log(&repo, "HEAD", 100).unwrap();
+        let log = commit_log(&repo, 100).unwrap();
         cleanup(&path);
 
         assert_eq!(log.len(), 5);
@@ -369,7 +392,7 @@ mod tests {
     #[test]
     fn commit_log_respects_max() {
         let (path, repo) = build_linear_repo(10);
-        let log = commit_log(&repo, "HEAD", 3).unwrap();
+        let log = commit_log(&repo, 3).unwrap();
         cleanup(&path);
 
         assert_eq!(log.len(), 3);
@@ -383,16 +406,34 @@ mod tests {
           Unignore after the underlying init/walk flow is fixed."]
     fn commit_log_empty_repo() {
         let (path, repo) = init_empty_repo();
-        let log = commit_log(&repo, "HEAD", 100).unwrap();
+        let log = commit_log(&repo, 100).unwrap();
         cleanup(&path);
 
         assert_eq!(log.len(), 0);
     }
 
     #[test]
+    fn commit_log_includes_all_branch_tips() {
+        let (path, repo) = build_merge_repo();
+        // HEAD is on main after build_merge_repo; feature commits must still appear.
+        let log = commit_log(&repo, 100).unwrap();
+        cleanup(&path);
+
+        let messages: Vec<&str> = log.iter().map(|c| c.message_summary.as_str()).collect();
+        assert!(
+            messages.iter().any(|m| *m == "b1") && messages.iter().any(|m| *m == "b2"),
+            "expected feature-branch commits in --all log, got {messages:?}"
+        );
+        assert!(
+            messages.iter().any(|m| *m == "a2") && messages.iter().any(|m| m.contains("merge")),
+            "expected main-line commits in --all log, got {messages:?}"
+        );
+    }
+
+    #[test]
     fn commit_log_merge_uses_extra_lanes() {
         let (path, repo) = build_merge_repo();
-        let log = commit_log(&repo, "HEAD", 100).unwrap();
+        let log = commit_log(&repo, 100).unwrap();
         cleanup(&path);
 
         // Newest-first: find merge by parent count, not by position.

@@ -13,7 +13,8 @@ interface SplitContextValue {
 const SplitContext = createContext<SplitContextValue | null>(null);
 
 interface PaneProps {
-  initialSize: number;
+  /** Pixel width/height, or a CSS size such as `"20%"`. */
+  initialSize: number | string;
   minSize?: number;
   maxSize?: number;
   children: ReactNode;
@@ -31,7 +32,7 @@ interface ResizeHandleProps {
 
 interface PaneContextValue {
   paneId: string;
-  initialSize: number;
+  initialSize: number | string;
   minSize: number;
   maxSize: number;
 }
@@ -102,14 +103,15 @@ export function Pane({
 }: PaneProps): React.JSX.Element {
   const paneId = useRef(generateId()).current;
   const ref = useRef<HTMLDivElement>(null);
+  const flexBasis = typeof initialSize === "number" ? `${initialSize}px` : initialSize;
 
   return (
     <PaneContext.Provider value={{ paneId, initialSize, minSize, maxSize }}>
       <div
         ref={ref}
         data-pane-id={paneId}
-        className={cn("flex-1 overflow-hidden", className)}
-        style={{ flexBasis: initialSize }}
+        className={cn("overflow-hidden min-w-0 min-h-0", className)}
+        style={{ flexBasis, flexGrow: 0, flexShrink: 1 }}
       >
         {children}
       </div>
@@ -189,9 +191,13 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
       `[data-pane-id="${paneContext?.paneId}"]`,
     );
     if (!paneEl || paneContext == null) return;
-    paneEl.style.flexBasis = `${paneContext.initialSize}px`;
-    paneEl.style.flexShrink = "";
-    paneEl.style.flexGrow = "";
+    const basis =
+      typeof paneContext.initialSize === "number"
+        ? `${paneContext.initialSize}px`
+        : paneContext.initialSize;
+    paneEl.style.flexBasis = basis;
+    paneEl.style.flexShrink = "1";
+    paneEl.style.flexGrow = "0";
   }, [paneContext]);
 
   // Determine direction from closest Split context
