@@ -49,3 +49,5 @@ Thumbs.db
 
 # Project-specific backups
 *.bak
+# Deepwork state (git-local; OpenCode-readable via .ignore)
+.slim/deepwork/

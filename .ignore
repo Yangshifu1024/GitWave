@@ -1,0 +1,6 @@
+# Un-ignore deepwork state so OpenCode / search can read it even though
+# .gitignore hides it from git.
+!.slim/
+!.slim/**
+!.slim/deepwork/
+!.slim/deepwork/**
