@@ -29,8 +29,7 @@ jobs:
       - name: npm ci
         run: npm ci
       - name: tauri build
-        working-directory: src-tauri
-        run: cargo tauri build
+        run: npm run tauri -- build
       - uses: actions/upload-artifact@v4
         with:
           name: gitwave-macos
@@ -56,16 +55,21 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            build-essential \
             cmake \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
             librsvg2-dev \
             patchelf
       - name: npm ci
         run: npm ci
       - name: tauri build
-        working-directory: src-tauri
-        run: cargo tauri build
+        run: npm run tauri -- build
       - uses: actions/upload-artifact@v4
         with:
           name: gitwave-linux

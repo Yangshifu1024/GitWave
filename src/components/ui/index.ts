@@ -10,12 +10,7 @@ export {
   type ToastData,
   type ToastVariant,
 } from "./Toast";
-export {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "./Tabs";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./Tabs";
 export { Split, Pane, ResizeHandle } from "./Split";
 export { ListItem, type ListItemProps } from "./ListItem";
 export { StatusBadge, type StatusBadgeProps } from "./StatusBadge";

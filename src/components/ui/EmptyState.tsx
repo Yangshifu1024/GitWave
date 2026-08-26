@@ -27,14 +27,10 @@ export function EmptyState({
         className,
       )}
     >
-      {icon ? (
-        <div className="text-text-muted opacity-60">{icon}</div>
-      ) : null}
+      {icon ? <div className="text-text-muted opacity-60">{icon}</div> : null}
       <div className="flex flex-col gap-1">
         <p className="text-sm font-medium text-text-primary">{title}</p>
-        {description ? (
-          <p className="text-xs text-text-secondary max-w-xs">{description}</p>
-        ) : null}
+        {description ? <p className="text-xs text-text-secondary max-w-xs">{description}</p> : null}
       </div>
       {action ? <div className="mt-1">{action}</div> : null}
     </div>

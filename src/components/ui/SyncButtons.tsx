@@ -76,11 +76,7 @@ export function SyncButtons({
           title={btn.label}
         >
           {/* Spinner overlay when in progress */}
-          {btn.inProgress ? (
-            <RefreshCw size={14} className="animate-spin" />
-          ) : (
-            btn.icon
-          )}
+          {btn.inProgress ? <RefreshCw size={14} className="animate-spin" /> : btn.icon}
 
           {/* Badge (ahead/behind count) */}
           {btn.badge && !btn.inProgress && (

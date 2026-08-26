@@ -1,0 +1,30 @@
+# Prettier ignore patterns for GitWave
+# See https://prettier.io/docs/ignore
+
+# Markdown — not driven by Prettier; the team uses its own conventions
+# for docs/agent prompts and prettier's wrapping/quote style conflicts.
+*.md
+
+# Tauri / Rust side — Cargo handles its own formatting, Tauri config
+# and capabilities JSON are intentionally not driven by Prettier.
+src-tauri/**
+
+# Structured config files — managed by their respective ecosystems
+# (YAML by editor/lint tooling, JSON by package managers / config tools).
+# Prettier's quote/wrap style conflicts with hand-tuned configs and
+# package.json keys / lockfiles.
+*.yml
+*.yaml
+*.json
+
+# Node / Vite / build output
+node_modules/
+dist/
+dist-ssr/
+out/
+
+# Lockfiles (managed by their respective package managers)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+Cargo.lock

@@ -1,0 +1,67 @@
+# Git line-ending normalization (locks EOL rules into the repo)
+# Default: every text file is stored as LF in the index and on disk.
+* text=auto eol=lf
+
+# Force text for source / config files (prevents git from mis-detecting as binary)
+*.md    text eol=lf
+*.json  text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.rs    text eol=lf
+*.toml  text eol=lf
+*.sql   text eol=lf
+*.xml   text eol=lf
+*.svg   text eol=lf
+*.editorconfig  text eol=lf
+*.gitignore     text eol=lf
+*.gitattributes text eol=lf
+*.gitkeep       text eol=lf
+*.ignore        text eol=lf
+
+# Lock files must NOT be normalized (changing EOL can break tooling)
+*.lock            -text
+package-lock.json -text
+pnpm-lock.yaml    -text
+pnpm-lock.yml     -text
+yarn.lock         -text
+Cargo.lock        -text
+composer.lock     -text
+Gemfile.lock      -text
+
+# Explicit binary declarations (do not touch)
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.icns  binary
+*.bmp   binary
+*.tiff  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+*.pdf   binary
+*.zip   binary
+*.tar   binary
+*.gz    binary
+*.7z    binary
+*.exe   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+*.wasm  binary
+*.mp4   binary
+*.mp3   binary
+*.mov   binary
+*.avi   binary
+*.webm  binary
+*.ogg   binary

@@ -19,8 +19,7 @@ const badgeVariants = cva(
   },
 );
 
-export interface StatusBadgeProps
-  extends VariantProps<typeof badgeVariants> {
+export interface StatusBadgeProps extends VariantProps<typeof badgeVariants> {
   variant: "active" | "missing" | "ahead" | "behind" | "conflict";
   suffix?: string | null;
   className?: string;

@@ -14,12 +14,7 @@ export function KeyHint({ keys, className }: KeyHintProps): React.JSX.Element {
   const keyArray = Array.isArray(keys) ? keys : [keys];
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5",
-        className,
-      )}
-    >
+    <span className={cn("inline-flex items-center gap-0.5", className)}>
       {keyArray.map((key, i) => (
         <kbd
           key={i}

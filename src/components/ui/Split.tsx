@@ -1,11 +1,4 @@
-import {
-  type ReactNode,
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, createContext, useCallback, useContext, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface SplitContextValue {
@@ -53,10 +46,7 @@ function generateId(): string {
  * Horizontal or vertical Split container.
  * Contains Pane and ResizeHandle children.
  */
-export function Split({
-  direction = "horizontal",
-  children,
-}: SplitProps): React.JSX.Element {
+export function Split({ direction = "horizontal", children }: SplitProps): React.JSX.Element {
   const [isDragging, setIsDragging] = useState(false);
   const [activeHandleId, setActiveHandleId] = useState<string | null>(null);
   const handleIdRef = useRef<string | null>(null);
@@ -145,8 +135,7 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
       const startX = e.clientX;
       const startY = e.clientY;
 
-      const paneEl = e.currentTarget
-        .previousElementSibling as HTMLDivElement | null;
+      const paneEl = e.currentTarget.previousElementSibling as HTMLDivElement | null;
       if (!paneEl) return;
 
       const startWidth = paneEl.offsetWidth;
@@ -158,8 +147,7 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
 
         // Determine orientation from parent split
         const splitEl = paneEl.closest("[data-split-direction]");
-        const isHorizontal =
-          splitEl?.getAttribute("data-split-direction") !== "vertical";
+        const isHorizontal = splitEl?.getAttribute("data-split-direction") !== "vertical";
 
         if (isHorizontal) {
           const newWidth = Math.max(
@@ -209,8 +197,7 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
   // Determine direction from closest Split context
   const splitEl = containerRef.current?.closest("[data-split-direction]");
   const direction =
-    (splitEl?.getAttribute("data-split-direction") as "horizontal" | "vertical") ??
-    "horizontal";
+    (splitEl?.getAttribute("data-split-direction") as "horizontal" | "vertical") ?? "horizontal";
 
   return (
     <div

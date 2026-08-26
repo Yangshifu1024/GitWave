@@ -63,8 +63,7 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
   });
 
   const renameMut = useMutation({
-    mutationFn: ({ id, newName }: { id: string; newName: string }) =>
-      renameWorkspace(id, newName),
+    mutationFn: ({ id, newName }: { id: string; newName: string }) => renameWorkspace(id, newName),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       setRenaming(null);
@@ -132,24 +131,15 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
             </DropdownMenu.Label>
 
             {isLoading ? (
-              <DropdownMenu.Item
-                disabled
-                className="px-2 py-1 text-sm text-text-muted"
-              >
+              <DropdownMenu.Item disabled className="px-2 py-1 text-sm text-text-muted">
                 Loading…
               </DropdownMenu.Item>
             ) : error ? (
-              <DropdownMenu.Item
-                disabled
-                className="px-2 py-1 text-sm text-danger"
-              >
+              <DropdownMenu.Item disabled className="px-2 py-1 text-sm text-danger">
                 {formatAppError(error)}
               </DropdownMenu.Item>
             ) : workspaces.length === 0 ? (
-              <DropdownMenu.Item
-                disabled
-                className="px-2 py-1 text-sm text-text-muted italic"
-              >
+              <DropdownMenu.Item disabled className="px-2 py-1 text-sm text-text-muted italic">
                 No workspaces yet
               </DropdownMenu.Item>
             ) : (
@@ -233,11 +223,7 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
           error={createError}
         />
         <div className="mt-3 flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setCreateOpen(false)}
-          >
+          <Button variant="secondary" size="sm" onClick={() => setCreateOpen(false)}>
             Cancel
           </Button>
           <Button
@@ -270,11 +256,7 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
           error={renameError}
         />
         <div className="mt-3 flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setRenaming(null)}
-          >
+          <Button variant="secondary" size="sm" onClick={() => setRenaming(null)}>
             Cancel
           </Button>
           <Button
@@ -299,19 +281,10 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
         size="sm"
       >
         <div className="mt-3 flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setDeleting(null)}
-          >
+          <Button variant="secondary" size="sm" onClick={() => setDeleting(null)}>
             Cancel
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={confirmDelete}
-            disabled={deleteMut.isPending}
-          >
+          <Button variant="danger" size="sm" onClick={confirmDelete} disabled={deleteMut.isPending}>
             Delete
           </Button>
         </div>
