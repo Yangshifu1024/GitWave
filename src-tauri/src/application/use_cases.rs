@@ -1,27 +1,41 @@
-//! Application use cases — workspace, repo, and SSH operations.
+//! Application use cases — workspace, repo, SSH, history, diff, blame, and branch.
 //!
-//! Pure functions taking `&AppContext` (when they touch the DB) or no
-//! argument at all (stateless SSH subprocess wrappers). No Tauri dependency
-//! here — easy to unit test.
+//! See `docs/tasks/feat-history-graph/plan.md` steps 6-10.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use crate::domain::blame::BlameLine;
+use crate::domain::branch::BranchInfo;
+use crate::domain::diff::FileDiff;
 use crate::domain::error::{AppError, Result};
+use crate::domain::history::CommitSummary;
 use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
 };
+use crate::infrastructure::git::blame::blame_file as infra_blame_file;
+use crate::infrastructure::git::branch::{
+    checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
+    delete_branch as infra_delete_branch,
+};
+use crate::infrastructure::git::diff::{
+    diff_commit_vs_parent as infra_diff_commit_vs_parent, diff_paths as infra_diff_paths,
+    diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
+};
+use crate::infrastructure::git::history::{
+    ahead_behind as infra_ahead_behind, commit_log as infra_commit_log,
+    list_branches as infra_list_branches,
+};
+use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
+use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::persistence::workspace_repo::WorkspaceRepository;
 use crate::infrastructure::persistence::SqliteWorkspaceRepo;
 use crate::infrastructure::ssh::keys::{SshKey, SshTestResult};
 
+// ─── AppContext ──────────────────────────────────────────────────────────────
+
 /// Application context — bundles infrastructure adapters and exposes use
 /// cases. Held by Tauri as managed state.
-///
-/// The repository is wrapped in `Arc<Mutex<…>>` so that `AppContext: Send +
-/// Sync` is satisfied for `tauri::manage` even though `rusqlite::Connection`
-/// is `!Sync`. Lock contention is acceptable for Sprint 1-2's single-task
-/// call sites; revisit if benchmarks show contention.
 pub struct AppContext {
     pub workspaces: Arc<Mutex<SqliteWorkspaceRepo>>,
 }
@@ -31,7 +45,17 @@ impl AppContext {
     pub fn new(workspaces: Arc<Mutex<SqliteWorkspaceRepo>>) -> Self {
         Self { workspaces }
     }
+
+    /// Open a Repository for the given repo path (no caching — git2::Repository
+    /// is !Sync so can't be stored in shared state).
+    #[allow(dead_code)]
+    pub fn open_repo(&self, repo_path: &str) -> Result<git2::Repository> {
+        git2::Repository::open(PathBuf::from(repo_path))
+            .map_err(|e| AppError::Unknown(format!("git open: {e}")))
+    }
 }
+
+// ─── Existing workspace/repo/SSH use cases (unchanged) ─────────────────────
 
 fn new_workspace_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -52,17 +76,14 @@ fn new_repo_id() -> String {
 }
 
 fn now_unix() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
 }
 
-// ─── Workspace use cases (Sprint 1) ───────────────────────────────────────
+// ─── Workspace use cases (Sprint 1) ────────────────────────────────────────
 
-/// Create a new Workspace with the given name. Trims whitespace; rejects
-/// empty names.
 pub fn create_workspace(ctx: &AppContext, name: String) -> Result<Workspace> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -85,7 +106,6 @@ pub fn create_workspace(ctx: &AppContext, name: String) -> Result<Workspace> {
     Ok(ws)
 }
 
-/// List all workspaces, ordered by `updated_at` desc.
 pub fn list_workspaces(ctx: &AppContext) -> Result<Vec<WorkspaceSummary>> {
     ctx.workspaces
         .lock()
@@ -93,7 +113,6 @@ pub fn list_workspaces(ctx: &AppContext) -> Result<Vec<WorkspaceSummary>> {
         .list_summaries()
 }
 
-/// Rename a workspace.
 pub fn rename_workspace(ctx: &AppContext, id: String, new_name: String) -> Result<()> {
     let trimmed = new_name.trim();
     if trimmed.is_empty() {
@@ -105,7 +124,6 @@ pub fn rename_workspace(ctx: &AppContext, id: String, new_name: String) -> Resul
         .rename(&id, trimmed)
 }
 
-/// Delete a workspace. Cascades to child repos.
 pub fn delete_workspace(ctx: &AppContext, id: String) -> Result<()> {
     ctx.workspaces
         .lock()
@@ -113,7 +131,6 @@ pub fn delete_workspace(ctx: &AppContext, id: String) -> Result<()> {
         .delete(&id)
 }
 
-/// Set the active repo for a workspace (or clear it).
 pub fn set_active_repo(
     ctx: &AppContext,
     workspace_id: String,
@@ -125,10 +142,8 @@ pub fn set_active_repo(
         .set_active_repo(&workspace_id, repo_id.as_deref())
 }
 
-// ─── Repo use cases (Sprint 2) ───────────────────────────────────────────
+// ─── Repo use cases (Sprint 2) ──────────────────────────────────────────────
 
-/// Initialize a new git repo at `path` and attach it to the workspace.
-/// Does NOT create an initial commit (P1: 永不自动 commit).
 pub fn init_repo(ctx: &AppContext, workspace_id: String, path: String) -> Result<RepoRef> {
     let p = PathBuf::from(&path);
     crate::infrastructure::git::repo_adapter::init(&p)?;
@@ -150,8 +165,6 @@ pub fn init_repo(ctx: &AppContext, workspace_id: String, path: String) -> Result
     Ok(repo)
 }
 
-/// Clone a remote repository and attach it to the workspace. Routes SSH
-/// (ssh:// or git@) vs HTTPS based on URL scheme.
 pub fn clone_repo(
     ctx: &AppContext,
     workspace_id: String,
@@ -182,11 +195,8 @@ pub fn clone_repo(
     Ok(repo)
 }
 
-/// Attach an existing local git repository (by path) to the workspace.
-/// Verifies the path is a valid git working tree.
 pub fn add_local_repo(ctx: &AppContext, workspace_id: String, path: String) -> Result<RepoRef> {
     let p = PathBuf::from(&path);
-    // open_local returns AppError::Protocol if path isn't a git repo.
     let _repo = crate::infrastructure::git::git2_adapter::open_local(&p)?;
 
     let repo = RepoRef {
@@ -206,7 +216,6 @@ pub fn add_local_repo(ctx: &AppContext, workspace_id: String, path: String) -> R
     Ok(repo)
 }
 
-/// Remove a repo from the workspace. Does NOT delete the local directory.
 pub fn remove_repo(ctx: &AppContext, workspace_id: String, repo_id: String) -> Result<()> {
     ctx.workspaces
         .lock()
@@ -214,8 +223,6 @@ pub fn remove_repo(ctx: &AppContext, workspace_id: String, repo_id: String) -> R
         .remove_repo(&workspace_id, &repo_id)
 }
 
-/// Re-attach a repo whose path has changed. Verifies the new path is a
-/// valid git repo and flips status back to Active.
 pub fn relink_repo(
     ctx: &AppContext,
     workspace_id: String,
@@ -230,7 +237,6 @@ pub fn relink_repo(
         .relink_repo(&workspace_id, &repo_id, &new_path)
 }
 
-/// List repos for a workspace, ordered by `added_at`.
 pub fn list_repos(ctx: &AppContext, workspace_id: String) -> Result<Vec<RepoRef>> {
     ctx.workspaces
         .lock()
@@ -238,7 +244,7 @@ pub fn list_repos(ctx: &AppContext, workspace_id: String) -> Result<Vec<RepoRef>
         .list_repos(&workspace_id)
 }
 
-// ─── SSH use cases (Sprint 2) — stateless subprocess wrappers ────────────
+// ─── SSH use cases (Sprint 2) ───────────────────────────────────────────────
 
 pub fn list_ssh_keys() -> Result<Vec<SshKey>> {
     crate::infrastructure::ssh::keys::list_loaded()
@@ -258,11 +264,167 @@ pub fn test_ssh_connection(host: String, user: String) -> Result<SshTestResult> 
     crate::infrastructure::ssh::keys::test_connection(&host, &user)
 }
 
+// ─── History use cases (Sprint 3) ───────────────────────────────────────────
+
+/// Get the commit log for the active repo in a workspace.
+pub fn get_commit_log(
+    ctx: &AppContext,
+    workspace_id: &str,
+    max: u32,
+) -> Result<Vec<CommitSummary>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_commit_log(&repo, "HEAD", max)
+}
+
+/// Get the working-copy diff (unstaged changes).
+pub fn get_workdir_diff(ctx: &AppContext, workspace_id: &str) -> Result<DiffSummary> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_diff_workdir_to_index(&repo)
+}
+
+/// Get diff between a commit and its parent.
+pub fn get_commit_diff(
+    ctx: &AppContext,
+    workspace_id: &str,
+    commit_oid: &str,
+) -> Result<DiffSummary> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    let oid = git2::Oid::from_str(commit_oid)
+        .map_err(|e| AppError::Protocol(format!("invalid commit OID: {e}")))?;
+    infra_diff_commit_vs_parent(&repo, oid)
+}
+
+/// Get diff between two commits for a specific file path.
+pub fn get_file_diff(
+    ctx: &AppContext,
+    workspace_id: &str,
+    from_oid: &str,
+    to_oid: &str,
+) -> Result<Vec<FileDiff>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    let from = git2::Oid::from_str(from_oid)
+        .map_err(|e| AppError::Protocol(format!("invalid from OID: {e}")))?;
+    let to = git2::Oid::from_str(to_oid)
+        .map_err(|e| AppError::Protocol(format!("invalid to OID: {e}")))?;
+    infra_diff_paths(&repo, from, to)
+}
+
+/// Get blame lines for a file in the active repo.
+pub fn get_blame(ctx: &AppContext, workspace_id: &str, path: &str) -> Result<Vec<BlameLine>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_blame_file(&repo, path)
+}
+
+// ─── Branch use cases (Sprint 3) ────────────────────────────────────────────
+
+/// List all branches in the active repo.
+pub fn get_branches(ctx: &AppContext, workspace_id: &str) -> Result<Vec<BranchInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_branches(&repo)
+}
+
+/// Create a new branch in the active repo.
+pub fn create_branch(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    from_sha: &str,
+) -> Result<BranchInfo> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_create_branch(&repo, name, from_sha, false)?;
+    // Re-list to return the full BranchInfo
+    let branches = infra_list_branches(&repo)?;
+    branches
+        .into_iter()
+        .find(|b| b.name == name)
+        .ok_or_else(|| AppError::Unknown(format!("branch {} not found after creation", name)))
+}
+
+/// Delete a local branch.
+pub fn delete_branch(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_delete_branch(&repo, name)
+}
+
+/// Check out a branch (updates HEAD and working tree).
+pub fn checkout_branch(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_checkout_branch(&repo, name)
+}
+
+/// Get ahead/behind counts for a branch against its upstream.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AheadBehind {
+    pub ahead: u32,
+    pub behind: u32,
+}
+
+/// Get ahead/behind for a local branch relative to its upstream.
+pub fn get_ahead_behind(
+    ctx: &AppContext,
+    workspace_id: &str,
+    branch_name: &str,
+) -> Result<AheadBehind> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    let (ahead, behind) = infra_ahead_behind(&repo, branch_name)?;
+    Ok(AheadBehind { ahead, behind })
+}
+
+/// Merge a branch into the current HEAD.
+pub fn merge_branch(
+    ctx: &AppContext,
+    workspace_id: &str,
+    branch_name: &str,
+) -> Result<MergeResult> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_merge_branch(&repo, branch_name)
+}
+
+/// Rebase the current HEAD onto an upstream.
+pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Result<RebaseResult> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_rebase_branch(&repo, upstream)
+}
+
+// ─── Helper ─────────────────────────────────────────────────────────────────
+
+/// Look up the active repo path for a workspace.
+fn active_repo_path(ctx: &AppContext, workspace_id: &str) -> Result<String> {
+    let workspaces = ctx
+        .workspaces
+        .lock()
+        .expect("workspace repo mutex poisoned");
+    let ws = workspaces.get(workspace_id).and_then(|opt| {
+        opt.ok_or_else(|| AppError::Protocol(format!("workspace not found: {workspace_id}")))
+    })?;
+    let repo_id = ws
+        .last_active_repo_id
+        .as_ref()
+        .ok_or_else(|| AppError::Protocol("no active repo in workspace".into()))?;
+    let repos = workspaces.list_repos(workspace_id)?;
+    let repo = repos
+        .iter()
+        .find(|r| r.id.as_str() == repo_id)
+        .ok_or_else(|| AppError::Protocol(format!("repo not found: {repo_id}")))?;
+    Ok(repo.path.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::infrastructure::persistence::migrations;
-    use crate::infrastructure::persistence::workspace_repo::WorkspaceRepository;
     use rusqlite::Connection;
     use std::fs;
 
@@ -270,6 +432,10 @@ mod tests {
         let conn = Connection::open_in_memory().expect("in-memory sqlite");
         migrations::apply(&conn).expect("migrations");
         AppContext::new(Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))))
+    }
+
+    fn cleanup(path: &std::path::Path) {
+        let _ = fs::remove_dir_all(path);
     }
 
     #[test]
@@ -397,5 +563,59 @@ mod tests {
 
         fs::remove_dir_all(&old).ok();
         fs::remove_dir_all(&new_p).ok();
+    }
+
+    // ─── History / diff / blame use case tests ──────────────────────────
+
+    #[test]
+    fn get_commit_log_linear_repo() {
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        let tmp = std::env::temp_dir().join(format!("gitwave-history-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+
+        // Set up a workspace with an active repo
+        init_repo(&ctx, ws.id.clone(), tmp.to_string_lossy().to_string()).unwrap();
+        let repos = list_repos(&ctx, ws.id.clone()).unwrap();
+        let repo_ref = &repos[0];
+        set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id.clone())).unwrap();
+
+        // Build commits using git2 directly
+        let git_repo = ctx.open_repo(&tmp.to_string_lossy()).unwrap();
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        for i in 0..3u32 {
+            let path = tmp.join(format!("file{i}.txt"));
+            fs::write(&path, format!("v{i}\n")).unwrap();
+            let mut index = git_repo.index().unwrap();
+            index
+                .add_path(std::path::Path::new(&format!("file{i}.txt")))
+                .unwrap();
+            let tree_oid = index.write_tree().unwrap();
+            let tree = git_repo.find_tree(tree_oid).unwrap();
+            let parent = if i == 0 {
+                None
+            } else {
+                Some(git_repo.head().unwrap().peel_to_commit().unwrap())
+            };
+            let parents: Vec<&git2::Commit> = parent.iter().collect();
+            git_repo
+                .commit(
+                    Some("HEAD"),
+                    &sig,
+                    &sig,
+                    &format!("commit {i}"),
+                    &tree,
+                    &parents,
+                )
+                .unwrap();
+        }
+
+        let log = get_commit_log(&ctx, &ws.id, 10).expect("get_commit_log");
+        cleanup(&tmp);
+
+        assert_eq!(log.len(), 3, "expected 3 commits");
+        for c in &log {
+            assert!(!c.sha.is_empty());
+        }
     }
 }

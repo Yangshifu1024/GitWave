@@ -15,6 +15,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FolderOpen, HelpCircle } from "lucide-react";
+import { CommitGraph } from "@/components/CommitGraph";
+import { DiffViewer } from "@/components/DiffViewer";
+import { BranchList } from "@/components/BranchList";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
@@ -131,24 +134,15 @@ function SshKeyManagerPopover(): React.JSX.Element {
       >
         <span className="font-mono text-xs">SSH</span>
       </Button>
-      {open && (
-        <SshKeyManagerModalWrapper onClose={() => setOpen(false)} />
-      )}
+      {open && <SshKeyManagerModalWrapper onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function SshKeyManagerModalWrapper({
-  onClose,
-}: {
-  onClose: () => void;
-}): React.JSX.Element {
+function SshKeyManagerModalWrapper({ onClose }: { onClose: () => void }): React.JSX.Element {
   return (
     <div className="fixed inset-0 z-modal flex items-center justify-center">
-      <div
-        className="fixed inset-0 bg-bg-overlay backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-bg-overlay backdrop-blur-sm" onClick={onClose} />
       <div
         className="relative z-10 w-full max-w-md rounded-xl bg-bg-elevated shadow-modal p-6"
         onClick={(e) => e.stopPropagation()}
@@ -156,7 +150,7 @@ function SshKeyManagerModalWrapper({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-md font-semibold text-text-primary">SSH Keys</h2>
           <Button variant="ghost" size="sm" onClick={onClose} className="p-1">
-            ✕
+            <span aria-hidden="true">&#x2715;</span>
           </Button>
         </div>
         <SshKeyManager />
@@ -181,27 +175,21 @@ function FeatureNav(): React.JSX.Element {
           <TabsTrigger value="worktrees">Worktrees</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="history" className="flex-1 overflow-auto p-4">
-          <EmptyState
-            icon={<span className="text-2xl">⏱</span>}
-            title="History"
-            description="Commit graph and details coming in Sprint 3."
-            className="py-8"
-          />
+        <TabsContent value="history" className="flex-1 overflow-hidden p-0">
+          <CommitGraph />
         </TabsContent>
 
-        <TabsContent value="branches" className="flex-1 overflow-auto p-4">
-          <EmptyState
-            icon={<span className="text-2xl">⑂</span>}
-            title="Branches"
-            description="Branch list and tree view coming in Sprint 3."
-            className="py-8"
-          />
+        <TabsContent value="branches" className="flex-1 overflow-hidden p-0">
+          <BranchList />
         </TabsContent>
 
         <TabsContent value="stash" className="flex-1 overflow-auto p-4">
           <EmptyState
-            icon={<span className="text-2xl">◐</span>}
+            icon={
+              <span className="text-2xl" aria-hidden="true">
+                &#x25D0;
+              </span>
+            }
             title="Stash"
             description="Stash list coming in Sprint 5."
             className="py-8"
@@ -210,7 +198,11 @@ function FeatureNav(): React.JSX.Element {
 
         <TabsContent value="tags" className="flex-1 overflow-auto p-4">
           <EmptyState
-            icon={<span className="text-2xl">🏷</span>}
+            icon={
+              <span className="text-2xl" aria-hidden="true">
+                &#x1F3F7;
+              </span>
+            }
             title="Tags"
             description="Tag list coming in Sprint 5."
             className="py-8"
@@ -219,7 +211,11 @@ function FeatureNav(): React.JSX.Element {
 
         <TabsContent value="remotes" className="flex-1 overflow-auto p-4">
           <EmptyState
-            icon={<span className="text-2xl">☁</span>}
+            icon={
+              <span className="text-2xl" aria-hidden="true">
+                &#x2601;
+              </span>
+            }
             title="Remotes"
             description="Remote management coming in Sprint 3."
             className="py-8"
@@ -228,7 +224,11 @@ function FeatureNav(): React.JSX.Element {
 
         <TabsContent value="worktrees" className="flex-1 overflow-auto p-4">
           <EmptyState
-            icon={<span className="text-2xl">⑂</span>}
+            icon={
+              <span className="text-2xl" aria-hidden="true">
+                &#x25A1;
+              </span>
+            }
             title="Worktrees"
             description="Worktree list coming in Sprint 5."
             className="py-8"
@@ -239,7 +239,7 @@ function FeatureNav(): React.JSX.Element {
   );
 }
 
-/** Main content area — shows the active workspace/repo context */
+/** Main content area — shows diff for selected commit or working copy */
 function MainContent(): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
 
@@ -247,7 +247,11 @@ function MainContent(): React.JSX.Element {
     return (
       <main className="flex flex-col flex-1 items-center justify-center bg-bg-primary">
         <EmptyState
-          icon={<span className="text-4xl">◈</span>}
+          icon={
+            <span className="text-4xl" aria-hidden="true">
+              &#x25C8;
+            </span>
+          }
           title="Welcome to GitWave"
           description="Select a workspace from the sidebar to get started."
           className="py-16"
@@ -257,13 +261,8 @@ function MainContent(): React.JSX.Element {
   }
 
   return (
-    <main className="flex flex-col flex-1 bg-bg-primary overflow-auto">
-      <EmptyState
-        icon={<span className="text-4xl">◈</span>}
-        title="GitWave"
-        description="Select a tab in the navigation pane to explore this repo."
-        className="py-16"
-      />
+    <main className="flex flex-col flex-1 bg-bg-primary overflow-hidden">
+      <DiffViewer workdir={true} />
     </main>
   );
 }

@@ -4,6 +4,15 @@
 //! Hooks are not auto-executed — by design, see
 //! `docs/tech/tech-selection/00-overview.md` §Git 后端.
 
+pub mod blame;
+pub mod branch;
 pub mod credentials;
+pub mod diff;
 pub mod git2_adapter;
+pub mod history;
+pub mod merge;
+pub mod rebase;
 pub mod repo_adapter;
+
+#[cfg(test)]
+mod test_helpers;

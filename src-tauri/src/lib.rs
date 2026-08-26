@@ -16,12 +16,21 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    add_local_repo, add_ssh_key, clone_repo, create_workspace, delete_ssh_key, delete_workspace,
-    init_repo, list_repos, list_ssh_keys, list_workspaces, relink_repo, remove_repo,
-    rename_workspace, set_active_repo, test_ssh_connection, AppContext,
+    add_local_repo, add_ssh_key, checkout_branch, clone_repo, create_branch, create_workspace,
+    delete_branch, delete_ssh_key, delete_workspace, get_ahead_behind, get_blame, get_branches,
+    get_commit_diff, get_commit_log, get_file_diff, get_workdir_diff, init_repo, list_repos,
+    list_ssh_keys, list_workspaces, merge_branch, rebase_branch, relink_repo, remove_repo,
+    rename_workspace, set_active_repo, test_ssh_connection, AheadBehind, AppContext,
 };
+use domain::blame::BlameLine;
+use domain::branch::BranchInfo;
+use domain::diff::FileDiff;
 use domain::error::AppError;
+use domain::history::CommitSummary;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSummary};
+use infrastructure::git::diff::DiffSummary;
+use infrastructure::git::merge::MergeResult;
+use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
 use infrastructure::persistence::{migrations, open as open_state, SqliteWorkspaceRepo};
 use infrastructure::ssh::keys::{SshKey, SshTestResult};
@@ -132,7 +141,7 @@ fn cmd_list_repos(
     list_repos(&ctx, workspace_id)
 }
 
-// ─── SSH commands (Sprint 2) — no state ──────────────────────────────────
+// ─── SSH commands (Sprint 2) ──────────────────────────────────────────────
 
 #[tauri::command]
 fn cmd_list_ssh_keys() -> Result<Vec<SshKey>, AppError> {
@@ -152,6 +161,118 @@ fn cmd_delete_ssh_key(path: String) -> Result<(), AppError> {
 #[tauri::command]
 fn cmd_test_ssh_connection(host: String, user: String) -> Result<SshTestResult, AppError> {
     test_ssh_connection(host, user)
+}
+
+// ─── History / Diff / Blame commands (Sprint 3) ───────────────────────────
+
+#[tauri::command]
+async fn cmd_get_commit_log(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    max: u32,
+) -> Result<Vec<CommitSummary>, AppError> {
+    get_commit_log(&ctx, &workspace_id, max)
+}
+
+#[tauri::command]
+async fn cmd_get_workdir_diff(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<DiffSummary, AppError> {
+    get_workdir_diff(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_get_commit_diff(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    commit_oid: String,
+) -> Result<DiffSummary, AppError> {
+    get_commit_diff(&ctx, &workspace_id, &commit_oid)
+}
+
+#[tauri::command]
+async fn cmd_get_file_diff(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    from_oid: String,
+    to_oid: String,
+) -> Result<Vec<FileDiff>, AppError> {
+    get_file_diff(&ctx, &workspace_id, &from_oid, &to_oid)
+}
+
+#[tauri::command]
+async fn cmd_get_blame(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+) -> Result<Vec<BlameLine>, AppError> {
+    get_blame(&ctx, &workspace_id, &path)
+}
+
+// ─── Branch commands (Sprint 3) ───────────────────────────────────────────
+
+#[tauri::command]
+async fn cmd_get_branches(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<BranchInfo>, AppError> {
+    get_branches(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_create_branch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    from_sha: String,
+) -> Result<BranchInfo, AppError> {
+    create_branch(&ctx, &workspace_id, &name, &from_sha)
+}
+
+#[tauri::command]
+async fn cmd_delete_branch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    delete_branch(&ctx, &workspace_id, &name)
+}
+
+#[tauri::command]
+async fn cmd_checkout_branch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    checkout_branch(&ctx, &workspace_id, &name)
+}
+
+#[tauri::command]
+async fn cmd_get_ahead_behind(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    branch_name: String,
+) -> Result<AheadBehind, AppError> {
+    get_ahead_behind(&ctx, &workspace_id, &branch_name)
+}
+
+#[tauri::command]
+async fn cmd_merge_branch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    branch_name: String,
+) -> Result<MergeResult, AppError> {
+    merge_branch(&ctx, &workspace_id, &branch_name)
+}
+
+#[tauri::command]
+async fn cmd_rebase_branch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    upstream: String,
+) -> Result<RebaseResult, AppError> {
+    rebase_branch(&ctx, &workspace_id, &upstream)
 }
 
 // ─── App startup ──────────────────────────────────────────────────────────
@@ -192,6 +313,18 @@ pub fn run() {
             cmd_add_ssh_key,
             cmd_delete_ssh_key,
             cmd_test_ssh_connection,
+            cmd_get_commit_log,
+            cmd_get_workdir_diff,
+            cmd_get_commit_diff,
+            cmd_get_file_diff,
+            cmd_get_blame,
+            cmd_get_branches,
+            cmd_create_branch,
+            cmd_delete_branch,
+            cmd_checkout_branch,
+            cmd_get_ahead_behind,
+            cmd_merge_branch,
+            cmd_rebase_branch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

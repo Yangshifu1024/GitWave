@@ -28,6 +28,12 @@ pub enum AppError {
     Unknown(String),
 }
 
+impl From<git2::Error> for AppError {
+    fn from(e: git2::Error) -> Self {
+        AppError::Unknown(format!("git: {e}"))
+    }
+}
+
 impl AppError {
     /// Short string tag for UI categorization.
     #[must_use]

@@ -38,6 +38,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7",
+    "shiki": "^4.4.3",
     "tailwind-merge": "^2",
     "zustand": "^5"
   },
