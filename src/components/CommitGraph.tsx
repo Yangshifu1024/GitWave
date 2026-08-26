@@ -64,10 +64,33 @@ function RefBadge({ r, emphasize = false }: { r: CommitRef; emphasize?: boolean 
   );
 }
 
+/** True when a newer commit's edge keeps `lane` live into this row from above. */
+function laneContinuesFromAbove(
+  commits: CommitSummary[],
+  shaToIndex: Map<string, number>,
+  index: number,
+  lane: number,
+): boolean {
+  for (let i = 0; i < index; i++) {
+    const c = commits[i];
+    if (!c) continue;
+    for (const pSha of c.parents) {
+      const pIdx = shaToIndex.get(pSha);
+      if (pIdx === undefined || pIdx < index) continue;
+      // Edge from row i crosses/arrives at rows >= index.
+      if (c.lane === lane) return true;
+      const parent = commits[pIdx];
+      if (parent && parent.lane === lane) return true;
+    }
+  }
+  return false;
+}
+
 interface GraphRowProps {
   commit: CommitSummary;
   commits: CommitSummary[];
   shaToIndex: Map<string, number>;
+  rowIndex: number;
   maxLane: number;
   activeLanes: number[];
   isHead: boolean;
@@ -78,6 +101,7 @@ function GraphRow({
   commit,
   commits,
   shaToIndex,
+  rowIndex,
   maxLane,
   activeLanes,
   isHead,
@@ -98,6 +122,8 @@ function GraphRow({
     .filter((e): e is { lane: number; color: string } => e !== null);
 
   const parentLanes = [...new Map(parentEdges.map((e) => [e.lane, e])).values()];
+  // Tip: nothing above → no upper stub. Root / orphan parent: no lower stub.
+  const fromAbove = laneContinuesFromAbove(commits, shaToIndex, rowIndex, commit.lane);
 
   return (
     <svg width={width} height={ROW_H} className="shrink-0 overflow-visible" aria-hidden>
@@ -105,6 +131,8 @@ function GraphRow({
         const x = laneX(lane);
         const c = laneColor(lane);
         if (lane === commit.lane) {
+          // Branch tip: circle is the terminus — skip upper half.
+          if (!fromAbove) return null;
           return (
             <line
               key={`thru-${lane}`}
@@ -130,6 +158,7 @@ function GraphRow({
         );
       })}
 
+      {/* Only draw downward stubs/curves when a parent is in the loaded log. */}
       {parentLanes.map(({ lane: pLane, color: pColor }) => {
         const px = laneX(pLane);
         if (pLane === commit.lane) {
@@ -156,17 +185,6 @@ function GraphRow({
           />
         );
       })}
-
-      {parentLanes.length === 0 && activeLanes.includes(commit.lane) ? (
-        <line
-          x1={cx}
-          y1={cy + NODE_R}
-          x2={cx}
-          y2={ROW_H}
-          stroke={color}
-          strokeWidth={1.5}
-        />
-      ) : null}
 
       <circle
         cx={cx}
@@ -204,6 +222,7 @@ interface CommitRowProps {
   commit: CommitSummary;
   commits: CommitSummary[];
   shaToIndex: Map<string, number>;
+  rowIndex: number;
   maxLane: number;
   activeLanes: number[];
   onSelect: (sha: string) => void;
@@ -215,6 +234,7 @@ function CommitRow({
   commit,
   commits,
   shaToIndex,
+  rowIndex,
   maxLane,
   activeLanes,
   onSelect,
@@ -246,6 +266,7 @@ function CommitRow({
         commit={commit}
         commits={commits}
         shaToIndex={shaToIndex}
+        rowIndex={rowIndex}
         maxLane={maxLane}
         activeLanes={activeLanes}
         isHead={isHead}
@@ -455,6 +476,7 @@ export function CommitGraph({
                 commit={commit}
                 commits={commits}
                 shaToIndex={shaToIndex}
+                rowIndex={virtualRow.index}
                 maxLane={maxLane}
                 activeLanes={activeLanesByIndex[virtualRow.index] ?? [commit.lane]}
                 onSelect={handleSelect}
