@@ -39,12 +39,20 @@ function App(): React.JSX.Element {
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <header
         data-tauri-drag-region
+        // Tauri 2 maps data-tauri-drag-region to the platform drag handler,
+        // but on macOS WebKit the underlying CSS property is the actual
+        // mechanism — set both for belt-and-suspenders reliability.
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         className={`flex items-center shrink-0 h-12 ${
           isMacOS() ? "pl-20 pr-4" : "px-4"
         } gap-4 bg-bg-secondary border-b border-border-subtle`}
       >
         {/* Left: Workspace switcher (DropdownMenu: select + create) */}
-        <div className="shrink-0" data-tauri-no-drag-region>
+        <div
+          className="shrink-0"
+          data-tauri-no-drag-region
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
           <WorkspaceSwitcherDropdown />
         </div>
 
@@ -54,7 +62,11 @@ function App(): React.JSX.Element {
         </h1>
 
         {/* Right: theme, SSH, help, version (+ window controls on non-macOS) */}
-        <div className="ml-auto flex items-center gap-1" data-tauri-no-drag-region>
+        <div
+          className="ml-auto flex items-center gap-1"
+          data-tauri-no-drag-region
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
           <ThemeToggle />
           <SshKeyManagerPopover />
           <Button variant="ghost" size="sm" className="p-1" aria-label="Help">
