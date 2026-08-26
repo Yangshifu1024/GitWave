@@ -292,8 +292,197 @@ toast({ title: "Clone failed", description: error.message, variant: "danger" });
 | `BlameView` | `components/BlameView.tsx` | 文件 blame 行内注释（Sprint 3）|
 | `ConflictResolver` | `components/ConflictResolver.tsx` | 3-way merge UI（Sprint 6）|
 | `CommandPalette` | `components/CommandPalette.tsx` | Cmd+K 浮层（Sprint 6）|
+| `WorkingCopyBar` | `components/WorkingCopyBar.tsx` | 底部复合组件：branch 状态 + 文件列表 + commit 框（Sprint 4）|
+| `SyncButtons` | `components/SyncButtons.tsx` | 顶部 Fetch / Pull / Push 三按钮（Sprint 4）|
 
-## 3. 主题
+## 3. Working Copy 相关 primitive（新增）
+
+### 3.1 BranchIndicator
+
+**目的**：显示当前 branch + ahead/behind chip。
+
+**API**：
+
+```tsx
+<BranchIndicator
+  branch="feature/foo"
+  ahead={2}
+  behind={3}
+  upstream="origin/feature/foo"
+/>
+<BranchIndicator branch="(detached)" sha="abc1234" />  {/* detached HEAD */}
+```
+
+**Props**：
+
+| 字段 | 类型 | 默认 | 备注 |
+|---|---|---|---|
+| branch | string | | 当前 branch 名或 `"(detached)"` |
+| ahead | number | 0 | 本地领先远程多少 commit |
+| behind | number | 0 | 远程领先本地多少 commit |
+| upstream | string \| null | null | upstream 名（如 `origin/main`） |
+| sha | string | null | detached 时显示短 SHA |
+
+**样式**：chip 形式 + green `↑N` chip + orange `↓N` chip。detached 时灰显。
+
+### 3.2 FileListItem
+
+**目的**：单个文件变更行（unstaged / staged 都用）。
+
+**API**：
+
+```tsx
+<FileListItem
+  change={{
+    path: "src/api.ts",
+    kind: "modified",
+    staged: false,
+    additions: 3,
+    deletions: 1,
+  }}
+  onClick={() => showDiff(change)}
+  onStageToggle={() => toggleStage(change)}
+/>
+```
+
+**Props**：
+
+| 字段 | 类型 | 默认 | 备注 |
+|---|---|---|---|
+| change | `FileChange` | | 见 `04-working-copy.md` §3 |
+| onClick | () => void | | 点击 → 在 Main 显示此文件 diff |
+| onStageToggle | () => void | | 点击 status icon 触发 |
+| selected | boolean | false | 高亮态（被 Main diff 选中） |
+
+**样式**：
+
+```
+┌─────────────────────────────────────────┐
+│ M  src/api.ts                  +3 -1     │
+└─────────────────────────────────────────┘
+```
+
+status 字符：M（modified） / A（added） / D（deleted） / ?（untracked） / R（renamed） / C（copied）。
+
+### 3.3 StatusIcon
+
+**目的**：单字符 + 颜色标识文件状态。
+
+**API**：
+
+```tsx
+<StatusIcon kind="modified" staged={false} />
+```
+
+**Props**：
+
+| 字段 | 类型 | 默认 | 备注 |
+|---|---|---|---|
+| kind | FileStatusKind | | |
+| staged | boolean | false | staged 状态决定颜色：unstaged 蓝 / staged 绿 |
+
+**颜色**：
+
+| kind | 字符 | 颜色 |
+|---|---|---|
+| modified | M | orange |
+| added | A | green |
+| deleted | D | red |
+| untracked | ? | gray |
+| renamed | R | blue |
+| copied | C | purple |
+
+### 3.4 CommitMessageBox
+
+**目的**：多行 commit message 输入。
+
+**API**：
+
+```tsx
+<CommitMessageBox
+  value={message}
+  onChange={setMessage}
+  onSubmit={() => commit(message)}
+  onAiGenerate={() => aiGenerate()}
+  amendMessage={amendMode ? currentHeadMessage : null}
+  disabled={!hasStagedChanges}
+/>
+```
+
+**Props**：
+
+| 字段 | 类型 | 默认 | 备注 |
+|---|---|---|---|
+| value | string | | controlled |
+| onChange | (v: string) => void | | |
+| onSubmit | () => void | | Enter / ⌘Enter 触发 |
+| onAiGenerate | () => void | | AI 生成按钮回调（Sprint 4 接入） |
+| amendMessage | string \| null | null | Amend 模式时预填当前 HEAD message |
+| disabled | boolean | false | 没有 staged 时禁用 |
+
+**样式**：
+
+- 多行 textarea（min 3 行，max 8 行）
+- placeholder："feat: ..."（Conventional Commits 风格）
+- 下方两个按钮：`Commit`（主） / `Amend`（次，Sprint 4+） / AI 生成（icon）
+
+### 3.5 SyncButtons
+
+**目的**：Fetch / Pull / Push 三按钮组，置于 Topbar。
+
+**API**：
+
+```tsx
+<SyncButtons
+  ahead={2}
+  behind={3}
+  onFetch={() => fetch()}
+  onPull={() => pull()}
+  onPush={() => push()}
+  inProgress={{ fetch: false, pull: false, push: true }}
+/>
+```
+
+**Props**：
+
+| 字段 | 类型 | 默认 | 备注 |
+|---|---|---|---|
+| ahead | number | 0 | Push 按钮显示 `↑N` badge |
+| behind | number | 0 | Pull 按钮显示 `↓N` badge |
+| onFetch / onPull / onPush | () => void | | 三个回调 |
+| inProgress | object | {} | 哪个操作正在进行（spinner 状态） |
+
+**样式**：
+
+```
+[Fetch] [Pull↓3] [Push↑2]
+```
+
+`↑N` chip 绿色 / `↓N` chip 橙色。当 ahead/behind = 0 时，对应按钮灰显（但仍可点击触发 fetch 拉新数据）。
+
+### 3.6 WorkingCopyBar
+
+**目的**：底部复合组件，聚合 BranchIndicator + Unstaged/Staged 列表 + CommitMessageBox + 全局操作。
+
+**API**：
+
+```tsx
+<WorkingCopyBar
+  repoId={activeRepoId}
+  initialHeight={120}
+/>
+```
+
+内部管 state：自身高度（可拖拽）、本地 dirty 状态。
+
+**Props**：
+
+| 字段 | 类型 | 默认 | 备注 |
+|---|---|---|---|
+| repoId | string \| null | null | 当前 active repo id；null 时隐藏整 bar |
+| initialHeight | number | 120 | 首次展开高度 |
+
+## 4. 主题
 
 所有组件使用 `useTheme()` hook：
 
@@ -305,9 +494,10 @@ const { theme, setTheme } = useTheme();
 
 `<html>` 元素上挂 `class="dark"` 或 `class="light"`；Tailwind dark 变体生效。
 
-## 4. 关联
+## 5. 关联
 
 - `00-overview.md`：决策背景
 - `01-tokens.md`：颜色 / 间距 / 字体 / 阴影
 - `03-layout.md`：3-pane 布局规格
+- `04-working-copy.md`：Working Copy Bar 完整规格 + 数据模型
 - `docs/tech/decisions/0005-ui-library-stack.md`：库选择 ADR

@@ -67,14 +67,17 @@
 └──────────────┴───────────────────┴──────────────────────────────┘
 ```
 
-- **Topbar**：workspace switcher + global actions + 主题 + 版本号
+- **Topbar**：workspace switcher + 当前 branch + global actions（Sync Fetch/Pull/Push）+ 主题 + 版本号
 - **Sidebar**：workspaces + 每个 workspace 的 repos 树
 - **Feature Nav**：当前 active repo 的二级导航
 - **Main**：实际内容（commit graph、diff、blame、conflict 等）
+- **Working Copy Bar**：底部 collapstates，clean 时 32px / dirty 时展开至 280px。详情见 `04-working-copy.md`
 
-详见 `03-layout.md`。
+详见 `03-layout.md` / `04-working-copy.md`。
 
 ## Primitive 清单
+
+### Core primitives
 
 | Primitive | 用途 | 状态 |
 |---|---|---|
@@ -91,7 +94,18 @@
 | `KeyHint` | Cmd+K hint 等快捷键提示 | 待建 |
 | `EmptyState` | 引导文案 | 已有（待统一） |
 
-详见 `02-components.md`。
+### Working Copy primitives（Sprint 4）
+
+| Primitive | 用途 | 状态 |
+|---|---|---|
+| `WorkingCopyBar` | 底部复合组件（bar 自身） | 待建 |
+| `BranchIndicator` | 当前 branch + ahead/behind chip | 待建 |
+| `FileListItem` | 单个文件变更行（M/A/D/? + +/-） | 待建 |
+| `StatusIcon` | 文件 status 字符 + 颜色 | 待建 |
+| `CommitMessageBox` | 多行 message 输入 + AI 按钮 | 待建 |
+| `SyncButtons` | 顶部 Fetch / Pull / Push 三按钮 | 待建 |
+
+详见 `02-components.md` §3 + `04-working-copy.md`。
 
 ## 迁移路径
 
@@ -99,10 +113,14 @@
 |---|---|---|
 | **0** | 安装依赖 + Tailwind 配置 + 暗色跟随系统 | 0.5 天 |
 | **1** | tokens.ts + Tailwind theme 扩展 + 引入 Radix | 0.5 天 |
-| **2** | Primitive 实现（Button / Input / Tooltip / Toast / Tabs / Pane / ListItem / StatusBadge / ContextMenu / KeyHint / Modal 替换）| 1.5 天 |
+| **2** | Core primitives 实现（Button / Input / Tooltip / Toast / Tabs / Pane / ListItem / StatusBadge / ContextMenu / KeyHint / Modal 替换）| 1.5 天 |
+| **3** | Working Copy primitives + Bottom Bar + Topbar sync 按钮 | 1.5 天 |
+| **4** | App.tsx 重构为 3-pane + Working Copy Bar + 现有 Workspace/Repo/SSH 迁移到新 primitives | 1 天 |
+| **5** | 验证（lint / typecheck / build / 手动 / 全平台暗色）| 0.5 天 |
+| 合计 | | **~5 天**（原 ~4 + 1 增量 for Working Copy）|
 | **3** | App.tsx 重构为 3-pane 布局 + 现有 WorkspaceSwitcher / RepoList / SshKeyManager 迁移到新 primitives | 1 天 |
 | **4** | 验证（lint / typecheck / build / 手动 / 全平台暗色）| 0.5 天 |
-| 合计 | | **~4 天** |
+| 合计 | | **~5 天**（原 ~4 + 1 增量 for Working Copy）|
 
 ## 验证
 
@@ -115,8 +133,9 @@
 ## 关联
 
 - `01-tokens.md`：颜色 / 间距 / 字体 / 圆角 / 阴影 / 动效 token
-- `02-components.md`：组件清单 + API
-- `03-layout.md`：3-pane 详细规格
+- `02-components.md`：组件清单 + API（含 Working Copy primitives §3）
+- `03-layout.md`：3-pane 详细规格（含 Working Copy Bar 占位 §6）
+- `04-working-copy.md`：Working Copy Bar 完整规范（Sprint 4 实施依据）
 - `docs/tech/decisions/0005-ui-library-stack.md`：库选择 ADR
 - `docs/pm/core/01-features.md` §1.10：平台与 UX 约束
 - `docs/tech/architecture/00-overview.md`：前端架构
