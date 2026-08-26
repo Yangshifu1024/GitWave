@@ -46,3 +46,4 @@ docs/tasks/
 
 - `@AGENTS.md` 工作流程小节：触发与执行规范
 - `@docs/pm/features/`：需求与变更源头
+- `@docs/tech/`：跨任务的架构与选型文档（本目录 plan / review 可引用其中条目）

@@ -11,7 +11,8 @@
 3. [02-scope.md](./docs/pm/core/02-scope.md) — 优先级与版本范围
 4. [03-roadmap.md](./docs/pm/core/03-roadmap.md) — 版本路线
 5. [docs/pm/features/README.md](./docs/pm/features/README.md) — 功能提案流程
-6. [docs/tasks/README.md](./docs/tasks/README.md) — 任务追踪（plan / review）
+6. [docs/tech/README.md](./docs/tech/README.md) — 技术文档索引（架构 / 选型 / ADR）
+7. [docs/tasks/README.md](./docs/tasks/README.md) — 任务追踪（plan / review）
 
 ## 核心约束（来自产品原则）
 
@@ -23,6 +24,22 @@
 ## PM / 工程边界
 
 技术选型（Tauri / SwiftUI / Electron 等）属于工程决策，**不在 PM 文档范围内**。工程团队应基于 PM 给出的用户可感知约束（性能、平台、隐私等）做架构文档。PM 不输出选型，工程不输出原则。
+
+## 技术文档归属（`docs/tech/` vs `docs/tasks/`）
+
+工程文档按"跨任务 vs 单任务"分两个目录，避免归属混乱：
+
+| 目录 | 性质 | 一份文档对应 | 典型内容 |
+|---|---|---|---|
+| `docs/tech/` | 跨任务工程文档 | 可被多个任务 / PR 引用 | 系统架构、技术选型、ADR、系统设计、工程约定 |
+| `docs/tasks/<feat\|fix>-<name>/` | 单任务执行产物 | 一个 PR / 一个任务 | `plan.md`、`review.md` |
+
+判定规则：
+
+- 长期有效、被多次任务复用的内容（架构图、选型记录、ADR、命名 / 工程约定）→ `docs/tech/`
+- 与某个具体 PR / 任务强绑定的执行过程（实施计划、审查报告）→ `docs/tasks/<任务名>/`
+
+`docs/tasks/<任务名>/plan.md` 中如需引用既有技术决策，按 `docs/tech/<分类>/<文档名>` 链接。
 
 ## Git Workflow
 
