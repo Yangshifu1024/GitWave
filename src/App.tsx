@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Split, Pane, ResizeHandle } from "@/components/ui/Split";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { RepoList } from "@/components/RepoList";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { WindowControls } from "@/components/WindowControls";
@@ -71,6 +72,7 @@ function App(): React.JSX.Element {
             no-drag-region needed on the wrapper. */}
         <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
+          <AiProviderSettings />
           <SshKeyManagerPopover />
           <Button variant="ghost" size="sm" className="p-1" aria-label="Help">
             <HelpCircle size={16} />

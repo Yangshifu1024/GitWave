@@ -41,6 +41,21 @@ pub fn diff_workdir_to_index(repo: &Repository) -> Result<DiffSummary> {
     diff_to_summary(&diff)
 }
 
+/// Diff the index (staged) against HEAD tree.
+pub fn diff_index_to_head(repo: &Repository) -> Result<DiffSummary> {
+    let head_tree = match repo.head() {
+        Ok(h) => Some(h.peel_to_tree().map_err(map_git_err)?),
+        Err(e) if e.code() == git2::ErrorCode::UnbornBranch => None,
+        Err(e) => return Err(map_git_err(e)),
+    };
+    let mut opts = DiffOptions::new();
+    opts.context_lines(3);
+    let diff = repo
+        .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))
+        .map_err(map_git_err)?;
+    diff_to_summary(&diff)
+}
+
 /// Diff a commit against its first parent (or empty tree if root commit).
 pub fn diff_commit_vs_parent(repo: &Repository, oid: Oid) -> Result<DiffSummary> {
     let commit = repo.find_commit(oid).map_err(map_git_err)?;

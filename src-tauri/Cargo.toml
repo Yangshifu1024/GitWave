@@ -34,6 +34,8 @@ anyhow = "1"
 dirs = "5"
 rusqlite = { version = "0.32", features = ["bundled"] }
 git2 = { version = "0.20", features = ["vendored-libgit2"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Sprint 2 step 5: typed IPC — fallback to manual typed commands for Sprint 0
 # (tauri-specta may be added in Sprint 1 once adapter signatures stabilize).

@@ -9,6 +9,7 @@ import {
   commit,
   fetchRemote,
   formatAppError,
+  generateCommitMessage,
   getWorkingCopy,
   pullRemote,
   pushRemote,
@@ -46,6 +47,17 @@ export function WorkingCopyBar({
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const handleAiGenerate = () => {
+    if (!workspaceId || aiBusy) return;
+    setAiBusy(true);
+    setActionError(null);
+    generateCommitMessage(workspaceId)
+      .then((msg) => setMessage(msg))
+      .catch((e) => setActionError(formatAppError(e)))
+      .finally(() => setAiBusy(false));
+  };
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["working-copy", workspaceId, repoId],
@@ -287,7 +299,8 @@ export function WorkingCopyBar({
                 if (stagedFiles.length === 0 || !message.trim()) return;
                 commitMut.mutate(message);
               }}
-              disabled={stagedFiles.length === 0 || commitMut.isPending}
+              onAiGenerate={handleAiGenerate}
+              disabled={stagedFiles.length === 0 || commitMut.isPending || aiBusy}
             />
           ) : (
             <div className="flex items-center justify-center h-full">

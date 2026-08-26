@@ -19,6 +19,7 @@ pub trait WorkspaceRepository: Send {
     fn rename(&self, id: &str, new_name: &str) -> Result<()>;
     fn delete(&self, id: &str) -> Result<()>;
     fn set_active_repo(&self, workspace_id: &str, repo_id: Option<&str>) -> Result<()>;
+    fn update_settings(&self, id: &str, settings: &WorkspaceSettings) -> Result<()>;
 
     // Repo CRUD (Sprint 2)
     fn add_repo(&self, repo: &RepoRef) -> Result<()>;
@@ -138,6 +139,21 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             return Err(AppError::Protocol(format!(
                 "workspace not found: {workspace_id}"
             )));
+        }
+        Ok(())
+    }
+
+    fn update_settings(&self, id: &str, settings: &WorkspaceSettings) -> Result<()> {
+        let settings_json = serde_json::to_string(settings).map_err(map_serde_err)?;
+        let affected = self
+            .conn
+            .execute(
+                "UPDATE workspaces SET settings_json = ?1, updated_at = ?2 WHERE id = ?3",
+                params![settings_json, now_unix(), id],
+            )
+            .map_err(map_sqlite_err)?;
+        if affected == 0 {
+            return Err(AppError::Protocol(format!("workspace not found: {id}")));
         }
         Ok(())
     }

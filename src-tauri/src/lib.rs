@@ -16,14 +16,15 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    add_local_repo, add_ssh_key, add_worktree, apply_stash, checkout_branch, clone_repo, commit,
-    create_branch, create_workspace, delete_branch, delete_ssh_key, delete_workspace, drop_stash,
-    fetch, get_ahead_behind, get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff,
-    get_stash_diff, get_workdir_diff, get_working_copy, init_repo, list_repos, list_ssh_keys,
-    list_stashes, list_workspaces, list_worktrees, merge_branch, pop_stash, pull, push,
+    add_local_repo, add_ssh_key, add_worktree, apply_stash, checkout_branch, clear_ai_api_key,
+    clone_repo, commit, create_branch, create_workspace, delete_branch, delete_ssh_key,
+    delete_workspace, drop_stash, fetch, generate_commit_message, get_ahead_behind, get_ai_key_status,
+    get_blame, get_branches, get_commit_diff, get_commit_log, get_file_diff, get_stash_diff,
+    get_workdir_diff, get_working_copy, get_workspace, init_repo, list_repos, list_ssh_keys,
+    list_stashes, list_workspaces, list_worktrees, merge_branch, pop_stash, probe_ollama, pull, push,
     rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, save_stash,
-    set_active_repo, stage_all, stage_files, test_ssh_connection, unstage_files, AheadBehind,
-    AppContext,
+    set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection, unstage_files,
+    update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -33,7 +34,7 @@ use domain::history::CommitSummary;
 use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
 use domain::worktree::WorktreeInfo;
-use domain::workspace::{RepoRef, Workspace, WorkspaceSummary};
+use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
 use infrastructure::git::diff::DiffSummary;
 use infrastructure::git::merge::MergeResult;
 use infrastructure::git::rebase::RebaseResult;
@@ -88,6 +89,58 @@ fn cmd_set_active_repo(
     repo_id: Option<String>,
 ) -> Result<(), AppError> {
     set_active_repo(&ctx, workspace_id, repo_id)
+}
+
+#[tauri::command]
+fn cmd_get_workspace(
+    ctx: tauri::State<'_, AppContext>,
+    id: String,
+) -> Result<Workspace, AppError> {
+    get_workspace(&ctx, id)
+}
+
+#[tauri::command]
+fn cmd_update_workspace_settings(
+    ctx: tauri::State<'_, AppContext>,
+    id: String,
+    settings: WorkspaceSettings,
+) -> Result<(), AppError> {
+    update_workspace_settings(&ctx, id, settings)
+}
+
+#[tauri::command]
+fn cmd_set_ai_api_key(
+    workspace_id: String,
+    provider: String,
+    api_key: String,
+) -> Result<(), AppError> {
+    set_ai_api_key(workspace_id, provider, api_key)
+}
+
+#[tauri::command]
+fn cmd_clear_ai_api_key(workspace_id: String, provider: String) -> Result<(), AppError> {
+    clear_ai_api_key(workspace_id, provider)
+}
+
+#[tauri::command]
+fn cmd_get_ai_key_status(
+    workspace_id: String,
+    provider: String,
+) -> Result<AiKeyStatus, AppError> {
+    get_ai_key_status(workspace_id, provider)
+}
+
+#[tauri::command]
+async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppError> {
+    probe_ollama(base_url).await
+}
+
+#[tauri::command]
+async fn cmd_generate_commit_message(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<String, AppError> {
+    generate_commit_message(&ctx, workspace_id).await
 }
 
 // ─── Repo commands (Sprint 2) ────────────────────────────────────────────
@@ -461,6 +514,13 @@ pub fn run() {
             cmd_rename_workspace,
             cmd_delete_workspace,
             cmd_set_active_repo,
+            cmd_get_workspace,
+            cmd_update_workspace_settings,
+            cmd_set_ai_api_key,
+            cmd_clear_ai_api_key,
+            cmd_get_ai_key_status,
+            cmd_probe_ollama,
+            cmd_generate_commit_message,
             cmd_init_repo,
             cmd_clone_repo,
             cmd_add_local_repo,

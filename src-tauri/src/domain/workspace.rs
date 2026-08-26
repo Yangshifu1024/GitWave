@@ -18,7 +18,17 @@ pub struct Workspace {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct WorkspaceSettings {
+    /// `openai` | `anthropic` | `ollama`
     pub ai_provider: Option<String>,
+    /// Model id, e.g. `gpt-4o-mini`, `claude-3-5-haiku-latest`, `llama3.2`
+    #[serde(default)]
+    pub ai_model: Option<String>,
+    /// Base URL override (Ollama default `http://127.0.0.1:11434`)
+    #[serde(default)]
+    pub ai_base_url: Option<String>,
+    /// When true, block all cloud provider calls (Ollama still allowed).
+    #[serde(default)]
+    pub ai_offline: bool,
     pub prompt_templates: PromptTemplates,
     pub commit_convention: Option<String>,
     pub theme_override: Option<String>,

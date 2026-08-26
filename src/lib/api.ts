@@ -17,6 +17,9 @@ export interface PromptTemplates {
 
 export interface WorkspaceSettings {
   ai_provider: string | null;
+  ai_model?: string | null;
+  ai_base_url?: string | null;
+  ai_offline?: boolean;
   prompt_templates: PromptTemplates;
   commit_convention: string | null;
   theme_override: string | null;
@@ -104,6 +107,46 @@ export function deleteWorkspace(id: string): Promise<void> {
 
 export function setActiveRepo(workspaceId: string, repoId: string | null): Promise<void> {
   return invoke<void>("cmd_set_active_repo", { workspaceId, repoId });
+}
+
+export function getWorkspace(id: string): Promise<Workspace> {
+  return invoke<Workspace>("cmd_get_workspace", { id });
+}
+
+export function updateWorkspaceSettings(
+  id: string,
+  settings: WorkspaceSettings,
+): Promise<void> {
+  return invoke<void>("cmd_update_workspace_settings", { id, settings });
+}
+
+export interface AiKeyStatus {
+  provider: string;
+  has_key: boolean;
+}
+
+export function setAiApiKey(
+  workspaceId: string,
+  provider: string,
+  apiKey: string,
+): Promise<void> {
+  return invoke<void>("cmd_set_ai_api_key", { workspaceId, provider, apiKey });
+}
+
+export function clearAiApiKey(workspaceId: string, provider: string): Promise<void> {
+  return invoke<void>("cmd_clear_ai_api_key", { workspaceId, provider });
+}
+
+export function getAiKeyStatus(workspaceId: string, provider: string): Promise<AiKeyStatus> {
+  return invoke<AiKeyStatus>("cmd_get_ai_key_status", { workspaceId, provider });
+}
+
+export function probeOllama(baseUrl?: string): Promise<string[]> {
+  return invoke<string[]>("cmd_probe_ollama", { baseUrl: baseUrl ?? null });
+}
+
+export function generateCommitMessage(workspaceId: string): Promise<string> {
+  return invoke<string>("cmd_generate_commit_message", { workspaceId });
 }
 
 // ─── Repo commands ───────────────────────────────────────────────────────

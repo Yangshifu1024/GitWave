@@ -22,8 +22,9 @@ use crate::infrastructure::git::branch::{
     delete_branch as infra_delete_branch,
 };
 use crate::infrastructure::git::diff::{
-    diff_commit_vs_parent as infra_diff_commit_vs_parent, diff_paths as infra_diff_paths,
-    diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
+    diff_commit_vs_parent as infra_diff_commit_vs_parent, diff_index_to_head as infra_diff_index_to_head,
+    diff_paths as infra_diff_paths, diff_workdir_to_index as infra_diff_workdir_to_index,
+    DiffSummary,
 };
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_log as infra_commit_log,
@@ -147,6 +148,33 @@ pub fn delete_workspace(ctx: &AppContext, id: String) -> Result<()> {
         .lock()
         .expect("workspace repo mutex poisoned")
         .delete(&id)
+}
+
+pub fn get_workspace(ctx: &AppContext, id: String) -> Result<Workspace> {
+    ctx.workspaces
+        .lock()
+        .expect("workspace repo mutex poisoned")
+        .get(&id)?
+        .ok_or_else(|| AppError::Protocol(format!("workspace not found: {id}")))
+}
+
+pub fn update_workspace_settings(
+    ctx: &AppContext,
+    id: String,
+    settings: WorkspaceSettings,
+) -> Result<()> {
+    let provider = settings.ai_provider.as_deref().unwrap_or("");
+    if !provider.is_empty()
+        && !matches!(provider, "openai" | "anthropic" | "ollama")
+    {
+        return Err(AppError::Protocol(format!(
+            "unsupported ai_provider: {provider}"
+        )));
+    }
+    ctx.workspaces
+        .lock()
+        .expect("workspace repo mutex poisoned")
+        .update_settings(&id, &settings)
 }
 
 pub fn set_active_repo(
@@ -314,6 +342,105 @@ pub fn delete_ssh_key(path: String) -> Result<()> {
 
 pub fn test_ssh_connection(host: String, user: String) -> Result<SshTestResult> {
     crate::infrastructure::ssh::keys::test_connection(&host, &user)
+}
+
+// ─── AI provider (Sprint 4) ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AiKeyStatus {
+    pub provider: String,
+    pub has_key: bool,
+}
+
+pub fn set_ai_api_key(workspace_id: String, provider: String, api_key: String) -> Result<()> {
+    crate::infrastructure::ai::set_api_key(&workspace_id, &provider, &api_key)
+}
+
+pub fn clear_ai_api_key(workspace_id: String, provider: String) -> Result<()> {
+    crate::infrastructure::ai::clear_api_key(&workspace_id, &provider)
+}
+
+pub fn get_ai_key_status(workspace_id: String, provider: String) -> Result<AiKeyStatus> {
+    let has_key = crate::infrastructure::ai::has_api_key(&workspace_id, &provider)?;
+    Ok(AiKeyStatus { provider, has_key })
+}
+
+pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
+    crate::infrastructure::ai::probe_ollama(base_url).await
+}
+
+/// Generate a commit message suggestion from staged/workdir diff + recent commits.
+/// Result is always returned for the user to edit — never auto-commits (P1).
+pub async fn generate_commit_message(
+    ctx: &AppContext,
+    workspace_id: String,
+) -> Result<String> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let provider = settings
+        .ai_provider
+        .clone()
+        .ok_or_else(|| AppError::Protocol("AI provider not configured for this Workspace".into()))?;
+    let model = settings.ai_model.clone().unwrap_or_else(|| match provider.as_str() {
+        "anthropic" => "claude-3-5-haiku-latest".into(),
+        "ollama" => "llama3.2".into(),
+        _ => "gpt-4o-mini".into(),
+    });
+    let api_key = if provider == "ollama" {
+        None
+    } else {
+        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
+    };
+
+    let repo_path = active_repo_path(ctx, &workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    let staged = infra_diff_index_to_head(&repo)?;
+    let workdir = infra_diff_workdir_to_index(&repo)?;
+    let recent = infra_commit_log(&repo, 8)?;
+
+    let mut user = String::new();
+    user.push_str("Recent commits (newest first):\n");
+    for c in &recent {
+        user.push_str(&format!("- {}\n", c.message_summary));
+    }
+    user.push_str("\nStaged changes:\n");
+    append_diff_summary(&mut user, &staged);
+    user.push_str("\nUnstaged changes:\n");
+    append_diff_summary(&mut user, &workdir);
+
+    let system = settings
+        .prompt_templates
+        .commit
+        .unwrap_or_else(|| {
+            "You write concise git commit messages. Output ONLY the message text. \
+             Prefer conventional commits (type: summary). First line <= 72 chars. \
+             Do not wrap in markdown fences."
+                .into()
+        });
+
+    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
+        provider,
+        model,
+        base_url: settings.ai_base_url,
+        api_key,
+        system,
+        user,
+        offline: settings.ai_offline,
+    })
+    .await
+}
+
+fn append_diff_summary(buf: &mut String, diff: &DiffSummary) {
+    if diff.files.is_empty() {
+        buf.push_str("(none)\n");
+        return;
+    }
+    for f in &diff.files {
+        buf.push_str(&format!(
+            "- {} (+{} -{})\n",
+            f.path, f.additions, f.deletions
+        ));
+    }
 }
 
 // ─── History use cases (Sprint 3) ───────────────────────────────────────────
