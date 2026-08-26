@@ -1,12 +1,21 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { BranchInfo } from "@/lib/api";
-import { formatAppError, getBranches, checkoutBranch, deleteBranch } from "@/lib/api";
+import {
+  checkoutBranch,
+  createBranch,
+  deleteBranch,
+  formatAppError,
+  getBranches,
+  mergeBranch,
+  rebaseBranch,
+} from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ListItem } from "@/components/ui/ListItem";
-import { GitBranch, Trash2, ArrowRight } from "lucide-react";
+import { ArrowRight, GitBranch, GitMerge, GitPullRequestArrow, Plus, Trash2 } from "lucide-react";
 
 function BranchIcon({ kind }: { kind: "local" | "remote" }): React.JSX.Element {
   return (
@@ -19,39 +28,78 @@ function BranchIcon({ kind }: { kind: "local" | "remote" }): React.JSX.Element {
 
 interface BranchRowProps {
   branch: BranchInfo;
+  busy: boolean;
   onCheckout: (name: string) => void;
   onDelete: (name: string) => void;
+  onMerge: (name: string) => void;
+  onRebaseOnto: (name: string) => void;
 }
 
-function BranchRow({ branch, onCheckout, onDelete }: BranchRowProps): React.JSX.Element {
+function BranchRow({
+  branch,
+  busy,
+  onCheckout,
+  onDelete,
+  onMerge,
+  onRebaseOnto,
+}: BranchRowProps): React.JSX.Element {
   return (
     <ListItem
       selected={branch.is_current}
-      onClick={() => !branch.is_current && onCheckout(branch.name)}
+      onClick={() => !branch.is_current && !busy && onCheckout(branch.name)}
       leading={<BranchIcon kind={branch.kind} />}
       trailing={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {branch.ahead > 0 && <StatusBadge variant="ahead" suffix={`\u2191${branch.ahead}`} />}
           {branch.behind > 0 && <StatusBadge variant="behind" suffix={`\u2193${branch.behind}`} />}
           {branch.upstream && (
-            <span className="text-xs text-text-muted flex items-center gap-1">
+            <span className="text-xs text-text-muted flex items-center gap-1 mr-1">
               <ArrowRight size={10} />
               {branch.upstream}
             </span>
           )}
           {!branch.is_current && branch.kind === "local" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1 text-danger hover:text-danger hover:bg-danger/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(branch.name);
-              }}
-              title="Delete branch"
-            >
-              <Trash2 size={12} />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1"
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMerge(branch.name);
+                }}
+                title={`Merge ${branch.name} into current`}
+              >
+                <GitMerge size={12} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1"
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRebaseOnto(branch.name);
+                }}
+                title={`Rebase current onto ${branch.name}`}
+              >
+                <GitPullRequestArrow size={12} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1 text-danger hover:text-danger hover:bg-danger/10"
+                disabled={busy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(branch.name);
+                }}
+                title="Delete branch"
+              >
+                <Trash2 size={12} />
+              </Button>
+            </>
           )}
           {branch.is_current && <span className="text-xs text-accent font-medium">current</span>}
         </div>
@@ -82,7 +130,18 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!activeWorkspaceId) return;
+    const updated = await getBranches(activeWorkspaceId);
+    setBranches(updated);
+    bumpHistoryEpoch();
+  }, [activeWorkspaceId, bumpHistoryEpoch]);
 
   useEffect(() => {
     if (!activeWorkspaceId || !activeRepoId) {
@@ -98,30 +157,74 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       .finally(() => setLoading(false));
   }, [activeWorkspaceId, activeRepoId]);
 
-  const handleCheckout = async (name: string) => {
-    if (!activeWorkspaceId) return;
+  const run = async (fn: () => Promise<void>) => {
+    if (!activeWorkspaceId || busy) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
     try {
-      await checkoutBranch(activeWorkspaceId, name);
-      const updated = await getBranches(activeWorkspaceId);
-      setBranches(updated);
-      bumpHistoryEpoch();
-      onBranchSelect?.(name);
-    } catch {
-      // silently fail — UI will show stale state
+      await fn();
+      await refresh();
+    } catch (e) {
+      setError(formatAppError(e));
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleDelete = async (name: string) => {
-    if (!activeWorkspaceId) return;
-    try {
-      await deleteBranch(activeWorkspaceId, name);
-      const updated = await getBranches(activeWorkspaceId);
-      setBranches(updated);
-      bumpHistoryEpoch();
-    } catch {
-      // silently fail
-    }
-  };
+  const current = branches.find((b) => b.is_current && b.kind === "local");
+
+  const handleCreate = () =>
+    void run(async () => {
+      const name = newName.trim();
+      if (!name) throw new Error("Branch name is required");
+      if (!activeWorkspaceId) return;
+      const fromSha = current?.last_commit_sha;
+      if (!fromSha) throw new Error("No current branch tip to branch from");
+      await createBranch(activeWorkspaceId, name, fromSha);
+      setNewName("");
+      setShowCreate(false);
+      setNotice(`Created branch ${name}`);
+    });
+
+  const handleCheckout = (name: string) =>
+    void run(async () => {
+      await checkoutBranch(activeWorkspaceId!, name);
+      onBranchSelect?.(name);
+      setNotice(`Checked out ${name}`);
+    });
+
+  const handleDelete = (name: string) =>
+    void run(async () => {
+      await deleteBranch(activeWorkspaceId!, name);
+      setNotice(`Deleted ${name}`);
+    });
+
+  const handleMerge = (name: string) =>
+    void run(async () => {
+      const result = await mergeBranch(activeWorkspaceId!, name);
+      if (result.conflicts.length > 0) {
+        setNotice(
+          `Merged ${name} with ${result.conflicts.length} conflict(s): ${result.conflicts.join(", ")}`,
+        );
+      } else {
+        setNotice(`Merged ${name} (${result.kind.replace(/_/g, " ")})`);
+      }
+    });
+
+  const handleRebaseOnto = (name: string) =>
+    void run(async () => {
+      const result = await rebaseBranch(activeWorkspaceId!, name);
+      if (result.kind === "conflicts" || result.conflicts.length > 0) {
+        setNotice(
+          `Rebase onto ${name} hit conflicts${
+            result.conflicts.length ? `: ${result.conflicts.join(", ")}` : ""
+          }`,
+        );
+      } else {
+        setNotice(`Rebased onto ${name} (${result.kind.replace(/_/g, " ")})`);
+      }
+    });
 
   if (!activeWorkspaceId) {
     return (
@@ -147,66 +250,105 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full text-danger text-sm px-4">
-        {error}
-      </div>
-    );
-  }
-
   const localBranches = branches.filter((b) => b.kind === "local");
   const remoteBranches = branches.filter((b) => b.kind === "remote");
 
-  if (branches.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        No branches found
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full overflow-auto">
-      {localBranches.length > 0 && (
-        <div>
-          <div className="px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
-            Local
-          </div>
-          {localBranches.map((branch) => (
-            <BranchRow
-              key={branch.name}
-              branch={branch}
-              onCheckout={() => {
-                void handleCheckout(branch.name);
-              }}
-              onDelete={() => {
-                void handleDelete(branch.name);
-              }}
-            />
-          ))}
-        </div>
-      )}
+    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={busy || !current}
+          onClick={() => setShowCreate((v) => !v)}
+        >
+          <Plus size={14} />
+          New branch
+        </Button>
+        {current ? (
+          <span className="text-xs text-text-muted truncate">
+            from <span className="text-text-secondary font-medium">{current.name}</span>
+          </span>
+        ) : null}
+      </div>
 
-      {remoteBranches.length > 0 && (
-        <div className="mt-4">
-          <div className="px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
-            Remote
-          </div>
-          {remoteBranches.map((branch) => (
-            <BranchRow
-              key={branch.name}
-              branch={branch}
-              onCheckout={() => {
-                void handleCheckout(branch.name);
-              }}
-              onDelete={() => {
-                void handleDelete(branch.name);
+      {showCreate ? (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle bg-bg-elevated">
+          <div className="flex-1 min-w-0">
+            <Input
+              placeholder="feature/my-branch"
+              value={newName}
+              onChange={setNewName}
+              disabled={busy}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreate();
               }}
             />
-          ))}
+          </div>
+          <Button variant="primary" size="sm" disabled={busy || !newName.trim()} onClick={handleCreate}>
+            Create
+          </Button>
         </div>
-      )}
+      ) : null}
+
+      {error ? (
+        <div className="shrink-0 px-3 py-2 text-xs text-danger border-b border-border-subtle">
+          {error}
+        </div>
+      ) : null}
+      {notice ? (
+        <div className="shrink-0 px-3 py-2 text-xs text-text-secondary border-b border-border-subtle">
+          {notice}
+        </div>
+      ) : null}
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {branches.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-text-muted text-sm">
+            No branches found
+          </div>
+        ) : (
+          <>
+            {localBranches.length > 0 && (
+              <div>
+                <div className="px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
+                  Local
+                </div>
+                {localBranches.map((branch) => (
+                  <BranchRow
+                    key={branch.name}
+                    branch={branch}
+                    busy={busy}
+                    onCheckout={handleCheckout}
+                    onDelete={handleDelete}
+                    onMerge={handleMerge}
+                    onRebaseOnto={handleRebaseOnto}
+                  />
+                ))}
+              </div>
+            )}
+
+            {remoteBranches.length > 0 && (
+              <div className="mt-4">
+                <div className="px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
+                  Remote
+                </div>
+                {remoteBranches.map((branch) => (
+                  <BranchRow
+                    key={branch.name}
+                    branch={branch}
+                    busy={busy}
+                    onCheckout={handleCheckout}
+                    onDelete={handleDelete}
+                    onMerge={handleMerge}
+                    onRebaseOnto={handleRebaseOnto}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
