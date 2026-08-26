@@ -1,0 +1,157 @@
+/* GitWave design tokens — see docs/design/01-tokens.md
+ *
+ * Tailwind v4 CSS-first config: define design tokens via @theme block,
+ * generate utilities from them. Light theme is the default; dark variants
+ * apply via `<html class="dark">` (system theme follows via
+ * `prefers-color-scheme`).
+ */
+
+@import "tailwindcss";
+
+/* ─── Light theme (default) ──────────────────────────────────────────── */
+
+@theme {
+  /* colors */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #fafafa;
+  --color-bg-elevated: #ffffff;
+  --color-text-primary: #1f1f1f;
+  --color-text-secondary: #555555;
+  --color-text-muted: #888888;
+  --color-text-inverse: #ffffff;
+  --color-border-subtle: #e3e3e3;
+  --color-border-default: #cccccc;
+  --color-border-strong: #999999;
+  --color-accent: #007aff;
+  --color-accent-hover: #0066cc;
+  --color-success: #2ecc71;
+  --color-warning: #f39c12;
+  --color-danger: #c0392b;
+  --color-info: #3498db;
+  --color-status-active: #2ecc71;
+  --color-status-missing: #c0392b;
+  --color-branch-local: #007aff;
+  --color-branch-current: #5856d6;
+  --color-branch-remote: #8e8e93;
+  --color-branch-ahead: #34c759;
+  --color-branch-behind: #ff9500;
+  --color-branch-conflict: #ff3b30;
+
+  /* fonts */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Cantarell,
+    Ubuntu, "Helvetica Neue", system-ui, sans-serif;
+  --font-mono:
+    "SF Mono", Menlo, Monaco, Consolas, "Cascadia Code", ui-monospace, monospace;
+
+  /* radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* shadows */
+  --shadow-subtle:
+    0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.06);
+  --shadow-modal:
+    0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* ─── Dark theme (system + manual override) ──────────────────────────── */
+
+@layer base {
+  :root.dark {
+    --color-bg-primary: #1a1a1a;
+    --color-bg-secondary: #232323;
+    --color-bg-elevated: #2a2a2a;
+    --color-text-primary: #f0f0f0;
+    --color-text-secondary: #c0c0c0;
+    --color-text-muted: #8e8e93;
+    --color-text-inverse: #1f1f1f;
+    --color-border-subtle: #2a2a2a;
+    --color-border-default: #3a3a3a;
+    --color-border-strong: #5a5a5a;
+    --color-accent: #0a84ff;
+    --color-accent-hover: #409cff;
+    --color-success: #30d158;
+    --color-warning: #ff9f0a;
+    --color-danger: #ff453a;
+    --color-info: #64d2ff;
+    --color-status-active: #30d158;
+    --color-status-missing: #ff453a;
+    --color-branch-local: #0a84ff;
+    --color-branch-current: #5e5ce6;
+    --color-branch-remote: #98989d;
+    --color-branch-ahead: #30d158;
+    --color-branch-behind: #ff9f0a;
+    --color-branch-conflict: #ff453a;
+    --shadow-subtle:
+      0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
+    --shadow-modal:
+      0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ─── System dark preference (when user has not set explicit theme) ── */
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --color-bg-primary: #1a1a1a;
+    --color-bg-secondary: #232323;
+    --color-bg-elevated: #2a2a2a;
+    --color-text-primary: #f0f0f0;
+    --color-text-secondary: #c0c0c0;
+    --color-text-muted: #8e8e93;
+    --color-text-inverse: #1f1f1f;
+    --color-border-subtle: #2a2a2a;
+    --color-border-default: #3a3a3a;
+    --color-border-strong: #5a5a5a;
+    --color-accent: #0a84ff;
+    --color-accent-hover: #409cff;
+    --color-success: #30d158;
+    --color-warning: #ff9f0a;
+    --color-danger: #ff453a;
+    --color-info: #64d2ff;
+    --color-status-active: #30d158;
+    --color-status-missing: #ff453a;
+    --color-branch-local: #0a84ff;
+    --color-branch-current: #5e5ce6;
+    --color-branch-remote: #98989d;
+    --color-branch-ahead: #30d158;
+    --color-branch-behind: #ff9f0a;
+    --color-branch-conflict: #ff453a;
+    --shadow-subtle:
+      0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
+    --shadow-modal:
+      0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ─── Base resets ─────────────────────────────────────────────────────── */
+
+@layer base {
+  html,
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  /* Outline token: focus rings use accent color */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
