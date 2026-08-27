@@ -7,7 +7,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Toolbar (h: 40px)                                                      │
-│  [WS▾]  repo › branch                                        ⌘K  ☀/☾ │
+│  gitwave › main                                                   ⌘K  ☀ │
 ├────────────┬──────────────────────────────────┬─────────────────────────┤
 │            │                                  │                         │
 │ Sidebar    │  History graph (flex)            │  Inspector (~360px)     │
@@ -29,7 +29,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ [Workspace▾]  repo › branch                                      ⌘K  ☀ │
+│ gitwave › main                                                     ⌘K  ☀ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -40,13 +40,13 @@
 
 | 元素 | 位置 | 交互 |
 |---|---|---|
-| Workspace Switcher | 左 | 点击 → 下拉，列出 workspaces + New |
 | 当前 repo › branch | 左 | 只读路径（切换在侧栏）；`›` 分隔 |
 | `⌘K` hint | 右 | 点击 → 打开 CommandPalette（v0.2 Sprint 6） |
 | Theme toggle | 右 | 点击循环：light → dark → system |
 | 溢出菜单 | 右 | SSH Keys |
 
-**Sync 不在 Toolbar**。Fetch / Pull / Push 按作用域放在侧栏 section 标题栏，见 §3.4。
+**Workspace 不在 Toolbar**——在侧栏 WORKSPACES 列表切换，见 §3.1。  
+**Sync 不在 Toolbar**——Fetch / Pull / Push 在侧栏 section 标题栏，见 §3.4。
 
 ### 2.3 Branch 同步状态（侧栏 BRANCHES 标题栏）
 
@@ -79,6 +79,9 @@ ahead/behind 数字显示在 **BRANCHES section 标题栏** 的 Pull / Push 按�
 
 ```
 ┌──────────────────────────┐
+│ WORKSPACES             +  │
+│   Client Work    [active] │
+│   Personal                │
 │ REPOS          Fetch  +  │
 │   gitwave      [active]   │
 │   notes                   │
@@ -89,12 +92,14 @@ ahead/behind 数字显示在 **BRANCHES section 标题栏** 的 Pull / Push 按�
 └──────────────────────────┘
 ```
 
-宽度：220px（可拖拽 180-360）。背景 Mist，与 Foam 画布区分。Workspace 切换在 Toolbar，侧栏从 Repos 起。
+宽度：220px（可拖拽 180-360）。背景 Mist，与 Foam 画布区分。**Workspaces 列表置顶**，其下为 Repos / Branches 等 sections。
 
 ### 3.2 元素
 
 | 元素 | 类型 | 备注 |
 |---|---|---|
+| WORKSPACES 标题 | 静态 + `+` | uppercase label；`+` → 新建 workspace |
+| Workspace 行 | ListItem | 点击 → selectWorkspace；hover 显示 AI / Rename / Delete |
 | REPOS 标题 | 静态 + actions | uppercase label；右侧 `Fetch`（repo 级）+ `+` |
 | Repo 行 | ListItem | 点击 → setActiveRepo；右键菜单：relink / remove |
 | BRANCHES 标题 | 静态 + actions | 右侧 `Pull ↓N` / `Push ↑N`（branch 级）+ `+` |

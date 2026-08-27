@@ -58,12 +58,12 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Toolbar (~40px)  动作工具栏，不要品牌站                         │
-│  [WS▾]  repo › branch                                        ⌘K  ☀/☾ │
+│  Toolbar (~40px)  repo › branch                              ⌘K  ☀ │
 ├────────────┬───────────────────────────────┬────────────────────┤
 │ Sidebar    │  History graph（主角）         │  Inspector         │
 │ (220px)    │  flex                         │  (~360px)          │
-│ repos      │  Tide Lanes + commit 行       │  详情 / diff       │
+│ workspaces │  Tide Lanes + commit 行       │  详情 / diff       │
+│ repos      │                               │                    │
 │ branches   │                               │                    │
 │ stash/tags │                               │                    │
 │ remotes /  │                               │                    │
@@ -73,8 +73,8 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Toolbar**：Workspace 切换 + 当前 repo › branch 路径（只读）。无 Sync、无居中字标、无版本号。SSH 进溢出菜单。
-- **Sidebar（Source List）**：repos（含 **Fetch**）+ branches（含 **Pull / Push**）+ stash / tags / remotes / worktrees。Mist 底，与 Foam 画布有材质差。
+- **Toolbar**：当前 repo › branch 路径（只读）。无 Workspace 下拉、无 Sync、无居中字标。SSH 进溢出菜单。
+- **Sidebar（Source List）**：**workspaces 列表**（最顶）+ repos（含 Fetch）+ branches（含 Pull/Push）+ stash / tags / remotes / worktrees。Mist 底，与 Foam 画布有材质差。
 - **History graph**：永远是中栏主角，不是 Tab。
 - **Inspector**：选中 commit 或 working-copy 文件的详情 / diff。
 - **Working Copy Bar**：clean 32px / dirty 展开至 ~220px（文件列表从 Changes Tab 收回）。详见 `04-working-copy.md`。

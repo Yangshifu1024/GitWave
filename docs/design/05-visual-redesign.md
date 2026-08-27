@@ -25,8 +25,9 @@
 以 **macOS Source List + 侧栏作用域操作** 为骨架，GitWave 只在 Tide Lanes 与 accent 上发声。
 
 - 侧栏：全宽行、无圆角、选中仅左侧 3px Tide 条 + 8% Tide 底
-- **Sync 按作用域下沉**：`Fetch` → REPOS 标题栏（repository 级）；`Pull` / `Push` → BRANCHES 标题栏（branch 级，带 ↑↓ badge）
-- 工具栏：Workspace 胶囊 + 当前 repo › branch 路径条（只读上下文，不放 Sync）
+- **Sync 按作用域下沉**：`Fetch` → REPOS 标题栏；`Pull` / `Push` → BRANCHES 标题栏
+- **Workspace 列表**：侧栏最顶部 WORKSPACES section（REPOS 上方），Source List 一行一点击切换，不用 Toolbar 下拉
+- 工具栏：仅 `repo › branch` 路径条（只读上下文）+ ⌘K / 主题 / 溢出菜单
 - 材质：Sidebar Mist → Canvas Foam → Inspector Elevated（三层明度差）
 - 分隔：pane 之间用 **1px inset shadow**，不用硬边框叠边框
 
@@ -81,16 +82,26 @@ Dark 模式：Abyss 侧栏 / `#161B20` 画布 / `#1C2329` inspector，关系不�
 
 ```
 ┌──────────────────────────┐
-│ REPOS          Fetch  +  │  ← Fetch = repository 级
-│▌gitwave            ●    │
-│ notes                   │
-│ BRANCHES   Pull↓1 Push↑2 +│  ← Pull/Push = branch 级
-│▌main              HEAD   │
-│ feature/tide-lanes       │
+│ WORKSPACES             +  │  ← Workspace 列表，REPOS 上方
+│▌Client Work            ●  │
+│ Personal                  │
+│ Side Projects             │
+│ REPOS          Fetch  +  │
+│▌gitwave                ●  │
+│ notes                     │
+│ BRANCHES   Pull↓1 Push↑2 +│
+│▌main                HEAD   │
 └──────────────────────────┘
 ```
 
-**列表行**
+**Workspaces section**
+
+- 位置：侧栏 **最顶部**，在 REPOS 之前；与下方 sections 同样式（10px caps label + `+`）
+- 交互：点击行 → `selectWorkspace`；选中行 Source List 高亮（3px Tide 左条）
+- 行内 hover 显示次要操作（AI / Rename / Delete），与现有 `WorkspaceSwitcherDropdown variant="sidebar"` 一致
+- **不放** Toolbar 下拉；Toolbar 不再显示 workspace 名
+
+**列表行（Repos / Branches 等同理）**
 
 - `border-radius: 0`；`height: 28px`；`padding: 0 12px 0 9px`
 - Selected：`border-left: 3px solid Tide` + `background: tide/8%`
@@ -111,13 +122,12 @@ Dark 模式：Abyss 侧栏 / `#161B20` 画布 / `#1C2329` inspector，关系不�
 ### 4.2 Toolbar
 
 ```
-[ Client Work ▾ ]  gitwave › main                              ⌘K  ☀
+gitwave › main                                               ⌘K  ☀
 ```
 
-- Workspace：**胶囊**（`border-radius: 6px`，`bg: elevated`，无描边）
-- Repo path：`gitwave › main` 用 `›` 分隔，secondary 色；**不含** ahead/behind（数字随 Pull/Push 在 BRANCHES 标题栏）
-- 右侧：KeyHint 用 **嵌入式 kbd**（非浮动 badge）
-- **不放** Fetch / Pull / Push
+- Repo path：`gitwave › main` 用 `›` 分隔；只读，反映当前 active workspace 下的 repo / branch
+- 右侧：KeyHint + 主题 + 溢出菜单（SSH Keys 等）
+- **不放** Workspace 选择器、Fetch / Pull / Push
 
 ### 4.3 History Graph（Tide Lanes）
 
@@ -169,6 +179,7 @@ Dark 模式：Abyss 侧栏 / `#161B20` 画布 / `#1C2329` inspector，关系不�
 | 维度 | v1 | v2 |
 |---|---|---|
 | 列表选中 | 有时圆角块 | 全宽 Source List |
+| Workspace 切换 | Toolbar 下拉 | **侧栏 WORKSPACES 列表**（REPOS 上方） |
 | Sync 位置 | Toolbar 三按钮 | **REPOS: Fetch** / **BRANCHES: Pull·Push** |
 | Pane 分隔 | `border-right` | inset shadow |
 | Inspector | 简单 header | file chip + gutter diff |
@@ -186,10 +197,11 @@ Dark 模式：Abyss 侧栏 / `#161B20` 画布 / `#1C2329` inspector，关系不�
 ## 8. 实施优先级（供后续 plan 引用）
 
 1. **P0** — Source List 重写（`ListItem` radius=0、全宽选中）+ pane inset shadow
-2. **P0** — Sync 下沉至 SidebarSection 标题栏（REPOS Fetch / BRANCHES Pull·Push）+ Toolbar 胶囊
-3. **P1** — Inspector diff gutter + file header row
-4. **P1** — WC Bar 上阴影 + 列标题规范
-5. **P2** — 移除全局 `ring-offset` 样式，统一 `:focus-visible` 为 2px Tide outline
+2. **P0** — Workspace 列表置顶（WORKSPACES section）+ Sync 下沉至 REPOS/BRANCHES 标题栏
+3. **P0** — Toolbar 精简为 repo › branch 路径条
+4. **P1** — Inspector diff gutter + file header row
+5. **P1** — WC Bar 上阴影 + 列标题规范
+6. **P2** — 移除全局 `ring-offset` 样式，统一 `:focus-visible` 为 2px Tide outline
 
 ## 9. 关联
 

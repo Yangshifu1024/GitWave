@@ -184,27 +184,13 @@
         background: #28c840;
       }
 
-      .ws-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        height: 24px;
-        padding: 0 10px;
-        border-radius: 6px;
-        background: var(--elevated);
-        font-size: 12px;
-        font-weight: 500;
-        color: var(--ink);
-        border: none;
-        cursor: default;
+      .sec.ws-sec {
+        padding-bottom: 4px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid var(--hair);
       }
 
-      .ws-pill.muted {
-        color: var(--muted);
-        font-weight: 400;
-      }
-
-      .path {
+      .toolbar .path-only {
         font-size: 12px;
         color: var(--ink-2);
         display: flex;
@@ -212,12 +198,12 @@
         gap: 5px;
       }
 
-      .path strong {
+      .path-only strong {
         color: var(--ink);
         font-weight: 500;
       }
 
-      .path .chev {
+      .path-only .chev {
         color: var(--muted);
         font-size: 10px;
       }
@@ -782,7 +768,7 @@
       <button type="button" data-go="dirty" aria-pressed="false">Light · Dirty</button>
       <button type="button" data-go="dark" aria-pressed="false">Dark · History</button>
       <button type="button" data-go="empty" aria-pressed="false">Empty</button>
-      <span class="hint">Source List · Sync 在 REPOS/BRANCHES · 材质分层 · Tide Lanes</span>
+      <span class="hint">Workspace 列表置顶 · Sync 在 REPOS/BRANCHES · Tide Lanes</span>
     </div>
 
     <div class="stage">
@@ -790,8 +776,7 @@
       <div class="window is-on" id="history">
         <header class="toolbar">
           <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
-          <button class="ws-pill" type="button">Client Work ▾</button>
-          <div class="path">
+          <div class="path-only">
             <strong>gitwave</strong>
             <span class="chev">›</span>
             <span>main</span>
@@ -804,6 +789,15 @@
 
         <div class="body">
           <aside class="sidebar">
+            <div class="sec ws-sec">
+              <div class="sec-head">
+                <span class="sec-label">Workspaces</span>
+                <button class="sec-add" type="button" aria-label="New workspace">+</button>
+              </div>
+              <div class="src-row sel">Client Work <span class="dot"></span></div>
+              <div class="src-row">Personal</div>
+              <div class="src-row">Side Projects</div>
+            </div>
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
@@ -941,8 +935,7 @@
       <div class="window" id="dirty">
         <header class="toolbar">
           <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
-          <button class="ws-pill" type="button">Client Work ▾</button>
-          <div class="path">
+          <div class="path-only">
             <strong>gitwave</strong>
             <span class="chev">›</span>
             <span>feature/tide-lanes</span>
@@ -954,6 +947,14 @@
         </header>
         <div class="body">
           <aside class="sidebar">
+            <div class="sec ws-sec">
+              <div class="sec-head">
+                <span class="sec-label">Workspaces</span>
+                <button class="sec-add" type="button">+</button>
+              </div>
+              <div class="src-row sel">Client Work <span class="dot"></span></div>
+              <div class="src-row">Personal</div>
+            </div>
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
@@ -1066,8 +1067,7 @@
       <div class="window dark" id="dark">
         <header class="toolbar">
           <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
-          <button class="ws-pill" type="button">Client Work ▾</button>
-          <div class="path">
+          <div class="path-only">
             <strong>gitwave</strong>
             <span class="chev">›</span>
             <span>main</span>
@@ -1079,6 +1079,14 @@
         </header>
         <div class="body">
           <aside class="sidebar">
+            <div class="sec ws-sec">
+              <div class="sec-head">
+                <span class="sec-label">Workspaces</span>
+                <button class="sec-add" type="button">+</button>
+              </div>
+              <div class="src-row sel">Client Work <span class="dot"></span></div>
+              <div class="src-row">Personal</div>
+            </div>
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
@@ -1155,14 +1163,20 @@
       <div class="window" id="empty">
         <header class="toolbar">
           <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
-          <button class="ws-pill muted" type="button">Select workspace ▾</button>
-          <div class="right">
+          <div class="right" style="margin-left: auto">
             <span class="kbd">⌘K</span>
             <button class="icon-btn" type="button">☀</button>
           </div>
         </header>
         <div class="body">
           <aside class="sidebar">
+            <div class="sec ws-sec">
+              <div class="sec-head">
+                <span class="sec-label">Workspaces</span>
+                <button class="sec-add" type="button">+</button>
+              </div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">No workspaces yet</span></div>
+            </div>
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
@@ -1191,7 +1205,7 @@
                 </svg>
               </div>
               <h2>Select a workspace</h2>
-              <p>Create or choose a workspace in the toolbar to open repositories.</p>
+              <p>Choose or create a workspace in the sidebar to open repositories.</p>
               <button class="cta" type="button" style="margin-top: 6px">New workspace</button>
             </div>
           </section>
