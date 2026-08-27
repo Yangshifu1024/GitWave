@@ -27,6 +27,21 @@ export const ContextMenuContent = forwardRef<
 ));
 ContextMenuContent.displayName = "ContextMenuContent";
 
+export const ContextMenuLabel = forwardRef<
+  React.ElementRef<typeof ContextMenuPrimitive.Label>,
+  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Label>
+>(({ className, ...props }, ref) => (
+  <ContextMenuPrimitive.Label
+    ref={ref}
+    className={cn(
+      "px-2 py-1.5 text-xs font-medium text-text-primary truncate",
+      className,
+    )}
+    {...props}
+  />
+));
+ContextMenuLabel.displayName = "ContextMenuLabel";
+
 export interface ContextMenuItemProps extends React.ComponentPropsWithoutRef<
   typeof ContextMenuPrimitive.Item
 > {

@@ -18,6 +18,7 @@ import { ListItem } from "@/components/ui/ListItem";
 import { Modal } from "@/components/ui/Modal";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { FolderPlus, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { SidebarSection } from "@/components/ui/SidebarSection";
 
 export function WorkspaceSwitcherDropdown(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -104,11 +105,9 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
 
   return (
     <>
-      <div className="flex flex-col">
-        <div className="flex items-center justify-between px-3 py-2">
-          <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-            Workspaces
-          </h2>
+      <SidebarSection
+        title="Workspaces"
+        actions={
           <Button
             variant="ghost"
             size="sm"
@@ -118,8 +117,8 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
           >
             <FolderPlus size={14} />
           </Button>
-        </div>
-
+        }
+      >
         {isLoading ? (
           <p className="px-3 py-2 text-sm text-text-muted">Loading…</p>
         ) : error ? (
@@ -181,7 +180,7 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
             ))}
           </ul>
         )}
-      </div>
+      </SidebarSection>
 
       <Modal
         open={createOpen}

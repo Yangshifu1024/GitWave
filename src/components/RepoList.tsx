@@ -23,6 +23,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PathInput } from "@/components/ui/PathInput";
 import { FolderPlus, GitBranch, FolderInput, Link2, Trash2 } from "lucide-react";
+import { SyncButtons } from "@/components/ui/SyncButtons";
+import { SidebarSection } from "@/components/ui/SidebarSection";
+import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
 function detectProtocol(url: string): "ssh" | "https" {
   if (url.startsWith("ssh://") || url.startsWith("git@")) return "ssh";
@@ -52,6 +55,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
   const queryClient = useQueryClient();
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
+  const wc = useWorkingCopy();
 
   const [adding, setAdding] = useState<AddKind>(null);
   const [relinking, setRelinking] = useState<RepoRef | null>(null);
@@ -188,52 +192,57 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
 
-  return (
-    <div className="flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Repos</h2>
-        <span className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={() => startAdd("init")} aria-label="Init repo">
-            <GitBranch size={14} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => startAdd("clone")}
-            aria-label="Clone repo"
-          >
-            <FolderPlus size={14} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => startAdd("local")}
-            aria-label="Add local repo"
-          >
-            <FolderInput size={14} />
-          </Button>
-        </span>
-      </div>
+  const headerError =
+    (actionError && !adding && !relinking ? actionError : null) ?? wc.actionError;
 
-      {/* List */}
-      {actionError && !adding && !relinking ? (
-        <p className="px-3 py-2 text-sm text-danger">{actionError}</p>
-      ) : null}
-      {isLoading ? (
-        <p className="px-3 py-2 text-sm text-text-muted">Loading repos…</p>
-      ) : error ? (
-        <p className="px-3 py-2 text-sm text-danger">
-          Failed to load repos: {formatAppError(error)}
-        </p>
-      ) : repos.length === 0 ? (
-        <EmptyState
-          title="No repos"
-          description="Init, clone, or add a local repo to start."
-          className="py-6"
-        />
-      ) : (
-        <ul className="py-1">
+  return (
+    <>
+      <SidebarSection
+        title="Repos"
+        actions={
+          <>
+            <SyncButtons
+              onFetch={wc.fetch}
+              fetchDisabled={!activeRepoId}
+              inProgress={wc.syncPending}
+            />
+            <Button variant="ghost" size="sm" onClick={() => startAdd("init")} aria-label="Init repo">
+              <GitBranch size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => startAdd("clone")}
+              aria-label="Clone repo"
+            >
+              <FolderPlus size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => startAdd("local")}
+              aria-label="Add local repo"
+            >
+              <FolderInput size={14} />
+            </Button>
+          </>
+        }
+      >
+        {headerError ? <p className="px-3 py-2 text-sm text-danger">{headerError}</p> : null}
+        {isLoading ? (
+          <p className="px-3 py-2 text-sm text-text-muted">Loading repos…</p>
+        ) : error ? (
+          <p className="px-3 py-2 text-sm text-danger">
+            Failed to load repos: {formatAppError(error)}
+          </p>
+        ) : repos.length === 0 ? (
+          <EmptyState
+            title="No repos"
+            description="Init, clone, or add a local repo to start."
+            className="py-6"
+          />
+        ) : (
+          <ul className="py-1">
           {repos.map((r) => (
             <li key={r.id}>
               <ListItem
@@ -271,7 +280,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
                         e.stopPropagation();
                         setRemoving(r);
                       }}
-                      className="p-1 text-danger hover:text-danger"
+                      className="p-1 text-danger hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                       aria-label="Remove repo"
                     >
                       <Trash2 size={13} />
@@ -294,6 +303,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           ))}
         </ul>
       )}
+      </SidebarSection>
 
       {/* Init modal */}
       {adding === "init" && (
@@ -543,6 +553,6 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 }

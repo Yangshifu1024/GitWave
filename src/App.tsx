@@ -7,7 +7,6 @@ import { RepoList } from "@/components/RepoList";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { WindowControls } from "@/components/WindowControls";
 import { WorkspaceSwitcherDropdown } from "@/components/WorkspaceSwitcherDropdown";
-import { WorkingCopyBar } from "@/components/ui/WorkingCopyBar";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { getAppVersion } from "@/lib/api";
 import { isMacOS } from "@/lib/platform";
@@ -66,8 +65,6 @@ function App(): React.JSX.Element {
       });
   }, []);
 
-  const showWorkingCopy = activeWorkspaceId !== null && activeRepoId !== null;
-
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary">
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
@@ -106,22 +103,21 @@ function App(): React.JSX.Element {
         <Split direction="horizontal">
           {/* Sidebar: 20% */}
           <Pane initialSize="20%" minSize={180} maxSize={480}>
-            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-hidden">
-              <div className="shrink-0 border-b border-border-subtle">
-                <WorkspaceSwitcherDropdown />
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto">
-                {activeWorkspaceId ? (
+            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-x-hidden overflow-y-auto">
+              <WorkspaceSwitcherDropdown />
+              {activeWorkspaceId ? (
+                <>
                   <RepoList workspaceId={activeWorkspaceId} />
-                ) : (
-                  <EmptyState
-                    icon={<FolderOpen size={24} />}
-                    title="No workspace selected"
-                    description="Select or create a workspace above to see repos."
-                    className="flex-1"
-                  />
-                )}
-              </div>
+                  <BranchList />
+                </>
+              ) : (
+                <EmptyState
+                  icon={<FolderOpen size={24} />}
+                  title="No workspace selected"
+                  description="Select or create a workspace above to see repos."
+                  className="flex-1"
+                />
+              )}
             </aside>
           </Pane>
 
@@ -149,8 +145,6 @@ function App(): React.JSX.Element {
         </Split>
       </div>
 
-      {/* ── Working Copy Bar ─────────────────────────────────────────────── */}
-      {showWorkingCopy && <WorkingCopyBar repoId={activeRepoId} />}
       <ConflictPanel />
     </div>
   );
@@ -217,7 +211,6 @@ function FeatureNav({
         <TabsList className="shrink-0 px-2">
           <TabsTrigger value="changes">Changes</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="branches">Branches</TabsTrigger>
           <TabsTrigger value="stash">Stash</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="remotes">Remotes</TabsTrigger>
@@ -230,10 +223,6 @@ function FeatureNav({
 
         <TabsContent value="history" className="flex-1 min-h-0 overflow-hidden p-0">
           <CommitGraph selectedSha={selectedCommitOid} onCommitSelect={onCommitSelect} />
-        </TabsContent>
-
-        <TabsContent value="branches" className="flex-1 min-h-0 overflow-hidden p-0">
-          <BranchList />
         </TabsContent>
 
         <TabsContent value="stash" className="flex-1 min-h-0 overflow-hidden p-0">

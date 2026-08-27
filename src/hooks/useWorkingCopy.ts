@@ -88,6 +88,7 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     onSuccess: () => {
       setActionError(null);
       invalidate();
+      bumpHistory();
     },
     onError: (e) => setActionError(formatAppError(e)),
   });

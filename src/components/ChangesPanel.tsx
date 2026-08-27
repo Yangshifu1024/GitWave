@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { FileListItem } from "@/components/ui/FileListItem";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
-import { formatAppError, type FileChange } from "@/lib/api";
+import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
+import { formatAppError, generateCommitMessage, type FileChange } from "@/lib/api";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { modifierFromPointerEvent, nextFileSelection } from "@/lib/fileSelection";
 
@@ -17,22 +18,26 @@ function FileSection({
   title,
   actionLabel,
   actionVariant,
+  allActionLabel,
   files,
   emptyLabel,
   selectedPath,
   onSelectFile,
   onStageToggle,
   onBulkAction,
+  onAllAction,
 }: {
   title: string;
   actionLabel: string;
   actionVariant: "primary" | "secondary";
+  allActionLabel?: string;
   files: FileChange[];
   emptyLabel: string;
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   onStageToggle: (file: FileChange) => void;
   onBulkAction: (paths: string[]) => void;
+  onAllAction?: () => void;
 }): React.JSX.Element {
   const [open, setOpen] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -89,6 +94,22 @@ function FileSection({
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           {title} ({files.length})
         </button>
+        {allActionLabel && onAllAction ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="shrink-0"
+            disabled={files.length === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAllAction();
+            }}
+            title={`${allActionLabel} files`}
+          >
+            {allActionLabel}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant={actionVariant}
@@ -132,16 +153,32 @@ export function ChangesPanel({
   onSelectFile,
 }: ChangesPanelProps): React.JSX.Element {
   const {
+    workspaceId,
     repoId,
     isLoading,
     isError,
     error,
     actionError,
+    setActionError,
     unstagedFiles,
     stagedFiles,
     stage,
     unstage,
+    commitMessage,
+    commitPending,
   } = useWorkingCopy();
+  const [message, setMessage] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const handleAiGenerate = () => {
+    if (!workspaceId || aiBusy) return;
+    setAiBusy(true);
+    setActionError(null);
+    generateCommitMessage(workspaceId)
+      .then((msg) => setMessage(msg))
+      .catch((e) => setActionError(formatAppError(e)))
+      .finally(() => setAiBusy(false));
+  };
 
   if (!repoId) {
     return (
@@ -154,10 +191,29 @@ export function ChangesPanel({
     );
   }
 
+  const commitBox = (
+    <div className="shrink-0 border-t border-border-subtle p-3">
+      <CommitMessageBox
+        layout="inline"
+        value={message}
+        onChange={setMessage}
+        onSubmit={() => {
+          if (stagedFiles.length === 0 || !message.trim()) return;
+          commitMessage(message, { onSuccess: () => setMessage("") });
+        }}
+        onAiGenerate={handleAiGenerate}
+        disabled={stagedFiles.length === 0 || commitPending || aiBusy}
+      />
+    </div>
+  );
+
   if (isLoading && unstagedFiles.length === 0 && stagedFiles.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <span className="text-xs text-text-muted italic">Loading…</span>
+      <div className="flex flex-col h-full min-h-0">
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-xs text-text-muted italic">Loading…</span>
+        </div>
+        {commitBox}
       </div>
     );
   }
@@ -174,12 +230,14 @@ export function ChangesPanel({
         title="Unstaged"
         actionLabel="Stage"
         actionVariant="primary"
+        allActionLabel="Stage All"
         files={unstagedFiles}
         emptyLabel="No unstaged changes"
         selectedPath={selectedPath}
         onSelectFile={onSelectFile}
         onStageToggle={(file) => stage([file.path])}
         onBulkAction={(paths) => stage(paths)}
+        onAllAction={() => stage(unstagedFiles.map((file) => file.path))}
       />
       <FileSection
         title="Staged"
@@ -192,6 +250,7 @@ export function ChangesPanel({
         onStageToggle={(file) => unstage([file.path])}
         onBulkAction={(paths) => unstage(paths)}
       />
+      {commitBox}
     </div>
   );
 }

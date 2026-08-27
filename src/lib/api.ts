@@ -303,6 +303,7 @@ export interface BranchInfo {
   ahead: number;
   behind: number;
   last_commit_sha: string;
+  last_commit_time: number;
 }
 
 export interface AheadBehind {
