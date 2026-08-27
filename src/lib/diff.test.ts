@@ -64,4 +64,13 @@ describe("filterDiffSummary", () => {
       total_deletions: 0,
     });
   });
+
+  it("matches paths regardless of slash direction", () => {
+    const windowsDiff: DiffSummary = {
+      files: [fileDiff("src\\lib.rs", 1, 0)],
+      total_additions: 1,
+      total_deletions: 0,
+    };
+    expect(filterDiffSummary(windowsDiff, "src/lib.rs").files).toHaveLength(1);
+  });
 });

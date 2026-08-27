@@ -16,10 +16,15 @@ export function partitionFileChanges(files: FileChange[]): {
 /** When `path` is set, keep only that file and recompute totals. */
 export function filterDiffSummary(diff: DiffSummary, path?: string | null): DiffSummary {
   if (!path) return diff;
-  const files = diff.files.filter((file) => file.path === path);
+  const needle = normalizeRepoPath(path);
+  const files = diff.files.filter((file) => normalizeRepoPath(file.path) === needle);
   return {
     files,
     total_additions: files.reduce((sum, file) => sum + file.additions, 0),
     total_deletions: files.reduce((sum, file) => sum + file.deletions, 0),
   };
+}
+
+function normalizeRepoPath(path: string): string {
+  return path.replaceAll("\\", "/");
 }
