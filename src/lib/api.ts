@@ -19,7 +19,6 @@ export interface WorkspaceSettings {
   ai_provider: string | null;
   ai_model?: string | null;
   ai_base_url?: string | null;
-  ai_offline?: boolean;
   prompt_templates: PromptTemplates;
   commit_convention: string | null;
   theme_override: string | null;

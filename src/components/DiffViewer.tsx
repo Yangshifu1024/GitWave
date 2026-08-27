@@ -284,6 +284,7 @@ export function DiffViewer({
       setError(null);
       return;
     }
+    let cancelled = false;
     setLoading(true);
     setError(null);
     setPanel("diff");
@@ -296,9 +297,19 @@ export function DiffViewer({
         : Promise.resolve(null);
 
     promise
-      .then(setDiff)
-      .catch((e) => setError(formatAppError(e)))
-      .finally(() => setLoading(false));
+      .then((result) => {
+        if (!cancelled) setDiff(result);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(formatAppError(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeWorkspaceId, activeRepoId, commitOid, workdir]);
 
   if (!activeWorkspaceId) {

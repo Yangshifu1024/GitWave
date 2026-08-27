@@ -13,22 +13,41 @@ pub struct AiGenerateRequest {
     pub api_key: Option<String>,
     pub system: String,
     pub user: String,
-    pub offline: bool,
 }
 
-fn is_cloud(provider: &str) -> bool {
-    matches!(provider, "openai" | "anthropic")
+fn trim_base(base: &str) -> String {
+    base.trim().trim_end_matches('/').to_string()
+}
+
+fn openai_endpoint(base: Option<String>) -> String {
+    let base = trim_base(base.as_deref().unwrap_or("https://api.openai.com"));
+    if base.ends_with("/chat/completions") {
+        return base;
+    }
+    if base.ends_with("/v1") {
+        return format!("{}/chat/completions", base);
+    }
+    format!("{}/v1/chat/completions", base)
+}
+
+fn anthropic_endpoint(base: Option<String>) -> String {
+    let base = trim_base(base.as_deref().unwrap_or("https://api.anthropic.com"));
+    if base.ends_with("/messages") {
+        return base;
+    }
+    if base.ends_with("/v1") {
+        return format!("{}/messages", base);
+    }
+    format!("{}/v1/messages", base)
+}
+
+fn ollama_base(base: Option<String>) -> String {
+    trim_base(base.as_deref().unwrap_or("http://127.0.0.1:11434"))
 }
 
 /// Generate assistant text. Never auto-applies git mutations (P1).
 pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     let provider = req.provider.to_ascii_lowercase();
-    if req.offline && is_cloud(&provider) {
-        return Err(AppError::Protocol(
-            "offline mode is on — cloud AI providers are disabled".into(),
-        ));
-    }
-
     let user = scrub_secrets(&req.user);
     let system = scrub_secrets(&req.system);
 
@@ -38,21 +57,16 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
                 .api_key
                 .filter(|k| !k.is_empty())
                 .ok_or_else(|| AppError::Credential("OpenAI API key not configured".into()))?;
-            openai_chat(&key, &req.model, &system, &user).await
+            openai_chat(&key, &req.model, &system, &user, req.base_url).await
         }
         "anthropic" => {
             let key = req
                 .api_key
                 .filter(|k| !k.is_empty())
                 .ok_or_else(|| AppError::Credential("Anthropic API key not configured".into()))?;
-            anthropic_chat(&key, &req.model, &system, &user).await
+            anthropic_chat(&key, &req.model, &system, &user, req.base_url).await
         }
-        "ollama" => {
-            let base = req
-                .base_url
-                .unwrap_or_else(|| "http://127.0.0.1:11434".into());
-            ollama_chat(&base, &req.model, &system, &user).await
-        }
+        "ollama" => ollama_chat(&ollama_base(req.base_url), &req.model, &system, &user).await,
         other => Err(AppError::Protocol(format!(
             "unsupported AI provider: {other} (use openai, anthropic, or ollama)"
         ))),
@@ -61,8 +75,8 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
 
 /// Probe local Ollama (`GET /api/tags`).
 pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
-    let base = base_url.unwrap_or_else(|| "http://127.0.0.1:11434".into());
-    let url = format!("{}/api/tags", base.trim_end_matches('/'));
+    let base = ollama_base(base_url);
+    let url = format!("{}/api/tags", base);
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
@@ -88,10 +102,17 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
     Ok(models)
 }
 
-async fn openai_chat(api_key: &str, model: &str, system: &str, user: &str) -> Result<String> {
+async fn openai_chat(
+    api_key: &str,
+    model: &str,
+    system: &str,
+    user: &str,
+    base_url: Option<String>,
+) -> Result<String> {
+    let url = openai_endpoint(base_url);
     let client = reqwest::Client::new();
     let resp = client
-        .post("https://api.openai.com/v1/chat/completions")
+        .post(&url)
         .bearer_auth(api_key)
         .json(&json!({
             "model": model,
@@ -124,10 +145,17 @@ async fn openai_chat(api_key: &str, model: &str, system: &str, user: &str) -> Re
         .ok_or_else(|| AppError::Unknown("openai returned empty content".into()))
 }
 
-async fn anthropic_chat(api_key: &str, model: &str, system: &str, user: &str) -> Result<String> {
+async fn anthropic_chat(
+    api_key: &str,
+    model: &str,
+    system: &str,
+    user: &str,
+    base_url: Option<String>,
+) -> Result<String> {
+    let url = anthropic_endpoint(base_url);
     let client = reqwest::Client::new();
     let resp = client
-        .post("https://api.anthropic.com/v1/messages")
+        .post(&url)
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&json!({
@@ -162,7 +190,7 @@ async fn anthropic_chat(api_key: &str, model: &str, system: &str, user: &str) ->
 }
 
 async fn ollama_chat(base: &str, model: &str, system: &str, user: &str) -> Result<String> {
-    let url = format!("{}/api/chat", base.trim_end_matches('/'));
+    let url = format!("{}/api/chat", base);
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)

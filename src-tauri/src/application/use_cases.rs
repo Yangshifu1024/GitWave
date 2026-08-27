@@ -445,7 +445,6 @@ pub async fn generate_commit_message(
         api_key,
         system,
         user,
-        offline: settings.ai_offline,
     })
     .await
 }
@@ -672,7 +671,6 @@ pub async fn explain_conflict(
         api_key,
         system,
         user,
-        offline: settings.ai_offline,
     })
     .await
 }

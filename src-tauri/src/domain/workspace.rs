@@ -23,12 +23,9 @@ pub struct WorkspaceSettings {
     /// Model id, e.g. `gpt-4o-mini`, `claude-3-5-haiku-latest`, `llama3.2`
     #[serde(default)]
     pub ai_model: Option<String>,
-    /// Base URL override (Ollama default `http://127.0.0.1:11434`)
+    /// API base URL override (provider-specific default when unset).
     #[serde(default)]
     pub ai_base_url: Option<String>,
-    /// When true, block all cloud provider calls (Ollama still allowed).
-    #[serde(default)]
-    pub ai_offline: bool,
     pub prompt_templates: PromptTemplates,
     pub commit_convention: Option<String>,
     pub theme_override: Option<String>,

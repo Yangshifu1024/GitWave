@@ -25,10 +25,22 @@ import { ConflictPanel } from "@/components/ConflictPanel";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
-  const [selectedCommitOid, setSelectedCommitOid] = useState<string | null>(null);
+  /** Commit selection scoped to the repo it was made in — avoids stale OID after switch. */
+  const [commitSelection, setCommitSelection] = useState<{
+    repoId: string;
+    sha: string;
+  } | null>(null);
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+
+  const selectedCommitOid =
+    commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;
+
+  const handleCommitSelect = (sha: string): void => {
+    if (!activeRepoId) return;
+    setCommitSelection({ repoId: activeRepoId, sha });
+  };
 
   // Initialize theme immediately so the <html> class is correct on first render
   useTheme();
@@ -40,10 +52,6 @@ function App(): React.JSX.Element {
         setVersion("?.?.?");
       });
   }, []);
-
-  useEffect(() => {
-    setSelectedCommitOid(null);
-  }, [activeRepoId]);
 
   const showWorkingCopy = activeWorkspaceId !== null && activeRepoId !== null;
 
@@ -113,7 +121,7 @@ function App(): React.JSX.Element {
           <Pane initialSize="50%" minSize={200} maxSize={900}>
             <FeatureNav
               selectedCommitOid={selectedCommitOid}
-              onCommitSelect={setSelectedCommitOid}
+              onCommitSelect={handleCommitSelect}
             />
           </Pane>
 
@@ -284,9 +292,9 @@ function MainContent({
   return (
     <main className="flex flex-col h-full min-h-0 bg-bg-primary overflow-hidden">
       {selectedCommitOid ? (
-        <DiffViewer commitOid={selectedCommitOid} />
+        <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
       ) : (
-        <DiffViewer workdir={true} />
+        <DiffViewer key={activeRepoId} workdir={true} />
       )}
     </main>
   );
