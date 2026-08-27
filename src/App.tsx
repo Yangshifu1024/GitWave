@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { Split, Pane, ResizeHandle } from "@/components/ui/Split";
+import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { Toolbar } from "@/components/Toolbar";
+import { WorkspaceList } from "@/components/WorkspaceList";
 import { RepoList } from "@/components/RepoList";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useLayoutStore } from "@/stores/layoutStore";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { WorkingCopyBar } from "@/components/ui/WorkingCopyBar";
@@ -16,6 +18,7 @@ import { StashPanel } from "@/components/StashPanel";
 import { WorktreePanel } from "@/components/WorktreePanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
+import { cn } from "@/lib/utils";
 
 function App(): React.JSX.Element {
   /** Commit selection scoped to the repo it was made in — avoids stale OID after switch. */
@@ -31,8 +34,14 @@ function App(): React.JSX.Element {
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
+  const setInspectorMaximized = useLayoutStore((s) => s.setInspectorMaximized);
   const titlebarMode = useTitlebarActivation();
   useTheme();
+
+  useEffect(() => {
+    setInspectorMaximized(false);
+  }, [activeWorkspaceId, activeRepoId, setInspectorMaximized]);
 
   const selectedCommitOid =
     commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;
@@ -55,15 +64,21 @@ function App(): React.JSX.Element {
 
   return (
     <div
-      className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary"
+      className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
       data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
     >
       <Toolbar />
 
-      <div className="flex-1 overflow-hidden">
-        <Split direction="horizontal">
-          <Pane initialSize={220} minSize={180} maxSize={360}>
-            <aside className="flex flex-col h-full bg-bg-secondary overflow-x-hidden overflow-y-auto select-none">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+        <ThreePaneLayout
+          inspectorMaximized={inspectorMaximized}
+          inspectorClassName={cn(
+            inspectorMaximized &&
+              "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
+          )}
+          sidebar={
+            <aside className="flex flex-col h-full bg-bg-secondary overflow-x-hidden overflow-y-auto select-none pane-edge-right">
+              <WorkspaceList />
               {activeWorkspaceId ? (
                 <>
                   <RepoList workspaceId={activeWorkspaceId} />
@@ -85,31 +100,25 @@ function App(): React.JSX.Element {
                 <EmptyState
                   icon={<FolderOpen size={22} />}
                   title="No workspace selected"
-                  description="Choose or create a workspace in the toolbar."
+                  description="Choose or create a workspace in the sidebar."
                   className="flex-1"
                 />
               )}
             </aside>
-          </Pane>
-
-          <ResizeHandle />
-
-          <Pane initialSize="50%" minSize={280} grow>
+          }
+          main={
             <section className="flex flex-col h-full bg-bg-primary overflow-hidden">
               <CommitGraph selectedSha={selectedCommitOid} onCommitSelect={handleCommitSelect} />
             </section>
-          </Pane>
-
-          <ResizeHandle />
-
-          <Pane initialSize={360} minSize={240}>
+          }
+          inspector={
             <MainContent
               selectedCommitOid={selectedCommitOid}
               selectedWorkdirPath={selectedWorkdirPath}
               selectedWorkdirStaged={selectedWorkdirStaged}
             />
-          </Pane>
-        </Split>
+          }
+        />
       </div>
 
       <WorkingCopyBar
@@ -137,11 +146,11 @@ function MainContent({
 
   if (!activeWorkspaceId) {
     return (
-      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
           title="Select a workspace"
-          description="Create or choose a workspace in the toolbar to open repositories."
+          description="Choose or create a workspace in the sidebar to open repositories."
           className="py-16"
         />
       </main>
@@ -150,7 +159,7 @@ function MainContent({
 
   if (!activeRepoId) {
     return (
-      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
           title="No repository selected"
@@ -162,7 +171,7 @@ function MainContent({
   }
 
   return (
-    <main className="flex flex-col h-full min-h-0 bg-bg-elevated overflow-hidden">
+    <main className="flex flex-col h-full min-h-0 bg-bg-elevated pane-edge-left overflow-hidden">
       {selectedCommitOid ? (
         <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
       ) : (
