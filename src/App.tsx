@@ -36,12 +36,22 @@ function App(): React.JSX.Element {
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
   const setInspectorMaximized = useLayoutStore((s) => s.setInspectorMaximized);
+  const setWcBarCollapsed = useLayoutStore((s) => s.setWcBarCollapsed);
+  const setWcBarMaximized = useLayoutStore((s) => s.setWcBarMaximized);
   const titlebarMode = useTitlebarActivation();
   useTheme();
 
   useEffect(() => {
     setInspectorMaximized(false);
-  }, [activeWorkspaceId, activeRepoId, setInspectorMaximized]);
+    setWcBarCollapsed(false);
+    setWcBarMaximized(false);
+  }, [
+    activeWorkspaceId,
+    activeRepoId,
+    setInspectorMaximized,
+    setWcBarCollapsed,
+    setWcBarMaximized,
+  ]);
 
   const selectedCommitOid =
     commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;

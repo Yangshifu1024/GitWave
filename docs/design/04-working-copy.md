@@ -66,7 +66,11 @@ pub struct WorkingCopy {
 UI 上：
 
 - **Clean 高度**：32px（compact）
-- **Dirty 高度**：80-280px（用户可拖拽）
+- **Dirty 高度**：80-280px（用户可拖拽）；当前实现默认 220px
+- **折叠 / 最大化**（2026-08-27 增补，dirty 头部行分支名后右侧）：
+  - **Hide**（`ChevronDown`）：提交框收起为 32px 状态条（保留分支名 + unstaged/staged 计数 + `ChevronUp` 恢复按钮）；收起同时复位最大化
+  - **Maximize**（`Maximize2`/`Minimize2`）：高度在 220px ↔ 50vh 间切换
+  - 状态存于 `useLayoutStore`（`wcBarCollapsed` / `wcBarMaximized`），切换 workspace/repo 时复位（与 inspector maximize 同策略）
 - 切换：smooth animation 200ms
 
 ## 4. Sprint 4 use cases（后端）
