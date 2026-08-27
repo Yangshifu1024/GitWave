@@ -81,7 +81,7 @@
 - 修订 3（侧栏 / WorkingCopyBar = #ececee）：侧栏 aside 与 WorkingCopyBar 三种形态根容器 `bg-bg-secondary`→`bg-bg-primary`（dark 下语义跟随，#202022→#262628 轻微变化）；Toolbar / DiffViewer gutter / 菜单焦点等其余 bg-secondary 层次色不动；滚动条 track 规则由单面板覆盖泛化为四个画布类各自重声明（最近 bg 类胜出），否则 App 根容器的 bg-bg-primary 会把 #ececee track 泼到 ConflictPanel 等 bg-secondary 滚动区
 - 修订 4（侧栏滚动条隐藏）：新增通用 `.no-scrollbar` 工具类（`scrollbar-width: none` + webkit 伪元素 display:none / 尺寸 0），应用于侧栏 aside；纵 / 横滚动条不显示但滚轮 / 触控板滚动保留，类特异性覆盖 tokens.css 的 `*` 全局滚动条规则；其余区域滚动条不受影响
 - 修订 5（Topbar = #ececee）：Toolbar 根容器 `bg-bg-secondary`→`bg-bg-primary`；至此 chrome（顶栏 / 侧栏 / WCB / 窗口画布）统一 #ececee，bg-secondary 仅剩层次色用途（gutter / hover / 菜单焦点）
-- 需求 4（diff 视图密度 / 配色）：外层 padding `p-4`→`p-2`、文件卡 `mb-6`→`mb-3`；hunk 容器去 `rounded-md`；文件标题栏（含单文件路径条）与 unified 行号列切 `bg-bg-primary`（与 topbar 一致，dark 语义跟随）；行号列 unified `w-12`→`w-9`、split `w-10`→`w-9`（pr 同步 2→1.5）。hunk `@@` 头与 BlameView 头保持 bg-secondary 未动（用户未点名）。纯类名调整，typecheck / test（49）/ lint / format:check / build 全绿
+- 需求 4（diff 视图密度 / 配色）：外层 padding `p-4`→`p-2`（后修订 `pb-2`，仅保留底部）、文件卡 `mb-6`→`mb-3`；hunk 容器去 `rounded-md`；标题 / 行号配色初版切 bg-bg-primary，后按用户修订改为右栏非内容元素统一 `bg-bg-elevated`（#f4f4f5：标题栏 / 单文件路径条 / 行号列 / hunk @@ 头 / BlameView 头；文件名 chip 融入标题栏）。行号列 unified `w-12`→`w-9`、split `w-10`→`w-9`（pr 同步 2→1.5）。纯类名调整，typecheck / test（49）/ lint / format:check / build 全绿
 - 需求 5（右栏宽度）：`initialInspectorWidth` 360→480、`inspectorMin` 240→360（max 720 不变）；03-layout.md 三处描述同步。纯默认 props 调整
 - 需求 6（分割线 1px）：`HANDLE_PX` 2→1，两条三栏分隔同时收窄；拖拽 / 双击复位行为不变
 - typecheck / test（49）/ lint / format:check / build 全绿

@@ -176,7 +176,7 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   return (
     <div className="h-full overflow-auto">
       {/* File header */}
-      <div className="sticky top-0 z-10 px-4 py-2 bg-bg-secondary border-b border-border-subtle">
+      <div className="sticky top-0 z-10 px-4 py-2 bg-bg-elevated border-b border-border-subtle">
         <span className="text-sm font-medium text-text-primary">{path}</span>
       </div>
 

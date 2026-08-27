@@ -46,8 +46,8 @@
 | 侧栏 / WorkingCopyBar 配色（修订 3） | 两处 `bg-bg-secondary` 类改 `bg-bg-primary`（#ececee），token 值不动 | 用户指定与主窗口同色；Toolbar、DiffViewer gutter、菜单焦点等其余 bg-secondary 层次色不动；dark 下侧栏 / WCB 语义跟随 = bg-primary（#262628，原 #202022，轻微变化） |
 | 滚动条 track 规则泛化（修订 3） | 四个画布类（primary / secondary / elevated / panel）各自重声明 track | 仅给 bg-bg-primary 加规则会经 App 根容器泼到 ConflictPanel 等 bg-secondary 滚动区造成新错位；按"最近画布类胜出"继承后，侧栏 / WCB / 面板 / 弹层滚动条均与所在底色一致 |
 | Topbar 配色（修订 5） | Toolbar 根容器 `bg-bg-secondary` 类改 `bg-bg-primary`（#ececee） | 整个 chrome（顶栏 / 侧栏 / WCB / 窗口画布）统一 #ececee，面板保持 #f8f8f8；dark 下语义跟随 bg-primary |
-| diff 密度（需求 4） | 外层 `p-4`→`p-2`、文件卡 `mb-6`→`mb-3`；hunk 容器去 `rounded-md` | 每个文件 diff 卡四周留白减半，多文件间隔同步收紧；hunk 白底代码块方角 |
-| diff 标题 / 行号配色（需求 4） | 文件标题栏（含单文件模式路径条）与 unified 行号列 `bg-bg-secondary`→`bg-bg-primary` | 与 topbar 同为 #ececee；hunk `@@` 头与 BlameView 头保持 bg-secondary 未动（用户未点名，需要可后续跟进） |
+| diff 密度（需求 4） | 外层 `p-4`→`p-2`、文件卡 `mb-6`→`mb-3`；hunk 容器去 `rounded-md`；后修订为 `pb-2`（只保留底部） | 每个文件 diff 卡四周留白减半，多文件间隔同步收紧；hunk 白底代码块方角；最终 diff 内容左右/顶部与面板边缘齐平，仅底部留 8px |
+| diff 标题 / 行号配色（需求 4） | 初版文件标题栏（含单文件模式路径条）与 unified 行号列切 bg-bg-primary；后修订为右栏非内容元素统一 `bg-bg-elevated`（#f4f4f5） | 修订后：标题栏 / 路径条 / 行号列 / hunk @@ 头 / BlameView 头均 #f4f4f5，sticky 工具条本就是 bg-elevated；仅 diff 内容行（增 / 删 / 上下文）不属此范围；文件名 chip 同为 bg-elevated，与标题栏融为一体 |
 | 行号宽度（需求 4） | unified `w-12 pr-2`→`w-9 pr-1.5`；split `w-10 pr-2`→`w-9 pr-1.5` | 两种模式行号列统一 36px，3-4 位行号仍容纳 |
 | 右栏宽度（需求 5） | `initialInspectorWidth` 360→480、`inspectorMin` 240→360，`inspectorMax` 保持 720 | ThreePaneLayout 默认 props；双击分隔条恢复 480；docs/design/03-layout.md 三处 ~360px 同步 ~480px |
 | 分割线宽度（需求 6） | `HANDLE_PX` 2→1 | 两条分隔（侧栏-中栏、中栏-右栏）同时收窄 1px，拖拽行为不变 |
