@@ -277,16 +277,6 @@ function CommitRow({
         {shortSha(commit.sha)}
       </span>
 
-      <p
-        className={cn(
-          "flex-1 min-w-0 text-xs leading-none truncate text-text-primary",
-          isHead ? "font-semibold" : "font-medium",
-        )}
-        title={commit.message_summary}
-      >
-        {commit.message_summary}
-      </p>
-
       {refs.length > 0 ? (
         <span className="flex items-center gap-0.5 shrink-0 max-w-[28%] overflow-hidden">
           {refs.slice(0, 2).map((r) => (
@@ -301,6 +291,16 @@ function CommitRow({
           ) : null}
         </span>
       ) : null}
+
+      <p
+        className={cn(
+          "flex-1 min-w-0 text-xs leading-none truncate text-text-primary",
+          isHead ? "font-semibold" : "font-medium",
+        )}
+        title={commit.message_summary}
+      >
+        {commit.message_summary}
+      </p>
 
       <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
         {commit.author} &middot; {formatTime(commit.time)}
