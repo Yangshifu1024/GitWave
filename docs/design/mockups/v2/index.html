@@ -411,6 +411,45 @@
         --preview-accent: #c4486a;
       }
 
+      /* ── Palette: K · Native Blue（已落地 · 应用默认）── */
+      body[data-palette="native-blue"] .window {
+        --foam: #ececec;
+        --mist: #dfdfdf;
+        --elevated: #f4f4f5;
+        --ink: #1b1b1d;
+        --ink-2: #55555b;
+        --muted: #85858b;
+        --tide: #007aff;
+        --hair: #dbdbdd;
+        --lane-0: #007aff;
+        --lane-1: #32ade6;
+        --lane-2: #5856d6;
+        --lane-3: #af52de;
+        --ahead: #2f9e6b;
+        --behind: #c47a1a;
+        --coral: #d64545;
+      }
+      body[data-palette="native-blue"] .window.dark {
+        --foam: #262628;
+        --mist: #202022;
+        --elevated: #313134;
+        --ink: #efeff1;
+        --ink-2: #a8a8ad;
+        --muted: #78787e;
+        --tide: #0a84ff;
+        --hair: #333336;
+        --lane-0: #0a84ff;
+        --lane-1: #64d2ff;
+        --lane-2: #7d7aff;
+        --lane-3: #bf5af2;
+        --ahead: #3ecf8e;
+        --behind: #e0a04a;
+        --coral: #e05a5a;
+      }
+      body[data-palette="native-blue"] {
+        --preview-accent: #007aff;
+      }
+
       .window {
         --tide-dim: color-mix(in srgb, var(--tide) 8%, transparent);
         --tide-sel: color-mix(in srgb, var(--tide) 12%, transparent);
@@ -1200,7 +1239,7 @@
       }
     </style>
   </head>
-  <body data-palette="tide">
+  <body data-palette="native-blue">
     <div class="preview-bar">
       <span class="tag">v2 · Native Studio</span>
       <button type="button" data-go="history" aria-pressed="true">Light · History</button>
@@ -1209,7 +1248,7 @@
       <button type="button" data-go="empty" aria-pressed="false">Empty</button>
       <div class="palette-group" role="group" aria-label="Palette round 1">
         <span class="lbl">A–E</span>
-        <button type="button" class="palette-btn" data-palette="tide" aria-pressed="true">
+        <button type="button" class="palette-btn" data-palette="tide" aria-pressed="false">
           <span class="swatch" style="background: #1a8f8a"></span>Tide
         </button>
         <button type="button" class="palette-btn" data-palette="slate" aria-pressed="false">
@@ -1243,7 +1282,16 @@
           <span class="swatch" style="background: #c4486a"></span>Rose
         </button>
       </div>
-      <span class="hint">布局固定 · F–J 为第二轮候选</span>
+      <div class="palette-group" role="group" aria-label="Palette shipped">
+        <span class="lbl">K</span>
+        <button type="button" class="palette-btn" data-palette="native-blue" aria-pressed="true">
+          <span class="swatch" style="background: #007aff"></span>Native Blue
+        </button>
+        <button type="button" class="palette-btn" data-palette="tide" aria-pressed="false">
+          <span class="swatch" style="background: #1a8f8a"></span>Tide
+        </button>
+      </div>
+      <span class="hint">布局固定 · 已落地：K Native Blue（默认）/ A Tide</span>
     </div>
 
     <div class="stage">
@@ -1320,19 +1368,50 @@
           <section class="graph">
             <div class="commit sel">
               <svg width="52" height="28" aria-hidden="true">
-                <path d="M14 0 C14 10,14 10,14 14" stroke="var(--lane-0)" stroke-width="1.75" fill="none" />
-                <path d="M14 14 C14 22,30 18,30 28" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <path
+                  d="M14 0 C14 10,14 10,14 14"
+                  stroke="var(--lane-0)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <path
+                  d="M14 14 C14 22,30 18,30 28"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">a4f12c8</span>
-              <span class="msg"><span class="ref-pill">main</span>feat(graph): tide lane curves</span>
+              <span class="msg"
+                ><span class="ref-pill">main</span>feat(graph): tide lane curves</span
+              >
               <span class="meta">yang · 2h ago</span>
             </div>
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
-                <path d="M30 0 C30 12,14 12,14 14" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <path
+                  d="M30 0 C30 12,14 12,14 14"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">9e81b04</span>
               <span class="msg">fix(ui): native toolbar chrome</span>
@@ -1341,7 +1420,14 @@
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">c0ceaf5</span>
               <span class="msg">docs: design tokens for tide palette</span>
@@ -1350,7 +1436,14 @@
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V14" stroke="var(--lane-0)" stroke-width="1.75" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">f5f05b3</span>
               <span class="msg">fix(diff): keep chrome unselectable</span>
@@ -1358,7 +1451,14 @@
             </div>
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">b2a91d0</span>
               <span class="msg">chore: workspace persistence</span>
@@ -1395,9 +1495,7 @@
                 <span class="gutter">13</span
                 ><span class="code">+// Tide Lanes: signature bezier curves</span>
               </div>
-              <div class="ln ctx">
-                <span class="gutter">14</span><span class="code"></span>
-              </div>
+              <div class="ln ctx"><span class="gutter">14</span><span class="code"></span></div>
             </div>
           </aside>
         </div>
@@ -1479,19 +1577,50 @@
           <section class="graph">
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
-                <path d="M14 0 C14 10,14 10,14 14" stroke="var(--lane-0)" stroke-width="1.75" fill="none" />
-                <path d="M14 14 C14 22,30 18,30 28" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <path
+                  d="M14 0 C14 10,14 10,14 14"
+                  stroke="var(--lane-0)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <path
+                  d="M14 14 C14 22,30 18,30 28"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">a4f12c8</span>
-              <span class="msg"><span class="ref-pill">main</span>feat(graph): tide lane curves</span>
+              <span class="msg"
+                ><span class="ref-pill">main</span>feat(graph): tide lane curves</span
+              >
               <span class="meta">yang · 2h ago</span>
             </div>
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
-                <path d="M30 0 C30 12,14 12,14 14" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <path
+                  d="M30 0 C30 12,14 12,14 14"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">9e81b04</span>
               <span class="msg">fix(ui): native toolbar chrome</span>
@@ -1500,7 +1629,14 @@
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">c0ceaf5</span>
               <span class="msg">docs: design tokens for tide palette</span>
@@ -1520,20 +1656,25 @@
               <div class="hunk">@@ -75,8 +75,6 @@ function App()</div>
               <div class="ln del">
                 <span class="gutter">78</span
-                ><span class="code">-&lt;h1 className="absolute left-1/2"&gt;GitWave&lt;/h1&gt;</span>
+                ><span class="code"
+                  >-&lt;h1 className="absolute left-1/2"&gt;GitWave&lt;/h1&gt;</span
+                >
               </div>
               <div class="ln add">
                 <span class="gutter">78</span><span class="code">+&lt;Toolbar /&gt;</span>
               </div>
               <div class="ln ctx">
-                <span class="gutter">79</span><span class="code">&lt;Split direction="horizontal"&gt;</span>
+                <span class="gutter">79</span
+                ><span class="code">&lt;Split direction="horizontal"&gt;</span>
               </div>
             </div>
           </aside>
         </div>
         <footer class="wc dirty">
           <div class="wc-head">
-            <span>feature/tide-lanes · <strong>3</strong> unstaged · <strong>1</strong> staged</span>
+            <span
+              >feature/tide-lanes · <strong>3</strong> unstaged · <strong>1</strong> staged</span
+            >
           </div>
           <div class="wc-cols">
             <div class="wc-col">
@@ -1541,12 +1682,18 @@
               <div class="file-row sel">
                 <span class="st m">M</span>
                 src/App.tsx
-                <span class="stats"><span style="color: var(--ahead)">+40</span> <span style="color: var(--coral)">−28</span></span>
+                <span class="stats"
+                  ><span style="color: var(--ahead)">+40</span>
+                  <span style="color: var(--coral)">−28</span></span
+                >
               </div>
               <div class="file-row">
                 <span class="st m">M</span>
                 src/styles/tokens.css
-                <span class="stats"><span style="color: var(--ahead)">+24</span> <span style="color: var(--coral)">−11</span></span>
+                <span class="stats"
+                  ><span style="color: var(--ahead)">+24</span>
+                  <span style="color: var(--coral)">−11</span></span
+                >
               </div>
               <div class="file-row">
                 <span class="st q">?</span>
@@ -1643,19 +1790,50 @@
           <section class="graph">
             <div class="commit sel">
               <svg width="52" height="28" aria-hidden="true">
-                <path d="M14 0 C14 10,14 10,14 14" stroke="var(--lane-0)" stroke-width="1.75" fill="none" />
-                <path d="M14 14 C14 22,30 18,30 28" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <path
+                  d="M14 0 C14 10,14 10,14 14"
+                  stroke="var(--lane-0)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <path
+                  d="M14 14 C14 22,30 18,30 28"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">a4f12c8</span>
-              <span class="msg"><span class="ref-pill">main</span>feat(graph): tide lane curves</span>
+              <span class="msg"
+                ><span class="ref-pill">main</span>feat(graph): tide lane curves</span
+              >
               <span class="meta">yang · 2h ago</span>
             </div>
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
-                <path d="M30 0 C30 12,14 12,14 14" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <path
+                  d="M30 0 C30 12,14 12,14 14"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.75"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">9e81b04</span>
               <span class="msg">fix(ui): native toolbar chrome</span>
@@ -1664,7 +1842,14 @@
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">c0ceaf5</span>
               <span class="msg">docs: design tokens for tide palette</span>
@@ -1673,7 +1858,14 @@
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V14" stroke="var(--lane-0)" stroke-width="1.75" />
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">f5f05b3</span>
               <span class="msg">fix(diff): keep chrome unselectable</span>
@@ -1681,7 +1873,14 @@
             </div>
             <div class="commit">
               <svg width="52" height="28" aria-hidden="true">
-                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
               </svg>
               <span class="sha">b2a91d0</span>
               <span class="msg">chore: workspace persistence</span>
@@ -1717,9 +1916,7 @@
                 <span class="gutter">13</span
                 ><span class="code">+// Tide Lanes: signature bezier curves</span>
               </div>
-              <div class="ln ctx">
-                <span class="gutter">14</span><span class="code"></span>
-              </div>
+              <div class="ln ctx"><span class="gutter">14</span><span class="code"></span></div>
             </div>
           </aside>
         </div>
@@ -1746,7 +1943,9 @@
                 <span class="sec-label">Workspaces</span>
                 <button class="sec-add" type="button" aria-label="New workspace">+</button>
               </div>
-              <div class="src-row"><span class="trail" style="margin-left: 0">No workspaces yet</span></div>
+              <div class="src-row">
+                <span class="trail" style="margin-left: 0">No workspaces yet</span>
+              </div>
             </div>
             <div class="sec">
               <div class="sec-head">
@@ -1756,7 +1955,9 @@
                   <button class="sec-add" type="button" aria-label="Add repo" disabled>+</button>
                 </div>
               </div>
-              <div class="src-row"><span class="trail" style="margin-left: 0">No repositories yet</span></div>
+              <div class="src-row">
+                <span class="trail" style="margin-left: 0">No repositories yet</span>
+              </div>
             </div>
             <div class="sec">
               <div class="sec-head">
@@ -1767,11 +1968,15 @@
                   <button class="sec-add" type="button" disabled>+</button>
                 </div>
               </div>
-              <div class="src-row"><span class="trail" style="margin-left: 0">Select a repository</span></div>
+              <div class="src-row">
+                <span class="trail" style="margin-left: 0">Select a repository</span>
+              </div>
             </div>
             <div class="sec">
               <div class="sec-head"><span class="sec-label">Stash</span></div>
-              <div class="src-row"><span class="trail" style="margin-left: 0">No stash entries</span></div>
+              <div class="src-row">
+                <span class="trail" style="margin-left: 0">No stash entries</span>
+              </div>
             </div>
             <div class="sec">
               <div class="sec-head"><span class="sec-label">Tags</span></div>
@@ -1779,18 +1984,31 @@
             </div>
             <div class="sec">
               <div class="sec-head"><span class="sec-label">Remotes</span></div>
-              <div class="src-row"><span class="trail" style="margin-left: 0">No remotes</span></div>
+              <div class="src-row">
+                <span class="trail" style="margin-left: 0">No remotes</span>
+              </div>
             </div>
             <div class="sec">
               <div class="sec-head"><span class="sec-label">Worktrees</span></div>
-              <div class="src-row"><span class="trail" style="margin-left: 0">No worktrees</span></div>
+              <div class="src-row">
+                <span class="trail" style="margin-left: 0">No worktrees</span>
+              </div>
             </div>
           </aside>
           <section class="graph">
             <div class="empty">
               <div class="mark" aria-hidden="true">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                  />
                 </svg>
               </div>
               <h2>Select a workspace</h2>
@@ -1803,7 +2021,17 @@
               <h2>No selection</h2>
               <p class="meta-line">Select a commit or file to inspect</p>
             </div>
-            <div class="diff" style="display: flex; align-items: center; justify-content: center; color: var(--muted); font-family: var(--sans); font-size: 12px">
+            <div
+              class="diff"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--muted);
+                font-family: var(--sans);
+                font-size: 12px;
+              "
+            >
               Inspector empty
             </div>
           </aside>
@@ -1817,6 +2045,7 @@
       const paletteButtons = [...document.querySelectorAll("[data-palette]")];
       const screens = ["history", "dirty", "dark", "empty"];
       const palettes = [
+        "native-blue",
         "tide",
         "slate",
         "copper",
@@ -1850,7 +2079,9 @@
       }
 
       buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
-      paletteButtons.forEach((b) => b.addEventListener("click", () => setPalette(b.dataset.palette)));
+      paletteButtons.forEach((b) =>
+        b.addEventListener("click", () => setPalette(b.dataset.palette)),
+      );
 
       const hash = location.hash.slice(1);
       const [screenPart, queryPart] = hash.split("?");

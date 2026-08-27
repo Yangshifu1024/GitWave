@@ -1,15 +1,15 @@
 # GitWave · 配色方案（Palette Options）
 
-> 状态：待选 · 第二轮候选 F–J 已加入 mockup（**未提交**，等你确认）  
+> 状态：**K · Native Blue（默认）与 A · Tide Studio 已实现**（2026-08-27），Settings → Appearance → Color palette 内切换；其余候选待评估。  
 > 布局与组件形态见 [`05-visual-redesign.md`](./05-visual-redesign.md)；**仅颜色可变**。  
-> 交互预览：[`mockups/v2/index.html`](./mockups/v2/index.html) 顶栏 **A–E / F–J** 切换。
+> 交互预览：[`mockups/v2/index.html`](./mockups/v2/index.html) 顶栏 **A–E / F–J / K** 切换。
 
 ## 选型原则
 
-- 不用纯白 `#FFFFFF`、不用系统蓝 `#007AFF`
-- **Tide Lanes**（history 图 lane 渐变）每套方案独立定义，是各方案的签名色
-- 语义色（success / warning / danger）跨方案保持一致，降低认知成本
-- Light / Dark 成对设计，dark 不是简单反色
+- 不用纯白 `#FFFFFF`；「不用系统蓝 `#007AFF`」适用于 Tide 及其余候选方案——**K · Native Blue 是显式例外**（应用默认 palette，用户 2026-08-27 拍板）
+- **Tide Lanes**(history 图 lane 渐变)每套方案独立定义,是各方案的签名色;落地的 lane token 为 `--color-lane-1..5`
+- 语义色(success / warning / danger)跨方案保持一致,降低认知成本
+- Light / Dark 成对设计,dark 不是简单反色
 
 ## 共享语义色（全部方案通用）
 
@@ -23,9 +23,9 @@
 
 # 第一轮 · A–E
 
-## A · Tide Studio（当前默认）
+## A · Tide Studio（可选 · 已实现）
 
-**气质**：冷灰画布 + 青绿 Tide，克制原生感。GitWave 原始提案。
+**气质**：冷灰画布 + 青绿 Tide，克制原生感。GitWave 原始提案。运行时通过 `<html data-palette="tide">` 激活。
 
 | Role | Light | Dark |
 |---|---|---|
@@ -220,6 +220,27 @@
 | **H Jade** | 冷 | 翡翠 | 清澈、Wave 水体 |
 | **I Ochre** | 暖 | 赭金 | 档案、博物馆感 |
 | **J Rosesteel** | 冷 | 玫瑰红 | 高辨识、偏设计工具 |
+
+---
+
+# 已落地 · K
+
+## K · Native Blue（默认 · 已实现）
+
+**气质**：macOS 系统窗口质感（近 `windowBackgroundColor` 灰阶）+ **systemBlue** accent。lanes 取 Apple system colors（蓝/青/靛/紫/灰），贴近原生图表观感。2026-08-27 与 PM 确认后成为应用默认；「不用系统蓝」原则的显式例外。
+
+| Role | Light | Dark |
+|---|---|---|
+| Canvas | `#ECECEC` | `#262628` |
+| Sidebar / Toolbar | `#DFDFDF` | `#202022` |
+| Elevated | `#F4F4F5` | `#313134` |
+| Ink | `#1B1B1D` | `#EFEFF1` |
+| Muted | `#85858B` | `#78787E` |
+| **Accent** | `#007AFF` (systemBlue) | `#0A84FF` (systemBlue dark) |
+| Hairline | `#DBDBDD` | `#333336` |
+| **Lanes** | `#007AFF` → `#32ADE6` → `#5856D6` → `#AF52DE` → `#8E8E93` | `#0A84FF` → `#64D2FF` → `#7D7AFF` → `#BF5AF2` → `#98989D` |
+
+落地细节见 [`01-tokens.md`](./01-tokens.md) §1。
 
 ## 选定后
 

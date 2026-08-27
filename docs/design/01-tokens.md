@@ -5,77 +5,124 @@
 
 ## 1. Color（色板）
 
-命名色（品牌）：**Foam** `#F4F6F8` · **Mist** `#E6EBEF` · **Ink** `#1B2228` · **Tide** `#1A8F8A` · **Abyss** `#12161A` · **Coral** `#D64545`。
+GitWave 提供**两套配色 palette**，共享同一组语义状态色（success / warning / danger 等），仅中性铬色与强调色不同：
 
-### 1.1 Light theme
+| Palette | 气质 | 强调色 | 状态 |
+|---|---|---|---|
+| **native-blue** | macOS 系统窗口质感 | systemBlue `#007AFF` / dark `#0A84FF` | **默认** |
+| **tide** | GitWave 青绿签名（Foam/Mist/Ink 冷灰系）| Tide `#1A8F8A` / dark `#3EBAB3` | 可选 |
+
+命名色（Tide palette 品牌）：**Foam** `#F4F6F8` · **Mist** `#E6EBEF` · **Ink** `#1B2228` · **Tide** `#1A8F8A` · **Abyss** `#12161A` · **Coral** `#D64545`。
+
+### 1.0 Palette 运行时机制
+
+- `<html data-palette="...">` 承载 palette 维度；light/dark 维度仍由 `.light/.dark` class 与 `prefers-color-scheme` 承载（见 `src/styles/tokens.css`）
+- 偏好持久化于 localStorage 键 `gitwave-palette`（缺省/非法值回落 native-blue）；启动预热见 `main.tsx` 的 `applyInitialPreferences()`
+- 常量与读写：`src/lib/palette.ts`（`PALETTES` / `DEFAULT_PALETTE` / `normalizePalette`），React hook：`usePalette()`
+- 设置入口：Toolbar ⋯ 菜单 → Settings… → Appearance → Color palette（即点即生效）
+
+### 1.1 Light theme（native-blue 默认）
 
 ```
 背景
-  bg-primary        #F4F6F8       Foam 主画布（history / inspector）
-  bg-secondary      #E6EBEF       Mist 侧栏 / 工具栏
-  bg-elevated       #EEF1F4       抬升面（列表 hover / inspector）
-  bg-overlay        rgba(27,34,40,0.40)  模态遮罩
+  bg-primary        #ECECEC       系统窗口灰画布（history / inspector）
+  bg-secondary      #DFDFDF       侧栏 / 工具栏
+  bg-elevated       #F4F4F5       抬升面（列表 hover / inspector）
+  bg-overlay        rgba(0,0,0,0.38)  模态遮罩
 
 文本
-  text-primary      #1B2228       Ink
-  text-secondary    #4A5560       次要文本 / 标签
-  text-muted        #7A8692       辅助 / 占位
-  text-inverse      #ffffff       深色 / Tide 按钮上的文字
+  text-primary      #1B1B1D       近 label 黑
+  text-secondary    #55555B       次要文本 / 标签
+  text-muted        #85858B       辅助 / 占位
+  text-inverse      #ffffff       深色按钮上的文字
 
 边框 / 分隔
-  border-subtle     #D5DCE2       浅分隔线
-  border-default    #C5CDD4       控件边框
-  border-strong     #9AA4AE       强分隔
+  border-subtle     #DBDBDD       浅分隔线
+  border-default    #CBCBCF       控件边框
+  border-strong     #A9A9AE       强分隔
 
-状态色
-  accent            #1A8F8A       Tide
-  accent-hover      #157873       悬停
+强调色
+  accent            #007AFF       systemBlue
+  accent-hover      #0068D9       悬停
+
+历史图 lane（--color-lane-1..5，Apple system colors）
+  lane-1            #007AFF       blue
+  lane-2            #32ADE6       teal
+  lane-3            #5856D6       indigo
+  lane-4            #AF52DE       purple
+  lane-5            #8E8E93       gray
+```
+
+共享语义状态色（两套 palette 相同）：
+
+```
   success           #2F9E6B       成功
   warning           #C47A1A       警告
   danger            #D64545       Coral
-  info              #3D6B9A       信息（靛蓝族，不用系统蓝）
-
-仓库 / 分支状态（语义）
+  info              #3D6B9A       信息
   status-active     #2F9E6B       仓库 active
   status-missing    #D64545       仓库 missing
-  branch-local      #1A8F8A       本地分支（Tide）
-  branch-current    #1A8F8A       当前 HEAD（Tide）
   branch-remote     #7A8692       远程分支（灰）
   branch-ahead      #2F9E6B       ahead
   branch-behind     #C47A1A       behind
   branch-conflict   #D64545       conflict
+  branch-local / branch-current = 各 palette 的 accent 值
 ```
 
-### 1.2 Dark theme
+### 1.2 Dark theme（native-blue 默认）
 
 ```
 背景
-  bg-primary        #161B20       略抬升画布
-  bg-secondary      #12161A       Abyss 侧栏 / 工具栏
-  bg-elevated       #1C2329       inspector / 菜单
+  bg-primary        #262628       系统暗窗口画布
+  bg-secondary      #202022       侧栏 / 工具栏
+  bg-elevated       #313134       inspector / 菜单
   bg-overlay        rgba(0,0,0,0.55)  模态遮罩
 
 文本
-  text-primary      #E8ECF0
-  text-secondary    #B4BEC8
-  text-muted        #8B97A3
-  text-inverse      #12161A
+  text-primary      #EFEFF1
+  text-secondary    #A8A8AD
+  text-muted        #78787E
+  text-inverse      #202022
 
 边框
-  border-subtle     #2A323A
-  border-default    #3A444E
-  border-strong     #5A6570
+  border-subtle     #333336
+  border-default    #444448
+  border-strong     #5C5C61
 
-状态色（dark mode 调亮）
-  accent            #3EBAB3       Tide 提亮
-  accent-hover      #5EC9C2
-  success           #3ECF8E
-  warning           #E0A04A
-  danger            #E05A5A
-  info              #6B8FC4
+强调色（dark mode 提亮）
+  accent            #0A84FF       systemBlue (dark)
+  accent-hover      #409CFF
+
+历史图 lane（dark）
+  lane-1            #0A84FF   lane-2 #64D2FF   lane-3 #7D7AFF
+  lane-4            #BF5AF2   lane-5 #98989D
 ```
 
-### 1.3 Semantic 映射（Tailwind）
+### 1.3 Tide Studio palette 覆盖（`<html data-palette="tide">`）
+
+仅覆盖与 native-blue 差异的 token；语义状态色不重复声明：
+
+```
+                  Light                    Dark
+bg-primary        #F4F6F8 (Foam)           #161B20
+bg-secondary      #E6EBEF (Mist)           #12161A (Abyss)
+bg-elevated       #EEF1F4                  #1C2329
+bg-overlay        rgba(27,34,40,0.40)      = 共享 rgba(0,0,0,0.55)
+text-primary      #1B2228 (Ink)            #E8ECF0
+text-secondary    #4A5560                  #B4BEC8
+text-muted        #7A8692                  #8B97A3
+text-inverse      #ffffff（同共享）          #12161A
+border-subtle     #D5DCE2                  #2A323A
+border-default    #C5CDD4                  #3A444E
+border-strong     #9AA4AE                  #5A6570
+accent            #1A8F8A (Tide)           #3EBAB3（提亮）
+accent-hover      #157873                  #5EC9C2
+branch-local/-current = accent 同值
+lane-1..5         #1A8F8A #3D6B9A #4A5FA8 #5B56A8 #7A8692
+                  #3EBAB3 #6B8FC4 #4A5FA8 #5B56A8 #8B97A3
+```
+
+### 1.4 Semantic 映射（Tailwind）
 
 ```
 Tailwind 类              Token                 用途
