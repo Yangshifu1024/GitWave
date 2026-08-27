@@ -13,6 +13,20 @@ export interface CommitMessageBoxProps {
   className?: string;
 }
 
+/** Standard Conventional Commits type headers offered above the message box. */
+const COMMIT_TYPES = [
+  "feat",
+  "fix",
+  "chore",
+  "docs",
+  "style",
+  "refactor",
+  "perf",
+  "test",
+  "build",
+  "ci",
+] as const;
+
 /**
  * Commit message textarea with AI generate (start) and Commit (end) on the row below.
  */
@@ -36,10 +50,41 @@ export function CommitMessageBox({
     }
   };
 
+  const applyType = (type: string): void => {
+    // Replace an existing conventional prefix instead of stacking another.
+    const stripped = value.replace(/^[a-z]+(\([^)]*\))?:\s*/i, "");
+    const next = `${type}: ${stripped}`;
+    const cursor = type.length + 2; // right after "type: "
+    onChange(next);
+    // The controlled value updates on the next render — place the caret then.
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(cursor, cursor);
+    });
+  };
+
   const canSubmit = value.trim().length > 0 && !disabled;
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
+      <div className="flex flex-wrap gap-1">
+        {COMMIT_TYPES.map((type) => (
+          <button
+            key={type}
+            type="button"
+            disabled={disabled}
+            onClick={() => applyType(type)}
+            className={cn(
+              "rounded-sm border border-border-subtle px-1.5 py-0.5",
+              "font-mono text-[10px] text-text-secondary",
+              "hover:border-accent hover:text-accent",
+              "disabled:opacity-40 disabled:pointer-events-none",
+            )}
+          >
+            {type}
+          </button>
+        ))}
+      </div>
       <textarea
         ref={textareaRef}
         value={value}
