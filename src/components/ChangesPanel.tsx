@@ -111,7 +111,7 @@ function FileSection({
               "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
               "text-xs font-medium text-text-muted uppercase tracking-wide",
               "hover:bg-bg-primary/60 hover:text-text-secondary",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+              "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
             )}
           >
             {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
