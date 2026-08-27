@@ -125,11 +125,11 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
 
     return (
       <div className="flex text-xs font-mono leading-5 border-b border-border-subtle/40">
-        <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+        <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
           {line.kind === "added" ? "" : (line.old_line_no ?? "")}
         </span>
         <div className="flex-1 min-w-0 border-r border-border-subtle">{leftContent}</div>
-        <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+        <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
           {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
         </span>
         <div className="flex-1 min-w-0">{rightContent}</div>
@@ -152,10 +152,10 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
         line.kind === "removed" && "bg-danger/10",
       )}
     >
-      <span className="shrink-0 w-12 text-right pr-2 pl-1 bg-bg-secondary border-r border-border-subtle text-text-muted select-none tabular-nums">
+      <span className="shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-primary border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "added" ? "" : (line.old_line_no ?? "")}
       </span>
-      <span className="shrink-0 w-12 text-right pr-2 pl-1 bg-bg-secondary border-r border-border-subtle text-text-muted select-none tabular-nums">
+      <span className="shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-primary border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
       </span>
       <span className={cn("flex-1 px-2 min-w-0", bgClass)}>
@@ -175,17 +175,17 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
       rendered.push(
         <div key={`w-${i}`}>
           <div className="flex text-xs font-mono leading-5 bg-danger/10">
-            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
               {line.old_line_no ?? ""}
             </span>
-            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums" />
+            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
             <span className="flex-1 px-2 text-danger">
               - <WordDiffSpans before={line.content} after={next.content} side="removed" />
             </span>
           </div>
           <div className="flex text-xs font-mono leading-5 bg-success/10">
-            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums" />
-            <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
+            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
               {next.new_line_no ?? ""}
             </span>
             <span className="flex-1 px-2 text-success">
@@ -201,7 +201,7 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
   }
 
   return (
-    <div className="border border-border-subtle rounded-md overflow-hidden mb-3">
+    <div className="border border-border-subtle overflow-hidden mb-3">
       <div className="bg-bg-secondary px-3 py-1 text-xs text-text-muted font-mono border-b border-border-subtle">
         @@ -{hunk.old_start},{hunk.old_lines} +{hunk.new_start},{hunk.new_lines} @@
       </div>
@@ -230,8 +230,8 @@ function FileDiffView({
   const { dir, name } = splitPath(fileDiff.path);
 
   return (
-    <div className="mb-6 min-w-0">
-      <div className="min-w-0 px-3 py-2 bg-bg-secondary border-b border-border-subtle">
+    <div className="mb-3 min-w-0">
+      <div className="min-w-0 px-3 py-2 bg-bg-primary border-b border-border-subtle">
         <div className="flex min-w-0 items-center gap-2" title={fileDiff.path}>
           <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
             {name}
@@ -426,7 +426,7 @@ export function DiffViewer({
   return (
     <div className="h-full min-h-0 overflow-auto flex flex-col">
       {path && visible.files.length === 1 ? (
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-bg-secondary border-b border-border-subtle">
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-bg-primary border-b border-border-subtle">
           <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
             {splitPath(path).name}
           </span>
@@ -493,7 +493,7 @@ export function DiffViewer({
       </div>
 
       {/* Files */}
-      <div className="p-4 select-text">
+      <div className="p-2 select-text">
         {visible.files.map((file) => (
           <FileDiffView
             key={`${file.staged ? "s" : "u"}:${file.path}`}
