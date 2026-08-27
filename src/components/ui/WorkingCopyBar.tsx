@@ -19,7 +19,7 @@ const DIRTY_HEIGHT = 220;
 
 /**
  * Bottom-of-screen bar: branch status when clean; file lists + commit when dirty.
- * Sync lives in the toolbar. Never auto-commits (P1).
+ * Sync lives in sidebar REPOS / BRANCHES sections. Never auto-commits (P1).
  */
 export function WorkingCopyBar({
   repoId,
@@ -45,6 +45,7 @@ export function WorkingCopyBar({
           className={cn(
             "flex items-center justify-between px-3.5",
             "bg-bg-secondary border-t border-border-subtle",
+            "shadow-[0_-4px_16px_color-mix(in_srgb,var(--color-text-primary)_5%,transparent)]",
             "text-xs text-text-muted",
             className,
           )}
@@ -72,6 +73,7 @@ export function WorkingCopyBar({
       <div
         className={cn(
           "flex flex-col shrink-0 bg-bg-secondary border-t border-border-subtle",
+          "shadow-[0_-4px_16px_color-mix(in_srgb,var(--color-text-primary)_5%,transparent)]",
           className,
         )}
         style={{ height: DIRTY_HEIGHT }}
