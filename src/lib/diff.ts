@@ -26,5 +26,5 @@ export function filterDiffSummary(diff: DiffSummary, path?: string | null): Diff
 }
 
 function normalizeRepoPath(path: string): string {
-  return path.replaceAll("\\", "/");
+  return path.replace(/\\/g, "/");
 }
