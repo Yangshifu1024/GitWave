@@ -48,6 +48,8 @@ use infrastructure::persistence::{migrations, open as open_state, SqliteWorkspac
 use infrastructure::ssh::keys::{SshKey, SshTestResult};
 use std::fmt::Display;
 use tauri::WebviewWindow;
+mod macos_window;
+
 use tauri_plugin_decoration::WebviewWindowExt;
 use tracing::info;
 
@@ -699,10 +701,26 @@ async fn activate_and_show(window: WebviewWindow) -> Result<&'static str, String
         return restore_and_show(&window, error).await;
     }
 
+    if let Err(error) = macos_window::configure_window(&window) {
+        tracing::warn!("macOS window chrome setup failed: {error}");
+    }
+
     match window.show() {
         Ok(()) => Ok("custom"),
         Err(error) => restore_and_show(&window, error).await,
     }
+}
+
+#[tauri::command]
+fn toggle_instant_zoom(window: WebviewWindow) -> Result<(), String> {
+    window
+        .clone()
+        .run_on_main_thread(move || {
+            if let Err(error) = macos_window::toggle_instant_zoom(&window) {
+                tracing::warn!("instant zoom toggle failed: {error}");
+            }
+        })
+        .map_err(|e| e.to_string())
 }
 
 // ─── App startup ──────────────────────────────────────────────────────────
@@ -729,6 +747,7 @@ pub fn run() {
         .manage(ctx)
         .invoke_handler(tauri::generate_handler![
             activate_and_show,
+            toggle_instant_zoom,
             get_app_version,
             cmd_list_workspaces,
             cmd_create_workspace,
