@@ -27,12 +27,18 @@ fn temp_dir(label: &str) -> std::path::PathBuf {
 }
 
 /// Configure the user.name / user.email on a fresh repo so subsequent
-/// commits can be made.
+/// commits can be made. Also pins `core.autocrlf=false` so a Windows global
+/// `autocrlf=true` can't make checkouts write CRLF (which would break
+/// LF-content assertions and status comparisons).
 fn configure_user(repo: &Repository) {
     repo.config().unwrap().set_str("user.name", "Test").unwrap();
     repo.config()
         .unwrap()
         .set_str("user.email", "test@local")
+        .unwrap();
+    repo.config()
+        .unwrap()
+        .set_bool("core.autocrlf", false)
         .unwrap();
 }
 

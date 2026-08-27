@@ -338,6 +338,12 @@ mod tests {
         let _ = fs::remove_dir_all(path);
     }
 
+    /// `core.autocrlf` turns LF into CRLF on checkout on Windows; compare
+    /// line-ending-insensitively.
+    fn normalize(text: &str) -> String {
+        text.replace("\r\n", "\n")
+    }
+
     #[test]
     fn status_sees_modified_and_untracked() {
         let (path, repo) = build_linear_repo(2);
@@ -407,7 +413,11 @@ mod tests {
         let restored = fs::read_to_string(path.join("file1.txt")).unwrap();
         let wc = status(&repo, "r-1").unwrap();
         cleanup(&path);
-        assert_eq!(restored, "v1\n", "worktree should match index content");
+        assert_eq!(
+            normalize(&restored),
+            "v1\n",
+            "worktree should match index content"
+        );
         assert!(
             !wc.files.iter().any(|f| f.path == "file1.txt" && !f.staged),
             "no unstaged entry expected after discard: {:?}",
@@ -439,7 +449,11 @@ mod tests {
 
         let restored = fs::read_to_string(path.join("file0.txt")).unwrap();
         cleanup(&path);
-        assert_eq!(restored, "v0\n", "deleted file should be recreated");
+        assert_eq!(
+            normalize(&restored),
+            "v0\n",
+            "deleted file should be recreated"
+        );
     }
 
     #[test]
@@ -469,7 +483,11 @@ mod tests {
         let restored = fs::read_to_string(path.join("file1.txt")).unwrap();
         let wc = status(&repo, "r-1").unwrap();
         cleanup(&path);
-        assert_eq!(restored, "v2\n", "discard restores the staged version");
+        assert_eq!(
+            normalize(&restored),
+            "v2\n",
+            "discard restores the staged version"
+        );
         assert!(
             wc.files.iter().any(|f| f.path == "file1.txt" && f.staged),
             "staged v2 entry must survive discard: {:?}",
