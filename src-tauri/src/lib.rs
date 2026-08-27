@@ -335,8 +335,9 @@ async fn cmd_checkout_branch(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     name: String,
+    force: Option<bool>,
 ) -> Result<(), AppError> {
-    checkout_branch(&ctx, &workspace_id, &name)
+    checkout_branch(&ctx, &workspace_id, &name, force.unwrap_or(false))
 }
 
 #[tauri::command]

@@ -37,16 +37,27 @@ pub fn delete_branch(repo: &Repository, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Check out a local branch (updates HEAD and the working tree).
-pub fn checkout_branch(repo: &Repository, name: &str) -> Result<()> {
-    let refname = format!("refs/heads/{name}");
-    repo.set_head(&refname).map_err(map_git_err)?;
-    repo.checkout_head(Some(
-        git2::build::CheckoutBuilder::default()
-            .force()
-            .remove_untracked(true),
-    ))
-    .map_err(map_git_err)?;
+/// Check out a local branch (updates the working tree, then HEAD).
+///
+/// `force = false` refuses to overwrite local changes (safe default).
+/// `force = true` discards tracked and untracked worktree files — UI must confirm.
+pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<()> {
+    let branch = repo
+        .find_branch(name, git2::BranchType::Local)
+        .map_err(map_git_err)?;
+    let object = branch
+        .get()
+        .peel(git2::ObjectType::Tree)
+        .map_err(map_git_err)?;
+    let mut builder = git2::build::CheckoutBuilder::new();
+    if force {
+        builder.force();
+        builder.remove_untracked(true);
+    }
+    repo.checkout_tree(&object, Some(&mut builder))
+        .map_err(map_git_err)?;
+    repo.set_head(&format!("refs/heads/{name}"))
+        .map_err(map_git_err)?;
     Ok(())
 }
 
@@ -139,10 +150,50 @@ mod tests {
             .to_string();
         create_branch(&repo, "feature", &sha, false).unwrap();
 
-        checkout_branch(&repo, "feature").unwrap();
+        checkout_branch(&repo, "feature", true).unwrap();
 
         let head = repo.head().unwrap();
         assert_eq!(head.name().unwrap(), "refs/heads/feature");
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_without_force_errors_on_uncommitted_edit() {
+        let (path, repo) = build_linear_repo(1);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        fs::write(path.join("file0.txt"), "dirty\n").unwrap();
+
+        let err = checkout_branch(&repo, "feature", false).unwrap_err();
+        assert!(
+            err.to_string().to_lowercase().contains("conflict"),
+            "expected checkout conflict, got {err}"
+        );
+        assert_eq!(fs::read_to_string(path.join("file0.txt")).unwrap(), "dirty\n");
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_force_discards_uncommitted_edit() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        fs::write(path.join("file0.txt"), "dirty\n").unwrap();
+
+        checkout_branch(&repo, "feature", true).unwrap();
+        assert_ne!(fs::read_to_string(path.join("file0.txt")).unwrap(), "dirty\n");
         cleanup(&path);
     }
 }

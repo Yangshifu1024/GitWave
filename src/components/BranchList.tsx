@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { BranchInfo } from "@/lib/api";
 import {
   abortInteractiveRebasePause,
@@ -8,14 +9,21 @@ import {
   deleteBranch,
   formatAppError,
   getBranches,
+  getWorkingCopy,
   interactiveRebasePaused,
+  listWorktrees,
   mergeBranch,
+  mergeInProgress,
+  popStash,
   rebaseBranch,
+  saveStash,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
+import { gateCheckout } from "@/lib/checkoutGate";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ListItem } from "@/components/ui/ListItem";
 import {
@@ -87,10 +95,10 @@ function BranchRow({
       selected={selected}
       onClick={() => {
         if (busy) return;
-        if (branch.is_current) {
-          onSelect(branch.name);
-          return;
-        }
+        onSelect(branch.name);
+      }}
+      onDoubleClick={() => {
+        if (busy) return;
         onCheckout(branch.name);
       }}
       leading={<BranchIcon kind={branch.kind} />}
@@ -170,6 +178,8 @@ function BranchRow({
   );
 }
 
+type BranchNotice = { text: string; variant: "success" | "danger" };
+
 interface BranchListProps {
   onBranchSelect?: (name: string) => void;
 }
@@ -184,16 +194,32 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<BranchNotice | null>(null);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [irebaseOnto, setIrebaseOnto] = useState<string | null>(null);
   const [irebasePaused, setIrebasePaused] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [switchDialog, setSwitchDialog] = useState<
+    | { kind: "dirty"; name: string; fileCount: number }
+    | { kind: "blocked"; name: string; message: string }
+    | null
+  >(null);
+  const queryClient = useQueryClient();
 
   const refresh = useCallback(() => {
     bumpHistoryEpoch();
   }, [bumpHistoryEpoch]);
+
+  const showNotice = useCallback((text: string, variant: BranchNotice["variant"] = "success") => {
+    setNotice({ text, variant });
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     setSelectedName(null);
@@ -266,16 +292,68 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       await createBranch(activeWorkspaceId, name, fromSha);
       setNewName("");
       setShowCreate(false);
-      setNotice(`Created branch ${name}`);
+      showNotice(`Created branch ${name}`);
     });
 
-  const handleCheckout = (name: string) =>
-    void run(async () => {
-      await checkoutBranch(activeWorkspaceId!, name);
-      setSelectedName(name);
-      onBranchSelect?.(name);
-      setNotice(`Checked out ${name}`);
-    });
+  const checkoutOnto = async (name: string, mode: "safe" | "force" | "stash") => {
+    if (!activeWorkspaceId) return;
+    if (mode === "stash") {
+      await saveStash(activeWorkspaceId, `switch to ${name}`);
+      await checkoutBranch(activeWorkspaceId, name, false);
+      try {
+        await popStash(activeWorkspaceId, 0);
+        showNotice(`Checked out ${name} and re-applied stash`);
+      } catch {
+        showNotice(
+          `Checked out ${name}. Stash re-apply failed; the stash was kept.`,
+          "danger",
+        );
+      }
+    } else {
+      await checkoutBranch(activeWorkspaceId, name, mode === "force");
+      showNotice(`Checked out ${name}`);
+    }
+    setSelectedName(name);
+    onBranchSelect?.(name);
+    void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
+  };
+
+  const handleCheckout = (name: string) => {
+    if (!activeWorkspaceId || busy) return;
+    const branch = branches.find((b) => b.name === name);
+    if (!branch) return;
+    void (async () => {
+      setError(null);
+      try {
+        const [merging, worktrees, workingCopy] = await Promise.all([
+          mergeInProgress(activeWorkspaceId),
+          listWorktrees(activeWorkspaceId).catch(() => []),
+          getWorkingCopy(activeWorkspaceId).catch(() => wc.data ?? null),
+        ]);
+        const occupied = worktrees.find((w) => !w.is_main && w.branch === name);
+        const gate = gateCheckout({
+          isCurrent: branch.is_current,
+          branchKind: branch.kind,
+          dirtyCount: workingCopy?.files.length ?? 0,
+          mergeInProgress: merging,
+          rebasePaused: irebasePaused,
+          occupiedWorktree: occupied?.name ?? null,
+        });
+        if (gate.kind === "noop") return;
+        if (gate.kind === "blocked") {
+          setSwitchDialog({ kind: "blocked", name, message: gate.message });
+          return;
+        }
+        if (gate.kind === "dirty") {
+          setSwitchDialog({ kind: "dirty", name, fileCount: gate.fileCount });
+          return;
+        }
+        await run(() => checkoutOnto(name, "safe"));
+      } catch (e) {
+        setError(formatAppError(e));
+      }
+    })();
+  };
 
   const handleSelect = (name: string) => {
     setSelectedName(name);
@@ -285,18 +363,19 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const handleDelete = (name: string) =>
     void run(async () => {
       await deleteBranch(activeWorkspaceId!, name);
-      setNotice(`Deleted ${name}`);
+      showNotice(`Deleted ${name}`);
     });
 
   const handleMerge = (name: string) =>
     void run(async () => {
       const result = await mergeBranch(activeWorkspaceId!, name);
       if (result.conflicts.length > 0) {
-        setNotice(
+        showNotice(
           `Merged ${name} with ${result.conflicts.length} conflict(s): ${result.conflicts.join(", ")}`,
+          "danger",
         );
       } else {
-        setNotice(`Merged ${name} (${result.kind.replace(/_/g, " ")})`);
+        showNotice(`Merged ${name} (${result.kind.replace(/_/g, " ")})`);
       }
     });
 
@@ -304,13 +383,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     void run(async () => {
       const result = await rebaseBranch(activeWorkspaceId!, name);
       if (result.kind === "conflicts" || result.conflicts.length > 0) {
-        setNotice(
+        showNotice(
           `Rebase onto ${name} hit conflicts${
             result.conflicts.length ? `: ${result.conflicts.join(", ")}` : ""
           }`,
+          "danger",
         );
       } else {
-        setNotice(`Rebased onto ${name} (${result.kind.replace(/_/g, " ")})`);
+        showNotice(`Rebased onto ${name} (${result.kind.replace(/_/g, " ")})`);
       }
     });
 
@@ -318,18 +398,18 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     void run(async () => {
       const result = await continueInteractiveRebase(activeWorkspaceId!);
       if (result.kind === "conflicts") {
-        setNotice(`Continue rebase conflicts: ${result.conflicts.join(", ")}`);
+        showNotice(`Continue rebase conflicts: ${result.conflicts.join(", ")}`, "danger");
       } else if (result.kind === "paused_for_edit") {
-        setNotice("Still paused for edit — amend then Continue again.");
+        showNotice("Still paused for edit — amend then Continue again.");
       } else {
-        setNotice(`Continued interactive rebase (${result.kind.replace(/_/g, " ")})`);
+        showNotice(`Continued interactive rebase (${result.kind.replace(/_/g, " ")})`);
       }
     });
 
   const handleAbortIrebasePause = () =>
     void run(async () => {
       await abortInteractiveRebasePause(activeWorkspaceId!);
-      setNotice("Cleared interactive rebase pause state");
+      showNotice("Cleared interactive rebase pause state");
     });
 
   const selectedBranch = branches.find((b) => b.name === selectedName) ?? null;
@@ -477,8 +557,15 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         ) : null}
 
         {notice ? (
-          <div className="shrink-0 px-3 py-2 text-xs text-text-secondary border-b border-border-subtle">
-            {notice}
+          <div
+            className={cn(
+              "shrink-0 px-3 py-2 text-xs border-b",
+              notice.variant === "success" && "bg-success/20 text-success border-b-success/40",
+              notice.variant === "danger" && "bg-danger/20 text-danger border-b-danger/40",
+            )}
+            role="status"
+          >
+            {notice.text}
           </div>
         ) : null}
 
@@ -493,6 +580,66 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         }}
       />
 
+      {switchDialog?.kind === "dirty" ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setSwitchDialog(null);
+          }}
+          title={`Switch to ${switchDialog.name}?`}
+          description={`Working copy has ${switchDialog.fileCount} uncommitted file${switchDialog.fileCount === 1 ? "" : "s"}. Discard them, or stash, switch, and re-apply the stash on the new branch.`}
+          size="sm"
+        >
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSwitchDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                const target = switchDialog.name;
+                setSwitchDialog(null);
+                void run(() => checkoutOnto(target, "force"));
+              }}
+            >
+              Discard
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                const target = switchDialog.name;
+                setSwitchDialog(null);
+                void run(() => checkoutOnto(target, "stash"));
+              }}
+            >
+              Stash & switch
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {switchDialog?.kind === "blocked" ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setSwitchDialog(null);
+          }}
+          title={`Cannot switch to ${switchDialog.name}`}
+          description={switchDialog.message}
+          size="sm"
+        >
+          <div className="flex justify-end">
+            <Button variant="primary" size="sm" onClick={() => setSwitchDialog(null)}>
+              OK
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
+
       {irebaseOnto && activeWorkspaceId ? (
         <InteractiveRebaseDialog
           open={true}
@@ -500,7 +647,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           upstream={irebaseOnto}
           onClose={() => setIrebaseOnto(null)}
           onDone={(msg) => {
-            setNotice(msg);
+            showNotice(msg);
             refresh();
             void interactiveRebasePaused(activeWorkspaceId).then(setIrebasePaused);
           }}

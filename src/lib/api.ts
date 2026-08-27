@@ -369,8 +369,12 @@ export function deleteBranch(workspaceId: string, name: string): Promise<void> {
   return invoke<void>("cmd_delete_branch", { workspaceId, name });
 }
 
-export function checkoutBranch(workspaceId: string, name: string): Promise<void> {
-  return invoke<void>("cmd_checkout_branch", { workspaceId, name });
+export function checkoutBranch(
+  workspaceId: string,
+  name: string,
+  force = false,
+): Promise<void> {
+  return invoke<void>("cmd_checkout_branch", { workspaceId, name, force });
 }
 
 export function getAheadBehind(workspaceId: string, branchName: string): Promise<AheadBehind> {

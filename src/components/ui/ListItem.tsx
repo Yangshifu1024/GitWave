@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 export interface ListItemProps {
   selected?: boolean;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   leading?: ReactNode | null;
   trailing?: ReactNode | null;
   children: ReactNode;
@@ -13,17 +14,26 @@ export interface ListItemProps {
 export function ListItem({
   selected = false,
   onClick,
+  onDoubleClick,
   leading = null,
   trailing = null,
   children,
   className,
 }: ListItemProps): React.JSX.Element {
+  const interactive = Boolean(onClick || onDoubleClick);
   return (
     <div
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
       onClick={onClick}
-      onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
+      onDoubleClick={onDoubleClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter") onClick();
+            }
+          : undefined
+      }
       className={cn(
         "group flex items-center gap-2 px-3 py-2",
         "rounded-md transition-colors duration-150",
@@ -32,6 +42,7 @@ export function ListItem({
         selected && "bg-accent/10 border-l-accent hover:bg-accent/20",
         !selected && "border-l-transparent hover:bg-bg-primary/70 cursor-pointer",
         onClick && "cursor-pointer",
+        onDoubleClick && "cursor-pointer",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
         className,
       )}

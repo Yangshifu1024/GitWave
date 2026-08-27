@@ -555,10 +555,15 @@ pub fn delete_branch(ctx: &AppContext, workspace_id: &str, name: &str) -> Result
 }
 
 /// Check out a branch (updates HEAD and working tree).
-pub fn checkout_branch(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+pub fn checkout_branch(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    force: bool,
+) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_checkout_branch(&repo, name)
+    infra_checkout_branch(&repo, name, force)
 }
 
 /// Get ahead/behind counts for a branch against its upstream.
