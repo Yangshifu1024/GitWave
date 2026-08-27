@@ -1,8 +1,9 @@
 import React, { useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CommitRef, CommitSummary } from "@/lib/api";
 import { formatAppError, getCommitLog } from "@/lib/api";
+import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -340,11 +341,14 @@ function computeActiveLanes(
 interface CommitGraphProps {
   onCommitSelect?: (sha: string) => void;
   selectedSha?: string | null;
+  /** One-shot request to scroll a commit to the viewport center. */
+  locateRequest?: LocateRequest | null;
 }
 
 export function CommitGraph({
   onCommitSelect,
   selectedSha: selectedShaProp,
+  locateRequest,
 }: CommitGraphProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -394,6 +398,24 @@ export function CommitGraph({
     estimateSize: () => ROW_H,
     overscan: 10,
   });
+
+  // Locate request from the sidebar (branch click): center the commit in the
+  // viewport. One-shot per seq — history refreshes must not yank the scroll
+  // position back. A commit missing from the log window (async load still in
+  // flight) stays unhandled and retries when shaToIndex updates.
+  const handledLocateSeq = useRef(-1);
+  useEffect(() => {
+    if (!locateRequest) return;
+    const index = resolveLocateIndex(
+      locateRequest,
+      handledLocateSeq.current,
+      activeRepoId,
+      shaToIndex,
+    );
+    if (index === null) return;
+    handledLocateSeq.current = locateRequest.seq;
+    virtualizer.scrollToIndex(index, { align: "center" });
+  }, [locateRequest, activeRepoId, shaToIndex, virtualizer]);
 
   const handleSelect = (sha: string) => {
     setLocalSelected(sha);

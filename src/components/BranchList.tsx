@@ -189,7 +189,8 @@ function BranchRow({
 type BranchNotice = { text: string; variant: "success" | "danger" };
 
 interface BranchListProps {
-  onBranchSelect?: (name: string) => void;
+  /** Fired when the user clicks a branch row, with the full branch (name + tip sha). */
+  onBranchSelect?: (branch: BranchInfo) => void;
 }
 
 export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Element {
@@ -230,7 +231,10 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   }, [notice]);
 
   useEffect(() => {
+    // Repo switch: drop the previous repo's rows immediately so a click during
+    // the reload window can't select a branch that belongs to the old repo.
     setSelectedName(null);
+    setBranches([]);
   }, [activeRepoId]);
 
   useEffect(() => {
@@ -319,7 +323,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       showNotice(`Checked out ${name}`);
     }
     setSelectedName(name);
-    onBranchSelect?.(name);
     void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
   };
 
@@ -362,7 +365,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const handleSelect = (name: string) => {
     setSelectedName(name);
-    onBranchSelect?.(name);
+    const branch = branches.find((b) => b.name === name);
+    if (branch) onBranchSelect?.(branch);
   };
 
   const handleDelete = (name: string) =>
