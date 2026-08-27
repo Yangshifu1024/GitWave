@@ -7,6 +7,7 @@
 > 需求 4（用户追加，2026-08-27，同分支实施）：右侧 diff 视图——减小每个 diff 项四周 padding；标题、行号背景与 topbar 一致；缩小行号宽度；移除 diff 容器圆角。
 > 需求 5（用户追加，2026-08-27，同分支实施）：右边栏默认宽度调整为 480，最小宽度 360。
 > 需求 6（用户追加，2026-08-27，同分支实施）：三栏分割线宽度调整为 1px。
+> 需求 7（用户追加，2026-08-27，同分支实施）：Workspace、Repository 的删除操作移入右键菜单，菜单项使用文字、不用图标。
 > 分支：`feature/sidebar-branch-dedupe`
 
 ## 决策记录
@@ -51,6 +52,7 @@
 | 行号宽度（需求 4） | unified `w-12 pr-2`→`w-9 pr-1.5`；split `w-10 pr-2`→`w-9 pr-1.5` | 两种模式行号列统一 36px，3-4 位行号仍容纳 |
 | 右栏宽度（需求 5） | `initialInspectorWidth` 360→480、`inspectorMin` 240→360，`inspectorMax` 保持 720 | ThreePaneLayout 默认 props；双击分隔条恢复 480；docs/design/03-layout.md 三处 ~360px 同步 ~480px |
 | 分割线宽度（需求 6） | `HANDLE_PX` 2→1 | 两条分隔（侧栏-中栏、中栏-右栏）同时收窄 1px，拖拽行为不变 |
+| 删除入口收敛（需求 7） | Workspace / Repository 行内 Trash2 图标按钮移除，改为行右键 ContextMenu 文字项（Delete / Remove），danger 样式 | 复用 BranchRow / ChangesPanel 的 radix ContextMenu 先例；确认弹窗、mutation 流程原样保留；AI / 重命名 / Relink / missing 徽标等行内元素不动；菜单含 ContextMenuLabel（名称）+ 分隔线，纯文字无图标 |
 | 侧栏滚动条隐藏（修订 4） | 新增 `.no-scrollbar` 工具类应用于侧栏 aside | `scrollbar-width: none` + `::-webkit-scrollbar { display: none }`，纵 / 横向滚动条均不显示，滚轮 / 触控板滚动保留；类特异性高于 tokens.css 中 `*` 全局滚动条规则 |
 
 ## 改动清单
@@ -90,6 +92,10 @@
 
 ### 需求 6 分割线
 - `src/components/ui/ThreePaneLayout.tsx`：`HANDLE_PX` 2→1（网格模板与 ResizeHandle 宽度同源，两条分隔一起变）
+
+### 需求 7 删除入口右键化
+- `src/components/WorkspaceList.tsx`：行内 Delete 图标按钮移除；ListItem 包 radix ContextMenu（Label + 分隔线 + 文字项 `Delete`，destructive），onSelect 打开原有确认弹窗；Trash2 import 移除
+- `src/components/RepoList.tsx`：行内 Remove 图标按钮移除；同款 ContextMenu（Label 显示 basename，title 为完整路径；文字项 `Remove`）；missing 状态的 Relink 按钮与 StatusBadge 保留行内；Trash2 import 移除
 - `src/components/CommitGraph.tsx`：节点圆描边 `var(--color-bg-primary)`→`var(--color-bg-panel)`（SVG 内联 var()，跟随面板画布抠图）
 - `docs/design/01-tokens.md`：1.1 / 1.2 / 1.3 / 1.4 同步 bg-primary 新值与 bg-panel token（bg-secondary 归属改为工具栏 / 层次色，bg-elevated 去除 inspector）
 

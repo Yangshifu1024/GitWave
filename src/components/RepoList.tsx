@@ -22,11 +22,19 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PathInput } from "@/components/ui/PathInput";
-import { Link2, Trash2 } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { FetchButton, SectionAction } from "@/components/ui/SectionAction";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/ContextMenu";
 
 function detectProtocol(url: string): "ssh" | "https" {
   if (url.startsWith("ssh://") || url.startsWith("git@")) return "ssh";
@@ -241,60 +249,61 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           <ul className="py-1">
             {repos.map((r) => (
               <li key={r.id}>
-                <ListItem
-                  selected={r.id === activeRepoId}
-                  onClick={() => {
-                    if (r.status === "missing" || r.id === activeRepoId) return;
-                    void activateRepo(r.id).catch((e: unknown) =>
-                      setActionError(formatAppError(e)),
-                    );
-                  }}
-                  leading={null}
-                  trailing={
-                    <span className="flex items-center gap-1">
-                      {r.status === "missing" && <StatusBadge variant="missing" />}
-                      {r.status === "missing" ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRelinking(r);
-                            setRelinkPath(r.path);
-                            setActionError(null);
-                          }}
-                          className="p-1"
-                          aria-label="Relink repo"
-                        >
-                          <Link2 size={13} />
-                        </Button>
-                      ) : null}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRemoving(r);
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <div>
+                      <ListItem
+                        selected={r.id === activeRepoId}
+                        onClick={() => {
+                          if (r.status === "missing" || r.id === activeRepoId) return;
+                          void activateRepo(r.id).catch((e: unknown) =>
+                            setActionError(formatAppError(e)),
+                          );
                         }}
-                        className="p-1 text-danger hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-                        aria-label="Remove repo"
+                        leading={null}
+                        trailing={
+                          <span className="flex items-center gap-1">
+                            {r.status === "missing" && <StatusBadge variant="missing" />}
+                            {r.status === "missing" ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRelinking(r);
+                                  setRelinkPath(r.path);
+                                  setActionError(null);
+                                }}
+                                className="p-1"
+                                aria-label="Relink repo"
+                              >
+                                <Link2 size={13} />
+                              </Button>
+                            ) : null}
+                          </span>
+                        }
                       >
-                        <Trash2 size={13} />
-                      </Button>
-                    </span>
-                  }
-                >
-                  <span
-                    className={
-                      r.id === activeRepoId
-                        ? "truncate font-mono text-xs text-text-primary font-medium"
-                        : "truncate font-mono text-xs text-text-secondary"
-                    }
-                    title={r.path}
-                  >
-                    {basename(r.path)}
-                  </span>
-                </ListItem>
+                        <span
+                          className={
+                            r.id === activeRepoId
+                              ? "truncate font-mono text-xs text-text-primary font-medium"
+                              : "truncate font-mono text-xs text-text-secondary"
+                          }
+                          title={r.path}
+                        >
+                          {basename(r.path)}
+                        </span>
+                      </ListItem>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="max-w-[240px]">
+                    <ContextMenuLabel title={r.path}>{basename(r.path)}</ContextMenuLabel>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem destructive onSelect={() => setRemoving(r)}>
+                      Remove
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               </li>
             ))}
           </ul>

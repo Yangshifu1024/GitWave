@@ -84,6 +84,7 @@
 - 需求 4（diff 视图密度 / 配色）：外层 padding `p-4`→`p-2`（后修订 `pb-2`，仅保留底部）、文件卡 `mb-6`→`mb-3`；hunk 容器去 `rounded-md`；标题 / 行号配色初版切 bg-bg-primary，后按用户修订改为右栏非内容元素统一 `bg-bg-elevated`（#f4f4f5：标题栏 / 单文件路径条 / 行号列 / hunk @@ 头 / BlameView 头；文件名 chip 融入标题栏）。行号列 unified `w-12`→`w-9`、split `w-10`→`w-9`（pr 同步 2→1.5）。纯类名调整，typecheck / test（49）/ lint / format:check / build 全绿
 - 需求 5（右栏宽度）：`initialInspectorWidth` 360→480、`inspectorMin` 240→360（max 720 不变）；03-layout.md 三处描述同步。纯默认 props 调整
 - 需求 6（分割线 1px）：`HANDLE_PX` 2→1，两条三栏分隔同时收窄；拖拽 / 双击复位行为不变
+- 需求 7（删除入口右键化）：WorkspaceList / RepoList 行内删除图标按钮移除，改为行右键 ContextMenu 文字项（Delete / Remove，destructive 无图标），沿用原确认弹窗与 mutation；radix trigger 与 ListItem onClick 共生（ChangesPanel 先例）。typecheck / test（49）/ lint / format:check / build 全绿
 - typecheck / test（49）/ lint / format:check / build 全绿
 
 ## 验证

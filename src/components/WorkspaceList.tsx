@@ -18,8 +18,16 @@ import { ListItem } from "@/components/ui/ListItem";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
-import { FolderPlus, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { FolderPlus, Pencil, Sparkles } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/ContextMenu";
 
 export function WorkspaceList(): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -114,53 +122,54 @@ export function WorkspaceList(): React.JSX.Element {
     <ul className="pb-1">
       {workspaces.map((ws) => (
         <li key={ws.id}>
-          <ListItem
-            selected={ws.id === activeId}
-            onClick={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
-            trailing={
-              <span className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  aria-label={`AI provider for ${ws.name}`}
-                  title="AI provider"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setAiWorkspace(ws);
-                  }}
-                  className={actionBtn}
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div>
+                <ListItem
+                  selected={ws.id === activeId}
+                  onClick={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
+                  trailing={
+                    <span className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        aria-label={`AI provider for ${ws.name}`}
+                        title="AI provider"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setAiWorkspace(ws);
+                        }}
+                        className={actionBtn}
+                      >
+                        <Sparkles size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Rename ${ws.name}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openRename(ws);
+                        }}
+                        className={actionBtn}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </span>
+                  }
                 >
-                  <Sparkles size={13} />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Rename ${ws.name}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openRename(ws);
-                  }}
-                  className={actionBtn}
-                >
-                  <Pencil size={13} />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Delete ${ws.name}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDeleting(ws);
-                  }}
-                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-text-secondary hover:text-danger p-1 rounded-sm"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </span>
-            }
-          >
-            <span className="truncate">{ws.name}</span>
-          </ListItem>
+                  <span className="truncate">{ws.name}</span>
+                </ListItem>
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="max-w-[240px]">
+              <ContextMenuLabel title={ws.name}>{ws.name}</ContextMenuLabel>
+              <ContextMenuSeparator />
+              <ContextMenuItem destructive onSelect={() => setDeleting(ws)}>
+                Delete
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         </li>
       ))}
     </ul>
