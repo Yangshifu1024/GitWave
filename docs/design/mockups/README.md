@@ -13,7 +13,7 @@
 | Dark · History | [v2/index.html](./v2/index.html)#dark |
 | Empty（无 workspace） | [v2/index.html](./v2/index.html)#empty |
 
-浏览器打开 [`v2/index.html`](./v2/index.html)，顶栏切换四屏；**Palette** 按钮切换五套配色（详见 [`../06-color-palettes.md`](../06-color-palettes.md)）。
+浏览器打开 [`v2/index.html`](./v2/index.html)，顶栏切换四屏；**A–E / F–J** 切换十套配色（详见 [`../06-color-palettes.md`](../06-color-palettes.md)）。
 
 **v2 核心变化**：Workspace 列表置顶 · Source List 全宽无圆角 · Sync 在 REPOS/BRANCHES 标题栏 · pane 材质分层 · Inspector diff gutter。
 

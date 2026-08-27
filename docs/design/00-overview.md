@@ -58,7 +58,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Toolbar (~40px)  repo › branch                              ⌘K  ☀ │
+│  Toolbar  Client Work - gitwave - main（居中）                ⌘K  ☀ │
 ├────────────┬───────────────────────────────┬────────────────────┤
 │ Sidebar    │  History graph（主角）         │  Inspector         │
 │ (220px)    │  flex                         │  (~360px)          │
@@ -73,7 +73,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Toolbar**：当前 repo › branch 路径（只读）。无 Workspace 下拉、无 Sync、无居中字标。SSH 进溢出菜单。
+- **Toolbar**：居中 `Workspace - Repository - branch`（只读上下文）。无品牌 Logo、无 Sync。SSH 进溢出菜单。
 - **Sidebar（Source List）**：**workspaces 列表**（最顶）+ repos（含 Fetch）+ branches（含 Pull/Push）+ stash / tags / remotes / worktrees。Mist 底，与 Foam 画布有材质差。
 - **History graph**：永远是中栏主角，不是 Tab。
 - **Inspector**：选中 commit 或 working-copy 文件的详情 / diff。

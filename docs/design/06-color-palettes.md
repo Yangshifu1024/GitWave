@@ -1,8 +1,8 @@
 # GitWave · 配色方案（Palette Options）
 
-> 状态：待选 · 2026-08-27  
+> 状态：待选 · 第二轮候选 F–J 已加入 mockup（**未提交**，等你确认）  
 > 布局与组件形态见 [`05-visual-redesign.md`](./05-visual-redesign.md)；**仅颜色可变**。  
-> 交互预览：[`mockups/v2/index.html`](./mockups/v2/index.html) 顶栏 **Palette** 切换。
+> 交互预览：[`mockups/v2/index.html`](./mockups/v2/index.html) 顶栏 **A–E / F–J** 切换。
 
 ## 选型原则
 
@@ -11,7 +11,7 @@
 - 语义色（success / warning / danger）跨方案保持一致，降低认知成本
 - Light / Dark 成对设计，dark 不是简单反色
 
-## 共享语义色（五套通用）
+## 共享语义色（全部方案通用）
 
 | Token | Light | Dark |
 |---|---|---|
@@ -20,6 +20,8 @@
 | danger / coral | `#D64545` | `#E05A5A` |
 
 ---
+
+# 第一轮 · A–E
 
 ## A · Tide Studio（当前默认）
 
@@ -104,9 +106,102 @@
 | Hairline | `#D5DAD4` | `#2A302A` |
 | **Lanes** | `#4D7350` → `#5A7A6B` → `#4A6B7A` → `#6B6B7A` | `#6B9B6E` → `#7AAA8B` → `#6B9BA8` → `#8A8A9A` |
 
+| **Lanes** | `#4D7350` → `#5A7A6B` → `#4A6B7A` → `#6B6B7A` | `#6B9B6E` → `#7AAA8B` → `#6B9BA8` → `#8A8A9A` |
+
+---
+
+# 第二轮 · F–J（2026-08-27 新增）
+
+> 针对第一轮「偏灰、偏保守」的反馈：accent 对比更强、色相跨度更大，材质层次（Canvas / Sidebar 差）略拉大。
+
+## F · Ember Signal
+
+**气质**：中性暖灰 + **朱红** accent，能量感强，适合想要「有态度」但不全黑的产品。
+
+| Role | Light | Dark |
+|---|---|---|
+| Canvas | `#FAF9F8` | `#141210` |
+| Sidebar | `#ECEAE8` | `#0E0D0C` |
+| Elevated | `#F2F0EE` | `#1E1C1A` |
+| Ink | `#1A1816` | `#ECEAE8` |
+| Muted | `#7A746E` | `#8A8480` |
+| **Accent** | `#D44D2B` | `#E86545` |
+| Hairline | `#DDD8D4` | `#322E2C` |
+| **Lanes** | `#D44D2B` → `#C45A38` → `#8B5A4A` → `#7A4A5A` | `#E86545` → `#D87858` → `#A87868` → `#987888` |
+
+---
+
+## G · Violet Circuit
+
+**气质**：薰衣草灰底 + **电紫** accent，数码感 / 电路板感，与 A–E 的「自然色」完全不同。
+
+| Role | Light | Dark |
+|---|---|---|
+| Canvas | `#F6F5FA` | `#13121A` |
+| Sidebar | `#ECEAF2` | `#0D0C12` |
+| Elevated | `#F0EEF6` | `#1C1A26` |
+| Ink | `#1A1820` | `#EAE8F0` |
+| Muted | `#78728A` | `#888498` |
+| **Accent** | `#6E56CF` | `#8B7AE8` |
+| Hairline | `#DCD6E8` | `#2A2838` |
+| **Lanes** | `#6E56CF` → `#7A5CB8` → `#5A6A9A` → `#8A6A9A` | `#8B7AE8` → `#9A7AD8` → `#7A8AB8` → `#AA8AAA` |
+
+---
+
+## H · Jade Current
+
+**气质**：薄荷灰绿底 + **翡翠** accent，比 Tide 更饱和、比 Moss 更清澈，仍有「水 / 波」联想。
+
+| Role | Light | Dark |
+|---|---|---|
+| Canvas | `#F4F7F6` | `#101816` |
+| Sidebar | `#E6EEEB` | `#0A100E` |
+| Elevated | `#ECF2F0` | `#182220` |
+| Ink | `#121A18` | `#E4ECE8` |
+| Muted | `#6A7874` | `#7A8A84` |
+| **Accent** | `#2A9D8F` | `#3ECFB8` |
+| Hairline | `#CDD9D4` | `#24302C` |
+| **Lanes** | `#2A9D8F` → `#3A8A7A` → `#4A7A8A` → `#5A6A7A` | `#3ECFB8` → `#4AB8A0` → `#5A98A8` → `#6A8898` |
+
+---
+
+## I · Ochre Archive
+
+**气质**：羊皮纸色 + **赭金** accent。与 C Copper 不同：更偏档案 / 博物馆金标，而非铜锈橙。
+
+| Role | Light | Dark |
+|---|---|---|
+| Canvas | `#F7F5F2` | `#1A1814` |
+| Sidebar | `#EDEAE5` | `#12100C` |
+| Elevated | `#F1EEE8` | `#242018` |
+| Ink | `#242018` | `#ECE8E0` |
+| Muted | `#847C70` | `#908880` |
+| **Accent** | `#9A7B1A` | `#C49A2A` |
+| Hairline | `#DDD6CA` | `#363028` |
+| **Lanes** | `#9A7B1A` → `#8A6A2A` → `#6A7A5A` → `#7A6A5A` | `#C49A2A` → `#B08A3A` → `#8A9A6A` → `#9A8A6A` |
+
+---
+
+## J · Rosesteel
+
+**气质**：钢灰底 + **玫瑰红** accent，lane 收束到钢蓝。Git 客户端里极少见的配色，辨识度高。
+
+| Role | Light | Dark |
+|---|---|---|
+| Canvas | `#F3F4F6` | `#12161C` |
+| Sidebar | `#E8EAEE` | `#0C0F14` |
+| Elevated | `#EEF0F4` | `#1A2028` |
+| Ink | `#141820` | `#E8EAEE` |
+| Muted | `#6E7888` | `#8890A0` |
+| **Accent** | `#C4486A` | `#E06888` |
+| Hairline | `#D4D8E0` | `#2A3038` |
+| **Lanes** | `#C4486A` → `#A85878` → `#6A7A9A` → `#7A6A8A` | `#E06888` → `#C87898` → `#8898B8` → `#9888A8` |
+
 ---
 
 ## 对比摘要
+
+### 第一轮 A–E
 
 | 方案 | 冷暖 | Accent 色相 | 适合印象 |
 |---|---|---|---|
@@ -115,6 +210,16 @@
 | **C Copper** | 暖 | 铜橙 | 编辑、个性 |
 | **D Harbor** | 冷 | 海蓝 | 品牌 Wave 延伸 |
 | **E Moss** | 中性偏暖 | 苔藓绿 | 护眼、低调 |
+
+### 第二轮 F–J
+
+| 方案 | 冷暖 | Accent 色相 | 适合印象 |
+|---|---|---|---|
+| **F Ember** | 暖 | 朱红 | 有能量、态度鲜明 |
+| **G Violet** | 冷 | 电紫 | 数码、电路感 |
+| **H Jade** | 冷 | 翡翠 | 清澈、Wave 水体 |
+| **I Ochre** | 暖 | 赭金 | 档案、博物馆感 |
+| **J Rosesteel** | 冷 | 玫瑰红 | 高辨识、偏设计工具 |
 
 ## 选定后
 
@@ -126,4 +231,4 @@
 
 - `01-tokens.md` — token 落地规范
 - `05-visual-redesign.md` — 布局与组件（不变）
-- `mockups/v2/index.html` — 五套配色实时切换
+- `mockups/v2/index.html` — 十套配色实时切换（A–E + F–J）
