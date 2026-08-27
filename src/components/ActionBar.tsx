@@ -318,9 +318,8 @@ export function ActionBar(): React.JSX.Element {
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
     queryFn: () => getBranches(activeWorkspaceId!),
-    enabled: branchCreateOpen && Boolean(activeWorkspaceId),
+    enabled: pullDialog !== null && Boolean(activeWorkspaceId),
   });
-  const currentBranch = branchesQuery.data?.find((b) => b.is_current && b.kind === "local");
 
   const branchCreateMut = useMutation({
     mutationFn: ({ name, fromSha }: { name: string; fromSha: string }) =>
@@ -336,7 +335,8 @@ export function ActionBar(): React.JSX.Element {
 
   function submitBranchCreate(): void {
     const name = branchName.trim();
-    const fromSha = currentBranch?.last_commit_sha;
+    // On a branch, HEAD tip == current branch tip (detached is gated on the button).
+    const fromSha = wc.data?.sha;
     if (!name) return;
     if (!fromSha) {
       setBranchError("No current branch tip to branch from");
@@ -482,7 +482,7 @@ export function ActionBar(): React.JSX.Element {
             icon={<GitBranch size={14} />}
             label="New"
             title="New branch"
-            disabled={noRepo || detached || !currentBranch}
+            disabled={noRepo || detached || !wc.data?.sha}
             onClick={() => {
               setBranchName("");
               setBranchError(null);
@@ -803,7 +803,7 @@ export function ActionBar(): React.JSX.Element {
         onOpenChange={(open) => {
           if (!open) setBranchCreateOpen(false);
         }}
-        title={`New branch from "${currentBranch?.name ?? wc.data?.branch ?? "?"}"`}
+        title={`New branch from "${wc.data?.branch ?? "?"}"`}
         description="Creates a local branch at the current tip; the current branch stays checked out."
         size="sm"
       >
