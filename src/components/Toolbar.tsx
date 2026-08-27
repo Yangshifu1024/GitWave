@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { CircleHelp, KeyRound, MoreHorizontal } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { WorkspaceSwitcherDropdown } from "@/components/WorkspaceSwitcherDropdown";
 import { SshKeyManager } from "@/components/SshKeyManager";
-import { BranchIndicator } from "@/components/ui/BranchIndicator";
+import { ToolbarContextTitle } from "@/components/ToolbarContextTitle";
+import { SyncProgressBar } from "@/components/SyncProgressBar";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -16,34 +15,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
 import { KeyHint } from "@/components/ui/KeyHint";
-import { SyncButtons } from "@/components/ui/SyncButtons";
-import { useWorkingCopy } from "@/hooks/useWorkingCopy";
-import { getAppVersion, listRepos } from "@/lib/api";
+import { getAppVersion } from "@/lib/api";
 import { isMacOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-
-function basename(path: string): string {
-  const idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return idx >= 0 ? path.slice(idx + 1) : path;
-}
 
 export function Toolbar(): React.JSX.Element {
   const [sshOpen, setSshOpen] = useState(false);
   const [version, setVersion] = useState("…");
-  const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
-  const wc = useWorkingCopy();
-
-  const { data: repos = [] } = useQuery({
-    queryKey: ["repos", workspaceId],
-    queryFn: () => listRepos(workspaceId!),
-    enabled: Boolean(workspaceId),
-  });
-  const activeRepo = repos.find((repo) => repo.id === repoId);
-  const repoLabel = activeRepo ? (activeRepo.nickname ?? basename(activeRepo.path)) : null;
-  const snapshot = wc.data ?? null;
-  const canSync = Boolean(workspaceId && repoId);
 
   useEffect(() => {
     getAppVersion()
@@ -60,46 +38,9 @@ export function Toolbar(): React.JSX.Element {
         isMacOS() && "app-toolbar--macos",
       )}
     >
-      <WorkspaceSwitcherDropdown variant="toolbar" />
+      <ToolbarContextTitle />
 
-      {repoLabel ? (
-        <>
-          <span className="text-text-muted/50 text-xs" aria-hidden>
-            ·
-          </span>
-          <span
-            className="text-xs font-medium text-text-primary truncate max-w-[160px]"
-            title={repoLabel}
-          >
-            {repoLabel}
-          </span>
-        </>
-      ) : null}
-
-      {snapshot ? (
-        <BranchIndicator
-          branch={snapshot.branch}
-          sha={snapshot.branch === "(detached)" ? snapshot.sha : null}
-          upstream={snapshot.upstream}
-          ahead={snapshot.ahead}
-          behind={snapshot.behind}
-          className="text-xs"
-        />
-      ) : null}
-
-      <SyncButtons
-        ahead={snapshot?.ahead ?? 0}
-        behind={snapshot?.behind ?? 0}
-        onFetch={canSync ? wc.fetch : undefined}
-        onPull={canSync ? wc.pull : undefined}
-        onPush={canSync ? wc.push : undefined}
-        fetchDisabled={!canSync}
-        pullDisabled={!canSync || (snapshot?.behind ?? 0) === 0}
-        pushDisabled={!canSync || (snapshot?.ahead ?? 0) === 0}
-        inProgress={wc.syncPending}
-      />
-
-      <div className="ml-auto flex items-center gap-0.5">
+      <div className="ml-auto relative z-10 flex items-center gap-0.5">
         <KeyHint keys={["⌘", "K"]} className="mr-1 opacity-80" />
         <ThemeToggle />
         <DropdownMenu>
@@ -122,6 +63,8 @@ export function Toolbar(): React.JSX.Element {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <SyncProgressBar />
 
       {sshOpen ? <SshKeyManagerModal onClose={() => setSshOpen(false)} /> : null}
     </header>

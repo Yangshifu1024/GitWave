@@ -22,8 +22,9 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PathInput } from "@/components/ui/PathInput";
-import { FolderPlus, GitBranch, FolderInput, Link2, Trash2 } from "lucide-react";
+import { Link2, Trash2 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
+import { FetchButton, SectionAction } from "@/components/ui/SectionAction";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
@@ -200,30 +201,29 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
         title="Repos"
         actions={
           <>
-            <Button
-              variant="ghost"
-              size="sm"
+            <FetchButton
+              onFetch={wc.fetch}
+              disabled={!activeRepoId || wc.isSyncBusy}
+              inProgress={wc.syncPending.fetch}
+            />
+            <SectionAction
+              tooltip="Initialize a new repository in a folder"
               onClick={() => startAdd("init")}
-              aria-label="Init repo"
             >
-              <GitBranch size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+              Init
+            </SectionAction>
+            <SectionAction
+              tooltip="Clone a repository from a remote URL"
               onClick={() => startAdd("clone")}
-              aria-label="Clone repo"
             >
-              <FolderPlus size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+              Clone
+            </SectionAction>
+            <SectionAction
+              tooltip="Add an existing local repository"
               onClick={() => startAdd("local")}
-              aria-label="Add local repo"
             >
-              <FolderInput size={14} />
-            </Button>
+              Add
+            </SectionAction>
           </>
         }
       >

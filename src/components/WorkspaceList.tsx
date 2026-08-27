@@ -18,21 +18,10 @@ import { ListItem } from "@/components/ui/ListItem";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
-import { FolderPlus, Pencil, Sparkles, Trash2, ChevronDown } from "lucide-react";
+import { FolderPlus, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/DropdownMenu";
 
-export function WorkspaceSwitcherDropdown({
-  variant = "sidebar",
-}: {
-  variant?: "sidebar" | "toolbar";
-}): React.JSX.Element {
+export function WorkspaceList(): React.JSX.Element {
   const queryClient = useQueryClient();
   const activeId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
@@ -113,62 +102,7 @@ export function WorkspaceSwitcherDropdown({
   }
 
   const actionBtn =
-    "opacity-0 group-hover:opacity-100 text-text-secondary hover:text-accent p-1 rounded-sm";
-
-  const workspaceList = workspaces.map((ws) => (
-    <li key={ws.id}>
-      <ListItem
-        selected={ws.id === activeId}
-        onClick={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
-        trailing={
-          <span className="flex items-center gap-0.5">
-            <button
-              type="button"
-              aria-label={`AI provider for ${ws.name}`}
-              title="AI provider"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setAiWorkspace(ws);
-              }}
-              className={actionBtn}
-            >
-              <Sparkles size={13} />
-            </button>
-            <button
-              type="button"
-              aria-label={`Rename ${ws.name}`}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openRename(ws);
-              }}
-              className={actionBtn}
-            >
-              <Pencil size={13} />
-            </button>
-            <button
-              type="button"
-              aria-label={`Delete ${ws.name}`}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDeleting(ws);
-              }}
-              className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-danger p-1 rounded-sm"
-            >
-              <Trash2 size={13} />
-            </button>
-          </span>
-        }
-      >
-        <span className="truncate">{ws.name}</span>
-      </ListItem>
-    </li>
-  ));
-
-  const activeWorkspace = workspaces.find((ws) => ws.id === activeId);
-  const triggerLabel = activeWorkspace?.name ?? "Select workspace";
+    "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-text-secondary hover:text-accent p-1 rounded-sm";
 
   const workspaceBody = isLoading ? (
     <p className="px-3 py-2 text-sm text-text-muted">Loading…</p>
@@ -177,96 +111,70 @@ export function WorkspaceSwitcherDropdown({
   ) : workspaces.length === 0 ? (
     <p className="px-3 py-2 text-sm text-text-muted italic">No workspaces yet</p>
   ) : (
-    <ul className="pb-1">{workspaceList}</ul>
+    <ul className="pb-1">
+      {workspaces.map((ws) => (
+        <li key={ws.id}>
+          <ListItem
+            selected={ws.id === activeId}
+            onClick={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
+            trailing={
+              <span className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  aria-label={`AI provider for ${ws.name}`}
+                  title="AI provider"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setAiWorkspace(ws);
+                  }}
+                  className={actionBtn}
+                >
+                  <Sparkles size={13} />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Rename ${ws.name}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openRename(ws);
+                  }}
+                  className={actionBtn}
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Delete ${ws.name}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDeleting(ws);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-text-secondary hover:text-danger p-1 rounded-sm"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </span>
+            }
+          >
+            <span className="truncate">{ws.name}</span>
+          </ListItem>
+        </li>
+      ))}
+    </ul>
   );
 
-  const switcher =
-    variant === "toolbar" ? (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="max-w-[180px] h-7 gap-1 px-2 font-medium outline-none focus:outline-none focus-visible:ring-0 focus-visible:outline-none data-[state=open]:bg-bg-primary/55"
-            aria-label="Switch workspace"
-          >
-            <span className="truncate">{triggerLabel}</span>
-            <ChevronDown size={12} className="shrink-0 text-text-muted" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="min-w-[240px] max-h-[min(70vh,420px)] overflow-auto"
-        >
-          {workspaces.length === 0 ? (
-            <p className="px-2 py-1.5 text-sm text-text-muted italic">No workspaces yet</p>
-          ) : (
-            workspaces.map((ws) => (
-              <DropdownMenuItem
-                key={ws.id}
-                onSelect={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
-                className={ws.id === activeId ? "bg-accent/10" : undefined}
-              >
-                <span className="truncate flex-1">{ws.name}</span>
-                <span className="flex items-center gap-0.5 ml-2">
-                  <button
-                    type="button"
-                    aria-label={`AI provider for ${ws.name}`}
-                    onPointerDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setAiWorkspace(ws);
-                    }}
-                    className="p-1 rounded-sm text-text-secondary hover:text-accent"
-                  >
-                    <Sparkles size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Rename ${ws.name}`}
-                    onPointerDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      openRename(ws);
-                    }}
-                    className="p-1 rounded-sm text-text-secondary hover:text-accent"
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${ws.name}`}
-                    onPointerDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setDeleting(ws);
-                    }}
-                    className="p-1 rounded-sm text-text-secondary hover:text-danger"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </span>
-              </DropdownMenuItem>
-            ))
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setCreateOpen(true)}>
-            <FolderPlus size={14} />
-            New workspace
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ) : (
+  return (
+    <>
       <SidebarSection
         title="Workspaces"
         actions={
           <Button
             variant="ghost"
             size="sm"
-            className="p-1"
+            className="p-1 h-6 w-6"
             onClick={() => setCreateOpen(true)}
             aria-label="New workspace"
           >
@@ -276,11 +184,6 @@ export function WorkspaceSwitcherDropdown({
       >
         {workspaceBody}
       </SidebarSection>
-    );
-
-  return (
-    <>
-      {switcher}
 
       <Modal
         open={createOpen}

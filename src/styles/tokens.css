@@ -152,6 +152,8 @@
   html,
   body,
   #root {
+    position: fixed;
+    inset: 0;
     height: 100%;
     width: 100%;
     overflow: hidden;
@@ -251,5 +253,36 @@
   /* macOS traffic lights: mockup uses 78px; clearance var may arrive after first paint */
   .app-toolbar--macos {
     padding-left: max(78px, var(--tauri-plugin-decoration-left-clearance, 0px));
+  }
+
+  .pane-edge-right {
+    box-shadow: inset -1px 0 0 var(--color-border-subtle);
+  }
+
+  .pane-edge-left {
+    box-shadow: inset 1px 0 0 var(--color-border-subtle);
+  }
+
+  @keyframes sync-progress-shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+
+  .sync-progress-indeterminate::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-accent) 60%, transparent),
+      transparent
+    );
+    animation: sync-progress-shimmer 1.2s ease-in-out infinite;
   }
 }
