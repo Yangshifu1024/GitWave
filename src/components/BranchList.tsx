@@ -41,6 +41,8 @@ import {
 import { InteractiveRebaseDialog } from "@/components/InteractiveRebaseDialog";
 import {
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
   GitBranch,
   GitMerge,
   GitPullRequestArrow,
@@ -433,6 +435,62 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const localBranches = visibleBranches.filter((b) => b.kind === "local");
   const remoteBranches = visibleBranches.filter((b) => b.kind === "remote");
 
+  // Remote branches grouped by their remote (first path segment), in first-seen order.
+  const remoteGroups = (() => {
+    const map = new Map<string, BranchInfo[]>();
+    for (const b of remoteBranches) {
+      const slash = b.name.indexOf("/");
+      const remote = slash === -1 ? b.name : b.name.slice(0, slash);
+      const list = map.get(remote) ?? [];
+      list.push(b);
+      map.set(remote, list);
+    }
+    return [...map.entries()];
+  })();
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const toggleGroup = (key: string): void =>
+    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const renderGroup = (
+    label: string,
+    groupKey: string,
+    groupBranches: BranchInfo[],
+  ): React.JSX.Element | null => {
+    if (groupBranches.length === 0) return null;
+    // Local defaults expanded; remote groups default collapsed.
+    const collapsed = collapsedGroups[groupKey] ?? groupKey !== "local";
+    return (
+      <div className={groupKey === "local" ? undefined : "mt-2"}>
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          onClick={() => toggleGroup(groupKey)}
+          className="flex w-full items-center gap-1.5 px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary"
+        >
+          {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+          {label}
+          <span className="font-normal normal-case">({groupBranches.length})</span>
+        </button>
+        {!collapsed &&
+          groupBranches.map((branch) => (
+            <BranchRow
+              key={branch.name}
+              branch={branch}
+              selected={branch.name === selectedName}
+              busy={busy}
+              onSelect={handleSelect}
+              onCheckout={handleCheckout}
+              onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
+              onMerge={handleMerge}
+              onRebaseOnto={handleRebaseOnto}
+              onInteractiveRebase={(name) => setIrebaseOnto(name)}
+            />
+          ))}
+      </div>
+    );
+  };
+
   const renderBody = (): React.JSX.Element => {
     if (!activeWorkspaceId) {
       return (
@@ -464,49 +522,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     }
     return (
       <>
-        {localBranches.length > 0 && (
-          <div>
-            <div className="px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
-              Local
-            </div>
-            {localBranches.map((branch) => (
-              <BranchRow
-                key={branch.name}
-                branch={branch}
-                selected={branch.name === selectedName}
-                busy={busy}
-                onSelect={handleSelect}
-                onCheckout={handleCheckout}
-                onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
-                onMerge={handleMerge}
-                onRebaseOnto={handleRebaseOnto}
-                onInteractiveRebase={(name) => setIrebaseOnto(name)}
-              />
-            ))}
-          </div>
-        )}
-
-        {remoteBranches.length > 0 && (
-          <div className="mt-2">
-            <div className="px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
-              Remote
-            </div>
-            {remoteBranches.map((branch) => (
-              <BranchRow
-                key={branch.name}
-                branch={branch}
-                selected={branch.name === selectedName}
-                busy={busy}
-                onSelect={handleSelect}
-                onCheckout={handleCheckout}
-                onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
-                onMerge={handleMerge}
-                onRebaseOnto={handleRebaseOnto}
-                onInteractiveRebase={(name) => setIrebaseOnto(name)}
-              />
-            ))}
-          </div>
-        )}
+        {renderGroup("Local", "local", localBranches)}
+        {remoteGroups.map(([remote, list]) => renderGroup(remote, `remote:${remote}`, list))}
       </>
     );
   };
