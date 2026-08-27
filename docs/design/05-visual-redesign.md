@@ -209,4 +209,5 @@ gitwave › main                                               ⌘K  ☀
 - `00-overview.md` — IA 与品牌基调
 - `01-tokens.md` — 色板（v2 不新增色，只调整用法）
 - `03-layout.md` — 尺寸与快捷键（不变）
+- `06-color-palettes.md` — 五套配色方案（待选）
 - `mockups/v2/index.html` — 像素源

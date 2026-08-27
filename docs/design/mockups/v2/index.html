@@ -12,6 +12,17 @@
     />
     <style>
       :root {
+        --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+        --row-h: 28px;
+        --toolbar-h: 40px;
+        --sidebar-w: 220px;
+        --inspector-w: 360px;
+        --preview-accent: #1a8f8a;
+      }
+
+      /* ── Palette: A · Tide Studio ── */
+      body[data-palette="tide"] .window {
         --foam: #f4f6f8;
         --mist: #e6ebef;
         --elevated: #eef1f4;
@@ -19,23 +30,200 @@
         --ink-2: #4a5560;
         --muted: #7a8692;
         --tide: #1a8f8a;
-        --tide-dim: color-mix(in srgb, var(--tide) 8%, transparent);
-        --tide-sel: color-mix(in srgb, var(--tide) 12%, transparent);
-        --abyss: #12161a;
-        --coral: #d64545;
         --hair: #d5dce2;
-        --ahead: #2f9e6b;
-        --behind: #c47a1a;
         --lane-0: #1a8f8a;
         --lane-1: #2a7b8c;
         --lane-2: #3d6b9a;
         --lane-3: #4a5fa8;
-        --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-        --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-        --row-h: 28px;
-        --toolbar-h: 40px;
-        --sidebar-w: 220px;
-        --inspector-w: 360px;
+        --ahead: #2f9e6b;
+        --behind: #c47a1a;
+        --coral: #d64545;
+      }
+      body[data-palette="tide"] .window.dark {
+        --foam: #161b20;
+        --mist: #12161a;
+        --elevated: #1c2329;
+        --ink: #e8ecf0;
+        --ink-2: #b4bec8;
+        --muted: #8b97a3;
+        --tide: #3ebab3;
+        --hair: #2a323a;
+        --lane-0: #3ebab3;
+        --lane-1: #5ba4b8;
+        --lane-2: #6b8fc4;
+        --lane-3: #7a7ad1;
+        --ahead: #3ecf8e;
+        --behind: #e0a04a;
+        --coral: #e05a5a;
+      }
+      body[data-palette="tide"] {
+        --preview-accent: #1a8f8a;
+      }
+
+      /* ── Palette: B · Slate Forge ── */
+      body[data-palette="slate"] .window {
+        --foam: #f3f4f6;
+        --mist: #e8eaed;
+        --elevated: #eeeff2;
+        --ink: #1a1d21;
+        --ink-2: #454a52;
+        --muted: #6b7280;
+        --tide: #5b6eae;
+        --hair: #d4d7de;
+        --lane-0: #5b6eae;
+        --lane-1: #6b5b9a;
+        --lane-2: #4a7b9a;
+        --lane-3: #5a6a88;
+        --ahead: #2f9e6b;
+        --behind: #c47a1a;
+        --coral: #d64545;
+      }
+      body[data-palette="slate"] .window.dark {
+        --foam: #15171c;
+        --mist: #0f1115;
+        --elevated: #1c1f26;
+        --ink: #e6e8ed;
+        --ink-2: #b0b4be;
+        --muted: #8b919c;
+        --tide: #7b8fd4;
+        --hair: #2a2e38;
+        --lane-0: #7b8fd4;
+        --lane-1: #8b7bc4;
+        --lane-2: #6b9bb8;
+        --lane-3: #7a8aa8;
+        --ahead: #3ecf8e;
+        --behind: #e0a04a;
+        --coral: #e05a5a;
+      }
+      body[data-palette="slate"] {
+        --preview-accent: #5b6eae;
+      }
+
+      /* ── Palette: C · Copper Ledger ── */
+      body[data-palette="copper"] .window {
+        --foam: #f6f3ee;
+        --mist: #ede8e0;
+        --elevated: #f0ebe4;
+        --ink: #2c2620;
+        --ink-2: #5a5248;
+        --muted: #8a7f72;
+        --tide: #b87333;
+        --hair: #ddd5ca;
+        --lane-0: #b87333;
+        --lane-1: #9a6b4f;
+        --lane-2: #6b7a8c;
+        --lane-3: #7a6b8a;
+        --ahead: #2f9e6b;
+        --behind: #c47a1a;
+        --coral: #d64545;
+      }
+      body[data-palette="copper"] .window.dark {
+        --foam: #1a1816;
+        --mist: #141210;
+        --elevated: #221f1c;
+        --ink: #e8e4de;
+        --ink-2: #b8b0a6;
+        --muted: #9a9088;
+        --tide: #d4924a;
+        --hair: #3a3530;
+        --lane-0: #d4924a;
+        --lane-1: #b88a5a;
+        --lane-2: #7a8a9a;
+        --lane-3: #9a8a9a;
+        --ahead: #3ecf8e;
+        --behind: #e0a04a;
+        --coral: #e05a5a;
+      }
+      body[data-palette="copper"] {
+        --preview-accent: #b87333;
+      }
+
+      /* ── Palette: D · Harbor Mist ── */
+      body[data-palette="harbor"] .window {
+        --foam: #f0f4f7;
+        --mist: #e2e9ef;
+        --elevated: #e8eff5;
+        --ink: #152028;
+        --ink-2: #44515c;
+        --muted: #6b7d8c;
+        --tide: #2b7a9e;
+        --hair: #cdd8e2;
+        --lane-0: #2b7a9e;
+        --lane-1: #2a8f8a;
+        --lane-2: #3d6b9a;
+        --lane-3: #4a6fa8;
+        --ahead: #2f9e6b;
+        --behind: #c47a1a;
+        --coral: #d64545;
+      }
+      body[data-palette="harbor"] .window.dark {
+        --foam: #121a20;
+        --mist: #0d1218;
+        --elevated: #1a2329;
+        --ink: #e4ebf0;
+        --ink-2: #a8b4be;
+        --muted: #8a9aa8;
+        --tide: #4ba3c7;
+        --hair: #28343e;
+        --lane-0: #4ba3c7;
+        --lane-1: #4bb8a8;
+        --lane-2: #6b8fc4;
+        --lane-3: #7a8fc8;
+        --ahead: #3ecf8e;
+        --behind: #e0a04a;
+        --coral: #e05a5a;
+      }
+      body[data-palette="harbor"] {
+        --preview-accent: #2b7a9e;
+      }
+
+      /* ── Palette: E · Moss Terminal ── */
+      body[data-palette="moss"] .window {
+        --foam: #f2f3f0;
+        --mist: #e6e8e3;
+        --elevated: #eceee9;
+        --ink: #1e221c;
+        --ink-2: #4a5248;
+        --muted: #71786e;
+        --tide: #4d7350;
+        --hair: #d5dad4;
+        --lane-0: #4d7350;
+        --lane-1: #5a7a6b;
+        --lane-2: #4a6b7a;
+        --lane-3: #6b6b7a;
+        --ahead: #2f9e6b;
+        --behind: #c47a1a;
+        --coral: #d64545;
+      }
+      body[data-palette="moss"] .window.dark {
+        --foam: #161816;
+        --mist: #111411;
+        --elevated: #1c201c;
+        --ink: #e4e8e4;
+        --ink-2: #a8aea8;
+        --muted: #8a9288;
+        --tide: #6b9b6e;
+        --hair: #2a302a;
+        --lane-0: #6b9b6e;
+        --lane-1: #7aaa8b;
+        --lane-2: #6b9ba8;
+        --lane-3: #8a8a9a;
+        --ahead: #3ecf8e;
+        --behind: #e0a04a;
+        --coral: #e05a5a;
+      }
+      body[data-palette="moss"] {
+        --preview-accent: #4d7350;
+      }
+
+      .window {
+        --tide-dim: color-mix(in srgb, var(--tide) 8%, transparent);
+        --tide-sel: color-mix(in srgb, var(--tide) 12%, transparent);
+      }
+
+      .window.dark {
+        --tide-dim: color-mix(in srgb, var(--tide) 10%, transparent);
+        --tide-sel: color-mix(in srgb, var(--tide) 14%, transparent);
       }
 
       * {
@@ -82,8 +270,40 @@
       }
 
       .preview-bar button[aria-pressed="true"] {
-        background: var(--tide);
+        background: var(--preview-accent);
         color: #fff;
+      }
+
+      .preview-bar .palette-group {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        margin-left: 8px;
+        padding-left: 12px;
+        border-left: 1px solid #8a98a4;
+      }
+
+      .preview-bar .palette-group span.lbl {
+        font-size: 10px;
+        font-weight: 600;
+        color: #3d4f5c;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-right: 2px;
+      }
+
+      .preview-bar button.palette-btn {
+        padding: 5px 8px;
+        font-size: 10px;
+      }
+
+      .preview-bar button.palette-btn .swatch {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 4px;
+        vertical-align: 0.5px;
       }
 
       .preview-bar .tag {
@@ -124,26 +344,6 @@
 
       .window.is-on {
         display: flex;
-      }
-
-      .window.dark {
-        --foam: #161b20;
-        --mist: #12161a;
-        --elevated: #1c2329;
-        --ink: #e8ecf0;
-        --ink-2: #b4bec8;
-        --muted: #8b97a3;
-        --tide: #3ebab3;
-        --tide-dim: color-mix(in srgb, var(--tide) 10%, transparent);
-        --tide-sel: color-mix(in srgb, var(--tide) 14%, transparent);
-        --hair: #2a323a;
-        --ahead: #3ecf8e;
-        --behind: #e0a04a;
-        --lane-0: #3ebab3;
-        --lane-1: #5ba4b8;
-        --lane-2: #6b8fc4;
-        --lane-3: #7a7ad1;
-        background: var(--foam);
       }
 
       /* ── Toolbar ── */
@@ -771,14 +971,32 @@
       }
     </style>
   </head>
-  <body>
+  <body data-palette="tide">
     <div class="preview-bar">
       <span class="tag">v2 · Native Studio</span>
       <button type="button" data-go="history" aria-pressed="true">Light · History</button>
       <button type="button" data-go="dirty" aria-pressed="false">Light · Dirty</button>
       <button type="button" data-go="dark" aria-pressed="false">Dark · History</button>
       <button type="button" data-go="empty" aria-pressed="false">Empty</button>
-      <span class="hint">Workspace 列表置顶 · Sync 在 REPOS/BRANCHES · Tide Lanes</span>
+      <div class="palette-group" role="group" aria-label="Color palette">
+        <span class="lbl">Palette</span>
+        <button type="button" class="palette-btn" data-palette="tide" aria-pressed="true">
+          <span class="swatch" style="background: #1a8f8a"></span>A Tide
+        </button>
+        <button type="button" class="palette-btn" data-palette="slate" aria-pressed="false">
+          <span class="swatch" style="background: #5b6eae"></span>B Slate
+        </button>
+        <button type="button" class="palette-btn" data-palette="copper" aria-pressed="false">
+          <span class="swatch" style="background: #b87333"></span>C Copper
+        </button>
+        <button type="button" class="palette-btn" data-palette="harbor" aria-pressed="false">
+          <span class="swatch" style="background: #2b7a9e"></span>D Harbor
+        </button>
+        <button type="button" class="palette-btn" data-palette="moss" aria-pressed="false">
+          <span class="swatch" style="background: #4d7350"></span>E Moss
+        </button>
+      </div>
+      <span class="hint">布局固定 · 切换 Palette 对比配色</span>
     </div>
 
     <div class="stage">
@@ -1342,15 +1560,38 @@
 
     <script>
       const buttons = [...document.querySelectorAll("[data-go]")];
+      const paletteButtons = [...document.querySelectorAll("[data-palette]")];
       const screens = ["history", "dirty", "dark", "empty"];
+      const palettes = ["tide", "slate", "copper", "harbor", "moss"];
+
       function show(id) {
         screens.forEach((s) => document.getElementById(s).classList.toggle("is-on", s === id));
         buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.go === id)));
-        history.replaceState(null, "", "#" + id);
+        updateHash();
       }
+
+      function setPalette(id) {
+        document.body.dataset.palette = id;
+        paletteButtons.forEach((b) =>
+          b.setAttribute("aria-pressed", String(b.dataset.palette === id)),
+        );
+        updateHash();
+      }
+
+      function updateHash() {
+        const screen = screens.find((s) => document.getElementById(s).classList.contains("is-on"));
+        const palette = document.body.dataset.palette || "tide";
+        history.replaceState(null, "", `#${screen}?palette=${palette}`);
+      }
+
       buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
+      paletteButtons.forEach((b) => b.addEventListener("click", () => setPalette(b.dataset.palette)));
+
       const hash = location.hash.slice(1);
-      if (screens.includes(hash)) show(hash);
+      const [screenPart, queryPart] = hash.split("?");
+      if (screens.includes(screenPart)) show(screenPart);
+      const paletteParam = new URLSearchParams(queryPart || "").get("palette");
+      if (paletteParam && palettes.includes(paletteParam)) setPalette(paletteParam);
     </script>
   </body>
 </html>
