@@ -561,6 +561,14 @@ export function listRemotes(workspaceId: string): Promise<string[]> {
   return invoke<string[]>("cmd_list_remotes", { workspaceId });
 }
 
+export function deleteRemoteBranch(
+  workspaceId: string,
+  remote: string,
+  branch: string,
+): Promise<void> {
+  return invoke<void>("cmd_delete_remote_branch", { workspaceId, remote, branch });
+}
+
 export function pushRemote(workspaceId: string, remote?: string): Promise<void> {
   return invoke<void>("cmd_push", { workspaceId, remote: remote ?? null });
 }

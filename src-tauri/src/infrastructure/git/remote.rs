@@ -128,6 +128,30 @@ pub fn list_remotes(repo: &Repository) -> Result<Vec<String>> {
     Ok(remotes.iter().flatten().map(str::to_string).collect())
 }
 
+/// Delete `branch_name` on `remote_name` by pushing a bare refspec, then
+/// prune the stale local remote-tracking ref (best effort).
+pub fn delete_remote_branch(repo: &Repository, remote_name: &str, branch_name: &str) -> Result<()> {
+    let url = remote_url(repo, remote_name)?;
+    let creds = provider_for_url(&url);
+    let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
+    let refspec = format!(":refs/heads/{branch_name}");
+    let mut po = PushOptions::new();
+    let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, None);
+    po.remote_callbacks(cb);
+    remote
+        .push(&[refspec.as_str()], Some(&mut po))
+        .map_err(|e| match e.code() {
+            git2::ErrorCode::Auth => AppError::Credential(format!("push auth: {e}")),
+            _ => AppError::Network(format!("delete remote branch failed: {e}")),
+        })?;
+    if let Ok(mut tracking) =
+        repo.find_reference(&format!("refs/remotes/{remote_name}/{branch_name}"))
+    {
+        let _ = tracking.delete();
+    }
+    Ok(())
+}
+
 /// Options controlling [`pull_with_options`].
 #[derive(Debug, Clone, Default)]
 pub struct PullOptions {

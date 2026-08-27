@@ -45,8 +45,9 @@ use crate::infrastructure::git::interactive_rebase::{
 use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::remote::{
-    fetch as infra_fetch, list_remotes as infra_list_remotes,
-    pull_with_options as infra_pull_with_options, push as infra_push, PullOptions, SyncProgress,
+    delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
+    list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
+    push as infra_push, PullOptions, SyncProgress,
 };
 use crate::infrastructure::git::stash::{
     apply_stash as infra_apply_stash, drop_stash as infra_drop_stash,
@@ -551,6 +552,18 @@ pub fn delete_branch(ctx: &AppContext, workspace_id: &str, name: &str) -> Result
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_delete_branch(&repo, name)
+}
+
+/// Delete `branch` on `remote` (push a bare refspec to the remote).
+pub fn delete_remote_branch(
+    ctx: &AppContext,
+    workspace_id: &str,
+    remote: &str,
+    branch: &str,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_delete_remote_branch(&repo, remote, branch)
 }
 
 /// Check out a branch (updates HEAD and working tree).
