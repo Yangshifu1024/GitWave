@@ -1,4 +1,4 @@
-import { type ReactNode, createContext, useCallback, useContext, useRef, useState } from "react";
+import { type ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface SplitContextValue {
@@ -19,6 +19,10 @@ interface PaneProps {
   maxSize?: number;
   /** When true, the pane absorbs leftover space (history canvas). */
   grow?: boolean;
+  /** Collapse to zero width/height (e.g. inspector maximize hides history). */
+  collapsed?: boolean;
+  /** Take all remaining space when not using grow. */
+  expanded?: boolean;
   children: ReactNode;
   className?: string;
 }
@@ -36,6 +40,20 @@ function generateId(): string {
   return `pane-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function applyGrowPaneLayout(growPane: HTMLDivElement): void {
+  growPane.style.flexGrow = "1";
+  growPane.style.flexBasis = "0";
+  growPane.style.flexShrink = "1";
+  growPane.style.minWidth = "";
+  growPane.style.maxWidth = "";
+}
+
+function applyFixedPaneLayout(pane: HTMLDivElement, size: number): void {
+  pane.style.flexBasis = `${size}px`;
+  pane.style.flexGrow = "0";
+  pane.style.flexShrink = "0";
+}
+
 /**
  * Horizontal or vertical Split container.
  * Contains Pane and ResizeHandle children.
@@ -44,6 +62,28 @@ export function Split({ direction = "horizontal", children }: SplitProps): React
   const [isDragging, setIsDragging] = useState(false);
   const [activeHandleId, setActiveHandleId] = useState<string | null>(null);
   const handleIdRef = useRef<string | null>(null);
+  const splitRef = useRef<HTMLDivElement>(null);
+
+  // Keep the grow pane absorbing free space after window resize / maximize.
+  useEffect(() => {
+    const splitEl = splitRef.current;
+    if (!splitEl) return;
+
+    const syncGrowPane = () => {
+      const growPane = splitEl.querySelector<HTMLDivElement>('[data-pane-grow="true"]');
+      if (!growPane || growPane.dataset.paneCollapsed === "true") return;
+      applyGrowPaneLayout(growPane);
+    };
+
+    syncGrowPane();
+    const observer = new ResizeObserver(syncGrowPane);
+    observer.observe(splitEl);
+    window.addEventListener("resize", syncGrowPane);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", syncGrowPane);
+    };
+  }, []);
 
   const registerHandle = useCallback((id: string) => {
     handleIdRef.current = id;
@@ -75,6 +115,7 @@ export function Split({ direction = "horizontal", children }: SplitProps): React
       }}
     >
       <div
+        ref={splitRef}
         className={cn("flex h-full w-full", direction === "vertical" && "flex-col")}
         data-split-direction={direction}
       >
@@ -92,6 +133,8 @@ export function Pane({
   minSize = 100,
   maxSize = Infinity,
   grow = false,
+  collapsed = false,
+  expanded = false,
   children,
   className,
 }: PaneProps): React.JSX.Element {
@@ -106,8 +149,20 @@ export function Pane({
       data-pane-initial={flexBasis}
       data-pane-min={minSize}
       data-pane-max={Number.isFinite(maxSize) ? maxSize : undefined}
-      className={cn("overflow-hidden min-w-0 min-h-0 h-full", className)}
-      style={{ flexBasis: grow ? 0 : flexBasis, flexGrow: grow ? 1 : 0, flexShrink: 1 }}
+      data-pane-grow={grow ? "true" : undefined}
+      data-pane-collapsed={collapsed ? "true" : undefined}
+      className={cn(
+        "overflow-hidden min-w-0 min-h-0 h-full transition-[box-shadow,opacity] duration-200 ease-out",
+        collapsed && "opacity-0 pointer-events-none !min-w-0 !max-w-0",
+        className,
+      )}
+      style={{
+        flexBasis: collapsed ? 0 : grow ? 0 : flexBasis,
+        flexGrow: collapsed ? 0 : expanded || grow ? 1 : 0,
+        flexShrink: collapsed ? 0 : 1,
+        minWidth: collapsed ? 0 : undefined,
+        maxWidth: collapsed ? 0 : undefined,
+      }}
     >
       {children}
     </div>
@@ -148,7 +203,28 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         const delta = isHorizontal ? moveEvent.clientX - startX : moveEvent.clientY - startY;
-        // Grow/shrink the pair together so free space is never left empty (grow:0 trap).
+        const prevIsGrow = prevEl.dataset.paneGrow === "true";
+        const nextIsGrow = nextEl.dataset.paneGrow === "true";
+
+        if (prevIsGrow && !nextIsGrow) {
+          // History | Inspector — only inspector keeps a fixed width; history grows.
+          let nextSize = nextStart - delta;
+          nextSize = Math.max(nextMin, Math.min(nextMax, nextSize));
+          applyFixedPaneLayout(nextEl, nextSize);
+          applyGrowPaneLayout(prevEl);
+          return;
+        }
+
+        if (!prevIsGrow && nextIsGrow) {
+          // Sidebar | History — only sidebar keeps a fixed width; history grows.
+          let prevSize = prevStart + delta;
+          prevSize = Math.max(prevMin, Math.min(prevMax, prevSize));
+          applyFixedPaneLayout(prevEl, prevSize);
+          applyGrowPaneLayout(nextEl);
+          return;
+        }
+
+        // Fallback: resize both panes (no grow pane in this pair).
         let prevSize = prevStart + delta;
         let nextSize = nextStart - delta;
         prevSize = Math.max(prevMin, Math.min(prevMax, prevSize));
@@ -162,12 +238,8 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
         }
         prevSize = Math.max(prevMin, Math.min(prevMax, prevSize));
 
-        prevEl.style.flexBasis = `${prevSize}px`;
-        nextEl.style.flexBasis = `${nextSize}px`;
-        prevEl.style.flexShrink = "0";
-        nextEl.style.flexShrink = "0";
-        prevEl.style.flexGrow = "0";
-        nextEl.style.flexGrow = "0";
+        applyFixedPaneLayout(prevEl, prevSize);
+        applyFixedPaneLayout(nextEl, nextSize);
       };
 
       const onMouseUp = () => {
@@ -189,10 +261,14 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
   const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const resetPane = (el: Element | null) => {
       if (!(el instanceof HTMLDivElement) || !el.dataset.paneId) return;
+      if (el.dataset.paneGrow === "true") {
+        applyGrowPaneLayout(el);
+        return;
+      }
       const initial = el.dataset.paneInitial;
       if (!initial) return;
       el.style.flexBasis = initial;
-      el.style.flexShrink = "1";
+      el.style.flexShrink = "0";
       el.style.flexGrow = "0";
     };
     resetPane(e.currentTarget.previousElementSibling);

@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, EyeOff, FolderOpen, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/ContextMenu";
 import { FileListItem } from "@/components/ui/FileListItem";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +19,7 @@ import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { formatAppError, generateCommitMessage, getWorkspace, type FileChange } from "@/lib/api";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
+import { deriveIgnorePatterns } from "@/lib/ignorePattern";
 import { modifierFromPointerEvent, nextFileSelection } from "@/lib/fileSelection";
 
 export interface ChangesPanelProps {
@@ -34,6 +43,8 @@ function FileSection({
   onStageToggle,
   onBulkAction,
   onAllAction,
+  onDiscardFile,
+  onIgnoreFile,
   layout,
 }: {
   title: string;
@@ -48,6 +59,9 @@ function FileSection({
   onStageToggle: (file: FileChange) => void;
   onBulkAction: (paths: string[]) => void;
   onAllAction?: () => void;
+  /** Present to enable the per-file context menu (unstaged section only). */
+  onDiscardFile?: (file: FileChange) => void;
+  onIgnoreFile?: (file: FileChange) => void;
   layout: "stacked" | "bar";
 }): React.JSX.Element {
   const bar = layout === "bar";
@@ -87,7 +101,9 @@ function FileSection({
     <div
       className={cn(
         "flex flex-col min-h-0",
-        bar ? "flex-1 min-w-0 border-r border-border-subtle last:border-r-0" : "border-b border-border-subtle",
+        bar
+          ? "flex-1 min-w-0 border-r border-border-subtle last:border-r-0"
+          : "border-b border-border-subtle",
         !bar && open ? "flex-1" : !bar ? "shrink-0" : undefined,
       )}
       onKeyDown={(event) => {
@@ -111,7 +127,7 @@ function FileSection({
               "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
               "text-xs font-medium text-text-muted uppercase tracking-wide",
               "hover:bg-bg-primary/60 hover:text-text-secondary",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+              "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
             )}
           >
             {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -159,18 +175,63 @@ function FileSection({
           {files.length === 0 ? (
             <p className="px-2 py-1 text-xs text-text-muted italic">{emptyLabel}</p>
           ) : (
-            files.map((file) => (
-              <FileListItem
-                key={`${file.staged ? "s" : "u"}-${file.path}`}
-                change={file}
-                selected={
-                  selected.has(file.path) ||
-                  (selectedPath === file.path && selectedStaged === file.staged)
-                }
-                onClick={(event) => handleFileClick(file.path, event)}
-                onStageToggle={() => onStageToggle(file)}
-              />
-            ))
+            files.map((file) => {
+              const key = `${file.staged ? "s" : "u"}-${file.path}`;
+              const row = (
+                <FileListItem
+                  change={file}
+                  selected={
+                    selected.has(file.path) ||
+                    (selectedPath === file.path && selectedStaged === file.staged)
+                  }
+                  onClick={(event) => handleFileClick(file.path, event)}
+                  onStageToggle={() => onStageToggle(file)}
+                />
+              );
+              if (!onDiscardFile && !onIgnoreFile) return row;
+
+              const canDiscard = file.kind !== "renamed";
+              const canIgnore = file.kind === "untracked" && file.path !== ".gitignore";
+              const ignoreDisabledReason =
+                file.path === ".gitignore"
+                  ? "Ignoring .gitignore itself is not allowed"
+                  : "Only untracked files can be ignored";
+              return (
+                <ContextMenu key={key}>
+                  {/* Radix asChild clones this plain <div> to attach the
+                      context-menu trigger props; wrapping FileListItem
+                      directly would drop them (custom component contract). */}
+                  <ContextMenuTrigger asChild>
+                    <div role="presentation">{row}</div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="max-w-[260px]">
+                    <ContextMenuLabel title={file.path}>{file.path}</ContextMenuLabel>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      destructive
+                      disabled={!canDiscard}
+                      title={canDiscard ? undefined : "Renamed files cannot be discarded yet"}
+                      onSelect={() => file.kind !== "renamed" && onDiscardFile?.(file)}
+                    >
+                      <Trash2 size={14} />
+                      Discard changes…
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      disabled={!canIgnore}
+                      title={canIgnore ? undefined : ignoreDisabledReason}
+                      onSelect={() =>
+                        file.kind === "untracked" &&
+                        file.path !== ".gitignore" &&
+                        onIgnoreFile?.(file)
+                      }
+                    >
+                      <EyeOff size={14} />
+                      Add to .gitignore…
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              );
+            })
           )}
         </div>
       ) : null}
@@ -197,6 +258,8 @@ export function ChangesPanel({
     stagedFiles,
     stage,
     unstage,
+    discard,
+    ignore,
     commitMessage,
     commitPending,
   } = useWorkingCopy();
@@ -204,6 +267,11 @@ export function ChangesPanel({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPromptOpen, setAiPromptOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  /** Context-menu action awaiting confirmation (destructive ops only). */
+  const [pendingAction, setPendingAction] = useState<{
+    type: "discard" | "ignore";
+    file: FileChange;
+  } | null>(null);
 
   const { data: workspace } = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -286,7 +354,12 @@ export function ChangesPanel({
     (isError ? (error ? formatAppError(error) : "Failed to load working copy") : null);
 
   const commitBox = (
-    <div className={cn("shrink-0", bar ? "flex flex-col min-h-0 p-2" : "border-t border-border-subtle p-3")}>
+    <div
+      className={cn(
+        "shrink-0",
+        bar ? "flex flex-col min-h-0 p-2" : "border-t border-border-subtle p-3",
+      )}
+    >
       <CommitMessageBox
         value={message}
         onChange={setMessage}
@@ -304,7 +377,13 @@ export function ChangesPanel({
   if (isLoading && unstagedFiles.length === 0 && stagedFiles.length === 0) {
     return (
       <div className={cn("flex flex-col h-full min-h-0", bar && "grid grid-cols-[1fr_1fr_280px]")}>
-        <div className={cn(bar ? "col-span-2 flex items-center justify-center" : "flex-1 flex items-center justify-center")}>
+        <div
+          className={cn(
+            bar
+              ? "col-span-2 flex items-center justify-center"
+              : "flex-1 flex items-center justify-center",
+          )}
+        >
           <span className="text-xs text-text-muted italic">Loading…</span>
         </div>
         {commitBox}
@@ -328,6 +407,8 @@ export function ChangesPanel({
       onStageToggle={(file) => stage([file.path])}
       onBulkAction={(paths) => stage(paths)}
       onAllAction={() => stage(unstagedFiles.map((file) => file.path))}
+      onDiscardFile={(file) => setPendingAction({ type: "discard", file })}
+      onIgnoreFile={(file) => setPendingAction({ type: "ignore", file })}
       layout={layout}
     />
   );
@@ -348,15 +429,134 @@ export function ChangesPanel({
     />
   );
 
+  const closePending = (): void => setPendingAction(null);
+
+  const confirmDialogs =
+    pendingAction?.type === "discard" ? (
+      <DiscardConfirmModal
+        file={pendingAction.file}
+        onCancel={closePending}
+        onConfirm={() => {
+          discard([pendingAction.file.path]);
+          closePending();
+        }}
+      />
+    ) : pendingAction?.type === "ignore" ? (
+      <IgnoreScopeModal
+        file={pendingAction.file}
+        onCancel={closePending}
+        onAdd={(pattern) => {
+          ignore(pattern);
+          closePending();
+        }}
+      />
+    ) : null;
+
   return (
     <div className={cn("flex flex-col h-full min-h-0", bar && "grid grid-cols-[1fr_1fr_280px]")}>
       {unstagedSection}
       {stagedSection}
       {commitBox}
       {aiDialogs}
+      {confirmDialogs}
       <div className={bar ? "col-span-3" : undefined}>
         <ErrorAlert message={wcAlert} onDismiss={() => setActionError(null)} />
       </div>
     </div>
+  );
+}
+
+/** Confirmation for the destructive discard of one unstaged file. */
+function DiscardConfirmModal({
+  file,
+  onCancel,
+  onConfirm,
+}: {
+  file: FileChange;
+  onCancel: () => void;
+  onConfirm: () => void;
+}): React.JSX.Element {
+  const untracked = file.kind === "untracked";
+  const description = untracked
+    ? `"${file.path}" is not tracked by git — discarding deletes the file from disk permanently.`
+    : `Uncommitted changes in "${file.path}" will be restored to the last staged version. This cannot be undone.`;
+
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title={`Discard changes in "${file.path}"?`}
+      description={description}
+      size="sm"
+    >
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="danger" size="sm" onClick={onConfirm}>
+          {untracked ? "Delete file" : "Discard"}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/** Lets the user pick what to append to `.gitignore` for an untracked file. */
+function IgnoreScopeModal({
+  file,
+  onCancel,
+  onAdd,
+}: {
+  file: FileChange;
+  onCancel: () => void;
+  onAdd: (pattern: string) => void;
+}): React.JSX.Element {
+  const patterns = deriveIgnorePatterns(file.path);
+  const options = [
+    { value: patterns.full, label: "File path" },
+    ...(patterns.dir ? [{ value: patterns.dir, label: "Directory" }] : []),
+    ...(patterns.ext ? [{ value: patterns.ext, label: "Extension" }] : []),
+  ];
+  const [choice, setChoice] = useState(patterns.full);
+
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title="Add to .gitignore"
+      description={`Appends the chosen pattern to the repo-root .gitignore (shared with collaborators). The file stays on disk but leaves the change list if untracked.`}
+      size="sm"
+    >
+      <div role="radiogroup" aria-label="Ignore scope" className="flex flex-col gap-1">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={choice === option.value}
+            onClick={() => setChoice(option.value)}
+            className={cn(
+              "flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors",
+              choice === option.value
+                ? "border-accent bg-accent/5 ring-accent/30 ring-1"
+                : "border-border-default hover:border-border-strong",
+            )}
+          >
+            <span className="shrink-0 text-sm text-text-primary">{option.label}</span>
+            <code className="min-w-0 truncate font-mono text-xs text-text-secondary">
+              {option.value}
+            </code>
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => onAdd(choice)}>
+          Add
+        </Button>
+      </div>
+    </Modal>
   );
 }

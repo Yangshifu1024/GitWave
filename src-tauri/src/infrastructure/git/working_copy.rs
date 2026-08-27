@@ -233,6 +233,101 @@ pub fn commit(repo: &Repository, message: &str) -> Result<String> {
     Ok(oid.to_string())
 }
 
+/// Discard unstaged worktree changes for `paths` (≡ `git restore <path>`).
+///
+/// Paths tracked in the index are restored from the index (covers modified
+/// and deleted-in-worktree files); untracked files are removed from disk.
+pub fn discard_worktree_changes(repo: &Repository, paths: &[String]) -> Result<()> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let mut index = repo.index().map_err(map_git_err)?;
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| AppError::Protocol("bare repository has no worktree".into()))?;
+
+    let mut tracked: Vec<String> = Vec::new();
+    for path in paths {
+        // Reject anything that could leave the worktree before libgit2 sees
+        // it: absolute paths replace the base in `PathBuf::join`, and both
+        // it and libgit2's own checks treat `..` differently.
+        if Path::new(path).is_absolute() || path.split(['/', '\\']).any(|seg| seg == "..") {
+            return Err(AppError::Protocol(format!("path escapes worktree: {path}")));
+        }
+        let abs = workdir.join(path);
+        if !abs.starts_with(workdir) {
+            return Err(AppError::Protocol(format!("path escapes worktree: {path}")));
+        }
+
+        let status = repo.status_file(Path::new(path)).map_err(map_git_err)?;
+        if status.contains(Status::CONFLICTED) {
+            // Stage 0 is absent during a conflict — deleting here would
+            // destroy one side of it.
+            return Err(AppError::Protocol(format!(
+                "resolve conflicts before discarding: {path}"
+            )));
+        }
+        if status.contains(Status::WT_NEW) {
+            match std::fs::remove_file(&abs) {
+                Ok(()) => {}
+                // Already gone — treat as discarded.
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(AppError::Unknown(format!("fs: {e}"))),
+            }
+        } else if !status.is_empty() {
+            tracked.push(path.clone());
+        }
+        // Empty status = clean at HEAD, nothing to discard.
+    }
+
+    if !tracked.is_empty() {
+        // Restore worktree copies from the index without touching it.
+        let mut opts = git2::build::CheckoutBuilder::new();
+        opts.force()
+            .update_index(false)
+            .disable_pathspec_match(true);
+        for path in &tracked {
+            opts.path(path.as_str());
+        }
+        repo.checkout_index(Some(&mut index), Some(&mut opts))
+            .map_err(map_git_err)?;
+    }
+    Ok(())
+}
+
+/// Append `pattern` to the repo-root `.gitignore`. Idempotent per line.
+/// Note: `.gitignore` only affects untracked paths (standard Git behavior).
+pub fn ignore_path(repo: &Repository, pattern: &str) -> Result<()> {
+    if pattern.trim().is_empty() || pattern.contains('\n') {
+        return Err(AppError::Protocol("invalid ignore pattern".into()));
+    }
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| AppError::Protocol("bare repository has no worktree".into()))?;
+    let gitignore = workdir.join(".gitignore");
+    // Missing file is the normal first-run case — treat as empty. Any other
+    // read error (e.g. non-UTF-8 bytes) must abort rather than overwrite the
+    // user's existing rules with an almost-empty file below.
+    let existing = match std::fs::read_to_string(&gitignore) {
+        Ok(content) => content,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(AppError::Unknown(format!("fs: read .gitignore: {e}"))),
+    };
+
+    if existing.lines().any(|line| line == pattern) {
+        return Ok(());
+    }
+    let mut next = existing;
+    if !next.is_empty() && !next.ends_with('\n') {
+        next.push('\n');
+    }
+    next.push_str(pattern);
+    next.push('\n');
+    std::fs::write(&gitignore, next)
+        .map_err(|e| AppError::Unknown(format!("fs: write .gitignore: {e}")))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,5 +395,95 @@ mod tests {
             "expected unstaged after unstage: {:?}",
             wc.files
         );
+    }
+
+    #[test]
+    fn discard_restores_modified_file_from_index() {
+        let (path, repo) = build_linear_repo(2);
+        fs::write(path.join("file1.txt"), "hacked\n").unwrap();
+
+        discard_worktree_changes(&repo, &["file1.txt".into()]).unwrap();
+
+        let restored = fs::read_to_string(path.join("file1.txt")).unwrap();
+        let wc = status(&repo, "r-1").unwrap();
+        cleanup(&path);
+        assert_eq!(restored, "v1\n", "worktree should match index content");
+        assert!(
+            !wc.files.iter().any(|f| f.path == "file1.txt" && !f.staged),
+            "no unstaged entry expected after discard: {:?}",
+            wc.files
+        );
+    }
+
+    #[test]
+    fn discard_removes_untracked_file() {
+        let (path, repo) = build_linear_repo(1);
+        fs::write(path.join("fresh.txt"), "x\n").unwrap();
+
+        discard_worktree_changes(&repo, &["fresh.txt".into()]).unwrap();
+
+        let gone = !path.join("fresh.txt").exists();
+        let wc = status(&repo, "r-1").unwrap();
+        cleanup(&path);
+        assert!(gone, "untracked file should be deleted");
+        assert!(!wc.files.iter().any(|f| f.path == "fresh.txt"));
+    }
+
+    #[test]
+    fn discard_restores_deleted_worktree_file() {
+        let (path, repo) = build_linear_repo(1);
+        fs::remove_file(path.join("file0.txt")).unwrap();
+        assert!(!path.join("file0.txt").exists());
+
+        discard_worktree_changes(&repo, &["file0.txt".into()]).unwrap();
+
+        let restored = fs::read_to_string(path.join("file0.txt")).unwrap();
+        cleanup(&path);
+        assert_eq!(restored, "v0\n", "deleted file should be recreated");
+    }
+
+    #[test]
+    fn ignore_appends_pattern_and_hides_path_from_status() {
+        let (path, repo) = build_linear_repo(1);
+        fs::write(path.join("gen.tmp"), "junk\n").unwrap();
+
+        ignore_path(&repo, "*.tmp").unwrap();
+        ignore_path(&repo, "*.tmp").unwrap(); // idempotent
+
+        let gitignore = fs::read_to_string(path.join(".gitignore")).unwrap();
+        let wc = status(&repo, "r-1").unwrap();
+        cleanup(&path);
+        assert_eq!(gitignore.lines().filter(|l| *l == "*.tmp").count(), 1);
+        assert!(!wc.files.iter().any(|f| f.path == "gen.tmp"));
+    }
+
+    #[test]
+    fn discard_restores_partial_staged_state_from_index() {
+        let (path, repo) = build_linear_repo(2); // file1.txt = "v1\n" at HEAD
+        fs::write(path.join("file1.txt"), "v2\n").unwrap();
+        stage_paths(&repo, &["file1.txt".into()]).unwrap();
+        fs::write(path.join("file1.txt"), "v3\n").unwrap();
+
+        discard_worktree_changes(&repo, &["file1.txt".into()]).unwrap();
+
+        let restored = fs::read_to_string(path.join("file1.txt")).unwrap();
+        let wc = status(&repo, "r-1").unwrap();
+        cleanup(&path);
+        assert_eq!(restored, "v2\n", "discard restores the staged version");
+        assert!(
+            wc.files.iter().any(|f| f.path == "file1.txt" && f.staged),
+            "staged v2 entry must survive discard: {:?}",
+            wc.files
+        );
+    }
+
+    #[test]
+    fn discard_rejects_paths_outside_worktree() {
+        let (path, repo) = build_linear_repo(1);
+
+        let err = discard_worktree_changes(&repo, &["../outside.txt".into()])
+            .expect_err("path escaping worktree must be rejected");
+        cleanup(&path);
+        assert_eq!(err.category(), "Protocol");
     }
 }

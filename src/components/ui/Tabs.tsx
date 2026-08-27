@@ -32,7 +32,7 @@ export const TabsTrigger = forwardRef<
       "border-b-2 border-transparent -mb-px",
       "transition-colors duration-200",
       "hover:text-text-primary",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
+      "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
       "data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent",
       "disabled:pointer-events-none disabled:opacity-50",
       className,

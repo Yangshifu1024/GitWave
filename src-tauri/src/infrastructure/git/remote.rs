@@ -1,6 +1,6 @@
 //! Fetch / push / pull against a named remote (default `origin`).
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use git2::{AutotagOption, BranchType, FetchOptions, PushOptions, Repository};
 
@@ -8,6 +8,23 @@ use crate::domain::error::{AppError, Result};
 use crate::infrastructure::git::credentials::{
     CredentialProvider, GitCredentialHelper, SshAgentCredential,
 };
+
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SyncOperation {
+    Fetch,
+    Pull,
+    Push,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncProgress {
+    pub operation: SyncOperation,
+    pub received_objects: u64,
+    pub total_objects: u64,
+    pub received_bytes: u64,
+}
 
 fn map_git_err(e: git2::Error) -> AppError {
     match e.code() {
@@ -32,13 +49,41 @@ fn remote_url(repo: &Repository, remote_name: &str) -> Result<String> {
         .ok_or_else(|| AppError::Protocol(format!("remote '{remote_name}' has no URL")))
 }
 
+fn attach_transfer_progress(
+    mut callbacks: git2::RemoteCallbacks<'_>,
+    operation: SyncOperation,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+) -> git2::RemoteCallbacks<'_> {
+    if let Some(progress) = on_progress {
+        let progress = Mutex::new(progress);
+        callbacks.transfer_progress(move |stats| {
+            if let Ok(guard) = progress.lock() {
+                guard(SyncProgress {
+                    operation,
+                    received_objects: stats.received_objects() as u64,
+                    total_objects: stats.total_objects() as u64,
+                    received_bytes: stats.received_bytes() as u64,
+                });
+            }
+            true
+        });
+    }
+    callbacks
+}
+
 /// Fetch from `remote_name` (typically `origin`). Does not update the working tree.
-pub fn fetch(repo: &Repository, remote_name: &str) -> Result<()> {
+pub fn fetch(
+    repo: &Repository,
+    remote_name: &str,
+    operation: SyncOperation,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
     let creds = provider_for_url(&url);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let mut fo = FetchOptions::new();
-    fo.remote_callbacks(creds.callbacks());
+    let cb = attach_transfer_progress(creds.callbacks(), operation, on_progress);
+    fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
     remote
         .fetch(&[] as &[&str], Some(&mut fo), None)
@@ -50,7 +95,11 @@ pub fn fetch(repo: &Repository, remote_name: &str) -> Result<()> {
 }
 
 /// Push the current branch to `remote_name` under the same branch name.
-pub fn push(repo: &Repository, remote_name: &str) -> Result<()> {
+pub fn push(
+    repo: &Repository,
+    remote_name: &str,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
     let creds = provider_for_url(&url);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
@@ -62,7 +111,8 @@ pub fn push(repo: &Repository, remote_name: &str) -> Result<()> {
     let refspec = format!("refs/heads/{branch}:refs/heads/{branch}");
 
     let mut po = PushOptions::new();
-    po.remote_callbacks(creds.callbacks());
+    let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, on_progress);
+    po.remote_callbacks(cb);
     remote
         .push(&[refspec.as_str()], Some(&mut po))
         .map_err(|e| match e.code() {
@@ -74,8 +124,12 @@ pub fn push(repo: &Repository, remote_name: &str) -> Result<()> {
 
 /// Fetch then fast-forward the current branch onto its upstream tip.
 /// Divergent histories return `VersionConflict` (use Merge UI instead).
-pub fn pull(repo: &Repository, remote_name: &str) -> Result<()> {
-    fetch(repo, remote_name)?;
+pub fn pull(
+    repo: &Repository,
+    remote_name: &str,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+) -> Result<()> {
+    fetch(repo, remote_name, SyncOperation::Pull, on_progress)?;
 
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
@@ -144,7 +198,7 @@ mod tests {
     #[test]
     fn fetch_missing_remote_errors() {
         let (path, repo) = build_linear_repo(1);
-        let err = fetch(&repo, "origin").expect_err("no origin");
+        let err = fetch(&repo, "origin", SyncOperation::Fetch, None).expect_err("no origin");
         let _ = fs::remove_dir_all(&path);
         assert_eq!(err.category(), "Unknown");
     }

@@ -158,7 +158,7 @@ toast({ title: "Clone failed", description: error.message, variant: "danger" });
 
 ```tsx
 <Split direction="horizontal">
-  <Pane initialSize={240} minSize={180} maxSize={360}>...sidebar</Pane>
+  <Pane initialSize={320} minSize={320} maxSize={480}>...sidebar</Pane>
   <ResizeHandle />
   <Pane initialSize={280} minSize={200} maxSize={400}>...nav</Pane>
   <ResizeHandle />
@@ -469,7 +469,24 @@ BRANCHES   Pull↓3  Push↑2  +
 
 10px 文字链，与 section `+` 并列。`↑N` 绿 / `↓N` 橙。disabled 时 `opacity: 0.35`。
 
-### 3.6 WorkingCopyBar
+实现：`SectionAction` + `FetchButton` + `BranchSyncButtons`（`src/components/ui/SectionAction.tsx`）。
+
+### 3.6 SyncProgressBar
+
+**目的**：Fetch / Pull / Push 期间在 Toolbar 底边显示全局进度反馈。
+
+**API**：
+
+```tsx
+// 挂入 Toolbar，读 Zustand syncStore
+<SyncProgressBar />
+```
+
+**状态**：`useRemoteSync()` mutation 触发 `syncStore.startOp`；Tauri `sync-progress` 事件更新 `receivedObjects` / `totalObjects`。
+
+**样式**：2px `bg-accent`；determinate 宽度或 indeterminate shimmer（`.sync-progress-indeterminate`）。
+
+### 3.7 WorkingCopyBar
 
 **目的**：底部复合组件，聚合 BranchIndicator + Unstaged/Staged 列表 + CommitMessageBox + 全局操作。
 

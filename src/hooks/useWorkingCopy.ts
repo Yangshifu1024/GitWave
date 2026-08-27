@@ -2,17 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   commit,
-  fetchRemote,
+  discardChanges,
   formatAppError,
   getWorkingCopy,
-  pullRemote,
-  pushRemote,
+  ignorePath,
   stageFiles,
   unstageFiles,
   type FileChange,
   type WorkingCopy,
 } from "@/lib/api";
 import { partitionFileChanges } from "@/lib/diff";
+import { useRemoteSync } from "@/hooks/useRemoteSync";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 export interface UseWorkingCopyResult {
@@ -29,12 +29,17 @@ export interface UseWorkingCopyResult {
   isDirty: boolean;
   stage: (paths: string[]) => void;
   unstage: (paths: string[]) => void;
+  /** Discard unstaged worktree changes (destructive; caller confirms first). */
+  discard: (paths: string[]) => void;
+  /** Append a pattern to the repo-root `.gitignore`. */
+  ignore: (pattern: string) => void;
   commitMessage: (message: string, options?: { onSuccess?: () => void }) => void;
   fetch: () => void;
   pull: () => void;
   push: () => void;
   commitPending: boolean;
   syncPending: { fetch: boolean; pull: boolean; push: boolean };
+  isSyncBusy: boolean;
 }
 
 export function useWorkingCopy(): UseWorkingCopyResult {
@@ -43,6 +48,8 @@ export function useWorkingCopy(): UseWorkingCopyResult {
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const remoteSync = useRemoteSync((message) => setActionError(message));
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["working-copy", workspaceId, repoId],
@@ -73,41 +80,30 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     onError: (e) => setActionError(formatAppError(e)),
   });
 
+  const discardMut = useMutation({
+    mutationFn: (paths: string[]) => discardChanges(workspaceId!, paths),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (e) => setActionError(formatAppError(e)),
+  });
+
+  const ignoreMut = useMutation({
+    mutationFn: (pattern: string) => ignorePath(workspaceId!, pattern),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (e) => setActionError(formatAppError(e)),
+  });
+
   const commitMut = useMutation({
     mutationFn: (msg: string) => commit(workspaceId!, msg),
     onSuccess: () => {
       setActionError(null);
       invalidate();
       bumpHistory();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const fetchMut = useMutation({
-    mutationFn: () => fetchRemote(workspaceId!),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-      bumpHistory();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const pullMut = useMutation({
-    mutationFn: () => pullRemote(workspaceId!),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-      bumpHistory();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const pushMut = useMutation({
-    mutationFn: () => pushRemote(workspaceId!),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
     },
     onError: (e) => setActionError(formatAppError(e)),
   });
@@ -128,15 +124,15 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     isDirty: unstaged.length > 0 || staged.length > 0,
     stage: (paths) => stageMut.mutate(paths),
     unstage: (paths) => unstageMut.mutate(paths),
-    commitMessage: (message, options) => commitMut.mutate(message, { onSuccess: options?.onSuccess }),
-    fetch: () => fetchMut.mutate(),
-    pull: () => pullMut.mutate(),
-    push: () => pushMut.mutate(),
+    discard: (paths) => discardMut.mutate(paths),
+    ignore: (pattern) => ignoreMut.mutate(pattern),
+    commitMessage: (message, options) =>
+      commitMut.mutate(message, { onSuccess: options?.onSuccess }),
+    fetch: remoteSync.fetch,
+    pull: remoteSync.pull,
+    push: remoteSync.push,
     commitPending: commitMut.isPending,
-    syncPending: {
-      fetch: fetchMut.isPending,
-      pull: pullMut.isPending,
-      push: pushMut.isPending,
-    },
+    syncPending: remoteSync.syncPending,
+    isSyncBusy: remoteSync.isSyncBusy,
   };
 }

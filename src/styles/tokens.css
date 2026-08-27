@@ -1,40 +1,48 @@
 /* GitWave design tokens — see docs/design/01-tokens.md
  *
  * Tailwind v4 CSS-first config: define design tokens via @theme block,
- * generate utilities from them. Light theme is the default; dark variants
- * apply via `<html class="dark">` (system theme follows via
- * `prefers-color-scheme`).
+ * generate utilities from them. Two color palettes share the neutral
+ * semantic colors and differ in chrome + accent:
+ *
+ *   native-blue (default) — macOS system-chrome look, systemBlue accent
+ *   tide                  — GitWave's teal signature, selected via
+ *                           `<html data-palette="tide">`
+ *
+ * Dark variants apply via `<html class="dark">`; system theme follows via
+ * `prefers-color-scheme`. Palette overrides must therefore come after the
+ * dark blocks with higher-specificity compound selectors.
  */
 
 @import "tailwindcss";
 
-/* ─── Light theme (default) ──────────────────────────────────────────── */
+/* ─── Light theme · Native Blue (default palette) ─────────────────────── */
 
 @theme {
   /* colors */
-  --color-bg-primary: #f4f6f8;
-  --color-bg-secondary: #e6ebef;
-  --color-bg-elevated: #eef1f4;
-  --color-bg-overlay: rgb(27 34 40 / 0.4);
-  --color-text-primary: #1b2228;
-  --color-text-secondary: #4a5560;
-  --color-text-muted: #7a8692;
+  --color-bg-primary: #ececec;
+  --color-bg-secondary: #dfdfdf;
+  --color-bg-elevated: #f4f4f5;
+  --color-bg-overlay: rgb(0 0 0 / 0.38);
+  --color-text-primary: #1b1b1d;
+  --color-text-secondary: #55555b;
+  --color-text-muted: #85858b;
   --color-text-inverse: #ffffff;
-  --color-border-subtle: #d5dce2;
-  --color-border-default: #c5cdd4;
-  --color-border-strong: #9aa4ae;
-  --color-scrollbar-thumb: #b4bec6;
-  --color-scrollbar-track: #e6ebef;
-  --color-accent: #1a8f8a;
-  --color-accent-hover: #157873;
+  --color-border-subtle: #dbdbdd;
+  --color-border-default: #cbcbcf;
+  --color-border-strong: #a9a9ae;
+  --color-scrollbar-thumb: #b9b9bd;
+  --color-accent: #007aff;
+  --color-accent-hover: #0068d9;
+
+  /* Shared semantic colors — identical across palettes (see 06-color-palettes.md) */
   --color-success: #2f9e6b;
   --color-warning: #c47a1a;
   --color-danger: #d64545;
   --color-info: #3d6b9a;
   --color-status-active: #2f9e6b;
   --color-status-missing: #d64545;
-  --color-branch-local: #1a8f8a;
-  --color-branch-current: #1a8f8a;
+  --color-branch-local: #007aff;
+  --color-branch-current: #007aff;
   --color-branch-remote: #7a8692;
   --color-branch-ahead: #2f9e6b;
   --color-branch-behind: #c47a1a;
@@ -72,14 +80,130 @@
   --duration-fast: 120ms;
 }
 
-/* ─── Dark theme (system + manual override) ──────────────────────────── */
+/* ─── Dark theme · Native Blue (system + manual override) ─────────────── */
 
 @layer base {
+  :root {
+    /* History graph lane colors (used via literal var() in SVG code, so they
+     * live outside @theme where Tailwind would prune them) — Apple system
+     * colors: blue / teal / indigo / purple / gray. */
+    --color-lane-1: #007aff;
+    --color-lane-2: #32ade6;
+    --color-lane-3: #5856d6;
+    --color-lane-4: #af52de;
+    --color-lane-5: #8e8e93;
+
+    /* Scrollbar track always follows the pane background it sits on. */
+    --color-scrollbar-track: var(--color-bg-secondary);
+  }
+
   :root.dark {
+    --color-bg-primary: #262628;
+    --color-bg-secondary: #202022;
+    --color-bg-elevated: #313134;
+    --color-bg-overlay: rgb(0 0 0 / 0.55);
+    --color-text-primary: #efeff1;
+    --color-text-secondary: #a8a8ad;
+    --color-text-muted: #78787e;
+    --color-text-inverse: #202022;
+    --color-border-subtle: #333336;
+    --color-border-default: #444448;
+    --color-border-strong: #5c5c61;
+    --color-scrollbar-thumb: #57575c;
+    --color-accent: #0a84ff;
+    --color-accent-hover: #409cff;
+    --color-success: #3ecf8e;
+    --color-warning: #e0a04a;
+    --color-danger: #e05a5a;
+    --color-info: #6b8fc4;
+    --color-status-active: #3ecf8e;
+    --color-status-missing: #e05a5a;
+    --color-branch-local: #0a84ff;
+    --color-branch-current: #0a84ff;
+    --color-branch-remote: #8b97a3;
+    --color-branch-ahead: #3ecf8e;
+    --color-branch-behind: #e0a04a;
+    --color-branch-conflict: #e05a5a;
+    --color-lane-1: #0a84ff;
+    --color-lane-2: #64d2ff;
+    --color-lane-3: #7d7aff;
+    --color-lane-4: #bf5af2;
+    --color-lane-5: #98989d;
+    --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
+    --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ─── System dark preference (when user has not set explicit theme) ── */
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) {
+      --color-bg-primary: #262628;
+      --color-bg-secondary: #202022;
+      --color-bg-elevated: #313134;
+      --color-bg-overlay: rgb(0 0 0 / 0.55);
+      --color-text-primary: #efeff1;
+      --color-text-secondary: #a8a8ad;
+      --color-text-muted: #78787e;
+      --color-text-inverse: #202022;
+      --color-border-subtle: #333336;
+      --color-border-default: #444448;
+      --color-border-strong: #5c5c61;
+      --color-scrollbar-thumb: #57575c;
+      --color-accent: #0a84ff;
+      --color-accent-hover: #409cff;
+      --color-success: #3ecf8e;
+      --color-warning: #e0a04a;
+      --color-danger: #e05a5a;
+      --color-info: #6b8fc4;
+      --color-status-active: #3ecf8e;
+      --color-status-missing: #e05a5a;
+      --color-branch-local: #0a84ff;
+      --color-branch-current: #0a84ff;
+      --color-branch-remote: #8b97a3;
+      --color-branch-ahead: #3ecf8e;
+      --color-branch-behind: #e0a04a;
+      --color-branch-conflict: #e05a5a;
+      --color-lane-1: #0a84ff;
+      --color-lane-2: #64d2ff;
+      --color-lane-3: #7d7aff;
+      --color-lane-4: #bf5af2;
+      --color-lane-5: #98989d;
+      --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
+      --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
+      --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  /* ─── Palette: Tide Studio (`<html data-palette="tide">`) ────────────── */
+
+  html[data-palette="tide"] {
+    --color-bg-primary: #f4f6f8;
+    --color-bg-secondary: #e6ebef;
+    --color-bg-elevated: #eef1f4;
+    --color-bg-overlay: rgb(27 34 40 / 0.4);
+    --color-text-primary: #1b2228;
+    --color-text-secondary: #4a5560;
+    --color-text-muted: #7a8692;
+    --color-border-subtle: #d5dce2;
+    --color-border-default: #c5cdd4;
+    --color-border-strong: #9aa4ae;
+    --color-scrollbar-thumb: #b4bec6;
+    --color-accent: #1a8f8a;
+    --color-accent-hover: #157873;
+    --color-branch-local: #1a8f8a;
+    --color-branch-current: #1a8f8a;
+    --color-lane-1: #1a8f8a;
+    --color-lane-2: #3d6b9a;
+    --color-lane-3: #4a5fa8;
+    --color-lane-4: #5b56a8;
+    --color-lane-5: #7a8692;
+  }
+
+  html.dark[data-palette="tide"] {
     --color-bg-primary: #161b20;
     --color-bg-secondary: #12161a;
     --color-bg-elevated: #1c2329;
-    --color-bg-overlay: rgb(0 0 0 / 0.55);
     --color-text-primary: #e8ecf0;
     --color-text-secondary: #b4bec8;
     --color-text-muted: #8b97a3;
@@ -88,70 +212,49 @@
     --color-border-default: #3a444e;
     --color-border-strong: #5a6570;
     --color-scrollbar-thumb: #5a6570;
-    --color-scrollbar-track: #12161a;
     --color-accent: #3ebab3;
     --color-accent-hover: #5ec9c2;
-    --color-success: #3ecf8e;
-    --color-warning: #e0a04a;
-    --color-danger: #e05a5a;
-    --color-info: #6b8fc4;
-    --color-status-active: #3ecf8e;
-    --color-status-missing: #e05a5a;
     --color-branch-local: #3ebab3;
     --color-branch-current: #3ebab3;
-    --color-branch-remote: #8b97a3;
-    --color-branch-ahead: #3ecf8e;
-    --color-branch-behind: #e0a04a;
-    --color-branch-conflict: #e05a5a;
-    --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
-    --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
-    --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
+    --color-lane-1: #3ebab3;
+    --color-lane-2: #6b8fc4;
+    --color-lane-3: #4a5fa8;
+    --color-lane-4: #5b56a8;
+    --color-lane-5: #8b97a3;
   }
-}
 
-/* ─── System dark preference (when user has not set explicit theme) ── */
-
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --color-bg-primary: #161b20;
-    --color-bg-secondary: #12161a;
-    --color-bg-elevated: #1c2329;
-    --color-bg-overlay: rgb(0 0 0 / 0.55);
-    --color-text-primary: #e8ecf0;
-    --color-text-secondary: #b4bec8;
-    --color-text-muted: #8b97a3;
-    --color-text-inverse: #12161a;
-    --color-border-subtle: #2a323a;
-    --color-border-default: #3a444e;
-    --color-border-strong: #5a6570;
-    --color-scrollbar-thumb: #5a6570;
-    --color-scrollbar-track: #12161a;
-    --color-accent: #3ebab3;
-    --color-accent-hover: #5ec9c2;
-    --color-success: #3ecf8e;
-    --color-warning: #e0a04a;
-    --color-danger: #e05a5a;
-    --color-info: #6b8fc4;
-    --color-status-active: #3ecf8e;
-    --color-status-missing: #e05a5a;
-    --color-branch-local: #3ebab3;
-    --color-branch-current: #3ebab3;
-    --color-branch-remote: #8b97a3;
-    --color-branch-ahead: #3ecf8e;
-    --color-branch-behind: #e0a04a;
-    --color-branch-conflict: #e05a5a;
-    --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
-    --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
-    --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
+  @media (prefers-color-scheme: dark) {
+    html:not(.light)[data-palette="tide"] {
+      --color-bg-primary: #161b20;
+      --color-bg-secondary: #12161a;
+      --color-bg-elevated: #1c2329;
+      --color-text-primary: #e8ecf0;
+      --color-text-secondary: #b4bec8;
+      --color-text-muted: #8b97a3;
+      --color-text-inverse: #12161a;
+      --color-border-subtle: #2a323a;
+      --color-border-default: #3a444e;
+      --color-border-strong: #5a6570;
+      --color-scrollbar-thumb: #5a6570;
+      --color-accent: #3ebab3;
+      --color-accent-hover: #5ec9c2;
+      --color-branch-local: #3ebab3;
+      --color-branch-current: #3ebab3;
+      --color-lane-1: #3ebab3;
+      --color-lane-2: #6b8fc4;
+      --color-lane-3: #4a5fa8;
+      --color-lane-4: #5b56a8;
+      --color-lane-5: #8b97a3;
+    }
   }
-}
 
-/* ─── Base resets ─────────────────────────────────────────────────────── */
+  /* ─── Base resets ─────────────────────────────────────────────────── */
 
-@layer base {
   html,
   body,
   #root {
+    position: fixed;
+    inset: 0;
     height: 100%;
     width: 100%;
     overflow: hidden;
@@ -251,5 +354,36 @@
   /* macOS traffic lights: mockup uses 78px; clearance var may arrive after first paint */
   .app-toolbar--macos {
     padding-left: max(78px, var(--tauri-plugin-decoration-left-clearance, 0px));
+  }
+
+  .pane-edge-right {
+    box-shadow: inset -1px 0 0 var(--color-border-subtle);
+  }
+
+  .pane-edge-left {
+    box-shadow: inset 1px 0 0 var(--color-border-subtle);
+  }
+
+  @keyframes sync-progress-shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+
+  .sync-progress-indeterminate::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-accent) 60%, transparent),
+      transparent
+    );
+    animation: sync-progress-shimmer 1.2s ease-in-out infinite;
   }
 }

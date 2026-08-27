@@ -48,7 +48,7 @@ export function FileListItem({
         "cursor-pointer",
         selected && "bg-accent/10",
         !selected && "hover:bg-bg-secondary",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+        "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
         className,
       )}
     >
@@ -59,7 +59,7 @@ export function FileListItem({
           e.stopPropagation();
           onStageToggle?.();
         }}
-        className="shrink-0 p-0 border-0 bg-transparent cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 rounded"
+        className="shrink-0 p-0 border-0 bg-transparent cursor-pointer focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1 rounded"
         title={staged ? "Unstage" : "Stage"}
         aria-label={staged ? `Unstage ${path}` : `Stage ${path}`}
       >

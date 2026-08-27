@@ -15,6 +15,7 @@
 | 平台 feel | **macOS 原生优先，其他平台保持与 macOS 一致** | PM 文档 `docs/pm/core/01-features.md` §1.10 明确 macOS 优先；用 GitWave 自有 theme 模拟 macOS 跨平台 |
 | 组件策略 | **引入 UI 库** | 自建 primitives 工作量过大；选用 headless 库 + 自定义样式 |
 | 主题 | **跟随系统 + 手动切换都要** | 系统默认跟随，留显式 toggle 给偏好用户 |
+| 配色 palette | **Native Blue（默认）+ Tide Studio 可选**，Settings 内切换 | 2026-08-27 与 PM 确认：默认贴近 macOS 原生观感；青绿签名 Tide 保留为选项。见 `06-color-palettes.md` |
 
 ## 库选择（决策见 `docs/tech/decisions/0005-ui-library-stack.md`）
 
@@ -42,13 +43,13 @@
 
 | 维度 | 选择 |
 |---|---|
-| 色板 | Foam / Mist / Ink / Tide `#1A8F8A` / Abyss / Coral。不用纯白、不用系统蓝 `#007aff` |
+| 色板 | 双 palette 共享中性语义色（见 `06-color-palettes.md`）：**Native Blue 默认**（macOS 系统灰阶 + systemBlue `#007AFF`）；Tide Studio（Foam / Mist / Ink / Tide `#1A8F8A` / Abyss / Coral）可选。「不用纯白、不用系统蓝」原则适用于 Tide 及品牌签名色，native-blue 为显式例外（用户 2026-08-27 拍板） |
 | 字体（UI）| SF Pro Text / Segoe UI / Cantarell |
 | 字体（SHA / 路径 / diff）| IBM Plex Mono |
 | 行高 | chrome 1.2–1.3；列表 / graph 行 28px |
 | 圆角 | 6 (控件) / 8 (卡片) / 12 (模态) |
 | 阴影 | subtle / modal 两档；不用黑色硬阴影 |
-| 焦点态 | Tide 2px outline，无 web 式 `ring-offset` |
+| 焦点态 | Accent 2px outline（native-blue 为系统蓝、tide 为青绿），无 web 式 `ring-offset` |
 | 动效 | 160–200ms ease-out；模态用 spring (300ms) |
 | 间距 | 4 / 8 / 12 / 16 / 24 / 32 |
 
@@ -61,7 +62,7 @@
 │  Toolbar  Client Work - gitwave - main（居中）                ⌘K  ☀ │
 ├────────────┬───────────────────────────────┬────────────────────┤
 │ Sidebar    │  History graph（主角）         │  Inspector         │
-│ (220px)    │  flex                         │  (~360px)          │
+│ (320px)    │  flex                         │  (~360px)          │
 │ workspaces │  Tide Lanes + commit 行       │  详情 / diff       │
 │ repos      │                               │                    │
 │ branches   │                               │                    │

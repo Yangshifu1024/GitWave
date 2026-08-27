@@ -25,7 +25,8 @@
         "trafficLightPosition": {
           "x": 14,
           "y": 14
-        }
+        },
+        "backgroundColor": "#f4f6f8"
       }
     ],
     "security": {

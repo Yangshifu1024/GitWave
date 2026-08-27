@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import type { DiffSummary, FileDiff, DiffHunk, DiffLine } from "@/lib/api";
 import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useLayoutStore } from "@/stores/layoutStore";
 import { Button } from "@/components/ui/Button";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { BlameView } from "@/components/BlameView";
 import { filterDiffSummary } from "@/lib/diff";
 import { cn } from "@/lib/utils";
@@ -149,13 +152,13 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
         line.kind === "removed" && "bg-danger/10",
       )}
     >
-      <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+      <span className="shrink-0 w-12 text-right pr-2 pl-1 bg-bg-secondary border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "added" ? "" : (line.old_line_no ?? "")}
       </span>
-      <span className="text-text-muted font-mono text-xs w-10 text-right pr-2 shrink-0 select-none tabular-nums">
+      <span className="shrink-0 w-12 text-right pr-2 pl-1 bg-bg-secondary border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
       </span>
-      <span className={cn("flex-1 px-2", bgClass)}>
+      <span className={cn("flex-1 px-2 min-w-0", bgClass)}>
         {prefix} {line.content}
       </span>
     </div>
@@ -228,14 +231,14 @@ function FileDiffView({
 
   return (
     <div className="mb-6 min-w-0">
-      <div className="min-w-0 px-3 py-2 bg-bg-secondary border border-border-subtle rounded-t-md">
-        <div className="flex min-w-0 items-baseline" title={fileDiff.path}>
-          {dir ? (
-            <span className="min-w-0 truncate text-sm font-mono text-text-muted">{dir}</span>
-          ) : null}
-          <span className="shrink-0 max-w-full break-all text-sm font-medium font-mono text-text-primary">
+      <div className="min-w-0 px-3 py-2 bg-bg-secondary border-b border-border-subtle">
+        <div className="flex min-w-0 items-center gap-2" title={fileDiff.path}>
+          <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
             {name}
           </span>
+          {dir ? (
+            <span className="min-w-0 truncate text-xs font-mono text-text-muted">{dir}</span>
+          ) : null}
           {fileDiff.staged === true ? (
             <span className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent">
               Staged
@@ -271,7 +274,7 @@ function FileDiffView({
       </div>
 
       {/* Hunks */}
-      <div className="border-x border-b border-border-subtle rounded-b-md px-2 pt-2">
+      <div className="border-x border-b border-border-subtle px-0 pt-0">
         {fileDiff.hunks.length > 0 ? (
           fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
         ) : (
@@ -302,6 +305,8 @@ export function DiffViewer({
 }: DiffViewerProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
+  const toggleInspectorMaximized = useLayoutStore((s) => s.toggleInspectorMaximized);
   const { data: workingCopy } = useWorkingCopy();
   const fileSignature = workdir
     ? (workingCopy?.files.map((f) => `${f.staged}:${f.path}:${f.kind}`).join("|") ?? "")
@@ -419,7 +424,20 @@ export function DiffViewer({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-auto">
+    <div className="h-full min-h-0 overflow-auto flex flex-col">
+      {path && visible.files.length === 1 ? (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-bg-secondary border-b border-border-subtle">
+          <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
+            {splitPath(path).name}
+          </span>
+          <span className="min-w-0 truncate text-xs font-mono text-text-muted">
+            {splitPath(path).dir}
+          </span>
+          <span className="ml-auto text-xs text-text-muted tabular-nums">
+            +{visible.total_additions} / -{visible.total_deletions}
+          </span>
+        </div>
+      ) : null}
       {/* Toolbar */}
       <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-bg-elevated border-b border-border-subtle">
         <span className="text-sm text-text-secondary">
@@ -437,7 +455,22 @@ export function DiffViewer({
         ) : null}
         <span className="text-success text-sm">+{visible.total_additions}</span>
         <span className="text-danger text-sm">-{visible.total_deletions}</span>
-        <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex items-center gap-1">
+          <Tooltip
+            content={inspectorMaximized ? "Restore panel layout" : "Expand inspector over history"}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="p-1.5 text-text-muted hover:text-accent"
+              aria-pressed={inspectorMaximized}
+              aria-label={inspectorMaximized ? "Restore panel layout" : "Expand inspector"}
+              onClick={toggleInspectorMaximized}
+            >
+              {inspectorMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </Button>
+          </Tooltip>
           <Button
             type="button"
             variant={mode === "unified" ? "primary" : "secondary"}

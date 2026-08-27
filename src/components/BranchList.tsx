@@ -41,10 +41,10 @@ import {
   GitMerge,
   GitPullRequestArrow,
   ListOrdered,
-  Plus,
   Trash2,
 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
+import { BranchSyncButtons, SectionAction } from "@/components/ui/SectionAction";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
@@ -506,16 +506,33 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         className="border-b-0"
         actions={
           <>
-            <Button
-              variant="ghost"
-              size="sm"
+            <BranchSyncButtons
+              ahead={wc.data?.ahead ?? 0}
+              behind={wc.data?.behind ?? 0}
+              onPull={wc.pull}
+              onPush={wc.push}
+              pullDisabled={
+                !activeRepoId ||
+                wc.isSyncBusy ||
+                (wc.data?.behind ?? 0) === 0 ||
+                wc.data?.branch === "(detached)"
+              }
+              pushDisabled={
+                !activeRepoId ||
+                wc.isSyncBusy ||
+                (wc.data?.ahead ?? 0) === 0 ||
+                wc.data?.branch === "(detached)"
+              }
+              inProgress={wc.syncPending}
+              syncBusy={wc.isSyncBusy}
+            />
+            <SectionAction
+              tooltip="Create a new branch from the current tip"
               disabled={busy || !current}
               onClick={() => setShowCreate((v) => !v)}
-              aria-label="New branch"
-              title="New branch"
             >
-              <Plus size={14} />
-            </Button>
+              New
+            </SectionAction>
           </>
         }
       >

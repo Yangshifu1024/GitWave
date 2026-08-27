@@ -10,12 +10,18 @@ use std::fs;
 use git2::{Oid, Repository, Signature};
 
 /// Make a unique temp dir for this test run.
+///
+/// Tests run in parallel; the process-wide counter keeps directory names
+/// unique even when two tests start within the same clock tick.
 fn temp_dir(label: &str) -> std::path::PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!("gitwave-{label}-{nanos}"));
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("gitwave-{label}-{nanos}-{seq}"));
     fs::create_dir_all(&dir).unwrap();
     dir
 }

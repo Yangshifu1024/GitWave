@@ -43,24 +43,19 @@ export function ListItem({
       }
       className={cn(
         "group flex items-center gap-2 px-3 py-1.5 select-none",
-        "rounded-md transition-colors duration-150",
+        "transition-colors duration-150",
         "text-sm text-text-primary",
         "border-l-[3px]",
-        selected && "bg-accent/10 border-l-accent hover:bg-accent/20",
+        selected && "bg-accent/10 border-l-accent hover:bg-accent/15",
         !selected && "border-l-transparent hover:bg-bg-primary/70 cursor-pointer",
         onClick && "cursor-pointer",
         onDoubleClick && "cursor-pointer",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+        "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
         className,
       )}
     >
-      {/* Leading slot */}
       {leading ? <span className="shrink-0 text-text-muted">{leading}</span> : null}
-
-      {/* Content */}
       <span className="flex-1 min-w-0">{children}</span>
-
-      {/* Trailing slot */}
       {trailing ? <span className="shrink-0 flex items-center gap-1">{trailing}</span> : null}
     </div>
   );
