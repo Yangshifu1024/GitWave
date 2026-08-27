@@ -94,10 +94,20 @@ pub fn fetch(
     Ok(())
 }
 
+/// Options controlling [`push_with_options`].
+#[derive(Debug, Clone, Default)]
+pub struct PushRequest {
+    /// Push all local tags in addition to the current branch.
+    pub tags: bool,
+    /// Force-update the remote branch (leading `+` refspec).
+    pub force: bool,
+}
+
 /// Push the current branch to `remote_name` under the same branch name.
-pub fn push(
+pub fn push_with_options(
     repo: &Repository,
     remote_name: &str,
+    opts: PushRequest,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
@@ -108,13 +118,26 @@ pub fn push(
         return Err(AppError::Protocol("cannot push detached HEAD".into()));
     }
     let branch = head.shorthand().unwrap_or("HEAD").to_string();
-    let refspec = format!("refs/heads/{branch}:refs/heads/{branch}");
+    let mut refspecs = vec![format!(
+        "{}refs/heads/{branch}:refs/heads/{branch}",
+        if opts.force { "+" } else { "" }
+    )];
+    if opts.tags {
+        let tags = repo.references_glob("refs/tags/*").map_err(map_git_err)?;
+        for tag in tags {
+            let tag = tag.map_err(map_git_err)?;
+            let Some(name) = tag.name() else { continue };
+            let short = name.trim_start_matches("refs/tags/");
+            refspecs.push(format!("refs/tags/{short}:refs/tags/{short}"));
+        }
+    }
 
     let mut po = PushOptions::new();
     let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, on_progress);
     po.remote_callbacks(cb);
+    let str_refs: Vec<&str> = refspecs.iter().map(String::as_str).collect();
     remote
-        .push(&[refspec.as_str()], Some(&mut po))
+        .push(&str_refs, Some(&mut po))
         .map_err(|e| match e.code() {
             git2::ErrorCode::Auth => AppError::Credential(format!("push auth: {e}")),
             _ => AppError::Network(format!("push failed: {e}")),

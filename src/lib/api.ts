@@ -569,8 +569,19 @@ export function deleteRemoteBranch(
   return invoke<void>("cmd_delete_remote_branch", { workspaceId, remote, branch });
 }
 
-export function pushRemote(workspaceId: string, remote?: string): Promise<void> {
-  return invoke<void>("cmd_push", { workspaceId, remote: remote ?? null });
+export interface PushOptions {
+  remote?: string;
+  tags?: boolean;
+  force?: boolean;
+}
+
+export function pushRemote(workspaceId: string, options?: PushOptions): Promise<void> {
+  return invoke<void>("cmd_push", {
+    workspaceId,
+    remote: options?.remote ?? null,
+    tags: options?.tags ?? false,
+    force: options?.force ?? false,
+  });
 }
 
 // ─── Stash ───────────────────────────────────────────────────────────────────

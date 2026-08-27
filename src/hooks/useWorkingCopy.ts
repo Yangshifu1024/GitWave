@@ -10,6 +10,7 @@ import {
   unstageFiles,
   type FileChange,
   type PullOptions,
+  type PushOptions,
   type WorkingCopy,
 } from "@/lib/api";
 import { partitionFileChanges } from "@/lib/diff";
@@ -37,7 +38,7 @@ export interface UseWorkingCopyResult {
   commitMessage: (message: string, options?: { onSuccess?: () => void }) => void;
   fetch: () => void;
   pull: (options?: PullOptions) => void;
-  push: () => void;
+  push: (options?: PushOptions) => void;
   commitPending: boolean;
   syncPending: { fetch: boolean; pull: boolean; push: boolean };
   isSyncBusy: boolean;

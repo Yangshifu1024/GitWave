@@ -621,6 +621,8 @@ async fn cmd_push(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     remote: Option<String>,
+    tags: Option<bool>,
+    force: Option<bool>,
 ) -> Result<(), AppError> {
     use application::use_cases::push;
     use infrastructure::git::remote::SyncProgress;
@@ -636,7 +638,14 @@ async fn cmd_push(
     let workspaces = Arc::clone(&ctx.workspaces);
     tauri::async_runtime::spawn_blocking(move || {
         let local_ctx = AppContext::new(workspaces);
-        push(&local_ctx, &workspace_id, remote, on_progress)
+        push(
+            &local_ctx,
+            &workspace_id,
+            remote,
+            tags.unwrap_or(false),
+            force.unwrap_or(false),
+            on_progress,
+        )
     })
     .await
     .map_err(|e| AppError::Unknown(format!("push task join: {e}")))?

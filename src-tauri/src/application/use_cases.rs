@@ -47,7 +47,7 @@ use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, R
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
-    push as infra_push, PullOptions, SyncProgress,
+    push_with_options as infra_push_with_options, PullOptions, PushRequest, SyncProgress,
 };
 use crate::infrastructure::git::stash::{
     apply_stash as infra_apply_stash, drop_stash as infra_drop_stash,
@@ -855,11 +855,18 @@ pub fn push(
     ctx: &AppContext,
     workspace_id: &str,
     remote: Option<String>,
+    tags: bool,
+    force: bool,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_push(&repo, remote.as_deref().unwrap_or("origin"), on_progress)
+    infra_push_with_options(
+        &repo,
+        remote.as_deref().unwrap_or("origin"),
+        PushRequest { tags, force },
+        on_progress,
+    )
 }
 
 // ─── Stash (Sprint 5) ───────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import {
   pullRemote,
   pushRemote,
   type PullOptions,
+  type PushOptions,
   type SyncProgress,
 } from "@/lib/api";
 import { useSyncStore } from "@/stores/syncStore";
@@ -26,7 +27,7 @@ function ensureSyncProgressListener(): void {
 export interface UseRemoteSyncResult {
   fetch: () => void;
   pull: (options?: PullOptions) => void;
-  push: () => void;
+  push: (options?: PushOptions) => void;
   syncPending: { fetch: boolean; pull: boolean; push: boolean };
   isSyncBusy: boolean;
 }
@@ -75,7 +76,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   });
 
   const pushMut = useMutation({
-    mutationFn: () => pushRemote(workspaceId!),
+    mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
     onMutate: () => useSyncStore.getState().startOp("push"),
     onSuccess: () => invalidate(),
     onError: handleError,
@@ -93,9 +94,9 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       if (!workspaceId || isSyncBusy) return;
       pullMut.mutate(options);
     },
-    push: () => {
+    push: (options?: PushOptions) => {
       if (!workspaceId || isSyncBusy) return;
-      pushMut.mutate();
+      pushMut.mutate(options);
     },
     syncPending: {
       fetch: fetchMut.isPending,

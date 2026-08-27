@@ -313,6 +313,7 @@ export function ActionBar(): React.JSX.Element {
   const [branchName, setBranchName] = useState("");
   const [branchError, setBranchError] = useState<string | null>(null);
   const [pullDialog, setPullDialog] = useState<PullDialogState | null>(null);
+  const [pushDialog, setPushDialog] = useState<{ tags: boolean; force: boolean } | null>(null);
 
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
@@ -497,8 +498,8 @@ export function ActionBar(): React.JSX.Element {
           <ActionBarButton
             icon={<ArrowUp size={14} />}
             label="Push"
-            disabled={noRepo || wc.isSyncBusy || (wc.data?.ahead ?? 0) === 0 || detached}
-            onClick={wc.push}
+            disabled={noRepo || wc.isSyncBusy || detached}
+            onClick={() => setPushDialog({ tags: false, force: false })}
           />
         </ActionBarGroup>
 
@@ -920,6 +921,75 @@ export function ActionBar(): React.JSX.Element {
               }}
             >
               Pull
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {/* Branch: push (Fork-style confirm) */}
+      {pushDialog ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setPushDialog(null);
+          }}
+          title="Push"
+          description="Push your local changes to remote repository"
+          size="sm"
+        >
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
+              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
+                {wc.data?.branch ?? "—"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">To</span>
+              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
+                default ({wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`})
+              </span>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-text-primary">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={pushDialog.tags}
+                disabled={wc.isSyncBusy}
+                onChange={(e) => setPushDialog({ ...pushDialog, tags: e.target.checked })}
+              />
+              Push all tags
+            </label>
+            <label className="flex items-center gap-2 text-xs text-text-primary">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={pushDialog.force}
+                disabled={wc.isSyncBusy}
+                onChange={(e) => setPushDialog({ ...pushDialog, force: e.target.checked })}
+              />
+              Force push
+            </label>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setPushDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={wc.isSyncBusy}
+              onClick={() => {
+                const options = {
+                  remote: "origin",
+                  tags: pushDialog.tags,
+                  force: pushDialog.force,
+                };
+                setPushDialog(null);
+                wc.push(options);
+              }}
+            >
+              Push
             </Button>
           </div>
         </Modal>
