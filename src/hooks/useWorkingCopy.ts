@@ -2,17 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   commit,
-  fetchRemote,
   formatAppError,
   getWorkingCopy,
-  pullRemote,
-  pushRemote,
   stageFiles,
   unstageFiles,
   type FileChange,
   type WorkingCopy,
 } from "@/lib/api";
 import { partitionFileChanges } from "@/lib/diff";
+import { useRemoteSync } from "@/hooks/useRemoteSync";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 export interface UseWorkingCopyResult {
@@ -35,6 +33,7 @@ export interface UseWorkingCopyResult {
   push: () => void;
   commitPending: boolean;
   syncPending: { fetch: boolean; pull: boolean; push: boolean };
+  isSyncBusy: boolean;
 }
 
 export function useWorkingCopy(): UseWorkingCopyResult {
@@ -43,6 +42,8 @@ export function useWorkingCopy(): UseWorkingCopyResult {
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const remoteSync = useRemoteSync((message) => setActionError(message));
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["working-copy", workspaceId, repoId],
@@ -83,35 +84,6 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     onError: (e) => setActionError(formatAppError(e)),
   });
 
-  const fetchMut = useMutation({
-    mutationFn: () => fetchRemote(workspaceId!),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-      bumpHistory();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const pullMut = useMutation({
-    mutationFn: () => pullRemote(workspaceId!),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-      bumpHistory();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const pushMut = useMutation({
-    mutationFn: () => pushRemote(workspaceId!),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
   const { unstaged, staged } = partitionFileChanges(data?.files ?? []);
 
   return {
@@ -129,14 +101,11 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     stage: (paths) => stageMut.mutate(paths),
     unstage: (paths) => unstageMut.mutate(paths),
     commitMessage: (message, options) => commitMut.mutate(message, { onSuccess: options?.onSuccess }),
-    fetch: () => fetchMut.mutate(),
-    pull: () => pullMut.mutate(),
-    push: () => pushMut.mutate(),
+    fetch: remoteSync.fetch,
+    pull: remoteSync.pull,
+    push: remoteSync.push,
     commitPending: commitMut.isPending,
-    syncPending: {
-      fetch: fetchMut.isPending,
-      pull: pullMut.isPending,
-      push: pushMut.isPending,
-    },
+    syncPending: remoteSync.syncPending,
+    isSyncBusy: remoteSync.isSyncBusy,
   };
 }

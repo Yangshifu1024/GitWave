@@ -504,29 +504,83 @@ async fn cmd_commit(
 
 #[tauri::command]
 async fn cmd_fetch(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     remote: Option<String>,
 ) -> Result<(), AppError> {
-    fetch(&ctx, &workspace_id, remote)
+    use application::use_cases::fetch;
+    use infrastructure::git::remote::SyncProgress;
+    use std::sync::Arc;
+    use tauri::Emitter;
+
+    let app_emit = app.clone();
+    let on_progress: Option<Box<dyn Fn(SyncProgress) + Send>> =
+        Some(Box::new(move |p: SyncProgress| {
+            let _ = app_emit.emit("sync-progress", &p);
+        }));
+
+    let workspaces = Arc::clone(&ctx.workspaces);
+    tauri::async_runtime::spawn_blocking(move || {
+        let local_ctx = AppContext::new(workspaces);
+        fetch(&local_ctx, &workspace_id, remote, on_progress)
+    })
+    .await
+    .map_err(|e| AppError::Unknown(format!("fetch task join: {e}")))?
 }
 
 #[tauri::command]
 async fn cmd_pull(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     remote: Option<String>,
 ) -> Result<(), AppError> {
-    pull(&ctx, &workspace_id, remote)
+    use application::use_cases::pull;
+    use infrastructure::git::remote::SyncProgress;
+    use std::sync::Arc;
+    use tauri::Emitter;
+
+    let app_emit = app.clone();
+    let on_progress: Option<Box<dyn Fn(SyncProgress) + Send>> =
+        Some(Box::new(move |p: SyncProgress| {
+            let _ = app_emit.emit("sync-progress", &p);
+        }));
+
+    let workspaces = Arc::clone(&ctx.workspaces);
+    tauri::async_runtime::spawn_blocking(move || {
+        let local_ctx = AppContext::new(workspaces);
+        pull(&local_ctx, &workspace_id, remote, on_progress)
+    })
+    .await
+    .map_err(|e| AppError::Unknown(format!("pull task join: {e}")))?
 }
 
 #[tauri::command]
 async fn cmd_push(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     remote: Option<String>,
 ) -> Result<(), AppError> {
-    push(&ctx, &workspace_id, remote)
+    use application::use_cases::push;
+    use infrastructure::git::remote::SyncProgress;
+    use std::sync::Arc;
+    use tauri::Emitter;
+
+    let app_emit = app.clone();
+    let on_progress: Option<Box<dyn Fn(SyncProgress) + Send>> =
+        Some(Box::new(move |p: SyncProgress| {
+            let _ = app_emit.emit("sync-progress", &p);
+        }));
+
+    let workspaces = Arc::clone(&ctx.workspaces);
+    tauri::async_runtime::spawn_blocking(move || {
+        let local_ctx = AppContext::new(workspaces);
+        push(&local_ctx, &workspace_id, remote, on_progress)
+    })
+    .await
+    .map_err(|e| AppError::Unknown(format!("push task join: {e}")))?
 }
 
 #[tauri::command]

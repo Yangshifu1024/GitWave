@@ -45,7 +45,7 @@ use crate::infrastructure::git::interactive_rebase::{
 use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::remote::{
-    fetch as infra_fetch, pull as infra_pull, push as infra_push,
+    fetch as infra_fetch, pull as infra_pull, push as infra_push, SyncProgress,
 };
 use crate::infrastructure::git::stash::{
     apply_stash as infra_apply_stash, drop_stash as infra_drop_stash,
@@ -776,22 +776,42 @@ pub fn commit(ctx: &AppContext, workspace_id: &str, message: String) -> Result<S
     infra_commit(&repo, &message)
 }
 
-pub fn fetch(ctx: &AppContext, workspace_id: &str, remote: Option<String>) -> Result<()> {
+pub fn fetch(
+    ctx: &AppContext,
+    workspace_id: &str,
+    remote: Option<String>,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_fetch(&repo, remote.as_deref().unwrap_or("origin"))
+    infra_fetch(
+        &repo,
+        remote.as_deref().unwrap_or("origin"),
+        crate::infrastructure::git::remote::SyncOperation::Fetch,
+        on_progress,
+    )
 }
 
-pub fn pull(ctx: &AppContext, workspace_id: &str, remote: Option<String>) -> Result<()> {
+pub fn pull(
+    ctx: &AppContext,
+    workspace_id: &str,
+    remote: Option<String>,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_pull(&repo, remote.as_deref().unwrap_or("origin"))
+    infra_pull(&repo, remote.as_deref().unwrap_or("origin"), on_progress)
 }
 
-pub fn push(ctx: &AppContext, workspace_id: &str, remote: Option<String>) -> Result<()> {
+pub fn push(
+    ctx: &AppContext,
+    workspace_id: &str,
+    remote: Option<String>,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_push(&repo, remote.as_deref().unwrap_or("origin"))
+    infra_push(&repo, remote.as_deref().unwrap_or("origin"), on_progress)
 }
 
 // ─── Stash (Sprint 5) ───────────────────────────────────────────────────────

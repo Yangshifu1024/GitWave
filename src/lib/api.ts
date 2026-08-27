@@ -159,6 +159,15 @@ export interface CloneProgress {
   receivedBytes: number;
 }
 
+export type SyncOperation = "fetch" | "pull" | "push";
+
+export interface SyncProgress {
+  operation: SyncOperation;
+  receivedObjects: number;
+  totalObjects: number;
+  receivedBytes: number;
+}
+
 export function cloneRepo(
   workspaceId: string,
   url: string,
