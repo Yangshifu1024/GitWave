@@ -95,7 +95,7 @@ function BlameLineRow({ line, lineNo }: BlameLineRowProps): React.JSX.Element {
       <span className="text-text-muted w-8 text-right pr-2 shrink-0 select-none border-r border-border-subtle">
         {lineNo}
       </span>
-      <span className="pl-3 text-text-primary flex-1 break-all">{line.content}</span>
+      <span className="pl-3 text-text-primary flex-1 break-all select-text">{line.content}</span>
     </div>
   );
 }

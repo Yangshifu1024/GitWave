@@ -196,6 +196,25 @@
   *::before,
   *::after {
     box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  code,
+  pre,
+  .select-text,
+  .select-text * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .select-none,
+  .select-none * {
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   /* Outline token: focus rings use accent color */

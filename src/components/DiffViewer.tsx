@@ -432,7 +432,7 @@ export function DiffViewer({
       </div>
 
       {/* Files */}
-      <div className="p-4">
+      <div className="p-4 select-text">
         {visible.files.map((file, i) => (
           <FileDiffView
             key={i}

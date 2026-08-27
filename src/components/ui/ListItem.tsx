@@ -26,7 +26,14 @@ export function ListItem({
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
       onClick={onClick}
-      onDoubleClick={onDoubleClick}
+      onDoubleClick={
+        onDoubleClick
+          ? (event) => {
+              event.preventDefault();
+              onDoubleClick();
+            }
+          : undefined
+      }
       onKeyDown={
         onClick
           ? (e) => {
@@ -35,7 +42,7 @@ export function ListItem({
           : undefined
       }
       className={cn(
-        "group flex items-center gap-2 px-3 py-2",
+        "group flex items-center gap-2 px-3 py-2 select-none",
         "rounded-md transition-colors duration-150",
         "text-sm text-text-primary",
         "border-l-[3px]",

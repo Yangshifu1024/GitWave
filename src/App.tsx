@@ -103,7 +103,7 @@ function App(): React.JSX.Element {
         <Split direction="horizontal">
           {/* Sidebar: 20% */}
           <Pane initialSize="20%" minSize={180} maxSize={480}>
-            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-x-hidden overflow-y-auto">
+            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-x-hidden overflow-y-auto select-none">
               <WorkspaceSwitcherDropdown />
               {activeWorkspaceId ? (
                 <>
