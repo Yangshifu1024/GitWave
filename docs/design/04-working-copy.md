@@ -71,6 +71,18 @@ UI 上：
   - **Hide**（`ChevronDown`）：提交框收起为 32px 状态条（保留分支名 + unstaged/staged 计数 + `ChevronUp` 恢复按钮）；收起同时复位最大化
   - **Maximize**（`Maximize2`/`Minimize2`）：高度在 220px ↔ 50vh 间切换
   - 状态存于 `useLayoutStore`（`wcBarCollapsed` / `wcBarMaximized`），切换 workspace/repo 时复位（与 inspector maximize 同策略）
+
+### Unstaged 文件右键菜单（2026-08-27 增补）
+
+Unstaged 列表项右键弹出菜单（`ContextMenu`，分支名 Label + 两项）；Staged 列表无菜单：
+
+| 菜单项 | 可用条件 | 行为 |
+|---|---|---|
+| `Discard changes…`（Trash2，destructive 红）| 非 renamed | 确认 Modal 后执行 `cmd_discard_changes`：index 跟踪的路径从 index 强制恢复 worktree；untracked 文件删除磁盘。确认文案区分两种语义；untracked 时按钮为 "Delete file" |
+| `Add to .gitignore…`（EyeOff）| 仅 untracked（`.gitignore` 不影响已跟踪文件）| Modal 内三选一：**File path**（`src/foo/bar.ts`）/ **Directory**（`src/foo/`）/ **Extension**（`*.ts`），默认 File path；根目录文件无目录项、无扩展名文件无扩展名项。确认后幂等追加到 repo 根 `.gitignore` |
+
+两项均以 `…` 结尾表示打开对话框后才执行。derive 规则见 `src/lib/ignorePattern.ts`。
+
 - 切换：smooth animation 200ms
 
 ## 4. Sprint 4 use cases（后端）

@@ -19,15 +19,16 @@ use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_ssh_key, add_worktree,
     apply_stash, checkout_branch, clear_ai_api_key, clone_repo, commit,
     continue_interactive_rebase, create_branch, create_workspace, delete_branch, delete_ssh_key,
-    delete_workspace, drop_stash, execute_interactive_rebase, explain_conflict, fetch,
-    generate_commit_message, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
+    delete_workspace, discard_changes, drop_stash, execute_interactive_rebase, explain_conflict,
+    fetch, generate_commit_message, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
     get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff, get_stash_diff,
-    get_workdir_diff, get_working_copy, get_workspace, init_repo, interactive_rebase_paused,
-    list_conflicts, list_repos, list_ssh_keys, list_stashes, list_workspaces, list_worktrees,
-    merge_branch, merge_in_progress, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
-    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, resolve_conflict,
-    save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection,
-    unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
+    get_workdir_diff, get_working_copy, get_workspace, ignore_path, init_repo,
+    interactive_rebase_paused, list_conflicts, list_repos, list_ssh_keys, list_stashes,
+    list_workspaces, list_worktrees, merge_branch, merge_in_progress, plan_interactive_rebase,
+    pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
+    rename_workspace, resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all,
+    stage_files, test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind,
+    AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -505,6 +506,24 @@ async fn cmd_commit(
 }
 
 #[tauri::command]
+async fn cmd_discard_changes(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    discard_changes(&ctx, &workspace_id, paths)
+}
+
+#[tauri::command]
+async fn cmd_ignore_path(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    pattern: String,
+) -> Result<(), AppError> {
+    ignore_path(&ctx, &workspace_id, pattern)
+}
+
+#[tauri::command]
 async fn cmd_fetch(
     app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
@@ -799,6 +818,8 @@ pub fn run() {
             cmd_unstage_files,
             cmd_stage_all,
             cmd_commit,
+            cmd_discard_changes,
+            cmd_ignore_path,
             cmd_fetch,
             cmd_pull,
             cmd_push,

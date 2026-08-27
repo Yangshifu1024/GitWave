@@ -527,6 +527,14 @@ export function commit(workspaceId: string, message: string): Promise<string> {
   return invoke<string>("cmd_commit", { workspaceId, message });
 }
 
+export function discardChanges(workspaceId: string, paths: string[]): Promise<void> {
+  return invoke<void>("cmd_discard_changes", { workspaceId, paths });
+}
+
+export function ignorePath(workspaceId: string, pattern: string): Promise<void> {
+  return invoke<void>("cmd_ignore_path", { workspaceId, pattern });
+}
+
 export function fetchRemote(workspaceId: string, remote?: string): Promise<void> {
   return invoke<void>("cmd_fetch", { workspaceId, remote: remote ?? null });
 }

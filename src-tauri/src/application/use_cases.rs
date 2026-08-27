@@ -53,8 +53,10 @@ use crate::infrastructure::git::stash::{
     save_stash as infra_save_stash, stash_diff as infra_stash_diff,
 };
 use crate::infrastructure::git::working_copy::{
-    commit as infra_commit, stage_all as infra_stage_all, stage_paths as infra_stage_paths,
-    status as infra_wc_status, unstage_paths as infra_unstage_paths,
+    commit as infra_commit, discard_worktree_changes as infra_discard_worktree_changes,
+    ignore_path as infra_ignore_path, stage_all as infra_stage_all,
+    stage_paths as infra_stage_paths, status as infra_wc_status,
+    unstage_paths as infra_unstage_paths,
 };
 use crate::infrastructure::git::worktree::{
     add_worktree as infra_add_worktree, list_worktrees as infra_list_worktrees,
@@ -774,6 +776,20 @@ pub fn commit(ctx: &AppContext, workspace_id: &str, message: String) -> Result<S
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_commit(&repo, &message)
+}
+
+/// Discard unstaged worktree changes for the given paths (destructive).
+pub fn discard_changes(ctx: &AppContext, workspace_id: &str, paths: Vec<String>) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_discard_worktree_changes(&repo, &paths)
+}
+
+/// Append a pattern to the repo-root `.gitignore` (idempotent).
+pub fn ignore_path(ctx: &AppContext, workspace_id: &str, pattern: String) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_ignore_path(&repo, &pattern)
 }
 
 pub fn fetch(
