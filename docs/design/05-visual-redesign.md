@@ -191,8 +191,9 @@ gitwave › main                                               ⌘K  ☀
 | 文件 | 说明 |
 |---|---|
 | `mockups/v2/index.html` | 四屏可交互高保真稿（Light History / Dirty / Dark / Empty） |
-| `mockups/v2/*.png` | 导出静帧（浏览器打开 HTML 后截图） |
 | 本文档 | 设计 rationale + 实施对照表 |
+
+审阅方式：浏览器打开 `mockups/v2/index.html`，不导出 PNG。
 
 ## 8. 实施优先级（供后续 plan 引用）
 
