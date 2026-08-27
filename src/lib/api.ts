@@ -17,6 +17,8 @@ export interface PromptTemplates {
 
 export interface WorkspaceSettings {
   ai_provider: string | null;
+  ai_model?: string | null;
+  ai_base_url?: string | null;
   prompt_templates: PromptTemplates;
   commit_convention: string | null;
   theme_override: string | null;
@@ -106,6 +108,46 @@ export function setActiveRepo(workspaceId: string, repoId: string | null): Promi
   return invoke<void>("cmd_set_active_repo", { workspaceId, repoId });
 }
 
+export function getWorkspace(id: string): Promise<Workspace> {
+  return invoke<Workspace>("cmd_get_workspace", { id });
+}
+
+export function updateWorkspaceSettings(
+  id: string,
+  settings: WorkspaceSettings,
+): Promise<void> {
+  return invoke<void>("cmd_update_workspace_settings", { id, settings });
+}
+
+export interface AiKeyStatus {
+  provider: string;
+  has_key: boolean;
+}
+
+export function setAiApiKey(
+  workspaceId: string,
+  provider: string,
+  apiKey: string,
+): Promise<void> {
+  return invoke<void>("cmd_set_ai_api_key", { workspaceId, provider, apiKey });
+}
+
+export function clearAiApiKey(workspaceId: string, provider: string): Promise<void> {
+  return invoke<void>("cmd_clear_ai_api_key", { workspaceId, provider });
+}
+
+export function getAiKeyStatus(workspaceId: string, provider: string): Promise<AiKeyStatus> {
+  return invoke<AiKeyStatus>("cmd_get_ai_key_status", { workspaceId, provider });
+}
+
+export function probeOllama(baseUrl?: string): Promise<string[]> {
+  return invoke<string[]>("cmd_probe_ollama", { baseUrl: baseUrl ?? null });
+}
+
+export function generateCommitMessage(workspaceId: string): Promise<string> {
+  return invoke<string>("cmd_generate_commit_message", { workspaceId });
+}
+
 // ─── Repo commands ───────────────────────────────────────────────────────
 
 export function listRepos(workspaceId: string): Promise<RepoRef[]> {
@@ -116,11 +158,25 @@ export function initRepo(workspaceId: string, path: string): Promise<RepoRef> {
   return invoke<RepoRef>("cmd_init_repo", { workspaceId, path });
 }
 
-export function cloneRepo(workspaceId: string, url: string, destPath: string): Promise<RepoRef> {
+export interface CloneProgress {
+  receivedObjects: number;
+  totalObjects: number;
+  indexedDeltas: number;
+  totalDeltas: number;
+  receivedBytes: number;
+}
+
+export function cloneRepo(
+  workspaceId: string,
+  url: string,
+  destPath: string,
+  replaceDest = false,
+): Promise<RepoRef> {
   return invoke<RepoRef>("cmd_clone_repo", {
     workspaceId,
     url,
     destPath,
+    replaceDest,
   });
 }
 
@@ -247,6 +303,7 @@ export interface BranchInfo {
   ahead: number;
   behind: number;
   last_commit_sha: string;
+  last_commit_time: number;
 }
 
 export interface AheadBehind {
@@ -312,8 +369,12 @@ export function deleteBranch(workspaceId: string, name: string): Promise<void> {
   return invoke<void>("cmd_delete_branch", { workspaceId, name });
 }
 
-export function checkoutBranch(workspaceId: string, name: string): Promise<void> {
-  return invoke<void>("cmd_checkout_branch", { workspaceId, name });
+export function checkoutBranch(
+  workspaceId: string,
+  name: string,
+  force = false,
+): Promise<void> {
+  return invoke<void>("cmd_checkout_branch", { workspaceId, name, force });
 }
 
 export function getAheadBehind(workspaceId: string, branchName: string): Promise<AheadBehind> {
@@ -326,4 +387,244 @@ export function mergeBranch(workspaceId: string, branchName: string): Promise<Me
 
 export function rebaseBranch(workspaceId: string, upstream: string): Promise<RebaseResult> {
   return invoke<RebaseResult>("cmd_rebase_branch", { workspaceId, upstream });
+}
+
+// ─── Interactive rebase ──────────────────────────────────────────────────────
+
+export type InteractiveRebaseAction =
+  | "pick"
+  | "reword"
+  | "edit"
+  | "squash"
+  | "fixup"
+  | "drop";
+
+export interface InteractiveRebaseTodo {
+  oid: string;
+  summary: string;
+  action: InteractiveRebaseAction;
+  message: string | null;
+}
+
+export type InteractiveRebaseKind =
+  | "clean"
+  | "already_up_to_date"
+  | "conflicts"
+  | "paused_for_edit";
+
+export interface InteractiveRebaseResult {
+  kind: InteractiveRebaseKind;
+  conflicts: string[];
+  new_head: string | null;
+}
+
+export function planInteractiveRebase(
+  workspaceId: string,
+  upstream: string,
+): Promise<InteractiveRebaseTodo[]> {
+  return invoke<InteractiveRebaseTodo[]>("cmd_plan_interactive_rebase", {
+    workspaceId,
+    upstream,
+  });
+}
+
+export function executeInteractiveRebase(
+  workspaceId: string,
+  upstream: string,
+  todos: InteractiveRebaseTodo[],
+): Promise<InteractiveRebaseResult> {
+  return invoke<InteractiveRebaseResult>("cmd_execute_interactive_rebase", {
+    workspaceId,
+    upstream,
+    todos,
+  });
+}
+
+export function continueInteractiveRebase(
+  workspaceId: string,
+): Promise<InteractiveRebaseResult> {
+  return invoke<InteractiveRebaseResult>("cmd_continue_interactive_rebase", { workspaceId });
+}
+
+export function abortInteractiveRebasePause(workspaceId: string): Promise<void> {
+  return invoke<void>("cmd_abort_interactive_rebase_pause", { workspaceId });
+}
+
+export function interactiveRebasePaused(workspaceId: string): Promise<boolean> {
+  return invoke<boolean>("cmd_interactive_rebase_paused", { workspaceId });
+}
+
+// ─── Conflicts ───────────────────────────────────────────────────────────────
+
+export interface ConflictFile {
+  path: string;
+  has_ours: boolean;
+  has_theirs: boolean;
+  has_base: boolean;
+}
+
+export interface ConflictSides {
+  path: string;
+  ours: string | null;
+  theirs: string | null;
+  base: string | null;
+  working: string | null;
+}
+
+export function listConflicts(workspaceId: string): Promise<ConflictFile[]> {
+  return invoke<ConflictFile[]>("cmd_list_conflicts", { workspaceId });
+}
+
+export function getConflictSides(workspaceId: string, path: string): Promise<ConflictSides> {
+  return invoke<ConflictSides>("cmd_get_conflict_sides", { workspaceId, path });
+}
+
+export function resolveConflict(
+  workspaceId: string,
+  path: string,
+  content: string,
+): Promise<void> {
+  return invoke<void>("cmd_resolve_conflict", { workspaceId, path, content });
+}
+
+export function abortMerge(workspaceId: string): Promise<void> {
+  return invoke<void>("cmd_abort_merge", { workspaceId });
+}
+
+export function mergeInProgress(workspaceId: string): Promise<boolean> {
+  return invoke<boolean>("cmd_merge_in_progress", { workspaceId });
+}
+
+export function explainConflict(workspaceId: string, path: string): Promise<string> {
+  return invoke<string>("cmd_explain_conflict", { workspaceId, path });
+}
+
+// ─── Working copy ────────────────────────────────────────────────────────────
+
+export type FileStatusKind =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "untracked"
+  | "renamed"
+  | "copied";
+
+export interface FileChange {
+  path: string;
+  old_path?: string | null;
+  kind: FileStatusKind;
+  staged: boolean;
+  additions: number;
+  deletions: number;
+}
+
+export interface WorkingCopy {
+  repo_id: string;
+  branch: string;
+  upstream: string | null;
+  sha: string;
+  ahead: number;
+  behind: number;
+  files: FileChange[];
+}
+
+export function getWorkingCopy(workspaceId: string): Promise<WorkingCopy> {
+  return invoke<WorkingCopy>("cmd_get_working_copy", { workspaceId });
+}
+
+export function stageFiles(workspaceId: string, paths: string[]): Promise<void> {
+  return invoke<void>("cmd_stage_files", { workspaceId, paths });
+}
+
+export function unstageFiles(workspaceId: string, paths: string[]): Promise<void> {
+  return invoke<void>("cmd_unstage_files", { workspaceId, paths });
+}
+
+export function stageAll(workspaceId: string): Promise<void> {
+  return invoke<void>("cmd_stage_all", { workspaceId });
+}
+
+export function commit(workspaceId: string, message: string): Promise<string> {
+  return invoke<string>("cmd_commit", { workspaceId, message });
+}
+
+export function fetchRemote(workspaceId: string, remote?: string): Promise<void> {
+  return invoke<void>("cmd_fetch", { workspaceId, remote: remote ?? null });
+}
+
+export function pullRemote(workspaceId: string, remote?: string): Promise<void> {
+  return invoke<void>("cmd_pull", { workspaceId, remote: remote ?? null });
+}
+
+export function pushRemote(workspaceId: string, remote?: string): Promise<void> {
+  return invoke<void>("cmd_push", { workspaceId, remote: remote ?? null });
+}
+
+// ─── Stash ───────────────────────────────────────────────────────────────────
+
+export interface StashEntry {
+  index: number;
+  message: string;
+  oid: string;
+}
+
+export function listStashes(workspaceId: string): Promise<StashEntry[]> {
+  return invoke<StashEntry[]>("cmd_list_stashes", { workspaceId });
+}
+
+export function saveStash(workspaceId: string, message?: string): Promise<string> {
+  return invoke<string>("cmd_save_stash", {
+    workspaceId,
+    message: message ?? null,
+  });
+}
+
+export function applyStash(workspaceId: string, index: number): Promise<void> {
+  return invoke<void>("cmd_apply_stash", { workspaceId, index });
+}
+
+export function popStash(workspaceId: string, index: number): Promise<void> {
+  return invoke<void>("cmd_pop_stash", { workspaceId, index });
+}
+
+export function dropStash(workspaceId: string, index: number): Promise<void> {
+  return invoke<void>("cmd_drop_stash", { workspaceId, index });
+}
+
+export function getStashDiff(workspaceId: string, oid: string): Promise<DiffSummary> {
+  return invoke<DiffSummary>("cmd_get_stash_diff", { workspaceId, oid });
+}
+
+// ─── Worktree ────────────────────────────────────────────────────────────────
+
+export interface WorktreeInfo {
+  name: string;
+  path: string;
+  is_main: boolean;
+  is_locked: boolean;
+  branch: string | null;
+}
+
+export function listWorktrees(workspaceId: string): Promise<WorktreeInfo[]> {
+  return invoke<WorktreeInfo[]>("cmd_list_worktrees", { workspaceId });
+}
+
+export function addWorktree(
+  workspaceId: string,
+  name: string,
+  path: string,
+  branch: string,
+  createBranch: boolean,
+): Promise<WorktreeInfo> {
+  return invoke<WorktreeInfo>("cmd_add_worktree", {
+    workspaceId,
+    name,
+    path,
+    branch,
+    createBranch,
+  });
+}
+
+export function removeWorktree(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_remove_worktree", { workspaceId, name });
 }

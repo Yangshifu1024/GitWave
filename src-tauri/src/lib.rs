@@ -16,19 +16,31 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    add_local_repo, add_ssh_key, checkout_branch, clone_repo, create_branch, create_workspace,
-    delete_branch, delete_ssh_key, delete_workspace, get_ahead_behind, get_blame, get_branches,
-    get_commit_diff, get_commit_log, get_file_diff, get_workdir_diff, init_repo, list_repos,
-    list_ssh_keys, list_workspaces, merge_branch, rebase_branch, relink_repo, remove_repo,
-    rename_workspace, set_active_repo, test_ssh_connection, AheadBehind, AppContext,
+    abort_interactive_rebase_pause, abort_merge, add_local_repo, add_ssh_key, add_worktree,
+    apply_stash, checkout_branch, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
+    create_branch, create_workspace, delete_branch, delete_ssh_key, delete_workspace, drop_stash,
+    execute_interactive_rebase, explain_conflict, fetch, generate_commit_message, get_ahead_behind,
+    get_ai_key_status, get_blame, get_branches, get_commit_diff, get_commit_log, get_conflict_sides,
+    get_file_diff, get_stash_diff, get_workdir_diff, get_working_copy, get_workspace, init_repo,
+    interactive_rebase_paused, list_conflicts, list_repos, list_ssh_keys, list_stashes,
+    list_workspaces, list_worktrees, merge_branch, merge_in_progress, plan_interactive_rebase,
+    pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
+    rename_workspace, resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all,
+    stage_files, test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind,
+    AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
 use domain::diff::FileDiff;
 use domain::error::AppError;
 use domain::history::CommitSummary;
-use domain::workspace::{RepoRef, Workspace, WorkspaceSummary};
+use domain::stash::StashEntry;
+use domain::working_copy::WorkingCopy;
+use domain::worktree::WorktreeInfo;
+use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
+use infrastructure::git::conflict::{ConflictFile, ConflictSides};
 use infrastructure::git::diff::DiffSummary;
+use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, InteractiveRebaseTodo};
 use infrastructure::git::merge::MergeResult;
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
@@ -84,6 +96,58 @@ fn cmd_set_active_repo(
     set_active_repo(&ctx, workspace_id, repo_id)
 }
 
+#[tauri::command]
+fn cmd_get_workspace(
+    ctx: tauri::State<'_, AppContext>,
+    id: String,
+) -> Result<Workspace, AppError> {
+    get_workspace(&ctx, id)
+}
+
+#[tauri::command]
+fn cmd_update_workspace_settings(
+    ctx: tauri::State<'_, AppContext>,
+    id: String,
+    settings: WorkspaceSettings,
+) -> Result<(), AppError> {
+    update_workspace_settings(&ctx, id, settings)
+}
+
+#[tauri::command]
+fn cmd_set_ai_api_key(
+    workspace_id: String,
+    provider: String,
+    api_key: String,
+) -> Result<(), AppError> {
+    set_ai_api_key(workspace_id, provider, api_key)
+}
+
+#[tauri::command]
+fn cmd_clear_ai_api_key(workspace_id: String, provider: String) -> Result<(), AppError> {
+    clear_ai_api_key(workspace_id, provider)
+}
+
+#[tauri::command]
+fn cmd_get_ai_key_status(
+    workspace_id: String,
+    provider: String,
+) -> Result<AiKeyStatus, AppError> {
+    get_ai_key_status(workspace_id, provider)
+}
+
+#[tauri::command]
+async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppError> {
+    probe_ollama(base_url).await
+}
+
+#[tauri::command]
+async fn cmd_generate_commit_message(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<String, AppError> {
+    generate_commit_message(&ctx, workspace_id).await
+}
+
 // ─── Repo commands (Sprint 2) ────────────────────────────────────────────
 
 #[tauri::command]
@@ -96,13 +160,40 @@ fn cmd_init_repo(
 }
 
 #[tauri::command]
-fn cmd_clone_repo(
+async fn cmd_clone_repo(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     url: String,
     dest_path: String,
+    replace_dest: Option<bool>,
 ) -> Result<RepoRef, AppError> {
-    clone_repo(&ctx, workspace_id, url, dest_path)
+    use infrastructure::git::repo_adapter::CloneProgress;
+    use tauri::Emitter;
+
+    let replace = replace_dest.unwrap_or(false);
+    let app_emit = app.clone();
+    let on_progress: Option<Box<dyn Fn(CloneProgress) + Send>> =
+        Some(Box::new(move |p: CloneProgress| {
+            let _ = app_emit.emit("clone-progress", &p);
+        }));
+
+    let workspaces = Arc::clone(&ctx.workspaces);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let local_ctx = AppContext::new(workspaces);
+        clone_repo(
+            &local_ctx,
+            workspace_id,
+            url,
+            dest_path,
+            replace,
+            on_progress,
+        )
+    })
+    .await
+    .map_err(|e| AppError::Unknown(format!("clone task join: {e}")))?;
+
+    result
 }
 
 #[tauri::command]
@@ -244,8 +335,9 @@ async fn cmd_checkout_branch(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     name: String,
+    force: Option<bool>,
 ) -> Result<(), AppError> {
-    checkout_branch(&ctx, &workspace_id, &name)
+    checkout_branch(&ctx, &workspace_id, &name, force.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -267,12 +359,259 @@ async fn cmd_merge_branch(
 }
 
 #[tauri::command]
+async fn cmd_list_conflicts(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<ConflictFile>, AppError> {
+    list_conflicts(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_get_conflict_sides(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+) -> Result<ConflictSides, AppError> {
+    get_conflict_sides(&ctx, &workspace_id, path)
+}
+
+#[tauri::command]
+async fn cmd_resolve_conflict(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+    content: String,
+) -> Result<(), AppError> {
+    resolve_conflict(&ctx, &workspace_id, path, content)
+}
+
+#[tauri::command]
+async fn cmd_abort_merge(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    abort_merge(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_merge_in_progress(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<bool, AppError> {
+    merge_in_progress(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_explain_conflict(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+) -> Result<String, AppError> {
+    explain_conflict(&ctx, workspace_id, path).await
+}
+
+#[tauri::command]
 async fn cmd_rebase_branch(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     upstream: String,
 ) -> Result<RebaseResult, AppError> {
     rebase_branch(&ctx, &workspace_id, &upstream)
+}
+
+#[tauri::command]
+async fn cmd_plan_interactive_rebase(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    upstream: String,
+) -> Result<Vec<InteractiveRebaseTodo>, AppError> {
+    plan_interactive_rebase(&ctx, &workspace_id, &upstream)
+}
+
+#[tauri::command]
+async fn cmd_execute_interactive_rebase(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    upstream: String,
+    todos: Vec<InteractiveRebaseTodo>,
+) -> Result<InteractiveRebaseResult, AppError> {
+    execute_interactive_rebase(&ctx, &workspace_id, &upstream, todos)
+}
+
+#[tauri::command]
+async fn cmd_continue_interactive_rebase(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<InteractiveRebaseResult, AppError> {
+    continue_interactive_rebase(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_abort_interactive_rebase_pause(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    abort_interactive_rebase_pause(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_interactive_rebase_paused(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<bool, AppError> {
+    interactive_rebase_paused(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_get_working_copy(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<WorkingCopy, AppError> {
+    get_working_copy(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_stage_files(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    stage_files(&ctx, &workspace_id, paths)
+}
+
+#[tauri::command]
+async fn cmd_unstage_files(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<(), AppError> {
+    unstage_files(&ctx, &workspace_id, paths)
+}
+
+#[tauri::command]
+async fn cmd_stage_all(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    stage_all(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    message: String,
+) -> Result<String, AppError> {
+    commit(&ctx, &workspace_id, message)
+}
+
+#[tauri::command]
+async fn cmd_fetch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    remote: Option<String>,
+) -> Result<(), AppError> {
+    fetch(&ctx, &workspace_id, remote)
+}
+
+#[tauri::command]
+async fn cmd_pull(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    remote: Option<String>,
+) -> Result<(), AppError> {
+    pull(&ctx, &workspace_id, remote)
+}
+
+#[tauri::command]
+async fn cmd_push(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    remote: Option<String>,
+) -> Result<(), AppError> {
+    push(&ctx, &workspace_id, remote)
+}
+
+#[tauri::command]
+async fn cmd_list_stashes(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<StashEntry>, AppError> {
+    list_stashes(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_save_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    message: Option<String>,
+) -> Result<String, AppError> {
+    save_stash(&ctx, &workspace_id, message)
+}
+
+#[tauri::command]
+async fn cmd_apply_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    index: u32,
+) -> Result<(), AppError> {
+    apply_stash(&ctx, &workspace_id, index)
+}
+
+#[tauri::command]
+async fn cmd_pop_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    index: u32,
+) -> Result<(), AppError> {
+    pop_stash(&ctx, &workspace_id, index)
+}
+
+#[tauri::command]
+async fn cmd_drop_stash(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    index: u32,
+) -> Result<(), AppError> {
+    drop_stash(&ctx, &workspace_id, index)
+}
+
+#[tauri::command]
+async fn cmd_get_stash_diff(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    oid: String,
+) -> Result<DiffSummary, AppError> {
+    get_stash_diff(&ctx, &workspace_id, &oid)
+}
+
+#[tauri::command]
+async fn cmd_list_worktrees(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<WorktreeInfo>, AppError> {
+    list_worktrees(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_add_worktree(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    path: String,
+    branch: String,
+    create_branch: bool,
+) -> Result<WorktreeInfo, AppError> {
+    add_worktree(&ctx, &workspace_id, name, path, branch, create_branch)
+}
+
+#[tauri::command]
+async fn cmd_remove_worktree(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    remove_worktree(&ctx, &workspace_id, name)
 }
 
 // ─── App startup ──────────────────────────────────────────────────────────
@@ -303,6 +642,13 @@ pub fn run() {
             cmd_rename_workspace,
             cmd_delete_workspace,
             cmd_set_active_repo,
+            cmd_get_workspace,
+            cmd_update_workspace_settings,
+            cmd_set_ai_api_key,
+            cmd_clear_ai_api_key,
+            cmd_get_ai_key_status,
+            cmd_probe_ollama,
+            cmd_generate_commit_message,
             cmd_init_repo,
             cmd_clone_repo,
             cmd_add_local_repo,
@@ -324,7 +670,35 @@ pub fn run() {
             cmd_checkout_branch,
             cmd_get_ahead_behind,
             cmd_merge_branch,
+            cmd_list_conflicts,
+            cmd_get_conflict_sides,
+            cmd_resolve_conflict,
+            cmd_abort_merge,
+            cmd_merge_in_progress,
+            cmd_explain_conflict,
             cmd_rebase_branch,
+            cmd_plan_interactive_rebase,
+            cmd_execute_interactive_rebase,
+            cmd_continue_interactive_rebase,
+            cmd_abort_interactive_rebase_pause,
+            cmd_interactive_rebase_paused,
+            cmd_get_working_copy,
+            cmd_stage_files,
+            cmd_unstage_files,
+            cmd_stage_all,
+            cmd_commit,
+            cmd_fetch,
+            cmd_pull,
+            cmd_push,
+            cmd_list_stashes,
+            cmd_save_stash,
+            cmd_apply_stash,
+            cmd_pop_stash,
+            cmd_drop_stash,
+            cmd_get_stash_diff,
+            cmd_list_worktrees,
+            cmd_add_worktree,
+            cmd_remove_worktree,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

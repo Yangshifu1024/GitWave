@@ -6,9 +6,9 @@ import { formatAppError, getCommitLog } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 
-const ROW_H = 56;
+const ROW_H = 40;
 const LANE_GAP = 16;
-const NODE_R = 4.5;
+const NODE_R = 3.5;
 const LANE_COLORS = [
   "var(--color-accent)",
   "var(--color-success)",
@@ -54,7 +54,7 @@ function RefBadge({ r, emphasize = false }: { r: CommitRef; emphasize?: boolean 
   return (
     <span
       className={cn(
-        "inline-flex items-center shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+        "inline-flex items-center shrink-0 px-1 py-0 rounded text-[9px] leading-none font-medium border",
         styles,
       )}
       title={r.kind.replace("_", " ")}
@@ -198,7 +198,7 @@ function GraphRow({
         <circle
           cx={cx}
           cy={cy}
-          r={NODE_R + 4}
+          r={NODE_R + 3}
           fill="none"
           stroke="var(--color-branch-current)"
           strokeWidth={1.5}
@@ -207,7 +207,7 @@ function GraphRow({
         <circle
           cx={cx}
           cy={cy}
-          r={NODE_R + 2.5}
+          r={NODE_R + 2}
           fill="none"
           stroke={color}
           strokeWidth={1}
@@ -241,6 +241,8 @@ function CommitRow({
   isSelected,
   isHead,
 }: CommitRowProps): React.JSX.Element {
+  const refs = commit.refs ?? [];
+
   return (
     <div
       role="button"
@@ -249,15 +251,12 @@ function CommitRow({
       onKeyDown={(e) => e.key === "Enter" && onSelect(commit.sha)}
       aria-current={isHead ? "true" : undefined}
       className={cn(
-        "flex items-center gap-3 px-3 py-0 cursor-pointer border-b border-border-subtle",
+        "flex items-center gap-2 px-2 py-0 cursor-pointer border-b border-border-subtle",
         "transition-colors duration-fast border-l-2 border-l-transparent",
-        // Panel is bg-secondary — hover must use a contrasting surface.
         !isSelected && !isHead && "hover:bg-bg-elevated",
-        // Current branch tip
         isHead &&
           !isSelected &&
           "bg-branch-current/10 border-l-branch-current hover:bg-branch-current/20",
-        // Selected: stronger accent fill, distinct from hover
         isSelected && "bg-accent/20 border-l-accent hover:bg-accent/30",
       )}
       style={{ height: `${ROW_H}px` }}
@@ -272,48 +271,42 @@ function CommitRow({
         isHead={isHead}
       />
 
-      <span
-        className={cn(
-          "font-mono text-xs px-1.5 py-0.5 rounded shrink-0",
-          isHead
-            ? "text-branch-current bg-branch-current/15 font-semibold"
-            : "text-accent bg-accent/10",
-        )}
-      >
+      <span className="font-mono text-[10px] text-text-muted w-14 shrink-0 tabular-nums">
         {shortSha(commit.sha)}
       </span>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <p
-            className={cn(
-              "text-sm truncate leading-tight",
-              isHead ? "text-text-primary font-semibold" : "text-text-primary font-medium",
-            )}
-          >
-            {commit.message_summary}
-          </p>
-          {(commit.refs ?? []).length > 0 ? (
-            <span className="flex items-center gap-1 shrink-0 overflow-hidden">
-              {(commit.refs ?? []).slice(0, 4).map((r) => (
-                <RefBadge key={`${r.kind}:${r.name}`} r={r} emphasize={isHead && r.kind !== "remote_branch"} />
-              ))}
-              {(commit.refs ?? []).length > 4 ? (
-                <span className="text-[10px] text-text-muted">
-                  +{(commit.refs ?? []).length - 4}
-                </span>
-              ) : null}
-            </span>
+      <p
+        className={cn(
+          "flex-1 min-w-0 text-xs leading-none truncate text-text-primary",
+          isHead ? "font-semibold" : "font-medium",
+        )}
+        title={commit.message_summary}
+      >
+        {commit.message_summary}
+      </p>
+
+      {refs.length > 0 ? (
+        <span className="flex items-center gap-0.5 shrink-0 max-w-[28%] overflow-hidden">
+          {refs.slice(0, 2).map((r) => (
+            <RefBadge
+              key={`${r.kind}:${r.name}`}
+              r={r}
+              emphasize={isHead && r.kind !== "remote_branch"}
+            />
+          ))}
+          {refs.length > 2 ? (
+            <span className="text-[9px] text-text-muted shrink-0">+{refs.length - 2}</span>
           ) : null}
-        </div>
-        <p className="text-xs text-text-muted mt-0.5">
-          {commit.author} &middot; {formatTime(commit.time)}
-          {commit.parents.length > 1 && (
-            <span className="ml-1 text-accent">merge · {commit.parents.length} parents</span>
-          )}
-          {isHead ? <span className="ml-1 text-branch-current font-medium">· current</span> : null}
-        </p>
-      </div>
+        </span>
+      ) : null}
+
+      <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
+        {commit.author} &middot; {formatTime(commit.time)}
+        {commit.parents.length > 1 ? (
+          <span className="ml-1 text-accent">merge</span>
+        ) : null}
+        {isHead ? <span className="ml-1 text-branch-current font-medium">HEAD</span> : null}
+      </span>
     </div>
   );
 }

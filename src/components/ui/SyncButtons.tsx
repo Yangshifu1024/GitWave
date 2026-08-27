@@ -5,9 +5,13 @@ import { Button } from "@/components/ui/Button";
 export interface SyncButtonsProps {
   ahead?: number;
   behind?: number;
-  onFetch: () => void;
-  onPull: () => void;
-  onPush: () => void;
+  onFetch?: () => void;
+  onPull?: () => void;
+  onPush?: () => void;
+  /** When set, overrides the default (always enabled for fetch; ahead/behind for pull/push). */
+  fetchDisabled?: boolean;
+  pullDisabled?: boolean;
+  pushDisabled?: boolean;
   inProgress?: {
     fetch?: boolean;
     pull?: boolean;
@@ -23,7 +27,6 @@ interface SyncButtonConfig {
   disabled?: boolean;
   badge?: string | null;
   inProgress?: boolean;
-  variant: "primary" | "secondary" | "ghost";
 }
 
 export function SyncButtons({
@@ -32,53 +35,59 @@ export function SyncButtons({
   onFetch,
   onPull,
   onPush,
+  fetchDisabled = false,
+  pullDisabled,
+  pushDisabled,
   inProgress = {},
   className,
 }: SyncButtonsProps): React.JSX.Element {
-  const buttons: SyncButtonConfig[] = [
-    {
+  const buttons: SyncButtonConfig[] = [];
+
+  if (onFetch) {
+    buttons.push({
       label: "Fetch",
       icon: <Download size={14} />,
       onClick: onFetch,
-      variant: "ghost",
+      disabled: fetchDisabled,
       inProgress: inProgress.fetch,
-    },
-    {
+    });
+  }
+  if (onPull) {
+    buttons.push({
       label: "Pull",
       icon: <RefreshCw size={14} />,
       onClick: onPull,
-      disabled: behind === 0,
+      disabled: pullDisabled ?? behind === 0,
       badge: behind > 0 ? `↓${behind}` : null,
       inProgress: inProgress.pull,
-      variant: "ghost",
-    },
-    {
+    });
+  }
+  if (onPush) {
+    buttons.push({
       label: "Push",
       icon: <Upload size={14} />,
       onClick: onPush,
-      disabled: ahead === 0,
+      disabled: pushDisabled ?? ahead === 0,
       badge: ahead > 0 ? `↑${ahead}` : null,
       inProgress: inProgress.push,
-      variant: "ghost",
-    },
-  ];
+    });
+  }
 
   return (
     <div className={cn("flex items-center gap-1", className)}>
       {buttons.map((btn) => (
         <Button
           key={btn.label}
-          variant={btn.variant}
+          variant="ghost"
           size="sm"
           disabled={btn.disabled || btn.inProgress}
           onClick={btn.onClick}
-          className={cn("relative")}
+          className="relative"
           title={btn.label}
+          aria-label={btn.label}
         >
-          {/* Spinner overlay when in progress */}
           {btn.inProgress ? <RefreshCw size={14} className="animate-spin" /> : btn.icon}
 
-          {/* Badge (ahead/behind count) */}
           {btn.badge && !btn.inProgress && (
             <span
               className={cn(

@@ -8,6 +8,9 @@ pub mod branch;
 pub mod diff;
 pub mod error;
 pub mod history;
+pub mod stash;
+pub mod working_copy;
+pub mod worktree;
 pub mod workspace;
 
 pub use blame::BlameLine;
@@ -17,6 +20,9 @@ pub use error::{AppError, Result};
 pub use history::{
     CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary,
 };
+pub use stash::StashEntry;
+pub use working_copy::{FileChange, FileStatusKind, WorkingCopy};
+pub use worktree::WorktreeInfo;
 pub use workspace::{
     PromptTemplates, RepoRef, RepoStatus, RepoSummary, Workspace, WorkspaceSettings,
     WorkspaceSummary,

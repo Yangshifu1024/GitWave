@@ -7,7 +7,6 @@ import { RepoList } from "@/components/RepoList";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { WindowControls } from "@/components/WindowControls";
 import { WorkspaceSwitcherDropdown } from "@/components/WorkspaceSwitcherDropdown";
-import { WorkingCopyBar } from "@/components/ui/WorkingCopyBar";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { getAppVersion } from "@/lib/api";
 import { isMacOS } from "@/lib/platform";
@@ -18,13 +17,42 @@ import { FolderOpen, HelpCircle } from "lucide-react";
 import { CommitGraph } from "@/components/CommitGraph";
 import { DiffViewer } from "@/components/DiffViewer";
 import { BranchList } from "@/components/BranchList";
+import { StashPanel } from "@/components/StashPanel";
+import { WorktreePanel } from "@/components/WorktreePanel";
+import { ConflictPanel } from "@/components/ConflictPanel";
+import { ChangesPanel } from "@/components/ChangesPanel";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
-  const [selectedCommitOid, setSelectedCommitOid] = useState<string | null>(null);
+  /** Commit selection scoped to the repo it was made in — avoids stale OID after switch. */
+  const [commitSelection, setCommitSelection] = useState<{
+    repoId: string;
+    sha: string;
+  } | null>(null);
+  const [workdirSelection, setWorkdirSelection] = useState<{
+    repoId: string;
+    path: string;
+  } | null>(null);
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+
+  const selectedCommitOid =
+    commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;
+  const selectedWorkdirPath =
+    workdirSelection && workdirSelection.repoId === activeRepoId ? workdirSelection.path : null;
+
+  const handleCommitSelect = (sha: string): void => {
+    if (!activeRepoId) return;
+    setWorkdirSelection(null);
+    setCommitSelection({ repoId: activeRepoId, sha });
+  };
+
+  const handleWorkdirFileSelect = (path: string): void => {
+    if (!activeRepoId) return;
+    setCommitSelection(null);
+    setWorkdirSelection({ repoId: activeRepoId, path });
+  };
 
   // Initialize theme immediately so the <html> class is correct on first render
   useTheme();
@@ -37,28 +65,15 @@ function App(): React.JSX.Element {
       });
   }, []);
 
-  useEffect(() => {
-    setSelectedCommitOid(null);
-  }, [activeRepoId]);
-
-  const showWorkingCopy = activeWorkspaceId !== null && activeRepoId !== null;
-
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary">
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <header
         data-tauri-drag-region
-        className={`flex items-center shrink-0 h-12 ${
+        className={`relative z-20 flex items-center shrink-0 h-12 ${
           isMacOS() ? "pl-20 pr-4" : "px-4"
         } gap-4 bg-bg-secondary border-b border-border-subtle`}
       >
-        {/* Left: Workspace switcher (DropdownMenu: select + create).
-            drag.js auto-blocks <button> children, so no explicit
-            no-drag-region needed on the wrapper. */}
-        <div className="shrink-0">
-          <WorkspaceSwitcherDropdown />
-        </div>
-
         {/* Center: app title (absolutely centered regardless of sibling widths) */}
         <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-text-primary pointer-events-none">
           GitWave
@@ -88,14 +103,18 @@ function App(): React.JSX.Element {
         <Split direction="horizontal">
           {/* Sidebar: 20% */}
           <Pane initialSize="20%" minSize={180} maxSize={480}>
-            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-auto">
+            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-x-hidden overflow-y-auto select-none">
+              <WorkspaceSwitcherDropdown />
               {activeWorkspaceId ? (
-                <RepoList workspaceId={activeWorkspaceId} />
+                <>
+                  <RepoList workspaceId={activeWorkspaceId} />
+                  <BranchList />
+                </>
               ) : (
                 <EmptyState
                   icon={<FolderOpen size={24} />}
                   title="No workspace selected"
-                  description="Select or create a workspace to see repos."
+                  description="Select or create a workspace above to see repos."
                   className="flex-1"
                 />
               )}
@@ -108,7 +127,9 @@ function App(): React.JSX.Element {
           <Pane initialSize="50%" minSize={200} maxSize={900}>
             <FeatureNav
               selectedCommitOid={selectedCommitOid}
-              onCommitSelect={setSelectedCommitOid}
+              onCommitSelect={handleCommitSelect}
+              selectedWorkdirPath={selectedWorkdirPath}
+              onWorkdirFileSelect={handleWorkdirFileSelect}
             />
           </Pane>
 
@@ -116,13 +137,15 @@ function App(): React.JSX.Element {
 
           {/* Main: 30% */}
           <Pane initialSize="30%" minSize={240}>
-            <MainContent selectedCommitOid={selectedCommitOid} />
+            <MainContent
+              selectedCommitOid={selectedCommitOid}
+              selectedWorkdirPath={selectedWorkdirPath}
+            />
           </Pane>
         </Split>
       </div>
 
-      {/* ── Working Copy Bar ─────────────────────────────────────────────── */}
-      {showWorkingCopy && <WorkingCopyBar repoId={activeRepoId} initialHeight={120} />}
+      <ConflictPanel />
     </div>
   );
 }
@@ -172,43 +195,38 @@ function SshKeyManagerModalWrapper({ onClose }: { onClose: () => void }): React.
 function FeatureNav({
   selectedCommitOid,
   onCommitSelect,
+  selectedWorkdirPath,
+  onWorkdirFileSelect,
 }: {
   selectedCommitOid: string | null;
   onCommitSelect: (sha: string) => void;
+  selectedWorkdirPath: string | null;
+  onWorkdirFileSelect: (path: string) => void;
 }): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState("history");
+  const [activeTab, setActiveTab] = useState("changes");
 
   return (
     <div className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-hidden">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full min-h-0">
         <TabsList className="shrink-0 px-2">
+          <TabsTrigger value="changes">Changes</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="branches">Branches</TabsTrigger>
           <TabsTrigger value="stash">Stash</TabsTrigger>
           <TabsTrigger value="tags">Tags</TabsTrigger>
           <TabsTrigger value="remotes">Remotes</TabsTrigger>
           <TabsTrigger value="worktrees">Worktrees</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="changes" className="flex-1 min-h-0 overflow-hidden p-0">
+          <ChangesPanel selectedPath={selectedWorkdirPath} onSelectFile={onWorkdirFileSelect} />
+        </TabsContent>
+
         <TabsContent value="history" className="flex-1 min-h-0 overflow-hidden p-0">
           <CommitGraph selectedSha={selectedCommitOid} onCommitSelect={onCommitSelect} />
         </TabsContent>
 
-        <TabsContent value="branches" className="flex-1 min-h-0 overflow-hidden p-0">
-          <BranchList />
-        </TabsContent>
-
-        <TabsContent value="stash" className="flex-1 min-h-0 overflow-auto p-4">
-          <EmptyState
-            icon={
-              <span className="text-2xl" aria-hidden="true">
-                &#x25D0;
-              </span>
-            }
-            title="Stash"
-            description="Stash list coming in Sprint 5."
-            className="py-8"
-          />
+        <TabsContent value="stash" className="flex-1 min-h-0 overflow-hidden p-0">
+          <StashPanel />
         </TabsContent>
 
         <TabsContent value="tags" className="flex-1 min-h-0 overflow-auto p-4">
@@ -237,17 +255,8 @@ function FeatureNav({
           />
         </TabsContent>
 
-        <TabsContent value="worktrees" className="flex-1 min-h-0 overflow-auto p-4">
-          <EmptyState
-            icon={
-              <span className="text-2xl" aria-hidden="true">
-                &#x25A1;
-              </span>
-            }
-            title="Worktrees"
-            description="Worktree list coming in Sprint 5."
-            className="py-8"
-          />
+        <TabsContent value="worktrees" className="flex-1 min-h-0 overflow-hidden p-0">
+          <WorktreePanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -257,8 +266,10 @@ function FeatureNav({
 /** Main content area — shows diff for selected commit or working copy */
 function MainContent({
   selectedCommitOid,
+  selectedWorkdirPath,
 }: {
   selectedCommitOid: string | null;
+  selectedWorkdirPath: string | null;
 }): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -296,9 +307,13 @@ function MainContent({
   return (
     <main className="flex flex-col h-full min-h-0 bg-bg-primary overflow-hidden">
       {selectedCommitOid ? (
-        <DiffViewer commitOid={selectedCommitOid} />
+        <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
       ) : (
-        <DiffViewer workdir={true} />
+        <DiffViewer
+          key={activeRepoId}
+          workdir={true}
+          path={selectedWorkdirPath ?? undefined}
+        />
       )}
     </main>
   );

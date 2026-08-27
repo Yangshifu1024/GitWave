@@ -26,6 +26,8 @@ pub struct BranchInfo {
     pub behind: u32,
     /// SHA of the tip commit.
     pub last_commit_sha: String,
+    /// Unix timestamp (seconds) of the tip commit. `0` if the tip is missing.
+    pub last_commit_time: i64,
 }
 
 #[cfg(test)]
@@ -54,6 +56,7 @@ mod tests {
             ahead: 2,
             behind: 0,
             last_commit_sha: "abc123".into(),
+            last_commit_time: 1_700_000_000,
         };
         let json = serde_json::to_string(&b).unwrap();
         let back: BranchInfo = serde_json::from_str(&json).unwrap();
@@ -70,6 +73,7 @@ mod tests {
             ahead: 0,
             behind: 0,
             last_commit_sha: "deadbeef".into(),
+            last_commit_time: 1_700_000_100,
         };
         let json = serde_json::to_string(&b).unwrap();
         let back: BranchInfo = serde_json::from_str(&json).unwrap();

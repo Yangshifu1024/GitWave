@@ -6,13 +6,19 @@
 
 pub mod blame;
 pub mod branch;
+pub mod conflict;
 pub mod credentials;
 pub mod diff;
 pub mod git2_adapter;
 pub mod history;
+pub mod interactive_rebase;
 pub mod merge;
 pub mod rebase;
+pub mod remote;
 pub mod repo_adapter;
+pub mod stash;
+pub mod working_copy;
+pub mod worktree;
 
 #[cfg(test)]
 mod test_helpers;

@@ -2,6 +2,7 @@
 export { Button, buttonVariants, type ButtonProps } from "./Button";
 export { Input, type InputProps } from "./Input";
 export { Modal, type ModalProps } from "./Modal";
+export { ErrorAlert, type ErrorAlertProps } from "./ErrorAlert";
 export { Tooltip, type TooltipProps } from "./Tooltip";
 export {
   ToastProvider,
@@ -19,6 +20,7 @@ export {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuPrimitive,
   type ContextMenuItemProps,

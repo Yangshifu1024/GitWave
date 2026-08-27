@@ -43,7 +43,7 @@
 
 | 编号 | 场景 | 验收标准 |
 |---|---|---|
-| 14 | AI command palette | Cmd+K 自然语言驱动 Git 操作（may-slip v0.2） |
+| 14 | AI command palette | Cmd+K 自然语言驱动 Git 操作（**v0.1 may-slip → v0.2**；见 §2.1） |
 
 ### 1.2 应该（Should，6 项）
 
@@ -75,7 +75,7 @@
 
 **完成定义**：
 
-- 14 个 must-have 全部可用
+- 14 个 must-have 全部可用（**例外**：项 14 AI command palette 已标注 may-slip，v0.1 可不交付，顺延 v0.2）
 - 三个核心场景（commit → push、conflict 解决、Workspace 切换）端到端可走通
 - 内部 dogfooding 时间合理，主要场景无崩溃
 - AI 行为符合 P1（永不自动 commit / push / merge）

@@ -11,7 +11,8 @@ export const TabsList = forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "flex shrink-0 overflow-x-auto border-b border-border-subtle",
+      "flex shrink-0 items-center overflow-x-auto overflow-y-hidden border-b border-border-subtle",
+      "[scrollbar-width:none]",
       "[&::-webkit-scrollbar]:hidden",
       className,
     )}

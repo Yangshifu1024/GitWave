@@ -23,7 +23,7 @@ export function ThemeToggle(): React.JSX.Element {
   const { icon, label } = themeConfig[theme];
 
   return (
-    <Tooltip content={label}>
+    <Tooltip content={label} side="bottom">
       <Button
         variant="ghost"
         size="sm"

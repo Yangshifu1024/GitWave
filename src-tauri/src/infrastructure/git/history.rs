@@ -306,6 +306,7 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
             .target()
             .map(|oid| oid.to_string())
             .unwrap_or_default();
+        let last_commit_time = branch_tip_time(repo, &last_commit_sha);
         out.push(BranchInfo {
             name,
             kind: BranchKind::Local,
@@ -314,6 +315,7 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
             ahead,
             behind,
             last_commit_sha,
+            last_commit_time,
         });
     }
 
@@ -329,6 +331,7 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
             .target()
             .map(|oid| oid.to_string())
             .unwrap_or_default();
+        let last_commit_time = branch_tip_time(repo, &last_commit_sha);
         out.push(BranchInfo {
             name,
             kind: BranchKind::Remote,
@@ -337,10 +340,22 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
             ahead: 0,
             behind: 0,
             last_commit_sha,
+            last_commit_time,
         });
     }
 
     Ok(out)
+}
+
+fn branch_tip_time(repo: &Repository, sha: &str) -> i64 {
+    if sha.is_empty() {
+        return 0;
+    }
+    git2::Oid::from_str(sha)
+        .ok()
+        .and_then(|oid| repo.find_commit(oid).ok())
+        .map(|commit| commit.time().seconds())
+        .unwrap_or(0)
 }
 
 fn map_git_err(e: git2::Error) -> AppError {

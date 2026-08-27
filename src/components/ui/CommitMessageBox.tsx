@@ -14,8 +14,7 @@ export interface CommitMessageBoxProps {
 }
 
 /**
- * Multi-line commit message textarea with AI generate button
- * and optional Amend prefill.
+ * Commit message textarea with AI generate (start) and Commit (end) on the row below.
  */
 export function CommitMessageBox({
   value,
@@ -29,7 +28,6 @@ export function CommitMessageBox({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
-    // Cmd/Ctrl + Enter submits
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
       if (!disabled && value.trim()) {
@@ -49,10 +47,10 @@ export function CommitMessageBox({
         onKeyDown={handleKeyDown}
         placeholder="feat: your commit message here…"
         disabled={disabled}
-        rows={4}
+        rows={2}
         maxLength={500}
         className={cn(
-          "flex-1 w-full resize-none",
+          "w-full resize-none",
           "rounded-md border border-border-default bg-bg-elevated",
           "px-3 py-2 text-sm text-text-primary placeholder:text-text-muted",
           "transition-colors duration-200",
@@ -62,35 +60,15 @@ export function CommitMessageBox({
         )}
         aria-label="Commit message"
       />
-
-      {/* Action buttons */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!canSubmit}
-          onClick={onSubmit}
-          className="flex-1"
-        >
-          {amendMessage != null ? "Amend commit" : "Commit"}
-        </Button>
-
-        {amendMessage != null && (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={disabled}
-            onClick={() => {
-              onChange(amendMessage);
-              textareaRef.current?.focus();
-            }}
-            title="Prefill with last commit message"
-          >
-            Amend
-          </Button>
-        )}
-
-        {onAiGenerate && (
+      {(value.length > 0 && value.length < 10) || value.length >= 72 ? (
+        <p className="text-xs text-text-muted text-right -mt-1">
+          {value.length < 10
+            ? `${value.length} chars`
+            : `${value.length} chars (first line > 72)`}
+        </p>
+      ) : null}
+      <div className="flex items-center justify-between gap-2">
+        {onAiGenerate ? (
           <Button
             variant="ghost"
             size="sm"
@@ -99,19 +77,32 @@ export function CommitMessageBox({
             title="Generate commit message with AI"
             aria-label="Generate commit message with AI"
           >
-            <Sparkles size={16} />
+            <Sparkles size={14} />
+            AI Generate
           </Button>
+        ) : (
+          <span />
         )}
+        <span className="flex items-center gap-2">
+          {amendMessage != null && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={disabled}
+              onClick={() => {
+                onChange(amendMessage);
+                textareaRef.current?.focus();
+              }}
+              title="Prefill with last commit message"
+            >
+              Amend
+            </Button>
+          )}
+          <Button variant="primary" size="sm" disabled={!canSubmit} onClick={onSubmit}>
+            {amendMessage != null ? "Amend commit" : "Commit"}
+          </Button>
+        </span>
       </div>
-
-      {/* Character count hint */}
-      <p className="text-xs text-text-muted text-right">
-        {value.length > 0 && value.length < 10
-          ? `${value.length} chars`
-          : value.length >= 72
-            ? `${value.length} chars (first line > 72)`
-            : null}
-      </p>
     </div>
   );
 }

@@ -15,6 +15,7 @@
   --color-bg-primary: #ffffff;
   --color-bg-secondary: #fafafa;
   --color-bg-elevated: #ffffff;
+  --color-bg-overlay: rgb(0 0 0 / 0.35);
   --color-text-primary: #1f1f1f;
   --color-text-secondary: #555555;
   --color-text-muted: #888888;
@@ -22,6 +23,8 @@
   --color-border-subtle: #e3e3e3;
   --color-border-default: #cccccc;
   --color-border-strong: #999999;
+  --color-scrollbar-thumb: #b8b8b8;
+  --color-scrollbar-track: #f0f0f0;
   --color-accent: #007aff;
   --color-accent-hover: #0066cc;
   --color-success: #2ecc71;
@@ -53,6 +56,16 @@
   --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.06);
   --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 4px rgba(0, 0, 0, 0.08);
   --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  /* z-index — `--z-*` maps to `z-*` utilities in Tailwind v4 */
+  --z-elevated: 10;
+  --z-popover: 100;
+  --z-modal: 1000;
+  --z-toast: 2000;
+  --z-index-elevated: 10;
+  --z-index-popover: 100;
+  --z-index-modal: 1000;
+  --z-index-toast: 2000;
 }
 
 /* ─── Dark theme (system + manual override) ──────────────────────────── */
@@ -62,6 +75,7 @@
     --color-bg-primary: #1a1a1a;
     --color-bg-secondary: #232323;
     --color-bg-elevated: #2a2a2a;
+    --color-bg-overlay: rgb(0 0 0 / 0.5);
     --color-text-primary: #f0f0f0;
     --color-text-secondary: #c0c0c0;
     --color-text-muted: #8e8e93;
@@ -69,6 +83,8 @@
     --color-border-subtle: #2a2a2a;
     --color-border-default: #3a3a3a;
     --color-border-strong: #5a5a5a;
+    --color-scrollbar-thumb: #5a5a5a;
+    --color-scrollbar-track: #232323;
     --color-accent: #0a84ff;
     --color-accent-hover: #409cff;
     --color-success: #30d158;
@@ -96,6 +112,7 @@
     --color-bg-primary: #1a1a1a;
     --color-bg-secondary: #232323;
     --color-bg-elevated: #2a2a2a;
+    --color-bg-overlay: rgb(0 0 0 / 0.5);
     --color-text-primary: #f0f0f0;
     --color-text-secondary: #c0c0c0;
     --color-text-muted: #8e8e93;
@@ -103,6 +120,8 @@
     --color-border-subtle: #2a2a2a;
     --color-border-default: #3a3a3a;
     --color-border-strong: #5a5a5a;
+    --color-scrollbar-thumb: #5a5a5a;
+    --color-scrollbar-track: #232323;
     --color-accent: #0a84ff;
     --color-accent-hover: #409cff;
     --color-success: #30d158;
@@ -136,10 +155,66 @@
     padding: 0;
   }
 
+  html.light {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  /* Scrollbars — WebView on Windows defaults to light chrome without these rules */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: var(--color-scrollbar-track);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-scrollbar-thumb);
+    border: 2px solid var(--color-scrollbar-track);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-border-strong);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: var(--color-scrollbar-track);
+  }
+
   *,
   *::before,
   *::after {
     box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  code,
+  pre,
+  .select-text,
+  .select-text * {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .select-none,
+  .select-none * {
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   /* Outline token: focus rings use accent color */

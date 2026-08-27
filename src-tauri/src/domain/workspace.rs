@@ -18,7 +18,14 @@ pub struct Workspace {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct WorkspaceSettings {
+    /// `openai` | `anthropic` | `ollama`
     pub ai_provider: Option<String>,
+    /// Model id, e.g. `gpt-4o-mini`, `claude-3-5-haiku-latest`, `llama3.2`
+    #[serde(default)]
+    pub ai_model: Option<String>,
+    /// API base URL override (provider-specific default when unset).
+    #[serde(default)]
+    pub ai_base_url: Option<String>,
     pub prompt_templates: PromptTemplates,
     pub commit_convention: Option<String>,
     pub theme_override: Option<String>,

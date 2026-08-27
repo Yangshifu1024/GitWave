@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { listen } from "@tauri-apps/api/event";
 
 import {
   addLocalRepo,
@@ -10,6 +11,7 @@ import {
   relinkRepo,
   removeRepo,
   setActiveRepo,
+  type CloneProgress,
   type RepoRef,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -21,6 +23,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PathInput } from "@/components/ui/PathInput";
 import { FolderPlus, GitBranch, FolderInput, Link2, Trash2 } from "lucide-react";
+import { SyncButtons } from "@/components/ui/SyncButtons";
+import { SidebarSection } from "@/components/ui/SidebarSection";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
 function detectProtocol(url: string): "ssh" | "https" {
   if (url.startsWith("ssh://") || url.startsWith("git@")) return "ssh";
@@ -50,6 +56,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
   const queryClient = useQueryClient();
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
+  const wc = useWorkingCopy();
 
   const [adding, setAdding] = useState<AddKind>(null);
   const [relinking, setRelinking] = useState<RepoRef | null>(null);
@@ -58,6 +65,8 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
   const [initPath, setInitPath] = useState("");
   const [cloneUrl, setCloneUrl] = useState("");
   const [cloneDest, setCloneDest] = useState("");
+  const [cloneProgress, setCloneProgress] = useState<CloneProgress | null>(null);
+  const [cloneFailed, setCloneFailed] = useState(false);
   const [localPath, setLocalPath] = useState("");
   const [relinkPath, setRelinkPath] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -94,7 +103,22 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
   function endAdd(): void {
     setAdding(null);
     setActionError(null);
+    setCloneProgress(null);
+    setCloneFailed(false);
   }
+
+  useEffect(() => {
+    if (adding !== "clone") return;
+    let unlisten: (() => void) | undefined;
+    void listen<CloneProgress>("clone-progress", (event) => {
+      setCloneProgress(event.payload);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [adding]);
 
   const initMut = useMutation({
     mutationFn: ({ path }: { path: string }) => initRepo(workspaceId, path),
@@ -108,7 +132,20 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
   });
 
   const cloneMut = useMutation({
-    mutationFn: ({ url, dest }: { url: string; dest: string }) => cloneRepo(workspaceId, url, dest),
+    mutationFn: ({
+      url,
+      dest,
+      replaceDest,
+    }: {
+      url: string;
+      dest: string;
+      replaceDest?: boolean;
+    }) => cloneRepo(workspaceId, url, dest, replaceDest ?? false),
+    onMutate: () => {
+      setCloneFailed(false);
+      setCloneProgress(null);
+      setActionError(null);
+    },
     onSuccess: (repo) => {
       refresh();
       setCloneUrl("");
@@ -116,9 +153,11 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
       endAdd();
       void activateRepo(repo.id);
     },
-    onError: (e: unknown) => setActionError(formatAppError(e)),
+    onError: (e: unknown) => {
+      setActionError(formatAppError(e));
+      setCloneFailed(true);
+    },
   });
-
   const localMut = useMutation({
     mutationFn: ({ path }: { path: string }) => addLocalRepo(workspaceId, path),
     onSuccess: (repo) => {
@@ -154,52 +193,54 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
 
-  return (
-    <div className="flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Repos</h2>
-        <span className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={() => startAdd("init")} aria-label="Init repo">
-            <GitBranch size={14} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => startAdd("clone")}
-            aria-label="Clone repo"
-          >
-            <FolderPlus size={14} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => startAdd("local")}
-            aria-label="Add local repo"
-          >
-            <FolderInput size={14} />
-          </Button>
-        </span>
-      </div>
+  const headerError =
+    (actionError && !adding && !relinking ? actionError : null) ?? wc.actionError;
 
-      {/* List */}
-      {actionError && !adding && !relinking ? (
-        <p className="px-3 py-2 text-sm text-danger">{actionError}</p>
-      ) : null}
-      {isLoading ? (
-        <p className="px-3 py-2 text-sm text-text-muted">Loading repos…</p>
-      ) : error ? (
-        <p className="px-3 py-2 text-sm text-danger">
-          Failed to load repos: {formatAppError(error)}
-        </p>
-      ) : repos.length === 0 ? (
-        <EmptyState
-          title="No repos"
-          description="Init, clone, or add a local repo to start."
-          className="py-6"
-        />
-      ) : (
-        <ul className="py-1">
+  return (
+    <>
+      <SidebarSection
+        title="Repos"
+        actions={
+          <>
+            <SyncButtons
+              onFetch={wc.fetch}
+              fetchDisabled={!activeRepoId}
+              inProgress={wc.syncPending}
+            />
+            <Button variant="ghost" size="sm" onClick={() => startAdd("init")} aria-label="Init repo">
+              <GitBranch size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => startAdd("clone")}
+              aria-label="Clone repo"
+            >
+              <FolderPlus size={14} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => startAdd("local")}
+              aria-label="Add local repo"
+            >
+              <FolderInput size={14} />
+            </Button>
+          </>
+        }
+      >
+        {isLoading ? (
+          <p className="px-3 py-2 text-sm text-text-muted">Loading repos…</p>
+        ) : error ? (
+          <p className="px-3 py-2 text-sm text-text-muted">Failed to load repos.</p>
+        ) : repos.length === 0 ? (
+          <EmptyState
+            title="No repos"
+            description="Init, clone, or add a local repo to start."
+            className="py-6"
+          />
+        ) : (
+          <ul className="py-1">
           {repos.map((r) => (
             <li key={r.id}>
               <ListItem
@@ -237,7 +278,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
                         e.stopPropagation();
                         setRemoving(r);
                       }}
-                      className="p-1 text-danger hover:text-danger"
+                      className="p-1 text-danger hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                       aria-label="Remove repo"
                     >
                       <Trash2 size={13} />
@@ -260,6 +301,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           ))}
         </ul>
       )}
+      </SidebarSection>
 
       {/* Init modal */}
       {adding === "init" && (
@@ -342,23 +384,67 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
               />
             </div>
             {actionError && <p className="text-xs text-danger">{actionError}</p>}
+            {cloneMut.isPending || cloneProgress ? (
+              <div className="flex flex-col gap-1">
+                <div className="h-1.5 rounded bg-bg-secondary overflow-hidden">
+                  <div
+                    className="h-full bg-accent transition-[width] duration-200"
+                    style={{
+                      width: `${
+                        cloneProgress && cloneProgress.totalObjects > 0
+                          ? Math.min(
+                              100,
+                              Math.round(
+                                (100 * cloneProgress.receivedObjects) / cloneProgress.totalObjects,
+                              ),
+                            )
+                          : cloneMut.isPending
+                            ? 8
+                            : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <p className="text-[11px] text-text-muted font-mono">
+                  {cloneProgress
+                    ? `objects ${cloneProgress.receivedObjects}/${cloneProgress.totalObjects || "?"} · deltas ${cloneProgress.indexedDeltas}/${cloneProgress.totalDeltas || "?"} · ${Math.round(cloneProgress.receivedBytes / 1024)} KiB`
+                    : "Starting clone…"}
+                </p>
+              </div>
+            ) : null}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={endAdd}>
+            <Button variant="secondary" size="sm" onClick={endAdd} disabled={cloneMut.isPending}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })}
-              disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
-            >
-              Clone
-            </Button>
+            {cloneFailed ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() =>
+                  cloneMut.mutate({
+                    url: cloneUrl.trim(),
+                    dest: cloneDest.trim(),
+                    replaceDest: true,
+                  })
+                }
+                disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
+              >
+                Retry
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })}
+                disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
+              >
+                {cloneMut.isPending ? "Cloning…" : "Clone"}
+              </Button>
+            )}
           </div>
         </Modal>
       )}
-
       {/* Add local modal */}
       {adding === "local" && (
         <Modal
@@ -465,6 +551,15 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           </div>
         </Modal>
       )}
-    </div>
+      <ErrorAlert
+        message={
+          headerError ?? (error ? `Failed to load repos: ${formatAppError(error)}` : null)
+        }
+        onDismiss={() => {
+          setActionError(null);
+          wc.setActionError(null);
+        }}
+      />
+    </>
   );
 }

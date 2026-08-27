@@ -28,15 +28,38 @@ impl DiffSummary {
             total_deletions,
         }
     }
+
+    pub fn merge(self, other: Self) -> Self {
+        let mut files = self.files;
+        files.extend(other.files);
+        Self::new(files)
+    }
 }
 
 /// Diff the working tree against the index (unstaged changes).
 pub fn diff_workdir_to_index(repo: &Repository) -> Result<DiffSummary> {
     let mut opts = DiffOptions::new();
-    opts.include_untracked(true);
-    opts.show_untracked_content(true);
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .show_untracked_content(true)
+        .context_lines(3);
     let diff = repo
         .diff_index_to_workdir(None, Some(&mut opts))
+        .map_err(map_git_err)?;
+    diff_to_summary(&diff)
+}
+
+/// Diff the index (staged) against HEAD tree.
+pub fn diff_index_to_head(repo: &Repository) -> Result<DiffSummary> {
+    let head_tree = match repo.head() {
+        Ok(h) => Some(h.peel_to_tree().map_err(map_git_err)?),
+        Err(e) if e.code() == git2::ErrorCode::UnbornBranch => None,
+        Err(e) => return Err(map_git_err(e)),
+    };
+    let mut opts = DiffOptions::new();
+    opts.context_lines(3);
+    let diff = repo
+        .diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts))
         .map_err(map_git_err)?;
     diff_to_summary(&diff)
 }
@@ -188,6 +211,7 @@ fn diff_to_files(diff: &Diff) -> Result<Vec<FileDiff>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::diff::FileDiff;
     use crate::infrastructure::git::test_helpers::build_linear_repo;
     use std::fs;
 
@@ -257,5 +281,105 @@ mod tests {
         cleanup(&path);
 
         assert_eq!(summary.files.len(), 0);
+    }
+
+    #[test]
+    fn untracked_file_diff_includes_full_content() {
+        let (path, repo) = build_linear_repo(1);
+        fs::write(path.join("new.txt"), "alpha\nbeta\ngamma\n").unwrap();
+
+        let summary = diff_workdir_to_index(&repo).unwrap();
+        cleanup(&path);
+
+        let file = summary
+            .files
+            .iter()
+            .find(|f| f.path == "new.txt")
+            .expect("untracked new.txt should appear in workdir diff");
+        assert_eq!(file.additions, 3, "expected every new line counted");
+        assert_eq!(file.deletions, 0);
+        let lines: Vec<&str> = file
+            .hunks
+            .iter()
+            .flat_map(|h| h.lines.iter())
+            .map(|l| l.content.as_str())
+            .collect();
+        assert_eq!(lines, ["alpha", "beta", "gamma"]);
+    }
+
+    #[test]
+    fn staged_new_file_diff_includes_full_content() {
+        let (path, repo) = build_linear_repo(1);
+        fs::write(path.join("added.rs"), "fn main() {}\n").unwrap();
+        {
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("added.rs")).unwrap();
+            index.write().unwrap();
+        }
+
+        let summary = diff_index_to_head(&repo).unwrap();
+        cleanup(&path);
+
+        let file = summary
+            .files
+            .iter()
+            .find(|f| f.path == "added.rs")
+            .expect("staged added.rs should appear in index diff");
+        assert_eq!(file.additions, 1);
+        let lines: Vec<&str> = file
+            .hunks
+            .iter()
+            .flat_map(|h| h.lines.iter())
+            .map(|l| l.content.as_str())
+            .collect();
+        assert_eq!(lines, ["fn main() {}"]);
+    }
+
+    #[test]
+    fn untracked_file_in_new_directory_includes_full_content() {
+        let (path, repo) = build_linear_repo(1);
+        fs::create_dir_all(path.join("src")).unwrap();
+        fs::write(path.join("src").join("lib.rs"), "pub fn f() {}\n").unwrap();
+
+        let summary = diff_workdir_to_index(&repo).unwrap();
+        cleanup(&path);
+
+        let file = summary
+            .files
+            .iter()
+            .find(|f| f.path.replace('\\', "/") == "src/lib.rs");
+        if file.is_none() {
+            panic!(
+                "expected src/lib.rs, got {:?}",
+                summary.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>()
+            );
+        }
+        let file = file.unwrap();
+        assert_eq!(file.additions, 1);
+        let lines: Vec<&str> = file
+            .hunks
+            .iter()
+            .flat_map(|h| h.lines.iter())
+            .map(|l| l.content.as_str())
+            .collect();
+        assert_eq!(lines, ["pub fn f() {}"]);
+    }
+
+    #[test]
+    fn diff_summary_merge_concatenates_files_and_totals() {
+        let file = |path: &str, additions: u32, deletions: u32| FileDiff {
+            path: path.into(),
+            old_sha: None,
+            new_sha: None,
+            additions,
+            deletions,
+            hunks: vec![],
+        };
+        let merged = DiffSummary::new(vec![file("a.ts", 3, 1)]).merge(DiffSummary::new(vec![
+            file("b.ts", 2, 4),
+        ]));
+        assert_eq!(merged.files.len(), 2);
+        assert_eq!(merged.total_additions, 5);
+        assert_eq!(merged.total_deletions, 5);
     }
 }

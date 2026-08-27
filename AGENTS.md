@@ -65,7 +65,9 @@
 - **AI 代理禁止自动 commit / push / merge**（符合 P1）
 - **main 分支保护**：禁止 force push；PR 必须经 code-reviewer 审查通过
 - **每个 PR 关联 proposal 或 task**：描述引用 `docs/pm/features/F<编号>.md` 或 `docs/tasks/<任务名>/plan.md`
-- **新需求 / 新问题必须使用新分支**：处理前 AI 代理提出分支名推荐值（`feature/<name>` 或 `fix/<name>`），由用户确认后创建
+- **新需求 / 新问题先确认分支**：处理前询问用户是否使用新分支
+  - 不使用：在当前分支继续工作
+  - 使用：给出推荐分支名（`feature/<name>` 或 `fix/<name>`，对齐 `docs/pm/features/F<编号>.md` 或 `docs/tasks/<feat|fix>-<name>/`），并接受用户自定义；确认后再创建
 
 ## 可用专门代理
 
