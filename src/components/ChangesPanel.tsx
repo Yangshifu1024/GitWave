@@ -1,11 +1,15 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FileListItem } from "@/components/ui/FileListItem";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
-import { formatAppError, generateCommitMessage, type FileChange } from "@/lib/api";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { AiProviderSettings } from "@/components/AiProviderSettings";
+import { formatAppError, generateCommitMessage, getWorkspace, type FileChange } from "@/lib/api";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { modifierFromPointerEvent, nextFileSelection } from "@/lib/fileSelection";
 
@@ -169,9 +173,21 @@ export function ChangesPanel({
   } = useWorkingCopy();
   const [message, setMessage] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiPromptOpen, setAiPromptOpen] = useState(false);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
 
-  const handleAiGenerate = () => {
-    if (!workspaceId || aiBusy) return;
+  const { data: workspace } = useQuery({
+    queryKey: ["workspace", workspaceId],
+    queryFn: () => getWorkspace(workspaceId!),
+    enabled: Boolean(workspaceId),
+  });
+
+  const startGenerate = (provider: string | null | undefined) => {
+    if (!workspaceId) return;
+    if (!provider?.trim()) {
+      setAiPromptOpen(true);
+      return;
+    }
     setAiBusy(true);
     setActionError(null);
     generateCommitMessage(workspaceId)
@@ -179,6 +195,51 @@ export function ChangesPanel({
       .catch((e) => setActionError(formatAppError(e)))
       .finally(() => setAiBusy(false));
   };
+
+  const handleAiGenerate = () => {
+    if (!workspaceId || aiBusy) return;
+    if (workspace) {
+      startGenerate(workspace.settings.ai_provider);
+      return;
+    }
+    getWorkspace(workspaceId)
+      .then((ws) => startGenerate(ws.settings.ai_provider))
+      .catch((e) => setActionError(formatAppError(e)));
+  };
+
+  const aiDialogs = (
+    <>
+      <Modal
+        open={aiPromptOpen}
+        onOpenChange={setAiPromptOpen}
+        title="AI provider not configured"
+        description="This workspace has no AI provider. Would you like to configure one now?"
+        size="sm"
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setAiPromptOpen(false)}>
+            Not now
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              setAiPromptOpen(false);
+              setAiSettingsOpen(true);
+            }}
+          >
+            Configure
+          </Button>
+        </div>
+      </Modal>
+      <AiProviderSettings
+        workspaceId={workspaceId}
+        workspaceName={workspace?.name}
+        open={aiSettingsOpen}
+        onOpenChange={setAiSettingsOpen}
+      />
+    </>
+  );
 
   if (!repoId) {
     return (
@@ -191,10 +252,12 @@ export function ChangesPanel({
     );
   }
 
+  const wcAlert =
+    actionError ?? (isError ? (error ? formatAppError(error) : "Failed to load working copy") : null);
+
   const commitBox = (
     <div className="shrink-0 border-t border-border-subtle p-3">
       <CommitMessageBox
-        layout="inline"
         value={message}
         onChange={setMessage}
         onSubmit={() => {
@@ -214,18 +277,14 @@ export function ChangesPanel({
           <span className="text-xs text-text-muted italic">Loading…</span>
         </div>
         {commitBox}
+        {aiDialogs}
+        <ErrorAlert message={wcAlert} onDismiss={() => setActionError(null)} />
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {(actionError || isError) && (
-        <div className="shrink-0 px-3 py-1 text-xs text-danger border-b border-border-subtle">
-          {actionError ?? (error ? formatAppError(error) : "Failed to load working copy")}
-        </div>
-      )}
-
       <FileSection
         title="Unstaged"
         actionLabel="Stage"
@@ -251,6 +310,8 @@ export function ChangesPanel({
         onBulkAction={(paths) => unstage(paths)}
       />
       {commitBox}
+      {aiDialogs}
+      <ErrorAlert message={wcAlert} onDismiss={() => setActionError(null)} />
     </div>
   );
 }

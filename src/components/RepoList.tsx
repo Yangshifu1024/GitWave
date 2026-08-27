@@ -25,6 +25,7 @@ import { PathInput } from "@/components/ui/PathInput";
 import { FolderPlus, GitBranch, FolderInput, Link2, Trash2 } from "lucide-react";
 import { SyncButtons } from "@/components/ui/SyncButtons";
 import { SidebarSection } from "@/components/ui/SidebarSection";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
 function detectProtocol(url: string): "ssh" | "https" {
@@ -228,13 +229,10 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           </>
         }
       >
-        {headerError ? <p className="px-3 py-2 text-sm text-danger">{headerError}</p> : null}
         {isLoading ? (
           <p className="px-3 py-2 text-sm text-text-muted">Loading repos…</p>
         ) : error ? (
-          <p className="px-3 py-2 text-sm text-danger">
-            Failed to load repos: {formatAppError(error)}
-          </p>
+          <p className="px-3 py-2 text-sm text-text-muted">Failed to load repos.</p>
         ) : repos.length === 0 ? (
           <EmptyState
             title="No repos"
@@ -553,6 +551,15 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           </div>
         </Modal>
       )}
+      <ErrorAlert
+        message={
+          headerError ?? (error ? `Failed to load repos: ${formatAppError(error)}` : null)
+        }
+        onDismiss={() => {
+          setActionError(null);
+          wc.setActionError(null);
+        }}
+      />
     </>
   );
 }

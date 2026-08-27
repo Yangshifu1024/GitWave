@@ -13,6 +13,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { Archive, Eye, Play, Trash2, Upload } from "lucide-react";
 
 export function StashPanel(): React.JSX.Element {
@@ -117,9 +118,7 @@ export function StashPanel(): React.JSX.Element {
       </div>
 
       {error ? (
-        <div className="shrink-0 px-3 py-2 text-xs text-danger border-b border-border-subtle">
-          {error}
-        </div>
+        <ErrorAlert message={error} onDismiss={() => setError(null)} />
       ) : null}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">

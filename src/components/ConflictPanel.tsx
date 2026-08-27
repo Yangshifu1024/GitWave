@@ -12,6 +12,7 @@ import {
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { ListItem } from "@/components/ui/ListItem";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AlertTriangle, Sparkles, XCircle } from "lucide-react";
 
 export function ConflictPanel(): React.JSX.Element | null {
@@ -108,11 +109,7 @@ export function ConflictPanel(): React.JSX.Element | null {
           </div>
         </div>
 
-        {error ? (
-          <div className="shrink-0 px-4 py-2 text-xs text-danger border-b border-border-subtle">
-            {error}
-          </div>
-        ) : null}
+        {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <div className="w-64 shrink-0 border-r border-border-subtle overflow-auto">

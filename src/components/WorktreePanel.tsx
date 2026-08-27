@@ -13,6 +13,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { FolderTree, Plus, Trash2, ArrowRightLeft } from "lucide-react";
 
 export function WorktreePanel(): React.JSX.Element {
@@ -136,11 +137,7 @@ export function WorktreePanel(): React.JSX.Element {
         </div>
       ) : null}
 
-      {error ? (
-        <div className="shrink-0 px-3 py-2 text-xs text-danger border-b border-border-subtle">
-          {error}
-        </div>
-      ) : null}
+      {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
       <div className="flex-1 min-h-0 overflow-auto">
         {items.map((wt) => (

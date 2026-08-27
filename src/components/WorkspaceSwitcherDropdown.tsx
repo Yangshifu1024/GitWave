@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
 import { Modal } from "@/components/ui/Modal";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { FolderPlus, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
@@ -122,7 +123,7 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
         {isLoading ? (
           <p className="px-3 py-2 text-sm text-text-muted">Loading…</p>
         ) : error ? (
-          <p className="px-3 py-2 text-sm text-danger">{formatAppError(error)}</p>
+          <p className="px-3 py-2 text-sm text-text-muted">Failed to load workspaces.</p>
         ) : workspaces.length === 0 ? (
           <p className="px-3 py-2 text-sm text-text-muted italic">No workspaces yet</p>
         ) : (
@@ -270,6 +271,9 @@ export function WorkspaceSwitcherDropdown(): React.JSX.Element {
         </div>
       </Modal>
 
+      <ErrorAlert
+        message={error ? formatAppError(error) : null}
+      />
       <AiProviderSettings
         workspaceId={aiWorkspace?.id ?? null}
         workspaceName={aiWorkspace?.name}

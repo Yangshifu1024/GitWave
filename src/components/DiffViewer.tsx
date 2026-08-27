@@ -209,6 +209,12 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
   );
 }
 
+function splitPath(path: string): { dir: string; name: string } {
+  const idx = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  if (idx < 0) return { dir: "", name: path };
+  return { dir: path.slice(0, idx + 1), name: path.slice(idx + 1) };
+}
+
 function FileDiffView({
   fileDiff,
   mode,
@@ -220,25 +226,34 @@ function FileDiffView({
 }): React.JSX.Element {
   // Language for future shiki integration
   void getLanguage(getExt(fileDiff.path));
+  const { dir, name } = splitPath(fileDiff.path);
 
   return (
-    <div className="mb-6">
-      {/* File header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-bg-secondary border border-border-subtle rounded-t-md">
-        <span className="text-sm font-medium text-text-primary">{fileDiff.path}</span>
-        <span className="text-xs text-text-muted font-mono">
-          {fileDiff.old_sha?.slice(0, 7) ?? "0000000"}
-          {fileDiff.old_sha && fileDiff.new_sha ? " → " : ""}
-          {fileDiff.new_sha?.slice(0, 7) ?? "0000000"}
-        </span>
-        <div className="ml-auto flex items-center gap-2 text-xs">
-          <span className="text-success">+{fileDiff.additions}</span>
-          <span className="text-danger">-{fileDiff.deletions}</span>
-          {onBlame ? (
-            <Button type="button" variant="ghost" size="sm" onClick={() => onBlame(fileDiff.path)}>
-              Blame
-            </Button>
+    <div className="mb-6 min-w-0">
+      <div className="min-w-0 px-3 py-2 bg-bg-secondary border border-border-subtle rounded-t-md">
+        <div className="flex min-w-0 items-baseline" title={fileDiff.path}>
+          {dir ? (
+            <span className="min-w-0 truncate text-sm font-mono text-text-muted">{dir}</span>
           ) : null}
+          <span className="shrink-0 max-w-full break-all text-sm font-medium font-mono text-text-primary">
+            {name}
+          </span>
+        </div>
+        <div className="mt-1 flex items-center gap-2 text-xs">
+          <span className="min-w-0 truncate font-mono text-text-muted">
+            {fileDiff.old_sha?.slice(0, 7) ?? "0000000"}
+            {fileDiff.old_sha && fileDiff.new_sha ? " → " : ""}
+            {fileDiff.new_sha?.slice(0, 7) ?? "0000000"}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <span className="text-success">+{fileDiff.additions}</span>
+            <span className="text-danger">-{fileDiff.deletions}</span>
+            {onBlame ? (
+              <Button type="button" variant="ghost" size="sm" onClick={() => onBlame(fileDiff.path)}>
+                Blame
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 

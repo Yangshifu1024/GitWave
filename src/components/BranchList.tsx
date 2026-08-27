@@ -30,6 +30,7 @@ import { InteractiveRebaseDialog } from "@/components/InteractiveRebaseDialog";
 import { ArrowRight, GitBranch, GitMerge, GitPullRequestArrow, ListOrdered, Plus, Trash2 } from "lucide-react";
 import { SyncButtons } from "@/components/ui/SyncButtons";
 import { SidebarSection } from "@/components/ui/SidebarSection";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
 function formatTime(time: number): string {
@@ -475,11 +476,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           </div>
         ) : null}
 
-        {bannerError ? (
-          <div className="shrink-0 px-3 py-2 text-xs text-danger border-b border-border-subtle">
-            {bannerError}
-          </div>
-        ) : null}
         {notice ? (
           <div className="shrink-0 px-3 py-2 text-xs text-text-secondary border-b border-border-subtle">
             {notice}
@@ -488,6 +484,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
         <div>{renderBody()}</div>
       </SidebarSection>
+
+      <ErrorAlert
+        message={bannerError}
+        onDismiss={() => {
+          setError(null);
+          wc.setActionError(null);
+        }}
+      />
 
       {irebaseOnto && activeWorkspaceId ? (
         <InteractiveRebaseDialog

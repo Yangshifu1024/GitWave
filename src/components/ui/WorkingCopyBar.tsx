@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BranchIndicator } from "@/components/ui/BranchIndicator";
 import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
+import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { SyncButtons } from "@/components/ui/SyncButtons";
 import { formatAppError, generateCommitMessage, type WorkingCopy } from "@/lib/api";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
@@ -48,8 +49,12 @@ export function WorkingCopyBar({ repoId, className }: WorkingCopyBarProps): Reac
     />
   );
 
+  const wcAlert =
+    wc.actionError ?? (wc.isError ? (wc.error ? formatAppError(wc.error) : "Failed to load working copy") : null);
+
   if (!wc.isLoading && !wc.isError && !wc.isDirty && snapshot) {
     return (
+      <>
       <div
         className={cn(
           "flex items-center justify-between px-4",
@@ -73,22 +78,19 @@ export function WorkingCopyBar({ repoId, className }: WorkingCopyBarProps): Reac
           </span>
         </div>
       </div>
+      <ErrorAlert message={wcAlert} onDismiss={() => wc.setActionError(null)} />
+      </>
     );
   }
 
   return (
+    <>
     <div
       className={cn(
         "flex flex-col shrink-0 bg-bg-secondary border-t border-border-subtle",
         className,
       )}
     >
-      {(wc.actionError || wc.isError) && (
-        <div className="shrink-0 px-3 py-1 text-xs text-danger border-b border-border-subtle">
-          {wc.actionError ?? (wc.error ? formatAppError(wc.error) : "Failed to load working copy")}
-        </div>
-      )}
-
       <div className="flex items-center justify-between gap-2 px-3 py-1.5">
         {snapshot ? (
           <>
@@ -109,7 +111,6 @@ export function WorkingCopyBar({ repoId, className }: WorkingCopyBarProps): Reac
       <div className="px-3 pb-3">
         {snapshot ? (
           <CommitMessageBox
-            layout="inline"
             value={message}
             onChange={setMessage}
             onSubmit={() => {
@@ -126,5 +127,7 @@ export function WorkingCopyBar({ repoId, className }: WorkingCopyBarProps): Reac
         )}
       </div>
     </div>
+    <ErrorAlert message={wcAlert} onDismiss={() => wc.setActionError(null)} />
+    </>
   );
 }
