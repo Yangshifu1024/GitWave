@@ -12,6 +12,15 @@ import "./styles/tokens.css";
 
 const queryClient = new QueryClient();
 
+// Suppress the WebView's default context menu everywhere except editable
+// elements (keep native copy/paste there). Radix ContextMenus attach their
+// own handlers and are unaffected.
+window.addEventListener("contextmenu", (e) => {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest("input, textarea, [contenteditable='true']")) return;
+  e.preventDefault();
+});
+
 // Apply theme + palette preferences before React mounts to avoid FOUC.
 applyInitialPreferences();
 

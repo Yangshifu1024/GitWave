@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { ChevronDown, ChevronRight, PanelRightClose, PanelRightOpen } from "lucide-react";
 import type { DiffSummary, FileDiff, DiffHunk, DiffLine } from "@/lib/api";
 import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { Button } from "@/components/ui/Button";
-import { Tooltip } from "@/components/ui/Tooltip";
 import { BlameView } from "@/components/BlameView";
 import { filterDiffSummary } from "@/lib/diff";
 import { cn } from "@/lib/utils";
@@ -218,13 +217,53 @@ function splitPath(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, idx + 1), name: path.slice(idx + 1) };
 }
 
+function fileChangeKey(f: { path: string; staged?: boolean | null }): string {
+  return `${f.staged ? "s" : "u"}:${f.path}`;
+}
+
+/** Compact iOS-style segmented control. */
+function SegmentedControl({
+  segments,
+  active,
+  onSelect,
+}: {
+  segments: { key: string; label: string }[];
+  active: string | null;
+  onSelect: (key: string) => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center rounded-md border border-border-subtle bg-bg-primary p-0.5">
+      {segments.map((s) => (
+        <button
+          key={s.key}
+          type="button"
+          aria-pressed={active === s.key}
+          onClick={() => onSelect(s.key)}
+          className={cn(
+            "rounded-sm px-2 py-0.5 text-xs transition-colors duration-fast",
+            active === s.key
+              ? "bg-accent text-text-inverse font-medium"
+              : "text-text-secondary hover:text-text-primary",
+          )}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function FileDiffView({
   fileDiff,
   mode,
+  collapsed,
+  onToggleCollapsed,
   onBlame,
 }: {
   fileDiff: FileDiff;
   mode: DiffViewMode;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   onBlame?: (path: string) => void;
 }): React.JSX.Element {
   // Language for future shiki integration
@@ -235,6 +274,15 @@ function FileDiffView({
     <div className="mb-3 min-w-0">
       <div className="min-w-0 px-3 py-2 bg-bg-elevated border-b border-border-subtle">
         <div className="flex min-w-0 items-center gap-2" title={fileDiff.path}>
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Expand file diff" : "Collapse file diff"}
+            onClick={onToggleCollapsed}
+            className="shrink-0 text-text-muted hover:text-text-secondary"
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
           <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
             {name}
           </span>
@@ -276,25 +324,27 @@ function FileDiffView({
       </div>
 
       {/* Hunks */}
-      <div className="border-x border-b border-border-subtle px-0 pt-0">
-        {fileDiff.hunks.length > 0 ? (
-          fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
-        ) : (
-          // Fallback: show additions/deletions summary when no hunk detail available
-          <div className="py-4 text-center text-sm text-text-muted">
-            {fileDiff.additions > 0 || fileDiff.deletions > 0 ? (
-              <>
-                <span className="text-success">+{fileDiff.additions}</span>
-                {" / "}
-                <span className="text-danger">-{fileDiff.deletions}</span>{" "}
-                <span className="text-text-muted">(no hunk detail)</span>
-              </>
-            ) : (
-              "No changes"
-            )}
-          </div>
-        )}
-      </div>
+      {!collapsed ? (
+        <div className="border-x border-b border-border-subtle px-0 pt-0">
+          {fileDiff.hunks.length > 0 ? (
+            fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
+          ) : (
+            // Fallback: show additions/deletions summary when no hunk detail available
+            <div className="py-4 text-center text-sm text-text-muted">
+              {fileDiff.additions > 0 || fileDiff.deletions > 0 ? (
+                <>
+                  <span className="text-success">+{fileDiff.additions}</span>
+                  {" / "}
+                  <span className="text-danger">-{fileDiff.deletions}</span>{" "}
+                  <span className="text-text-muted">(no hunk detail)</span>
+                </>
+              ) : (
+                "No changes"
+              )}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -320,6 +370,7 @@ export function DiffViewer({
   const [panel, setPanel] = useState<PanelMode>("diff");
   const [blamePath, setBlamePath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!activeWorkspaceId || !activeRepoId) {
@@ -361,6 +412,9 @@ export function DiffViewer({
   }, [path, staged]);
 
   const visible = diff ? filterDiffSummary(diff, path, staged) : null;
+  const fileKeys = visible ? visible.files.map(fileChangeKey) : [];
+  const allCollapsed = fileKeys.length > 0 && fileKeys.every((k) => collapsedFiles.has(k));
+  const anyCollapsed = fileKeys.some((k) => collapsedFiles.has(k));
 
   if (!activeWorkspaceId) {
     return (
@@ -458,44 +512,41 @@ export function DiffViewer({
         ) : null}
         <span className="text-success text-sm">+{visible.total_additions}</span>
         <span className="text-danger text-sm">-{visible.total_deletions}</span>
-        <div className="ml-auto flex items-center gap-1">
-          {hideMaximize ? null : (
-            <Tooltip
-              content={
-                inspectorMaximized ? "Restore panel layout" : "Expand inspector over history"
-              }
+        <div className="ml-auto flex items-center gap-1.5">
+          <SegmentedControl
+            segments={[
+              { key: "expand", label: "Expand" },
+              { key: "collapse", label: "Collapse" },
+            ]}
+            active={allCollapsed ? "collapse" : anyCollapsed ? null : "expand"}
+            onSelect={(key) =>
+              setCollapsedFiles(
+                key === "collapse" ? new Set(visible.files.map(fileChangeKey)) : new Set(),
+              )
+            }
+          />
+          <SegmentedControl
+            segments={[
+              { key: "unified", label: "Unified" },
+              { key: "split", label: "Split" },
+            ]}
+            active={mode}
+            onSelect={(key) => setMode(key as DiffViewMode)}
+          />
+          {!hideMaximize ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="p-1.5 text-text-muted hover:text-accent"
+              aria-pressed={inspectorMaximized}
+              aria-label={inspectorMaximized ? "Restore panel" : "Expand panel"}
+              title={inspectorMaximized ? "Restore panel" : "Expand panel"}
+              onClick={toggleInspectorMaximized}
             >
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="p-1.5 text-text-muted hover:text-accent"
-                aria-pressed={inspectorMaximized}
-                aria-label={inspectorMaximized ? "Restore panel layout" : "Expand inspector"}
-                onClick={toggleInspectorMaximized}
-              >
-                {inspectorMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              </Button>
-            </Tooltip>
-          )}
-          <Button
-            type="button"
-            variant={mode === "unified" ? "primary" : "secondary"}
-            size="sm"
-            aria-pressed={mode === "unified"}
-            onClick={() => setMode("unified")}
-          >
-            Unified
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "split" ? "primary" : "secondary"}
-            size="sm"
-            aria-pressed={mode === "split"}
-            onClick={() => setMode("split")}
-          >
-            Split
-          </Button>
+              {inspectorMaximized ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -503,9 +554,22 @@ export function DiffViewer({
       <div className="pb-2 select-text">
         {visible.files.map((file) => (
           <FileDiffView
-            key={`${file.staged ? "s" : "u"}:${file.path}`}
+            key={fileChangeKey(file)}
             fileDiff={file}
             mode={mode}
+            collapsed={collapsedFiles.has(fileChangeKey(file))}
+            onToggleCollapsed={() =>
+              setCollapsedFiles((prev) => {
+                const next = new Set(prev);
+                const key = fileChangeKey(file);
+                if (next.has(key)) {
+                  next.delete(key);
+                } else {
+                  next.add(key);
+                }
+                return next;
+              })
+            }
             onBlame={(p) => {
               setBlamePath(p);
               setPanel("blame");
