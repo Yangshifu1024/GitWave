@@ -1,0 +1,60 @@
+import { describe, expect, it } from "vitest";
+import { filterRemoteBranches, remoteShortName } from "./branchNames";
+
+describe("remoteShortName", () => {
+  it("strips the remote prefix from a remote-tracking name", () => {
+    expect(remoteShortName("origin/main")).toBe("main");
+  });
+
+  it("keeps nested segments after the remote name", () => {
+    expect(remoteShortName("origin/feat/x")).toBe("feat/x");
+  });
+
+  it("returns names without a slash unchanged", () => {
+    expect(remoteShortName("main")).toBe("main");
+  });
+
+  it("supports remotes other than origin", () => {
+    expect(remoteShortName("upstream/main")).toBe("main");
+  });
+
+  it("degrades to an empty short name for degenerate inputs", () => {
+    expect(remoteShortName("")).toBe("");
+    expect(remoteShortName("origin/")).toBe("");
+  });
+});
+
+describe("filterRemoteBranches", () => {
+  const local = (name: string) => ({ name, kind: "local" as const });
+  const remote = (name: string) => ({ name, kind: "remote" as const });
+
+  it("hides a remote branch that shares its short name with a local branch", () => {
+    expect(filterRemoteBranches([local("main"), remote("origin/main")])).toEqual([local("main")]);
+  });
+
+  it("hides nested remote names matching a local branch", () => {
+    expect(filterRemoteBranches([local("feat/x"), remote("origin/feat/x")])).toEqual([
+      local("feat/x"),
+    ]);
+  });
+
+  it("keeps remote branches without a local counterpart", () => {
+    expect(filterRemoteBranches([local("main"), remote("origin/next")])).toEqual([
+      local("main"),
+      remote("origin/next"),
+    ]);
+  });
+
+  it("hides the same short name across every remote", () => {
+    expect(
+      filterRemoteBranches([local("main"), remote("origin/main"), remote("upstream/main")]),
+    ).toEqual([local("main")]);
+  });
+
+  it("keeps everything in a remote-only repo", () => {
+    expect(filterRemoteBranches([remote("origin/main"), remote("origin/next")])).toEqual([
+      remote("origin/main"),
+      remote("origin/next"),
+    ]);
+  });
+});
