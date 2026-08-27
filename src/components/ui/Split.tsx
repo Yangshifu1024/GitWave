@@ -207,12 +207,7 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
       data-handle-id={handleId}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
-      className={cn(
-        "shrink-0 bg-border-subtle transition-colors",
-        "hover:bg-accent",
-        ctx?.isDragging && ctx?.dragHandleId === handleId && "bg-accent",
-        className,
-      )}
+      className={cn("shrink-0 bg-border-subtle", className)}
       style={{
         width: direction === "horizontal" ? 2 : undefined,
         height: direction === "vertical" ? 2 : undefined,
