@@ -25,6 +25,11 @@
 - `src/hooks/useRemoteSync.ts` / `useWorkingCopy.ts`：`push(options?)` 透传
 - `src/components/ActionBar.tsx`：Push 按钮打开 `pushDialog`；确认弹框（Branch / To / 两勾选 / Cancel / Push）
 
+## 追加修复（用户反馈，2026-08-28）：push 后左侧栏 ahead 徽章不刷新
+
+`useRemoteSync.pushMut` 的 onSuccess 漏了 `bumpHistory()`（fetch / pull 均有）——分支
+列表由 historyEpoch 驱动，push 后 ahead 徽章保持旧值。已补上，与 fetch / pull 一致。
+
 ## 验证
 
 - [x] `cargo fmt` / `clippy --all-targets`（0 警告）/ `test`（111 通过）

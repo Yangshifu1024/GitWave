@@ -78,7 +78,10 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   const pushMut = useMutation({
     mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
     onMutate: () => useSyncStore.getState().startOp("push"),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      invalidate();
+      bumpHistory();
+    },
     onError: handleError,
     onSettled: () => useSyncStore.getState().endOp(),
   });
