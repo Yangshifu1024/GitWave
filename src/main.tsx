@@ -3,13 +3,14 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
+import { applyInitialPalette } from "./lib/palette";
 import App from "./App";
 import "./styles/tokens.css";
 
 const queryClient = new QueryClient();
 
-// Apply initial theme before React mounts to avoid FOUC.
-applyInitialTheme();
+// Apply theme + palette preferences before React mounts to avoid FOUC.
+applyInitialPreferences();
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {
@@ -24,13 +25,14 @@ createRoot(rootEl).render(
   </StrictMode>,
 );
 
-function applyInitialTheme(): void {
-  const stored = localStorage.getItem("gitwave-theme");
+function applyInitialPreferences(): void {
   const root = document.documentElement;
-  if (stored === "dark") {
+  const storedTheme = localStorage.getItem("gitwave-theme");
+  if (storedTheme === "dark") {
     root.classList.add("dark");
-  } else if (stored === "light") {
+  } else if (storedTheme === "light") {
     root.classList.add("light");
   }
   // else: leave class off; CSS @media (prefers-color-scheme: dark) takes over
+  applyInitialPalette();
 }

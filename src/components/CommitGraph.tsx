@@ -12,11 +12,11 @@ const ROW_H = 28;
 const LANE_GAP = 14;
 const NODE_R = 3.2;
 const LANE_COLORS = [
-  "var(--color-accent)",
-  "var(--color-info)",
-  "#4a5fa8",
-  "#5b56a8",
-  "var(--color-branch-remote)",
+  "var(--color-lane-1)",
+  "var(--color-lane-2)",
+  "var(--color-lane-3)",
+  "var(--color-lane-4)",
+  "var(--color-lane-5)",
 ];
 
 function formatTime(time: number): string {

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { CircleHelp, KeyRound, MoreHorizontal } from "lucide-react";
+import { CircleHelp, KeyRound, MoreHorizontal, SlidersHorizontal } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SshKeyManager } from "@/components/SshKeyManager";
+import { SettingsModal } from "@/components/SettingsModal";
 import { ToolbarContextTitle } from "@/components/ToolbarContextTitle";
 import { SyncProgressBar } from "@/components/SyncProgressBar";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
 
 export function Toolbar(): React.JSX.Element {
   const [sshOpen, setSshOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [version, setVersion] = useState("…");
   const dragZoneRef = useRef<HTMLDivElement>(null);
   useMacTitlebarWindow(dragZoneRef);
@@ -61,6 +63,10 @@ export function Toolbar(): React.JSX.Element {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>GitWave v{version}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+                <SlidersHorizontal size={14} />
+                Settings…
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setSshOpen(true)}>
                 <KeyRound size={14} />
                 SSH Keys
@@ -77,6 +83,7 @@ export function Toolbar(): React.JSX.Element {
       <SyncProgressBar />
 
       {sshOpen ? <SshKeyManagerModal onClose={() => setSshOpen(false)} /> : null}
+      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 }
