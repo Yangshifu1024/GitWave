@@ -28,7 +28,7 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
   bg-primary        #ECECEE       系统窗口灰画布（应用根 / 顶栏 / 侧栏 / WorkingCopyBar）
   bg-secondary      #DFDFDF       层次色（gutter / hover / 菜单焦点）
   bg-elevated       #F4F4F5       抬升面（列表 hover / 菜单 / 模态）
-  bg-panel          #F8F8F8       中 / 右面板画布（history / inspector）
+  bg-panel          #F8F8F8       三栏面板画布（sidebar / history / inspector）
   bg-overlay        rgba(0,0,0,0.38)  模态遮罩
 
 文本

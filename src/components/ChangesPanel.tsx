@@ -26,8 +26,8 @@ export interface ChangesPanelProps {
   selectedPath: string | null;
   selectedStaged: boolean | null;
   onSelectFile: (path: string, staged: boolean) => void;
-  /** `bar` = horizontal 3-column layout for Working Copy Bar */
-  layout?: "stacked" | "bar";
+  /** `bar` = horizontal 3-column grid; `modal` = single column inside WorkingCopyModal */
+  layout?: "stacked" | "bar" | "modal";
 }
 
 function FileSection({
@@ -62,13 +62,14 @@ function FileSection({
   /** Present to enable the per-file context menu (unstaged section only). */
   onDiscardFile?: (file: FileChange) => void;
   onIgnoreFile?: (file: FileChange) => void;
-  layout: "stacked" | "bar";
+  layout: "stacked" | "bar" | "modal";
 }): React.JSX.Element {
   const bar = layout === "bar";
+  const fixed = bar || layout === "modal";
   const [open, setOpen] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
-  const sectionOpen = bar || open;
+  const sectionOpen = fixed || open;
 
   const orderedPaths = files.map((file) => file.path);
   const selectedInSection = orderedPaths.filter((path) => selected.has(path));
@@ -103,8 +104,10 @@ function FileSection({
         "flex flex-col min-h-0",
         bar
           ? "flex-1 min-w-0 border-r border-border-subtle last:border-r-0"
-          : "border-b border-border-subtle",
-        !bar && open ? "flex-1" : !bar ? "shrink-0" : undefined,
+          : layout === "modal"
+            ? "flex-1 min-h-0 border-b border-border-subtle last:border-b-0"
+            : "border-b border-border-subtle",
+        !fixed && open ? "flex-1" : !fixed ? "shrink-0" : undefined,
       )}
       onKeyDown={(event) => {
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "a") return;
@@ -113,8 +116,8 @@ function FileSection({
         setSelected(new Set(files.map((file) => file.path)));
       }}
     >
-      <div className={cn("shrink-0 flex items-center gap-1", bar ? "px-2 py-1" : "pr-1")}>
-        {bar ? (
+      <div className={cn("shrink-0 flex items-center gap-1", fixed ? "px-2 py-1" : "pr-1")}>
+        {fixed ? (
           <h3 className="flex-1 min-w-0 px-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
             {title} ({files.length})
           </h3>
@@ -169,7 +172,7 @@ function FileSection({
           aria-multiselectable="true"
           className={cn(
             "flex-1 min-h-0 overflow-auto select-none",
-            bar ? "px-1 pb-1" : "px-1 pb-2",
+            fixed ? "px-1 pb-1" : "px-1 pb-2",
           )}
         >
           {files.length === 0 ? (
@@ -246,6 +249,7 @@ export function ChangesPanel({
   layout = "stacked",
 }: ChangesPanelProps): React.JSX.Element {
   const bar = layout === "bar";
+  const modal = layout === "modal";
   const {
     workspaceId,
     repoId,
@@ -357,7 +361,11 @@ export function ChangesPanel({
     <div
       className={cn(
         "shrink-0",
-        bar ? "flex flex-col min-h-0 p-2" : "border-t border-border-subtle p-3",
+        bar
+          ? "flex flex-col min-h-0 p-2"
+          : modal
+            ? "border-t border-border-subtle p-2"
+            : "border-t border-border-subtle p-3",
       )}
     >
       <CommitMessageBox

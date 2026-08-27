@@ -22,7 +22,8 @@
   --color-bg-primary: #ececee;
   --color-bg-secondary: #dfdfdf;
   --color-bg-elevated: #f4f4f5;
-  /* Center (history) + inspector pane canvas — lighter than the window canvas */
+  /* All three pane columns (sidebar / history / inspector) — lighter than
+   * the window canvas */
   --color-bg-panel: #f8f8f8;
   --color-bg-overlay: rgb(0 0 0 / 0.38);
   --color-text-primary: #1b1b1d;
@@ -318,7 +319,7 @@
   /* Scrollbar track always follows the nearest declared canvas: each bg-*
    * utility re-declares the custom property, and it inherits to every
    * scrollbar inside that pane (center + inspector use bg-bg-panel, sidebar
-   * and WorkingCopyBar sit on bg-bg-primary, chrome gray stays the :root
+   * and the window canvas sit on bg-bg-primary, chrome gray stays the :root
    * default). */
   .bg-bg-primary {
     --color-scrollbar-track: var(--color-bg-primary);

@@ -44,4 +44,3 @@ export { FileListItem, type FileChange, type FileListItemProps } from "./FileLis
 export { StatusIcon, type FileStatusKind, type StatusIconProps } from "./StatusIcon";
 export { CommitMessageBox, type CommitMessageBoxProps } from "./CommitMessageBox";
 export { SyncButtons, type SyncButtonsProps } from "./SyncButtons";
-export { WorkingCopyBar, type WorkingCopyBarProps } from "./WorkingCopyBar";

@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { Toolbar } from "@/components/Toolbar";
+import { ActionBar } from "@/components/ActionBar";
 import { WorkspaceList } from "@/components/WorkspaceList";
 import { RepoList } from "@/components/RepoList";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SidebarSection } from "@/components/ui/SidebarSection";
-import { WorkingCopyBar } from "@/components/ui/WorkingCopyBar";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, GitCommitHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import type { BranchInfo } from "@/lib/api";
 import type { LocateRequest } from "@/lib/commitLocate";
@@ -28,11 +28,6 @@ function App(): React.JSX.Element {
     repoId: string;
     sha: string;
   } | null>(null);
-  const [workdirSelection, setWorkdirSelection] = useState<{
-    repoId: string;
-    path: string;
-    staged: boolean;
-  } | null>(null);
   /** One-shot request for CommitGraph to center a commit; `seq` re-fires on repeated clicks. */
   const [locateRequest, setLocateRequest] = useState<LocateRequest | null>(null);
   const locateSeq = useRef(0);
@@ -41,33 +36,18 @@ function App(): React.JSX.Element {
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
   const setInspectorMaximized = useLayoutStore((s) => s.setInspectorMaximized);
-  const setWcBarCollapsed = useLayoutStore((s) => s.setWcBarCollapsed);
-  const setWcBarMaximized = useLayoutStore((s) => s.setWcBarMaximized);
   const titlebarMode = useTitlebarActivation();
   useTheme();
 
   useEffect(() => {
     setInspectorMaximized(false);
-    setWcBarCollapsed(false);
-    setWcBarMaximized(false);
-  }, [
-    activeWorkspaceId,
-    activeRepoId,
-    setInspectorMaximized,
-    setWcBarCollapsed,
-    setWcBarMaximized,
-  ]);
+  }, [activeWorkspaceId, activeRepoId, setInspectorMaximized]);
 
   const selectedCommitOid =
     commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;
-  const selectedWorkdirPath =
-    workdirSelection && workdirSelection.repoId === activeRepoId ? workdirSelection.path : null;
-  const selectedWorkdirStaged =
-    workdirSelection && workdirSelection.repoId === activeRepoId ? workdirSelection.staged : null;
 
   const handleCommitSelect = (sha: string): void => {
     if (!activeRepoId) return;
-    setWorkdirSelection(null);
     setCommitSelection({ repoId: activeRepoId, sha });
   };
 
@@ -82,18 +62,14 @@ function App(): React.JSX.Element {
     });
   };
 
-  const handleWorkdirFileSelect = (path: string, staged: boolean): void => {
-    if (!activeRepoId) return;
-    setCommitSelection(null);
-    setWorkdirSelection({ repoId: activeRepoId, path, staged });
-  };
-
   return (
     <div
       className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
       data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
     >
       <Toolbar />
+
+      <ActionBar />
 
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
         <ThreePaneLayout
@@ -103,7 +79,7 @@ function App(): React.JSX.Element {
               "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
           )}
           sidebar={
-            <aside className="flex flex-col h-full bg-bg-primary overflow-x-hidden overflow-y-auto no-scrollbar select-none pane-edge-right">
+            <aside className="flex flex-col h-full bg-bg-panel overflow-x-hidden overflow-y-auto no-scrollbar select-none pane-edge-right">
               <WorkspaceList />
               {activeWorkspaceId ? (
                 <>
@@ -141,22 +117,10 @@ function App(): React.JSX.Element {
               />
             </section>
           }
-          inspector={
-            <MainContent
-              selectedCommitOid={selectedCommitOid}
-              selectedWorkdirPath={selectedWorkdirPath}
-              selectedWorkdirStaged={selectedWorkdirStaged}
-            />
-          }
+          inspector={<MainContent selectedCommitOid={selectedCommitOid} />}
         />
       </div>
 
-      <WorkingCopyBar
-        repoId={activeRepoId}
-        selectedPath={selectedWorkdirPath}
-        selectedStaged={selectedWorkdirStaged}
-        onSelectFile={handleWorkdirFileSelect}
-      />
       <ConflictPanel />
     </div>
   );
@@ -164,12 +128,8 @@ function App(): React.JSX.Element {
 
 function MainContent({
   selectedCommitOid,
-  selectedWorkdirPath,
-  selectedWorkdirStaged,
 }: {
   selectedCommitOid: string | null;
-  selectedWorkdirPath: string | null;
-  selectedWorkdirStaged: boolean | null;
 }): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -205,11 +165,11 @@ function MainContent({
       {selectedCommitOid ? (
         <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
       ) : (
-        <DiffViewer
-          key={activeRepoId}
-          workdir={true}
-          path={selectedWorkdirPath ?? undefined}
-          staged={selectedWorkdirStaged}
+        <EmptyState
+          icon={<GitCommitHorizontal size={28} />}
+          title="No commit selected"
+          description="Click a commit in the history graph to see its diff."
+          className="h-full"
         />
       )}
     </main>

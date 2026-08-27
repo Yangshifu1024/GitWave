@@ -1,17 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+// Sidebar branch list — navigation plus row-scoped operations (checkout via
+// double-click, merge / rebase / delete via context menu). Toolbar-scoped
+// branch ops (new branch / pull / push) live in the ActionBar.
+
+import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { BranchInfo } from "@/lib/api";
 import {
   abortInteractiveRebasePause,
   continueInteractiveRebase,
   checkoutBranch,
-  createBranch,
   deleteBranch,
+  deleteRemoteBranch,
   formatAppError,
   getBranches,
   getWorkingCopy,
   interactiveRebasePaused,
-  listRemotes,
   listWorktrees,
   mergeBranch,
   mergeInProgress,
@@ -22,9 +25,8 @@ import {
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { gateCheckout } from "@/lib/checkoutGate";
-import { filterRemoteBranches } from "@/lib/branchNames";
+import { filterRemoteBranches, remoteShortName } from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ListItem } from "@/components/ui/ListItem";
@@ -46,9 +48,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
-import { BranchSyncButtons, SectionAction } from "@/components/ui/SectionAction";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
-import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
 function formatTime(time: number): string {
   if (time <= 0) return "";
@@ -189,13 +189,6 @@ function BranchRow({
 
 type BranchNotice = { text: string; variant: "success" | "danger" };
 
-interface PullDialogState {
-  remote: string;
-  branch: string;
-  rebase: boolean;
-  stash: boolean;
-}
-
 interface BranchListProps {
   /** Fired when the user clicks a branch row, with the full branch (name + tip sha). */
   onBranchSelect?: (branch: BranchInfo) => void;
@@ -206,24 +199,23 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
-  const wc = useWorkingCopy();
+  const queryClient = useQueryClient();
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<BranchNotice | null>(null);
-  const [newName, setNewName] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [pullDialog, setPullDialog] = useState<PullDialogState | null>(null);
   const [irebaseOnto, setIrebaseOnto] = useState<string | null>(null);
   const [irebasePaused, setIrebasePaused] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ name: string; deleteRemote: boolean } | null>(
+    null,
+  );
   const [switchDialog, setSwitchDialog] = useState<
     | { kind: "dirty"; name: string; fileCount: number }
     | { kind: "blocked"; name: string; message: string }
     | null
   >(null);
-  const queryClient = useQueryClient();
 
   const refresh = useCallback(() => {
     bumpHistoryEpoch();
@@ -301,21 +293,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     }
   };
 
-  const current = branches.find((b) => b.is_current && b.kind === "local");
-
-  const handleCreate = () =>
-    void run(async () => {
-      const name = newName.trim();
-      if (!name) throw new Error("Branch name is required");
-      if (!activeWorkspaceId) return;
-      const fromSha = current?.last_commit_sha;
-      if (!fromSha) throw new Error("No current branch tip to branch from");
-      await createBranch(activeWorkspaceId, name, fromSha);
-      setNewName("");
-      setShowCreate(false);
-      showNotice(`Created branch ${name}`);
-    });
-
   const checkoutOnto = async (name: string, mode: "safe" | "force" | "stash") => {
     if (!activeWorkspaceId) return;
     if (mode === "stash") {
@@ -345,7 +322,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         const [merging, worktrees, workingCopy] = await Promise.all([
           mergeInProgress(activeWorkspaceId),
           listWorktrees(activeWorkspaceId).catch(() => []),
-          getWorkingCopy(activeWorkspaceId).catch(() => wc.data ?? null),
+          getWorkingCopy(activeWorkspaceId).catch(() => null),
         ]);
         const occupied = worktrees.find((w) => !w.is_main && w.branch === name);
         const gate = gateCheckout({
@@ -378,10 +355,32 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (branch) onBranchSelect?.(branch);
   };
 
-  const handleDelete = (name: string) =>
+  const deleteCounterparts = deleteDialog
+    ? [
+        ...new Set(
+          branches
+            .filter((b) => b.kind === "remote" && remoteShortName(b.name) === deleteDialog.name)
+            .map((b) => b.name.slice(0, b.name.indexOf("/"))),
+        ),
+      ]
+    : [];
+
+  const handleConfirmDelete = () =>
     void run(async () => {
+      if (!deleteDialog) return;
+      const { name, deleteRemote } = deleteDialog;
       await deleteBranch(activeWorkspaceId!, name);
-      showNotice(`Deleted ${name}`);
+      if (deleteRemote) {
+        for (const remote of deleteCounterparts) {
+          await deleteRemoteBranch(activeWorkspaceId!, remote, name);
+        }
+      }
+      setDeleteDialog(null);
+      showNotice(
+        deleteRemote && deleteCounterparts.length > 0
+          ? `Deleted ${name} and its remote counterpart`
+          : `Deleted ${name}`,
+      );
     });
 
   const handleMerge = (name: string) =>
@@ -429,46 +428,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       await abortInteractiveRebasePause(activeWorkspaceId!);
       showNotice("Cleared interactive rebase pause state");
     });
-
-  const bannerError = error ?? wc.actionError;
-
-  const remotesQuery = useQuery({
-    queryKey: ["remotes", activeWorkspaceId],
-    queryFn: () => listRemotes(activeWorkspaceId!),
-    enabled: pullDialog !== null && Boolean(activeWorkspaceId),
-  });
-  const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data]);
-
-  const openPullDialog = () => {
-    const d = wc.data;
-    const upstream = d?.upstream ?? "";
-    const slash = upstream.indexOf("/");
-    setPullDialog({
-      remote: slash > 0 ? upstream.slice(0, slash) : "origin",
-      branch: slash > 0 ? upstream.slice(slash + 1) : (d?.branch ?? "main"),
-      rebase: false,
-      stash: false,
-    });
-  };
-
-  // The fetched remote list wins over the seeded default once it arrives.
-  useEffect(() => {
-    if (!pullDialog || remotes.length === 0) return;
-    if (!remotes.includes(pullDialog.remote)) {
-      setPullDialog({ ...pullDialog, remote: remotes[0]! });
-    }
-  }, [pullDialog, remotes]);
-
-  const remoteOptions = remotes.length > 0 ? remotes : [pullDialog?.remote ?? "origin"];
-  const branchOptions = (() => {
-    if (!pullDialog) return [];
-    const prefix = `${pullDialog.remote}/`;
-    const names = branches
-      .filter((b) => b.kind === "remote" && b.name.startsWith(prefix))
-      .map((b) => b.name.slice(prefix.length));
-    if (!names.includes(pullDialog.branch)) names.unshift(pullDialog.branch);
-    return names;
-  })();
 
   const visibleBranches = filterRemoteBranches(branches);
   const localBranches = visibleBranches.filter((b) => b.kind === "local");
@@ -518,7 +477,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 busy={busy}
                 onSelect={handleSelect}
                 onCheckout={handleCheckout}
-                onDelete={handleDelete}
+                onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
                 onMerge={handleMerge}
                 onRebaseOnto={handleRebaseOnto}
                 onInteractiveRebase={(name) => setIrebaseOnto(name)}
@@ -540,7 +499,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 busy={busy}
                 onSelect={handleSelect}
                 onCheckout={handleCheckout}
-                onDelete={handleDelete}
+                onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
                 onMerge={handleMerge}
                 onRebaseOnto={handleRebaseOnto}
                 onInteractiveRebase={(name) => setIrebaseOnto(name)}
@@ -554,60 +513,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   return (
     <>
-      <SidebarSection
-        title="Branches"
-        className="border-b-0"
-        actions={
-          <>
-            <BranchSyncButtons
-              ahead={wc.data?.ahead ?? 0}
-              behind={wc.data?.behind ?? 0}
-              onPull={openPullDialog}
-              onPush={wc.push}
-              pullDisabled={!activeRepoId || wc.isSyncBusy || wc.data?.branch === "(detached)"}
-              pushDisabled={
-                !activeRepoId ||
-                wc.isSyncBusy ||
-                (wc.data?.ahead ?? 0) === 0 ||
-                wc.data?.branch === "(detached)"
-              }
-              inProgress={wc.syncPending}
-              syncBusy={wc.isSyncBusy}
-            />
-            <SectionAction
-              tooltip="Create a new branch from the current tip"
-              disabled={busy || !current}
-              onClick={() => setShowCreate((v) => !v)}
-            >
-              New
-            </SectionAction>
-          </>
-        }
-      >
-        {showCreate ? (
-          <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle bg-bg-elevated">
-            <div className="flex-1 min-w-0">
-              <Input
-                placeholder="feature/my-branch"
-                value={newName}
-                onChange={setNewName}
-                disabled={busy}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreate();
-                }}
-              />
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy || !newName.trim()}
-              onClick={handleCreate}
-            >
-              Create
-            </Button>
-          </div>
-        ) : null}
-
+      <SidebarSection title="Branches" className="border-b-0">
         {irebasePaused ? (
           <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
             <Button variant="primary" size="sm" disabled={busy} onClick={handleContinueIrebase}>
@@ -635,13 +541,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         <div>{renderBody()}</div>
       </SidebarSection>
 
-      <ErrorAlert
-        message={bannerError}
-        onDismiss={() => {
-          setError(null);
-          wc.setActionError(null);
-        }}
-      />
+      <ErrorAlert message={error} onDismiss={() => setError(null)} />
 
       {switchDialog?.kind === "dirty" ? (
         <Modal
@@ -703,94 +603,47 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         </Modal>
       ) : null}
 
-      {pullDialog ? (
+      {deleteDialog ? (
         <Modal
           open
           onOpenChange={(open) => {
-            if (!open) setPullDialog(null);
+            if (!open) setDeleteDialog(null);
           }}
-          title="Pull"
-          description="Pull remote branches and merge them into your local branch"
+          title="Delete Branch"
+          description="Delete local branch from your repository"
           size="sm"
         >
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Remote</span>
-              <select
-                className="flex-1 min-w-0 bg-bg-primary border border-border-subtle rounded px-1.5 py-1 text-xs text-text-primary"
-                value={pullDialog.remote}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, remote: e.target.value })}
-              >
-                {remoteOptions.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
-              <select
-                className="flex-1 min-w-0 bg-bg-primary border border-border-subtle rounded px-1.5 py-1 text-xs text-text-primary"
-                value={pullDialog.branch}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, branch: e.target.value })}
-              >
-                {branchOptions.map((b) => (
-                  <option key={b} value={b}>
-                    {pullDialog.remote}/{b}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Into</span>
-              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
-                {wc.data?.branch ?? "—"}
+          <div className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
+            <span className="flex min-w-0 items-center gap-1 text-xs font-mono text-text-primary">
+              <GitBranch size={12} className="shrink-0 text-accent" />
+              <span className="truncate" title={deleteDialog.name}>
+                {deleteDialog.name}
               </span>
-            </div>
-            <label className="flex items-center gap-2 text-xs text-text-primary">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={pullDialog.rebase}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, rebase: e.target.checked })}
-              />
-              Rebase instead of merge
-            </label>
-            <label className="flex items-center gap-2 text-xs text-text-primary">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={pullDialog.stash}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, stash: e.target.checked })}
-              />
-              Stash and reapply local changes
-            </label>
+            </span>
           </div>
+          <label
+            className={cn(
+              "mt-3 flex items-center gap-2 text-xs",
+              deleteCounterparts.length > 0 ? "text-text-primary" : "text-text-muted",
+            )}
+            title={deleteCounterparts.length > 0 ? undefined : "No corresponding remote branch"}
+          >
+            <input
+              type="checkbox"
+              className="accent-accent"
+              checked={deleteDialog.deleteRemote}
+              disabled={busy || deleteCounterparts.length === 0}
+              onChange={(e) => setDeleteDialog({ ...deleteDialog, deleteRemote: e.target.checked })}
+            />
+            Also delete corresponding remote branch
+          </label>
           <div className="mt-3 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setPullDialog(null)}>
+            <Button variant="secondary" size="sm" onClick={() => setDeleteDialog(null)}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={wc.isSyncBusy}
-              onClick={() => {
-                const options = {
-                  remote: pullDialog.remote,
-                  branch: pullDialog.branch,
-                  rebase: pullDialog.rebase,
-                  stash: pullDialog.stash,
-                };
-                setPullDialog(null);
-                wc.pull(options);
-              }}
-            >
-              Pull
+            <Button variant="danger" size="sm" disabled={busy} onClick={handleConfirmDelete}>
+              Delete
             </Button>
           </div>
         </Modal>

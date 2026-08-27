@@ -16,7 +16,7 @@
 │            │                                  │                         │
 │            │                                  │                         │
 ├────────────┴──────────────────────────────────┴─────────────────────────┤
-│ Working Copy Bar (collapsible, ~32-220px) 详见 §6                  │
+│ ActionBar (workspace / repository / branch ops + Local Changes) 详见 §6 │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -145,7 +145,7 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 | Remotes | remote + tracking | 折叠 |
 | Worktrees | worktree 列表 | 折叠 |
 
-Changes 文件列表在 Working Copy Bar（dirty 时展开），不占用中栏。
+变更文件列表在 WorkingCopyModal 内（工具条 Local Changes 打开），不占用三栏。
 
 ## 5. Main
 
@@ -167,9 +167,9 @@ Changes 文件列表在 Working Copy Bar（dirty 时展开），不占用中栏�
 | 选择 | Inspector |
 |---|---|
 | History 中的 commit | commit details + diff |
-| Working Copy Bar 中的 Unstaged 文件 | 仅 worktree vs index（unstaged）diff |
-| Working Copy Bar 中的 Staged 文件 | 仅 index vs HEAD（staged）diff |
-| 无选择 | 当前 working-copy 两侧总览 |
+| WorkingCopyModal 中的 Unstaged 文件 | 仅 worktree vs index（unstaged）diff |
+| WorkingCopyModal 中的 Staged 文件 | 仅 index vs HEAD（staged）diff |
+| 无选择 | 空状态提示（选 commit 看 diff） |
 
 ### 5.3 空状态
 
@@ -177,63 +177,61 @@ Changes 文件列表在 Working Copy Bar（dirty 时展开），不占用中栏�
 
 无 commit（empty repo）：commit graph 显示空状态 + "Create your first commit" 按钮。
 
-## 6. Working Copy Bar（新增）
+## 6. Action Bar + Working Copy Modal（原 Working Copy Bar，已重构）
 
-> 详见 `04-working-copy.md` 完整规范。本节给布局总览。
+> 2026-08 重构：底部常驻 WorkingCopyBar 移除，操作收敛到 ToolBar 下方的 ActionBar，
+> 变更操作通过 Local Changes 打开的 WorkingCopyModal 完成。
 
-### 6.1 布局
-
-**Clean 状态**（无 unstaged / staged 改动）：
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ main · clean · 0 ↑ 0 ↓                                          ⌥⇧C  │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-高度：32px。背景：`bg-bg-secondary`。
-
-**Dirty 状态**（有改动，展开）：
+### 6.1 ActionBar（TopBar 下方）
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│ feature/foo · 5 unstaged · 2 staged                            ⌥⇧C  │
-├────────────────────────────────────────────────────────────────────────┤
-│ ┌─────────────────────────┬─────────────────────────┬─────────────────┐ │
-│ │ Unstaged (5)            │ Staged (2)             │ Commit message  │ │
-│ │ ┌─────────────────────┐ │ │ ┌─────────────────┐ │ │ ┌─────────────┐ │ │
-│ │ │ M src/api.ts    +3 -1│ │ │ │ A new-file.tsx  │ │ │ │ feat: ...   │ │ │
-│ │ │ M README.md     +2 -0│ │ │ │ M test.ts  +5-2│ │ │ │             │ │ │
-│ │ │ ? new.txt           │ │ │ └─────────────────┘ │ │ │             │ │ │
-│ │ └─────────────────────┘ │ │                      │ │ └─────────────┘ │ │
-│ │                          │ │                      │ │                 │ │
-│ │ [Stage All]              │ │ [Unstage All]       │ │ [Commit] [Amend]│ │
-│ └─────────────────────────┴─────────────────────────┴─────────────────┘ │
-└────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Local Changes(7)    WORKSPACE    REPOSITORY    BRANCH                        │
+│                   [⇱New][✎Rename][✦AI][⌫Del] [⩚Init][⤓Clone]… [⎇New][⇣][⇡]  │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-高度：可拖拽，范围 32px（clean）— 80px（最小 dirty）— 280px（最大）。记忆用户上次高度（per-repo）。
+- 最左 `Local Changes(n)`（n 为变更文件条目数；n = 0 或无活动仓库时禁用；点击弹出 WorkingCopyModal）
+- 三组操作水平居中；每组两行：第一行组头（居中大写），第二行操作按钮（图标在前、文字在后）
+- Workspace：New / Rename / AI Provider / Delete（作用于活动 workspace）
+- Repository：Init / Clone / Add Local / Fetch
+- Branch：New Branch（当前 tip）/ Pull（Fork 式对话框：Remote / Branch / Into + rebase + stash）/ Push
+- 背景：`bg-bg-primary`。fetch / pull / push 错误经条下方 ErrorAlert 呈现
 
-### 6.2 状态切换
+### 6.2 WorkingCopyModal
 
-| 当前 | 触发 | 下一态 |
-|---|---|---|
-| Clean | 文件变化（外部编辑 / 命令行） | Dirty，bar 展开 |
-| Dirty | commit 后 | Dirty（如果还有未 commit 的），或 Clean |
-| Dirty | `git reset --hard` 等 | Clean |
+点击 Local Changes（n ≠ 0）弹出的模态（size xl）：
 
-文件变化检测：Sprint 4 实现时考虑 `fsnotify`（macOS FSEvents / Linux inotify / Windows ReadDirectoryChangesW）vs polling。**v0.1 倾向 polling**（间隔 2s），降低跨平台复杂度。
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Local Changes                                                            ✕   │
+│ main · 5 unstaged · 2 staged                                                │
+├──────────────────────┬───────────────────────────────────────────────────────┤
+│ Unstaged (5)         │ diff（选中文件的 workdir diff，unified / split）        │
+│ Staged (2)           │                                                       │
+│ ┌──────────────────┐ │                                                       │
+│ │ Commit message   │ │                                                       │
+│ │ [AI] [Commit]    │ │                                                       │
+│ └──────────────────┘ │                                                       │
+└──────────────────────┴───────────────────────────────────────────────────────┘
+```
+
+- 左列：Unstaged / Staged 列表 + CommitMessageBox（AI generate + Commit）
+- 右列：点击文件的 diff（复用 DiffViewer workdir 模式，隐藏最大化按钮）
+- 文件选择**仅作用于 Modal 内部**，不再联动右侧 Inspector
 
 ### 6.3 组件结构
 
 | 子组件 | 用途 | 文档 |
 |---|---|---|
-| `WorkingCopyBar` | 顶部复合组件 | `04-working-copy.md` |
+| `ActionBar` | TopBar 下方操作条 | 本节 |
+| `WorkingCopyModal` | 变更模态（双列） | 本节 |
+| `ChangesPanel` | unstaged/staged 列表 + commit box（layout: stacked/bar/modal） | `04-working-copy.md` |
 | `BranchIndicator` | 当前 branch 名 + ahead/behind | `02-components.md` §1.13 |
 | `FileListItem` | 单个文件行（M/A/D/?/R/C + 路径 + +/-） | `02-components.md` §1.14 |
 | `StatusIcon` | 文件 status 字符 + 颜色 | `02-components.md` §1.15 |
 | `CommitMessageBox` | 多行输入 + AI placeholder + Amend prefill | `02-components.md` §1.16 |
-| `SyncButtons` | REPOS / BRANCHES 标题栏的 Fetch / Pull / Push | `02-components.md` §1.17 |
+
 
 ## 7. 响应式
 

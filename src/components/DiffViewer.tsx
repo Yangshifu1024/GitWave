@@ -58,6 +58,8 @@ interface DiffViewerProps {
   path?: string;
   /** Working-copy only: true = staged (index vs HEAD), false = unstaged (worktree vs index). */
   staged?: boolean | null;
+  /** Hide the inspector-maximize button (e.g. inside WorkingCopyModal). */
+  hideMaximize?: boolean;
 }
 
 function getExt(path: string): string {
@@ -302,6 +304,7 @@ export function DiffViewer({
   workdir = false,
   path,
   staged = null,
+  hideMaximize = false,
 }: DiffViewerProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -456,21 +459,25 @@ export function DiffViewer({
         <span className="text-success text-sm">+{visible.total_additions}</span>
         <span className="text-danger text-sm">-{visible.total_deletions}</span>
         <div className="ml-auto flex items-center gap-1">
-          <Tooltip
-            content={inspectorMaximized ? "Restore panel layout" : "Expand inspector over history"}
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="p-1.5 text-text-muted hover:text-accent"
-              aria-pressed={inspectorMaximized}
-              aria-label={inspectorMaximized ? "Restore panel layout" : "Expand inspector"}
-              onClick={toggleInspectorMaximized}
+          {hideMaximize ? null : (
+            <Tooltip
+              content={
+                inspectorMaximized ? "Restore panel layout" : "Expand inspector over history"
+              }
             >
-              {inspectorMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </Button>
-          </Tooltip>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="p-1.5 text-text-muted hover:text-accent"
+                aria-pressed={inspectorMaximized}
+                aria-label={inspectorMaximized ? "Restore panel layout" : "Expand inspector"}
+                onClick={toggleInspectorMaximized}
+              >
+                {inspectorMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </Button>
+            </Tooltip>
+          )}
           <Button
             type="button"
             variant={mode === "unified" ? "primary" : "secondary"}

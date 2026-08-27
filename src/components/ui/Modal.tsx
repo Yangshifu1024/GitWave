@@ -9,7 +9,7 @@ export interface ModalProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string | null;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   /** @deprecated Destructive styling — not yet implemented */
   destructive?: boolean;
   children: ReactNode;
@@ -22,6 +22,7 @@ const sizeClasses = {
   sm: "w-[90vw] max-w-[480px]",
   md: "w-[90vw] max-w-[640px]",
   lg: "w-[90vw] max-w-[800px]",
+  xl: "w-[92vw] max-w-[1200px]",
 };
 
 export function Modal({
