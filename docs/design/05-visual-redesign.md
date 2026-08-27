@@ -11,7 +11,7 @@
 |---|---|---|
 | 像 shadcn 后台 | `ListItem` 使用 `rounded-md` + hover 圆角块 | 侧栏像 Web 列表，不像 macOS Source List |
 | 平面无层次 | Toolbar / Sidebar / WC Bar 同为 `bg-secondary` | 三栏+底栏糊成一片灰 |
-| 控件漂浮感 | `Button` secondary 带边框；Sync 为三个独立 ghost 按钮 | 像网页表单，不像工具栏 Segmented Control |
+| 控件漂浮感 | `Button` secondary 带边框；Sync 堆在 Toolbar 中央 | 操作与作用域错位；应贴近 REPOS / BRANCHES |
 | 焦点环网页化 | `ring-2 ring-accent ring-inset` | 与原生 2px Tide outline 不一致 |
 | Graph 像表格 | commit 行选中为圆角色块 | 缺少「时间轴」连续感 |
 | Inspector 像文档页 | 平铺标题 + 无边距 diff gutter | 不像 Fork / Tower 的代码审阅面板 |
@@ -22,10 +22,11 @@
 
 ### A · Native Studio（推荐）
 
-以 **macOS Source List + 工具栏 Segmented Control** 为骨架，GitWave 只在 Tide Lanes 与 accent 上发声。
+以 **macOS Source List + 侧栏作用域操作** 为骨架，GitWave 只在 Tide Lanes 与 accent 上发声。
 
 - 侧栏：全宽行、无圆角、选中仅左侧 3px Tide 条 + 8% Tide 底
-- 工具栏：Workspace 胶囊 + 路径条 + **Sync 三段控件**（Fetch | Pull | Push）
+- **Sync 按作用域下沉**：`Fetch` → REPOS 标题栏（repository 级）；`Pull` / `Push` → BRANCHES 标题栏（branch 级，带 ↑↓ badge）
+- 工具栏：Workspace 胶囊 + 当前 repo › branch 路径条（只读上下文，不放 Sync）
 - 材质：Sidebar Mist → Canvas Foam → Inspector Elevated（三层明度差）
 - 分隔：pane 之间用 **1px inset shadow**，不用硬边框叠边框
 
@@ -76,31 +77,47 @@ Dark 模式：Abyss 侧栏 / `#161B20` 画布 / `#1C2329` inspector，关系不�
 
 ## 4. 组件重设计要点
 
-### 4.1 Source List（替代当前 ListItem）
+### 4.1 Source List + Section Sync（替代当前 ListItem / Toolbar Sync）
 
 ```
 ┌──────────────────────────┐
-│ REPOS                 +  │  ← 10px caps label, no border
-│▌gitwave            ●    │  ← 3px left bar when selected
-│ notes                   │  ← full-width row, h=28, radius=0
+│ REPOS          Fetch  +  │  ← Fetch = repository 级
+│▌gitwave            ●    │
+│ notes                   │
+│ BRANCHES   Pull↓1 Push↑2 +│  ← Pull/Push = branch 级
+│▌main              HEAD   │
+│ feature/tide-lanes       │
 └──────────────────────────┘
 ```
+
+**列表行**
 
 - `border-radius: 0`；`height: 28px`；`padding: 0 12px 0 9px`
 - Selected：`border-left: 3px solid Tide` + `background: tide/8%`
 - Hover（未选中）：`background: ink/4%`（light）/ `white/4%`（dark）
-- Trailing badge：11px pill，不用带边框的 secondary Button
+
+**Section 标题栏操作**
+
+| Section | 操作 | 作用域 | 禁用条件 |
+|---|---|---|---|
+| REPOS | `Fetch` | 当前 active repo 的全部 remote | 无 active repo |
+| BRANCHES | `Pull ↓N` | 当前 HEAD branch vs upstream | behind = 0 或 detached |
+| BRANCHES | `Push ↑N` | 当前 HEAD branch vs upstream | ahead = 0 或 detached |
+
+- 按钮形态：10px 文字链 + 可选 `↓N` / `↑N` badge（ahead 绿 / behind 橙），与 `+` 并列于标题行右侧
+- 无 active repo 时 REPOS Fetch 与 BRANCHES Pull/Push 均灰显
+- 快捷键不变：`⌘⇧F` / `⌘⇧P` / `⌘⇧U`
 
 ### 4.2 Toolbar
 
 ```
-[ Client Work ▾ ]  gitwave › main  ↑2 ↓1   │ Fetch │ Pull↓1 │ Push↑2 │   ⌘K  ☀
+[ Client Work ▾ ]  gitwave › main                              ⌘K  ☀
 ```
 
 - Workspace：**胶囊**（`border-radius: 6px`，`bg: elevated`，无描边）
-- Repo path：`gitwave › main` 用 `›` 分隔，secondary 色
-- Sync：**Segmented control** — 三段共享外框 `1px hairline`，中间竖线分隔；disabled 段 `opacity: 0.35`
+- Repo path：`gitwave › main` 用 `›` 分隔，secondary 色；**不含** ahead/behind（数字随 Pull/Push 在 BRANCHES 标题栏）
 - 右侧：KeyHint 用 **嵌入式 kbd**（非浮动 badge）
+- **不放** Fetch / Pull / Push
 
 ### 4.3 History Graph（Tide Lanes）
 
@@ -152,7 +169,7 @@ Dark 模式：Abyss 侧栏 / `#161B20` 画布 / `#1C2329` inspector，关系不�
 | 维度 | v1 | v2 |
 |---|---|---|
 | 列表选中 | 有时圆角块 | 全宽 Source List |
-| Sync | 三个独立文字按钮 | Segmented control |
+| Sync 位置 | Toolbar 三按钮 | **REPOS: Fetch** / **BRANCHES: Pull·Push** |
 | Pane 分隔 | `border-right` | inset shadow |
 | Inspector | 简单 header | file chip + gutter diff |
 | WC Bar | 平贴 | 轻微上阴影 |
@@ -169,7 +186,7 @@ Dark 模式：Abyss 侧栏 / `#161B20` 画布 / `#1C2329` inspector，关系不�
 ## 8. 实施优先级（供后续 plan 引用）
 
 1. **P0** — Source List 重写（`ListItem` radius=0、全宽选中）+ pane inset shadow
-2. **P0** — Toolbar Sync segmented + Workspace 胶囊
+2. **P0** — Sync 下沉至 SidebarSection 标题栏（REPOS Fetch / BRANCHES Pull·Push）+ Toolbar 胶囊
 3. **P1** — Inspector diff gutter + file header row
 4. **P1** — WC Bar 上阴影 + 列标题规范
 5. **P2** — 移除全局 `ring-offset` 样式，统一 `:focus-visible` 为 2px Tide outline

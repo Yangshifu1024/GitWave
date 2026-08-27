@@ -293,7 +293,7 @@ toast({ title: "Clone failed", description: error.message, variant: "danger" });
 | `ConflictResolver` | `components/ConflictResolver.tsx` | 3-way merge UI（Sprint 6）|
 | `CommandPalette` | `components/CommandPalette.tsx` | Cmd+K 浮层（Sprint 6）|
 | `WorkingCopyBar` | `components/WorkingCopyBar.tsx` | 底部复合组件：branch 状态 + 文件列表 + commit 框（Sprint 4）|
-| `SyncButtons` | `components/SyncButtons.tsx` | 顶部 Fetch / Pull / Push 三按钮（Sprint 4）|
+| `SyncButtons` | `components/SyncButtons.tsx` | REPOS Fetch + BRANCHES Pull/Push（Sprint 4）|
 
 ## 3. Working Copy 相关 primitive（新增）
 
@@ -428,37 +428,46 @@ status 字符：M（modified） / A（added） / D（deleted） / ?（untracked�
 
 ### 3.5 SyncButtons
 
-**目的**：Fetch / Pull / Push 三按钮组，置于 Topbar。
+**目的**：按 Git 作用域拆分的同步操作——`Fetch` 在 REPOS section 标题栏（repository 级），`Pull` / `Push` 在 BRANCHES section 标题栏（branch 级）。
 
 **API**：
 
 ```tsx
-<SyncButtons
+// REPOS section actions slot
+<FetchButton onFetch={() => fetch()} disabled={!repoId} inProgress={sync.fetch} />
+
+// BRANCHES section actions slot
+<BranchSyncButtons
   ahead={2}
   behind={3}
-  onFetch={() => fetch()}
   onPull={() => pull()}
   onPush={() => push()}
-  inProgress={{ fetch: false, pull: false, push: true }}
+  pullDisabled={behind === 0 || detached}
+  pushDisabled={ahead === 0 || detached}
+  inProgress={{ pull: false, push: true }}
 />
 ```
 
-**Props**：
+也可合并为单个 `SyncButtons` 组件，通过 `variant="repo" | "branch"` 或拆成两个 slot 导出。
+
+**Props（BranchSyncButtons）**：
 
 | 字段 | 类型 | 默认 | 备注 |
 |---|---|---|---|
 | ahead | number | 0 | Push 按钮显示 `↑N` badge |
 | behind | number | 0 | Pull 按钮显示 `↓N` badge |
-| onFetch / onPull / onPush | () => void | | 三个回调 |
-| inProgress | object | {} | 哪个操作正在进行（spinner 状态） |
+| onPull / onPush | () => void | | 回调 |
+| pullDisabled / pushDisabled | boolean | | ahead/behind = 0 或 detached |
+| inProgress | object | {} | spinner 状态 |
 
 **样式**：
 
 ```
-[Fetch] [Pull↓3] [Push↑2]
+REPOS          Fetch  +
+BRANCHES   Pull↓3  Push↑2  +
 ```
 
-`↑N` chip 绿色 / `↓N` chip 橙色。当 ahead/behind = 0 时，对应按钮灰显（但仍可点击触发 fetch 拉新数据）。
+10px 文字链，与 section `+` 并列。`↑N` 绿 / `↓N` 橙。disabled 时 `opacity: 0.35`。
 
 ### 3.6 WorkingCopyBar
 

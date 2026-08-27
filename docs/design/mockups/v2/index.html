@@ -222,51 +222,55 @@
         font-size: 10px;
       }
 
-      .sync-stats {
+      /* Section header actions (Fetch / Pull / Push) */
+      .sec-actions {
         display: flex;
-        gap: 4px;
-        font-size: 11px;
+        align-items: center;
+        gap: 2px;
+        margin-left: auto;
+      }
+
+      .sec-act {
+        height: 18px;
+        padding: 0 5px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        font: 500 10px/1 var(--sans);
+        color: var(--ink-2);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .sec-act:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--ink) 6%, transparent);
+        color: var(--ink);
+      }
+
+      .sec-act:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+
+      .sec-act .up {
+        color: var(--ahead);
         font-weight: 600;
       }
 
-      .sync-stats .up {
-        color: var(--ahead);
-      }
-      .sync-stats .dn {
+      .sec-act .dn {
         color: var(--behind);
+        font-weight: 600;
       }
 
-      /* Segmented sync control */
-      .seg {
-        display: inline-flex;
-        border: 1px solid var(--hair);
-        border-radius: 6px;
-        overflow: hidden;
-        background: var(--elevated);
+      .sec-head {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 10px 3px 12px;
       }
 
-      .seg button {
-        height: 24px;
-        padding: 0 10px;
-        border: 0;
-        border-right: 1px solid var(--hair);
-        background: transparent;
-        font: 500 11px/1 var(--sans);
-        color: var(--ink-2);
-        cursor: pointer;
-      }
-
-      .seg button:last-child {
-        border-right: 0;
-      }
-
-      .seg button:hover:not(:disabled) {
-        background: color-mix(in srgb, var(--ink) 5%, transparent);
-      }
-
-      .seg button:disabled {
-        opacity: 0.35;
-        cursor: default;
+      .sec-head .sec-actions {
+        flex-shrink: 0;
       }
 
       .toolbar .right {
@@ -326,13 +330,6 @@
 
       .sec {
         margin-top: 6px;
-      }
-
-      .sec-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 12px 3px;
       }
 
       .sec-label {
@@ -785,7 +782,7 @@
       <button type="button" data-go="dirty" aria-pressed="false">Light · Dirty</button>
       <button type="button" data-go="dark" aria-pressed="false">Dark · History</button>
       <button type="button" data-go="empty" aria-pressed="false">Empty</button>
-      <span class="hint">Source List · Segmented Sync · 材质分层 · Tide Lanes</span>
+      <span class="hint">Source List · Sync 在 REPOS/BRANCHES · 材质分层 · Tide Lanes</span>
     </div>
 
     <div class="stage">
@@ -799,15 +796,6 @@
             <span class="chev">›</span>
             <span>main</span>
           </div>
-          <div class="sync-stats">
-            <span class="up">↑2</span>
-            <span class="dn">↓1</span>
-          </div>
-          <div class="seg">
-            <button type="button">Fetch</button>
-            <button type="button">Pull ↓1</button>
-            <button type="button">Push ↑2</button>
-          </div>
           <div class="right">
             <span class="kbd">⌘K</span>
             <button class="icon-btn" type="button" aria-label="Theme">☀</button>
@@ -819,7 +807,10 @@
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
-                <button class="sec-add" type="button" aria-label="Add repo">+</button>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button">Fetch</button>
+                  <button class="sec-add" type="button" aria-label="Add repo">+</button>
+                </div>
               </div>
               <div class="src-row sel">gitwave <span class="dot"></span></div>
               <div class="src-row">notes</div>
@@ -827,7 +818,11 @@
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Branches</span>
-                <button class="sec-add" type="button">+</button>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button">Pull <span class="dn">↓1</span></button>
+                  <button class="sec-act" type="button">Push <span class="up">↑2</span></button>
+                  <button class="sec-add" type="button">+</button>
+                </div>
               </div>
               <div class="src-row sel">main <span class="trail">HEAD</span></div>
               <div class="src-row">feature/tide-lanes</div>
@@ -952,11 +947,6 @@
             <span class="chev">›</span>
             <span>feature/tide-lanes</span>
           </div>
-          <div class="seg">
-            <button type="button">Fetch</button>
-            <button type="button" disabled>Pull</button>
-            <button type="button" disabled>Push</button>
-          </div>
           <div class="right">
             <span class="kbd">⌘K</span>
             <button class="icon-btn" type="button">☀</button>
@@ -967,13 +957,21 @@
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
-                <button class="sec-add" type="button">+</button>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button">Fetch</button>
+                  <button class="sec-add" type="button">+</button>
+                </div>
               </div>
               <div class="src-row sel">gitwave</div>
             </div>
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Branches</span>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button" disabled>Pull</button>
+                  <button class="sec-act" type="button" disabled>Push</button>
+                  <button class="sec-add" type="button">+</button>
+                </div>
               </div>
               <div class="src-row">main</div>
               <div class="src-row sel">feature/tide-lanes <span class="trail">HEAD</span></div>
@@ -1074,15 +1072,6 @@
             <span class="chev">›</span>
             <span>main</span>
           </div>
-          <div class="sync-stats">
-            <span class="up">↑2</span>
-            <span class="dn">↓1</span>
-          </div>
-          <div class="seg">
-            <button type="button">Fetch</button>
-            <button type="button">Pull ↓1</button>
-            <button type="button">Push ↑2</button>
-          </div>
           <div class="right">
             <span class="kbd">⌘K</span>
             <button class="icon-btn" type="button">☾</button>
@@ -1091,11 +1080,22 @@
         <div class="body">
           <aside class="sidebar">
             <div class="sec">
-              <div class="sec-head"><span class="sec-label">Repos</span></div>
+              <div class="sec-head">
+                <span class="sec-label">Repos</span>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button">Fetch</button>
+                </div>
+              </div>
               <div class="src-row sel">gitwave</div>
             </div>
             <div class="sec">
-              <div class="sec-head"><span class="sec-label">Branches</span></div>
+              <div class="sec-head">
+                <span class="sec-label">Branches</span>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button">Pull <span class="dn">↓1</span></button>
+                  <button class="sec-act" type="button">Push <span class="up">↑2</span></button>
+                </div>
+              </div>
               <div class="src-row sel">main <span class="trail">HEAD</span></div>
               <div class="src-row">feature/tide-lanes</div>
             </div>
@@ -1156,11 +1156,6 @@
         <header class="toolbar">
           <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
           <button class="ws-pill muted" type="button">Select workspace ▾</button>
-          <div class="seg">
-            <button type="button" disabled>Fetch</button>
-            <button type="button" disabled>Pull</button>
-            <button type="button" disabled>Push</button>
-          </div>
           <div class="right">
             <span class="kbd">⌘K</span>
             <button class="icon-btn" type="button">☀</button>
@@ -1169,8 +1164,23 @@
         <div class="body">
           <aside class="sidebar">
             <div class="sec">
-              <div class="sec-head"><span class="sec-label">Repos</span></div>
+              <div class="sec-head">
+                <span class="sec-label">Repos</span>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button" disabled>Fetch</button>
+                </div>
+              </div>
               <div class="src-row"><span class="trail" style="margin-left: 0">No repositories yet</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head">
+                <span class="sec-label">Branches</span>
+                <div class="sec-actions">
+                  <button class="sec-act" type="button" disabled>Pull</button>
+                  <button class="sec-act" type="button" disabled>Push</button>
+                </div>
+              </div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">Select a repository</span></div>
             </div>
           </aside>
           <section class="graph">

@@ -59,7 +59,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Toolbar (~40px)  动作工具栏，不要品牌站                         │
-│  [WS▾]  repo  main ↑2 ↓1     Fetch Pull Push         ⌘K  ☀/☾ │
+│  [WS▾]  repo › branch                                        ⌘K  ☀/☾ │
 ├────────────┬───────────────────────────────┬────────────────────┤
 │ Sidebar    │  History graph（主角）         │  Inspector         │
 │ (220px)    │  flex                         │  (~360px)          │
@@ -73,8 +73,8 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Toolbar**：Workspace 切换 + 当前 repo / branch + Sync（Fetch/Pull/Push）+ ⌘K + 主题。无居中字标、无版本号、无 Help 图标。SSH 进溢出菜单。
-- **Sidebar（Source List）**：当前 workspace 的 repos + branches + stash / tags / remotes / worktrees。Mist 底，与 Foam 画布有材质差。
+- **Toolbar**：Workspace 切换 + 当前 repo › branch 路径（只读）。无 Sync、无居中字标、无版本号。SSH 进溢出菜单。
+- **Sidebar（Source List）**：repos（含 **Fetch**）+ branches（含 **Pull / Push**）+ stash / tags / remotes / worktrees。Mist 底，与 Foam 画布有材质差。
 - **History graph**：永远是中栏主角，不是 Tab。
 - **Inspector**：选中 commit 或 working-copy 文件的详情 / diff。
 - **Working Copy Bar**：clean 32px / dirty 展开至 ~220px（文件列表从 Changes Tab 收回）。详见 `04-working-copy.md`。
@@ -109,7 +109,7 @@
 | `FileListItem` | 单个文件变更行（M/A/D/? + +/-） | 待建 |
 | `StatusIcon` | 文件 status 字符 + 颜色 | 待建 |
 | `CommitMessageBox` | 多行 message 输入 + AI 按钮 | 待建 |
-| `SyncButtons` | 顶部 Fetch / Pull / Push 三按钮 | 待建 |
+| `SyncButtons` | REPOS 标题栏 Fetch + BRANCHES 标题栏 Pull/Push | 待建 |
 
 详见 `02-components.md` §3 + `04-working-copy.md`。
 

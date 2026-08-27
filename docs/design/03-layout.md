@@ -7,7 +7,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Toolbar (h: 40px)                                                      │
-│  [WS▾]  repo-name  main ↑2 ↓1     Fetch  Pull  Push          ⌘K  ☀/☾ │
+│  [WS▾]  repo › branch                                        ⌘K  ☀/☾ │
 ├────────────┬──────────────────────────────────┬─────────────────────────┤
 │            │                                  │                         │
 │ Sidebar    │  History graph (flex)            │  Inspector (~360px)     │
@@ -29,7 +29,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ [Workspace▾]  repo  main ↑2 ↓1     Fetch  Pull↓3  Push↑2          ⌘K  ☀ │
+│ [Workspace▾]  repo › branch                                      ⌘K  ☀ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -41,23 +41,24 @@
 | 元素 | 位置 | 交互 |
 |---|---|---|
 | Workspace Switcher | 左 | 点击 → 下拉，列出 workspaces + New |
-| 当前 repo 名 | 左 | 只读标签（切换在侧栏） |
-| 当前 branch 指示 | 左中 | 显示 branch 名（ahead/behind 数字 chip） |
-| **Fetch / Pull / Push** | 中 | Pull/Push 在 ahead/behind = 0 时灰显 |
+| 当前 repo › branch | 左 | 只读路径（切换在侧栏）；`›` 分隔 |
 | `⌘K` hint | 右 | 点击 → 打开 CommandPalette（v0.2 Sprint 6） |
 | Theme toggle | 右 | 点击循环：light → dark → system |
 | 溢出菜单 | 右 | SSH Keys |
 
-### 2.3 当前 Branch 指示
+**Sync 不在 Toolbar**。Fetch / Pull / Push 按作用域放在侧栏 section 标题栏，见 §3.4。
 
-格式：`branch_name [↑N] [↓N]`
+### 2.3 Branch 同步状态（侧栏 BRANCHES 标题栏）
+
+ahead/behind 数字显示在 **BRANCHES section 标题栏** 的 Pull / Push 按钮旁，不在 Toolbar。
+
+格式：`Pull ↓N` / `Push ↑N`
 
 示例：
-- `main`（无 ahead/behind）
-- `feature/foo ↑2 ↓3`（本地领先 2，远程领先 3）
-- `feature/foo ↑2`（ahead 2，可 Push）
-- `feature/foo ↓3`（behind 3，可 Pull）
-- `detached @ abc1234`（HEAD 分离状态，灰显）
+- `Pull` / `Push`（无数字，behind/ahead = 0 时按钮灰显）
+- `Pull ↓3`（behind 3，可 Pull）
+- `Push ↑2`（ahead 2，可 Push）
+- detached HEAD 时 Pull/Push 均灰显
 
 当 branch 改变（如 commit / checkout / merge）时实时更新。ahead/behind 在每次 fetch 后刷新。
 
@@ -78,10 +79,10 @@
 
 ```
 ┌──────────────────────────┐
-│ REPOS                 [+] │
+│ REPOS          Fetch  +  │
 │   gitwave      [active]   │
 │   notes                   │
-│ BRANCHES              [+] │
+│ BRANCHES   Pull↓1 Push↑2 +│
 │   main             HEAD   │
 │   feature/tide-lanes      │
 │ STASH / TAGS / REMOTES …  │
@@ -94,9 +95,20 @@
 
 | 元素 | 类型 | 备注 |
 |---|---|---|
-| REPOS 标题 | 静态 | uppercase, text-xs, text-muted |
+| REPOS 标题 | 静态 + actions | uppercase label；右侧 `Fetch`（repo 级）+ `+` |
 | Repo 行 | ListItem | 点击 → setActiveRepo；右键菜单：relink / remove |
-| BRANCHES / STASH / … | SidebarSection | 见 §4 |
+| BRANCHES 标题 | 静态 + actions | 右侧 `Pull ↓N` / `Push ↑N`（branch 级）+ `+` |
+| STASH / TAGS / … | SidebarSection | 见 §4 |
+
+### 3.4 Sync 操作（侧栏标题栏）
+
+| 操作 | Section | 作用域 | 禁用 |
+|---|---|---|---|
+| Fetch | REPOS | 当前 active repo 的全部 remote | 无 active repo |
+| Pull | BRANCHES | 当前 HEAD branch | behind = 0 或 detached |
+| Push | BRANCHES | 当前 HEAD branch | ahead = 0 或 detached |
+
+按钮为 10px 文字链，badge 颜色：ahead 绿 / behind 橙。进行中显示 spinner 替换文字。
 
 ### 3.3 状态标记
 
@@ -207,7 +219,7 @@ Changes 文件列表在 Working Copy Bar（dirty 时展开），不占用中栏�
 | `FileListItem` | 单个文件行（M/A/D/?/R/C + 路径 + +/-） | `02-components.md` §1.14 |
 | `StatusIcon` | 文件 status 字符 + 颜色 | `02-components.md` §1.15 |
 | `CommitMessageBox` | 多行输入 + AI placeholder + Amend prefill | `02-components.md` §1.16 |
-| `SyncButtons` | 顶部的 Fetch / Pull / Push 三按钮 | `02-components.md` §1.17 |
+| `SyncButtons` | REPOS / BRANCHES 标题栏的 Fetch / Pull / Push | `02-components.md` §1.17 |
 
 ## 7. 响应式
 

@@ -15,7 +15,7 @@
 
 浏览器打开 `v2/index.html`，顶栏切换四屏。
 
-**v2 核心变化**：Source List 全宽无圆角 · Toolbar Segmented Sync · pane inset shadow 材质分层 · Inspector diff gutter · WC Bar 上阴影。
+**v2 核心变化**：Source List 全宽无圆角 · **Sync 下沉 REPOS/BRANCHES 标题栏** · pane inset shadow 材质分层 · Inspector diff gutter · WC Bar 上阴影。
 
 ## v1（历史参考）
 
