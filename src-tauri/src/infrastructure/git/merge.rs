@@ -85,9 +85,7 @@ pub fn merge_branch(repo: &Repository, branch_name: &str) -> Result<MergeResult>
 
     // Real 3-way merge via libgit2 `merge` so MERGE_HEAD + on-disk index
     // are set up correctly (including conflict stages).
-    let their_annotated = repo
-        .find_annotated_commit(their_oid)
-        .map_err(map_git_err)?;
+    let their_annotated = repo.find_annotated_commit(their_oid).map_err(map_git_err)?;
     let mut merge_opts = git2::MergeOptions::new();
     merge_opts.find_renames(true);
     let mut checkout = git2::build::CheckoutBuilder::new();

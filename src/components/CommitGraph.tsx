@@ -5,16 +5,18 @@ import type { CommitRef, CommitSummary } from "@/lib/api";
 import { formatAppError, getCommitLog } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { FolderOpen } from "lucide-react";
 
-const ROW_H = 40;
-const LANE_GAP = 16;
-const NODE_R = 3.5;
+const ROW_H = 28;
+const LANE_GAP = 14;
+const NODE_R = 3.2;
 const LANE_COLORS = [
   "var(--color-accent)",
-  "var(--color-success)",
-  "var(--color-warning)",
   "var(--color-info)",
-  "var(--color-branch-current)",
+  "#4a5fa8",
+  "#5b56a8",
+  "var(--color-branch-remote)",
 ];
 
 function formatTime(time: number): string {
@@ -39,7 +41,13 @@ function laneX(lane: number): number {
   return LANE_GAP / 2 + lane * LANE_GAP;
 }
 
-function RefBadge({ r, emphasize = false }: { r: CommitRef; emphasize?: boolean }): React.JSX.Element {
+function RefBadge({
+  r,
+  emphasize = false,
+}: {
+  r: CommitRef;
+  emphasize?: boolean;
+}): React.JSX.Element {
   const styles =
     r.kind === "head"
       ? "bg-branch-current text-text-inverse border-branch-current"
@@ -134,24 +142,20 @@ function GraphRow({
           // Branch tip: circle is the terminus — skip upper half.
           if (!fromAbove) return null;
           return (
-            <line
+            <path
               key={`thru-${lane}`}
-              x1={x}
-              y1={0}
-              x2={x}
-              y2={cy - NODE_R}
+              d={`M ${x} 0 C ${x} ${cy * 0.35}, ${x} ${cy * 0.65}, ${x} ${cy - NODE_R}`}
+              fill="none"
               stroke={c}
               strokeWidth={1.5}
             />
           );
         }
         return (
-          <line
+          <path
             key={`thru-${lane}`}
-            x1={x}
-            y1={0}
-            x2={x}
-            y2={ROW_H}
+            d={`M ${x} 0 C ${x} ${ROW_H * 0.35}, ${x} ${ROW_H * 0.65}, ${x} ${ROW_H}`}
+            fill="none"
             stroke={c}
             strokeWidth={1.5}
           />
@@ -163,22 +167,21 @@ function GraphRow({
         const px = laneX(pLane);
         if (pLane === commit.lane) {
           return (
-            <line
+            <path
               key={`edge-${pLane}`}
-              x1={cx}
-              y1={cy + NODE_R}
-              x2={cx}
-              y2={ROW_H}
+              d={`M ${cx} ${cy + NODE_R} C ${cx} ${cy + (ROW_H - cy) * 0.45}, ${cx} ${ROW_H * 0.85}, ${cx} ${ROW_H}`}
+              fill="none"
               stroke={color}
               strokeWidth={1.5}
             />
           );
         }
-        const midY = cy + (ROW_H - cy) * 0.55;
+        const midY = cy + (ROW_H - cy) * 0.62;
+        const wave = (px - cx) * 0.18;
         return (
           <path
             key={`edge-${pLane}`}
-            d={`M ${cx} ${cy + NODE_R} C ${cx} ${midY}, ${px} ${midY}, ${px} ${ROW_H}`}
+            d={`M ${cx} ${cy + NODE_R} C ${cx + wave} ${midY}, ${px - wave} ${midY}, ${px} ${ROW_H}`}
             fill="none"
             stroke={pColor}
             strokeWidth={1.5}
@@ -254,9 +257,7 @@ function CommitRow({
         "flex items-center gap-2 px-2 py-0 cursor-pointer border-b border-border-subtle",
         "transition-colors duration-fast border-l-2 border-l-transparent",
         !isSelected && !isHead && "hover:bg-bg-elevated",
-        isHead &&
-          !isSelected &&
-          "bg-branch-current/10 border-l-branch-current hover:bg-branch-current/20",
+        isHead && !isSelected && "bg-accent/10 border-l-accent hover:bg-accent/20",
         isSelected && "bg-accent/20 border-l-accent hover:bg-accent/30",
       )}
       style={{ height: `${ROW_H}px` }}
@@ -302,10 +303,8 @@ function CommitRow({
 
       <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
         {commit.author} &middot; {formatTime(commit.time)}
-        {commit.parents.length > 1 ? (
-          <span className="ml-1 text-accent">merge</span>
-        ) : null}
-        {isHead ? <span className="ml-1 text-branch-current font-medium">HEAD</span> : null}
+        {commit.parents.length > 1 ? <span className="ml-1 text-accent">merge</span> : null}
+        {isHead ? <span className="ml-1 text-accent font-medium">HEAD</span> : null}
       </span>
     </div>
   );
@@ -403,16 +402,24 @@ export function CommitGraph({
 
   if (!activeWorkspaceId) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Select a workspace to view commit history
+      <div className="flex items-center justify-center h-full">
+        <EmptyState
+          icon={<FolderOpen size={22} />}
+          title="Select a workspace"
+          description="Choose a workspace in the toolbar to view commit history."
+        />
       </div>
     );
   }
 
   if (!activeRepoId) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Select a repository to view commit history
+      <div className="flex items-center justify-center h-full">
+        <EmptyState
+          icon={<FolderOpen size={22} />}
+          title="Select a repository"
+          description="Pick a repository from the sidebar to view commit history."
+        />
       </div>
     );
   }

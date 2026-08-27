@@ -14,9 +14,10 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { cn } from "@/lib/utils";
 import { Archive, Eye, Play, Trash2, Upload } from "lucide-react";
 
-export function StashPanel(): React.JSX.Element {
+export function StashPanel({ compact = false }: { compact?: boolean }): React.JSX.Element {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
@@ -83,26 +84,31 @@ export function StashPanel(): React.JSX.Element {
 
   if (!workspaceId || !repoId) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+      <p className={cn("text-text-muted", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
         Select a repository to manage stashes
-      </div>
+      </p>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Loading stashes...
-      </div>
+      <p className={cn("text-text-muted italic", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
+        Loading stashes…
+      </p>
     );
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
+    <div className={cn("min-h-0 flex flex-col", !compact && "h-full overflow-hidden")}>
+      <div
+        className={cn(
+          "shrink-0 flex items-center gap-1.5",
+          compact ? "px-2 py-1" : "px-3 py-2 border-b border-border-subtle",
+        )}
+      >
         <div className="flex-1 min-w-0">
           <Input
-            placeholder="Stash message (optional)"
+            placeholder={compact ? "Message (optional)" : "Stash message (optional)"}
             value={message}
             onChange={setMessage}
             disabled={busy}
@@ -113,20 +119,23 @@ export function StashPanel(): React.JSX.Element {
         </div>
         <Button variant="primary" size="sm" disabled={busy} onClick={handleSave}>
           <Archive size={14} />
-          Stash
+          {compact ? null : "Stash"}
         </Button>
       </div>
 
-      {error ? (
-        <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      ) : null}
+      {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <div className="flex-1 min-w-0 overflow-auto border-r border-border-subtle">
+      <div
+        className={cn(
+          "min-h-0 overflow-auto",
+          compact ? "max-h-52" : "flex flex-1 min-h-0 overflow-hidden",
+        )}
+      >
+        <div className={cn("min-w-0", !compact && "flex-1 overflow-auto border-r border-border-subtle")}>
           {entries.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-text-muted text-sm px-4 text-center">
-              No stashes yet. Save uncommitted work with Stash.
-            </div>
+            <p className={cn("text-text-muted", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm px-4 text-center")}>
+              {compact ? "No stashes" : "No stashes yet. Save uncommitted work with Stash."}
+            </p>
           ) : (
             entries.map((e) => (
               <ListItem
@@ -137,20 +146,22 @@ export function StashPanel(): React.JSX.Element {
                 }}
                 leading={<Archive size={14} className="text-accent shrink-0" />}
                 trailing={
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="p-1"
-                      disabled={busy}
-                      title="View diff"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        void handleDiff(e.oid);
-                      }}
-                    >
-                      <Eye size={12} />
-                    </Button>
+                  <div className="flex items-center gap-0.5">
+                    {!compact ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="p-1"
+                        disabled={busy}
+                        title="View diff"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          void handleDiff(e.oid);
+                        }}
+                      >
+                        <Eye size={12} />
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -194,39 +205,41 @@ export function StashPanel(): React.JSX.Element {
                 }
               >
                 <div className="flex flex-col min-w-0">
-                  <span className="text-sm text-text-primary truncate">
+                  <span className={cn("text-text-primary truncate", compact ? "text-xs" : "text-sm")}>
                     {`stash@{${e.index}}`} · {e.message || "(no message)"}
                   </span>
-                  <span className="text-xs text-text-muted font-mono">{e.oid.slice(0, 7)}</span>
+                  <span className="text-[10px] text-text-muted font-mono">{e.oid.slice(0, 7)}</span>
                 </div>
               </ListItem>
             ))
           )}
         </div>
 
-        <div className="w-80 shrink-0 overflow-auto p-3">
-          {!diff ? (
-            <p className="text-xs text-text-muted">Select a stash to preview its diff.</p>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs text-text-secondary">
-                {diff.files.length} file(s) · +{diff.total_additions} −{diff.total_deletions}
-              </p>
-              {diff.files.map((f) => (
-                <div
-                  key={f.path}
-                  className="rounded border border-border-subtle px-2 py-1.5 text-xs font-mono"
-                >
-                  <div className="text-text-primary truncate">{f.path}</div>
-                  <div className="text-text-muted">
-                    <span className="text-success">+{f.additions}</span>{" "}
-                    <span className="text-danger">−{f.deletions}</span>
+        {!compact ? (
+          <div className="w-80 shrink-0 overflow-auto p-3">
+            {!diff ? (
+              <p className="text-xs text-text-muted">Select a stash to preview its diff.</p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-text-secondary">
+                  {diff.files.length} file(s) · +{diff.total_additions} −{diff.total_deletions}
+                </p>
+                {diff.files.map((f) => (
+                  <div
+                    key={f.path}
+                    className="rounded border border-border-subtle px-2 py-1.5 text-xs font-mono"
+                  >
+                    <div className="text-text-primary truncate">{f.path}</div>
+                    <div className="text-text-muted">
+                      <span className="text-success">+{f.additions}</span>{" "}
+                      <span className="text-danger">−{f.deletions}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );

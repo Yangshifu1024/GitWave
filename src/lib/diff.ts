@@ -13,11 +13,19 @@ export function partitionFileChanges(files: FileChange[]): {
   return { unstaged, staged };
 }
 
-/** When `path` is set, keep only that file and recompute totals. */
-export function filterDiffSummary(diff: DiffSummary, path?: string | null): DiffSummary {
-  if (!path) return diff;
-  const needle = normalizeRepoPath(path);
-  const files = diff.files.filter((file) => normalizeRepoPath(file.path) === needle);
+/** When `path` is set, keep only that file. `staged` further splits working-copy sides. */
+export function filterDiffSummary(
+  diff: DiffSummary,
+  path?: string | null,
+  staged?: boolean | null,
+): DiffSummary {
+  if (!path && staged == null) return diff;
+  const needle = path ? normalizeRepoPath(path) : null;
+  const files = diff.files.filter((file) => {
+    if (needle && normalizeRepoPath(file.path) !== needle) return false;
+    if (staged != null && file.staged !== staged) return false;
+    return true;
+  });
   return {
     files,
     total_additions: files.reduce((sum, file) => sum + file.additions, 0),

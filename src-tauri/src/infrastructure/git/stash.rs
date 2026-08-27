@@ -30,7 +30,11 @@ pub fn save_stash(repo: &mut Repository, message: Option<&str>) -> Result<String
         .or_else(|_| git2::Signature::now("GitWave", "gitwave@local"))
         .map_err(map_git_err)?;
     let oid = repo
-        .stash_save(&sig, message.unwrap_or("WIP"), Some(StashFlags::INCLUDE_UNTRACKED))
+        .stash_save(
+            &sig,
+            message.unwrap_or("WIP"),
+            Some(StashFlags::INCLUDE_UNTRACKED),
+        )
         .map_err(map_git_err)?;
     Ok(oid.to_string())
 }
@@ -72,10 +76,12 @@ mod tests {
         assert!(list[0].message.contains("test stash") || list[0].message.contains("WIP"));
 
         // Working tree should be clean of wip.txt after stash
-        assert!(!path.join("wip.txt").exists() || {
-            // INCLUDE_UNTRACKED removes untracked from workdir when stashed
-            true
-        });
+        assert!(
+            !path.join("wip.txt").exists() || {
+                // INCLUDE_UNTRACKED removes untracked from workdir when stashed
+                true
+            }
+        );
 
         pop_stash(&mut repo, 0).unwrap();
         let list = list_stashes(&mut repo).unwrap();

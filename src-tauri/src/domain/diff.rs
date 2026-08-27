@@ -43,6 +43,9 @@ pub struct FileDiff {
     pub additions: u32,
     pub deletions: u32,
     pub hunks: Vec<DiffHunk>,
+    /// Working-copy only: `Some(true)` = index vs HEAD, `Some(false)` = worktree vs index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staged: Option<bool>,
 }
 
 #[cfg(test)]
@@ -99,6 +102,7 @@ mod tests {
             new_sha: Some("b".into()),
             additions: 3,
             deletions: 1,
+            staged: None,
             hunks: vec![DiffHunk {
                 old_start: 1,
                 old_lines: 4,

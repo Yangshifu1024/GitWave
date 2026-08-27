@@ -14,9 +14,10 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { cn } from "@/lib/utils";
 import { FolderTree, Plus, Trash2, ArrowRightLeft } from "lucide-react";
 
-export function WorktreePanel(): React.JSX.Element {
+export function WorktreePanel({ compact = false }: { compact?: boolean }): React.JSX.Element {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
@@ -86,44 +87,53 @@ export function WorktreePanel(): React.JSX.Element {
 
   if (!workspaceId || !repoId) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+      <p className={cn("text-text-muted", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
         Select a repository to manage worktrees
-      </div>
+      </p>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Loading worktrees...
-      </div>
+      <p className={cn("text-text-muted italic", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
+        Loading worktrees…
+      </p>
     );
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
-        <Button variant="secondary" size="sm" disabled={busy} onClick={() => setShowCreate((v) => !v)}>
+    <div className={cn("min-h-0 flex flex-col", !compact && "h-full overflow-hidden")}>
+      <div className={cn("shrink-0", compact ? "px-2 py-1" : "px-3 py-2 border-b border-border-subtle")}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={busy}
+          onClick={() => setShowCreate((v) => !v)}
+        >
           <Plus size={14} />
-          New worktree
+          {compact ? "New" : "New worktree"}
         </Button>
       </div>
 
       {showCreate ? (
-        <div className="shrink-0 flex flex-col gap-2 px-3 py-2 border-b border-border-subtle bg-bg-elevated">
-          <Input placeholder="Name (e.g. feature-x)" value={name} onChange={setName} disabled={busy} />
-          <Input
-            placeholder="Path (absolute worktree directory)"
-            value={path}
-            onChange={setPath}
-            disabled={busy}
-          />
-          <Input
-            placeholder="Branch (default: same as name, created from HEAD)"
-            value={branch}
-            onChange={setBranch}
-            disabled={busy}
-          />
+        <div
+          className={cn(
+            "shrink-0 flex flex-col gap-1.5 bg-bg-elevated",
+            compact ? "px-2 py-1.5" : "px-3 py-2 border-b border-border-subtle gap-2",
+          )}
+        >
+          <Input placeholder="Name" value={name} onChange={setName} disabled={busy} />
+          <Input placeholder="Path" value={path} onChange={setPath} disabled={busy} />
+          {!compact ? (
+            <Input
+              placeholder="Branch (default: same as name, created from HEAD)"
+              value={branch}
+              onChange={setBranch}
+              disabled={busy}
+            />
+          ) : (
+            <Input placeholder="Branch (optional)" value={branch} onChange={setBranch} disabled={busy} />
+          )}
           <div className="flex justify-end">
             <Button
               variant="primary"
@@ -139,55 +149,62 @@ export function WorktreePanel(): React.JSX.Element {
 
       {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
-      <div className="flex-1 min-h-0 overflow-auto">
-        {items.map((wt) => (
-          <ListItem
-            key={wt.name}
-            leading={<FolderTree size={14} className="text-accent shrink-0" />}
-            trailing={
-              <div className="flex items-center gap-1">
-                {!wt.is_main ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="p-1"
-                      disabled={busy}
-                      title="Switch: add path to Workspace and activate"
-                      onClick={() => handleSwitch(wt)}
-                    >
-                      <ArrowRightLeft size={12} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="p-1 text-danger hover:bg-danger/10"
-                      disabled={busy}
-                      title="Remove worktree"
-                      onClick={() => void run(async () => removeWorktree(workspaceId, wt.name))}
-                    >
-                      <Trash2 size={12} />
-                    </Button>
-                  </>
-                ) : (
-                  <span className="text-xs text-accent font-medium">main</span>
-                )}
+      <div className={cn("min-h-0 overflow-auto", compact ? "max-h-52" : "flex-1")}>
+        {items.length === 0 ? (
+          <p className="px-3 py-1.5 text-xs text-text-muted">No worktrees</p>
+        ) : (
+          items.map((wt) => (
+            <ListItem
+              key={wt.name}
+              leading={<FolderTree size={14} className="text-accent shrink-0" />}
+              trailing={
+                <div className="flex items-center gap-0.5">
+                  {!wt.is_main ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="p-1"
+                        disabled={busy}
+                        title="Switch: add path to Workspace and activate"
+                        onClick={() => handleSwitch(wt)}
+                      >
+                        <ArrowRightLeft size={12} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="p-1 text-danger hover:bg-danger/10"
+                        disabled={busy}
+                        title="Remove worktree"
+                        onClick={() => void run(async () => removeWorktree(workspaceId, wt.name))}
+                      >
+                        <Trash2 size={12} />
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-accent font-medium">main</span>
+                  )}
+                </div>
+              }
+            >
+              <div className="flex flex-col min-w-0">
+                <span className={cn("text-text-primary truncate", compact ? "text-xs" : "text-sm")}>
+                  {wt.name}
+                  {wt.branch ? (
+                    <span className="text-text-muted font-normal"> · {wt.branch}</span>
+                  ) : null}
+                </span>
+                <span
+                  className="text-[10px] text-text-muted font-mono truncate"
+                  title={wt.path}
+                >
+                  {wt.path}
+                </span>
               </div>
-            }
-          >
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm text-text-primary truncate">
-                {wt.name}
-                {wt.branch ? (
-                  <span className="text-text-muted font-normal"> · {wt.branch}</span>
-                ) : null}
-              </span>
-              <span className="text-xs text-text-muted font-mono truncate" title={wt.path}>
-                {wt.path}
-              </span>
-            </div>
-          </ListItem>
-        ))}
+            </ListItem>
+          ))
+        )}
       </div>
     </div>
   );

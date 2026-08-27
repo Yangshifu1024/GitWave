@@ -26,6 +26,15 @@ export {
   type ContextMenuItemProps,
 } from "./ContextMenu";
 export { KeyHint, type KeyHintProps } from "./KeyHint";
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+} from "./DropdownMenu";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { PathInput, type PathInputProps } from "./PathInput";
 

@@ -34,16 +34,22 @@
 - Material UI / Ant Design（视觉风格锁定 macOS feel）
 - Monaco / CodeMirror（diff viewer 选 Shiki + 自建 viewer，不引编辑器）
 
-## 视觉风格基调（macOS 原生 feel）
+## 视觉风格基调（原生桌面壳 + GitWave 身份）
+
+桌面 Git 客户端，不是网站。签名只有一处：**Tide Lanes**（history 图的青绿→靛蓝贝塞尔 lane）。其余 chrome 保持安静。
+
+校对稿：[`mockups/README.md`](./mockups/README.md)。
 
 | 维度 | 选择 |
 |---|---|
-| 字体（macOS）| SF Pro Text / SF Pro Icons / SF Mono |
-| 字体（Win / Linux）| fallback 到 Segoe UI / Cantarell + ui-monospace |
+| 色板 | Foam / Mist / Ink / Tide `#1A8F8A` / Abyss / Coral。不用纯白、不用系统蓝 `#007aff` |
+| 字体（UI）| SF Pro Text / Segoe UI / Cantarell |
+| 字体（SHA / 路径 / diff）| IBM Plex Mono |
+| 行高 | chrome 1.2–1.3；列表 / graph 行 28px |
 | 圆角 | 6 (控件) / 8 (卡片) / 12 (模态) |
 | 阴影 | subtle / modal 两档；不用黑色硬阴影 |
-| 焦点态 | 系统 accent color 2px outline |
-| 动效 | 200ms ease-out（默认）；模态用 spring (300ms) |
+| 焦点态 | Tide 2px outline，无 web 式 `ring-offset` |
+| 动效 | 160–200ms ease-out；模态用 spring (300ms) |
 | 间距 | 4 / 8 / 12 / 16 / 24 / 32 |
 
 具体值见 `01-tokens.md`。
@@ -52,26 +58,26 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Topbar (~48px)                                                │
-│  [Workspace▼] GitWave   [Cmd+K hint]   [SSH]   [☀/☾]   [v0.1]│
-├──────────────┬───────────────────┬──────────────────────────────┤
-│ Sidebar      │ Feature Nav       │ Main                         │
-│ (240px)      │ (280px)           │ (flex, 滚动)                │
-│              │                   │                              │
-│ ▾ WS-A       │ History │ Branches │ commit graph + details      │
-│   ▸ repo-1   │ Stash │ Tags      │                              │
-│   ▸ repo-2 ● │ Remotes │ Worktrees│                              │
-│   ▸ repo-3   │                   │                              │
-│ ▾ WS-B       │                   │                              │
-│ [+ New]      │                   │                              │
-└──────────────┴───────────────────┴──────────────────────────────┘
+│  Toolbar (~40px)  动作工具栏，不要品牌站                         │
+│  [WS▾]  repo  main ↑2 ↓1     Fetch Pull Push         ⌘K  ☀/☾ │
+├────────────┬───────────────────────────────┬────────────────────┤
+│ Sidebar    │  History graph（主角）         │  Inspector         │
+│ (220px)    │  flex                         │  (~360px)          │
+│ repos      │  Tide Lanes + commit 行       │  详情 / diff       │
+│ branches   │                               │                    │
+│ stash/tags │                               │                    │
+│ remotes /  │                               │                    │
+│ worktrees  │                               │                    │
+├────────────┴───────────────────────────────┴────────────────────┤
+│ Working Copy Bar  clean 32px / dirty 展开文件列表 + commit     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Topbar**：workspace switcher + 当前 branch + global actions（Sync Fetch/Pull/Push）+ 主题 + 版本号
-- **Sidebar**：workspaces + 每个 workspace 的 repos 树
-- **Feature Nav**：当前 active repo 的二级导航
-- **Main**：实际内容（commit graph、diff、blame、conflict 等）
-- **Working Copy Bar**：底部 collapstates，clean 时 32px / dirty 时展开至 280px。详情见 `04-working-copy.md`
+- **Toolbar**：Workspace 切换 + 当前 repo / branch + Sync（Fetch/Pull/Push）+ ⌘K + 主题。无居中字标、无版本号、无 Help 图标。SSH 进溢出菜单。
+- **Sidebar（Source List）**：当前 workspace 的 repos + branches + stash / tags / remotes / worktrees。Mist 底，与 Foam 画布有材质差。
+- **History graph**：永远是中栏主角，不是 Tab。
+- **Inspector**：选中 commit 或 working-copy 文件的详情 / diff。
+- **Working Copy Bar**：clean 32px / dirty 展开至 ~220px（文件列表从 Changes Tab 收回）。详见 `04-working-copy.md`。
 
 详见 `03-layout.md` / `04-working-copy.md`。
 

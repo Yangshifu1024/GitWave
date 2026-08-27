@@ -15,7 +15,10 @@ import { modifierFromPointerEvent, nextFileSelection } from "@/lib/fileSelection
 
 export interface ChangesPanelProps {
   selectedPath: string | null;
-  onSelectFile: (path: string) => void;
+  selectedStaged: boolean | null;
+  onSelectFile: (path: string, staged: boolean) => void;
+  /** `bar` = horizontal 3-column layout for Working Copy Bar */
+  layout?: "stacked" | "bar";
 }
 
 function FileSection({
@@ -26,10 +29,12 @@ function FileSection({
   files,
   emptyLabel,
   selectedPath,
+  selectedStaged,
   onSelectFile,
   onStageToggle,
   onBulkAction,
   onAllAction,
+  layout,
 }: {
   title: string;
   actionLabel: string;
@@ -38,14 +43,18 @@ function FileSection({
   files: FileChange[];
   emptyLabel: string;
   selectedPath: string | null;
-  onSelectFile: (path: string) => void;
+  selectedStaged: boolean | null;
+  onSelectFile: (path: string, staged: boolean) => void;
   onStageToggle: (file: FileChange) => void;
   onBulkAction: (paths: string[]) => void;
   onAllAction?: () => void;
+  layout: "stacked" | "bar";
 }): React.JSX.Element {
+  const bar = layout === "bar";
   const [open, setOpen] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
+  const sectionOpen = bar || open;
 
   const orderedPaths = files.map((file) => file.path);
   const selectedInSection = orderedPaths.filter((path) => selected.has(path));
@@ -63,7 +72,8 @@ function FileSection({
     );
     setSelected(next.selected);
     setAnchor(next.anchor);
-    onSelectFile(path);
+    const file = files.find((entry) => entry.path === path);
+    onSelectFile(path, file?.staged ?? false);
   };
 
   const handleBulk = (event: React.MouseEvent) => {
@@ -75,7 +85,11 @@ function FileSection({
 
   return (
     <div
-      className={cn("flex flex-col min-h-0 border-b border-border-subtle", open ? "flex-1" : "shrink-0")}
+      className={cn(
+        "flex flex-col min-h-0",
+        bar ? "flex-1 min-w-0 border-r border-border-subtle last:border-r-0" : "border-b border-border-subtle",
+        !bar && open ? "flex-1" : !bar ? "shrink-0" : undefined,
+      )}
       onKeyDown={(event) => {
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "a") return;
         if (event.shiftKey || files.length === 0) return;
@@ -83,21 +97,27 @@ function FileSection({
         setSelected(new Set(files.map((file) => file.path)));
       }}
     >
-      <div className="shrink-0 flex items-center gap-1 pr-1">
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-          className={cn(
-            "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
-            "text-xs font-medium text-text-muted uppercase tracking-wide",
-            "hover:bg-bg-primary/60 hover:text-text-secondary",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
-          )}
-        >
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          {title} ({files.length})
-        </button>
+      <div className={cn("shrink-0 flex items-center gap-1", bar ? "px-2 py-1" : "pr-1")}>
+        {bar ? (
+          <h3 className="flex-1 min-w-0 px-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+            {title} ({files.length})
+          </h3>
+        ) : (
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            className={cn(
+              "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
+              "text-xs font-medium text-text-muted uppercase tracking-wide",
+              "hover:bg-bg-primary/60 hover:text-text-secondary",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+            )}
+          >
+            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {title} ({files.length})
+          </button>
+        )}
         {allActionLabel && onAllAction ? (
           <Button
             type="button"
@@ -118,7 +138,7 @@ function FileSection({
           type="button"
           variant={actionVariant}
           size="sm"
-          className="shrink-0 mx-1.5 min-w-[4.5rem]"
+          className={cn("shrink-0 min-w-[4.5rem]", bar ? "" : "mx-1.5")}
           disabled={selectedInSection.length === 0}
           onClick={handleBulk}
           title={`${actionLabel} selected files`}
@@ -126,12 +146,15 @@ function FileSection({
           {actionLabel}
         </Button>
       </div>
-      {open ? (
+      {sectionOpen ? (
         <div
           role="listbox"
           aria-label={title}
           aria-multiselectable="true"
-          className="flex-1 min-h-0 overflow-auto px-1 pb-2 select-none"
+          className={cn(
+            "flex-1 min-h-0 overflow-auto select-none",
+            bar ? "px-1 pb-1" : "px-1 pb-2",
+          )}
         >
           {files.length === 0 ? (
             <p className="px-2 py-1 text-xs text-text-muted italic">{emptyLabel}</p>
@@ -140,7 +163,10 @@ function FileSection({
               <FileListItem
                 key={`${file.staged ? "s" : "u"}-${file.path}`}
                 change={file}
-                selected={selected.has(file.path) || selectedPath === file.path}
+                selected={
+                  selected.has(file.path) ||
+                  (selectedPath === file.path && selectedStaged === file.staged)
+                }
                 onClick={(event) => handleFileClick(file.path, event)}
                 onStageToggle={() => onStageToggle(file)}
               />
@@ -154,8 +180,11 @@ function FileSection({
 
 export function ChangesPanel({
   selectedPath,
+  selectedStaged,
   onSelectFile,
+  layout = "stacked",
 }: ChangesPanelProps): React.JSX.Element {
+  const bar = layout === "bar";
   const {
     workspaceId,
     repoId,
@@ -253,10 +282,11 @@ export function ChangesPanel({
   }
 
   const wcAlert =
-    actionError ?? (isError ? (error ? formatAppError(error) : "Failed to load working copy") : null);
+    actionError ??
+    (isError ? (error ? formatAppError(error) : "Failed to load working copy") : null);
 
   const commitBox = (
-    <div className="shrink-0 border-t border-border-subtle p-3">
+    <div className={cn("shrink-0", bar ? "flex flex-col min-h-0 p-2" : "border-t border-border-subtle p-3")}>
       <CommitMessageBox
         value={message}
         onChange={setMessage}
@@ -266,14 +296,15 @@ export function ChangesPanel({
         }}
         onAiGenerate={handleAiGenerate}
         disabled={stagedFiles.length === 0 || commitPending || aiBusy}
+        className={bar ? "h-full" : undefined}
       />
     </div>
   );
 
   if (isLoading && unstagedFiles.length === 0 && stagedFiles.length === 0) {
     return (
-      <div className="flex flex-col h-full min-h-0">
-        <div className="flex-1 flex items-center justify-center">
+      <div className={cn("flex flex-col h-full min-h-0", bar && "grid grid-cols-[1fr_1fr_280px]")}>
+        <div className={cn(bar ? "col-span-2 flex items-center justify-center" : "flex-1 flex items-center justify-center")}>
           <span className="text-xs text-text-muted italic">Loading…</span>
         </div>
         {commitBox}
@@ -283,35 +314,49 @@ export function ChangesPanel({
     );
   }
 
+  const unstagedSection = (
+    <FileSection
+      title="Unstaged"
+      actionLabel="Stage"
+      actionVariant="primary"
+      allActionLabel="Stage All"
+      files={unstagedFiles}
+      emptyLabel="No unstaged changes"
+      selectedPath={selectedPath}
+      selectedStaged={selectedStaged}
+      onSelectFile={onSelectFile}
+      onStageToggle={(file) => stage([file.path])}
+      onBulkAction={(paths) => stage(paths)}
+      onAllAction={() => stage(unstagedFiles.map((file) => file.path))}
+      layout={layout}
+    />
+  );
+
+  const stagedSection = (
+    <FileSection
+      title="Staged"
+      actionLabel="Unstage"
+      actionVariant="secondary"
+      files={stagedFiles}
+      emptyLabel="No staged changes"
+      selectedPath={selectedPath}
+      selectedStaged={selectedStaged}
+      onSelectFile={onSelectFile}
+      onStageToggle={(file) => unstage([file.path])}
+      onBulkAction={(paths) => unstage(paths)}
+      layout={layout}
+    />
+  );
+
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <FileSection
-        title="Unstaged"
-        actionLabel="Stage"
-        actionVariant="primary"
-        allActionLabel="Stage All"
-        files={unstagedFiles}
-        emptyLabel="No unstaged changes"
-        selectedPath={selectedPath}
-        onSelectFile={onSelectFile}
-        onStageToggle={(file) => stage([file.path])}
-        onBulkAction={(paths) => stage(paths)}
-        onAllAction={() => stage(unstagedFiles.map((file) => file.path))}
-      />
-      <FileSection
-        title="Staged"
-        actionLabel="Unstage"
-        actionVariant="secondary"
-        files={stagedFiles}
-        emptyLabel="No staged changes"
-        selectedPath={selectedPath}
-        onSelectFile={onSelectFile}
-        onStageToggle={(file) => unstage([file.path])}
-        onBulkAction={(paths) => unstage(paths)}
-      />
+    <div className={cn("flex flex-col h-full min-h-0", bar && "grid grid-cols-[1fr_1fr_280px]")}>
+      {unstagedSection}
+      {stagedSection}
       {commitBox}
       {aiDialogs}
-      <ErrorAlert message={wcAlert} onDismiss={() => setActionError(null)} />
+      <div className={bar ? "col-span-3" : undefined}>
+        <ErrorAlert message={wcAlert} onDismiss={() => setActionError(null)} />
+      </div>
     </div>
   );
 }

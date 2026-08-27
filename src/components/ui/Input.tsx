@@ -55,7 +55,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                 "px-3 py-1",
                 "placeholder:text-text-muted",
                 "transition-colors duration-200",
-                "focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2",
+                "focus:outline-none focus:ring-2 focus:ring-accent",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               ].join(" "),
               isSearch ? "pl-8" : "",

@@ -22,7 +22,7 @@ export function BranchIndicator({
   sha = null,
   className,
 }: BranchIndicatorProps): React.JSX.Element {
-  const isDetached = branch === "(detached)" || sha !== null;
+  const isDetached = branch === "(detached)";
 
   return (
     <div className={cn("flex items-center gap-2 text-sm", className)}>

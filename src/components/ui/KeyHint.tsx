@@ -22,7 +22,7 @@ export function KeyHint({ keys, className }: KeyHintProps): React.JSX.Element {
             "inline-flex items-center justify-center",
             "rounded-sm px-1.5 py-0.5",
             "font-mono text-xs font-medium",
-            "bg-bg-secondary border border-border-default",
+            "bg-bg-elevated border border-border-default",
             "text-text-secondary shadow-subtle",
           )}
         >

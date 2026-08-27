@@ -17,6 +17,8 @@ interface PaneProps {
   initialSize: number | string;
   minSize?: number;
   maxSize?: number;
+  /** When true, the pane absorbs leftover space (history canvas). */
+  grow?: boolean;
   children: ReactNode;
   className?: string;
 }
@@ -89,6 +91,7 @@ export function Pane({
   initialSize,
   minSize = 100,
   maxSize = Infinity,
+  grow = false,
   children,
   className,
 }: PaneProps): React.JSX.Element {
@@ -97,17 +100,17 @@ export function Pane({
   const flexBasis = typeof initialSize === "number" ? `${initialSize}px` : initialSize;
 
   return (
-      <div
-        ref={ref}
-        data-pane-id={paneId}
-        data-pane-initial={flexBasis}
-        data-pane-min={minSize}
-        data-pane-max={Number.isFinite(maxSize) ? maxSize : undefined}
-        className={cn("overflow-hidden min-w-0 min-h-0 h-full", className)}
-        style={{ flexBasis, flexGrow: 0, flexShrink: 1 }}
-      >
-        {children}
-      </div>
+    <div
+      ref={ref}
+      data-pane-id={paneId}
+      data-pane-initial={flexBasis}
+      data-pane-min={minSize}
+      data-pane-max={Number.isFinite(maxSize) ? maxSize : undefined}
+      className={cn("overflow-hidden min-w-0 min-h-0 h-full", className)}
+      style={{ flexBasis: grow ? 0 : flexBasis, flexGrow: grow ? 1 : 0, flexShrink: 1 }}
+    >
+      {children}
+    </div>
   );
 }
 

@@ -1,66 +1,52 @@
 # GitWave · Layout Spec
 
-> 3-pane 布局详细规格：topbar + sidebar + feature nav + main。
+> 3-pane 布局详细规格：toolbar + sidebar + history graph + inspector。
 
 ## 1. 全局 shell
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Topbar (h: 48px)                                                       │
-│ ┌──────────┬─────────────────────────┬───────────────────────────────┐ │
-│ │ Workspace│  GitWave                │  ⌘K │ ☀/☾ │ SSH │ ? │ v0.1 │ │
-│ │ Switcher │                         │      └─ Theme toggle        │ │
-│ └──────────┴─────────────────────────┴───────────────────────────────┘ │
-├──────────────┬───────────────────────┬──────────────────────────────────┤
-│              │                       │                                  │
-│ Sidebar      │  Feature Nav         │  Main                            │
-│ (w: 240px)   │  (w: 280px)          │ (flex: fill)                   │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-│              │                       │                                  │
-├──────────────┴───────────────────────┴──────────────────────────────────┤
-│ Working Copy Bar (collapsible, ~32-280px) 详见 §6                  │
+│ Toolbar (h: 40px)                                                      │
+│  [WS▾]  repo-name  main ↑2 ↓1     Fetch  Pull  Push          ⌘K  ☀/☾ │
+├────────────┬──────────────────────────────────┬─────────────────────────┤
+│            │                                  │                         │
+│ Sidebar    │  History graph (flex)            │  Inspector (~360px)     │
+│ (w: 220px) │                                  │                         │
+│            │                                  │                         │
+│            │                                  │                         │
+│            │                                  │                         │
+├────────────┴──────────────────────────────────┴─────────────────────────┤
+│ Working Copy Bar (collapsible, ~32-220px) 详见 §6                  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 最小窗口尺寸：960 × 600。
 推荐：1280 × 800+。
 
-## 2. Topbar
+## 2. Toolbar
 
 ### 2.1 布局
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ [Workspace▼]  GitWave                          ⌘K  ☀  [Fetch] [Pull↓3] [Push↑2]  ?  v0.1  │
+│ [Workspace▾]  repo  main ↑2 ↓1     Fetch  Pull↓3  Push↑2          ⌘K  ☀ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-高度：48px。背景：`bg-bg-secondary`。底边：1px `border-subtle`。
+高度：40px。背景：`bg-bg-secondary`（Mist / Abyss）。底边：1px `border-subtle`。
+不要居中字标、不要版本号、不要 Help 图标。
 
 ### 2.2 元素
 
 | 元素 | 位置 | 交互 |
 |---|---|---|
 | Workspace Switcher | 左 | 点击 → 下拉，列出 workspaces + New |
+| 当前 repo 名 | 左 | 只读标签（切换在侧栏） |
 | 当前 branch 指示 | 左中 | 显示 branch 名（ahead/behind 数字 chip） |
-| Logo / 名称 | 左中 | GitWave 字样；点击无动作（或跳首页） |
+| **Fetch / Pull / Push** | 中 | Pull/Push 在 ahead/behind = 0 时灰显 |
 | `⌘K` hint | 右 | 点击 → 打开 CommandPalette（v0.2 Sprint 6） |
 | Theme toggle | 右 | 点击循环：light → dark → system |
-| **Fetch 按钮** | 右 | 点击 → `cmd_fetch`，Toast 反馈 |
-| **Pull 按钮** | 右 | behind = 0 时灰显；`↓N` badge 显示 ahead |
-| **Push 按钮** | 右 | ahead = 0 时灰显；`↑N` badge 显示 ahead |
-| SSH 入口 | 右 | 点击 → 打开 SshKeyManager popover / 抽屉 |
-| Help (`?`) | 右 | 点击 → 打开快捷键 /文档链接 |
-| 版本号 | 右最 | 静态文本（GitWave v0.1.x） |
+| 溢出菜单 | 右 | SSH Keys |
 
 ### 2.3 当前 Branch 指示
 
@@ -78,7 +64,7 @@
 ### 2.4 快捷键
 
 - `⌘K` / `Ctrl+K`：打开 Command Palette
-- `⌘1` / `⌘2` / `⌘3` / `⌘4`：切换 sidebar / feature nav / main / working copy bar focus
+- `⌘1` / `⌘2` / `⌘3` / `⌘4`：切换 sidebar / history graph / inspector / working copy bar focus
 - `⌘⇧F`：Fetch
 - `⌘⇧P`：Pull
 - `⌘⇧U`：Push（U = upstream；与 Tower 一致）
@@ -92,30 +78,25 @@
 
 ```
 ┌──────────────────────────┐
-│ WORKSPACES            [+] │
-│                          │
-│ ▾ Workspace A         ⋯ │   ← workspace 行（可折叠）
-│   ▸ repo-1   [active]    │   ← repo 行（高亮 = active repo）
-│   ▸ repo-2   [missing]   │
-│   ▸ repo-3               │
-│ ▾ Workspace B         ⋯ │
-│   ▸ repo-4   [active]    │
-│                          │
-│ [+ New Workspace]       │
+│ REPOS                 [+] │
+│   gitwave      [active]   │
+│   notes                   │
+│ BRANCHES              [+] │
+│   main             HEAD   │
+│   feature/tide-lanes      │
+│ STASH / TAGS / REMOTES …  │
 └──────────────────────────┘
 ```
 
-宽度：240px（可拖拽 180-360）。
+宽度：220px（可拖拽 180-360）。背景 Mist，与 Foam 画布区分。Workspace 切换在 Toolbar，侧栏从 Repos 起。
 
 ### 3.2 元素
 
 | 元素 | 类型 | 备注 |
 |---|---|---|
-| WORKSPACES 标题 | 静态 | uppercase, text-xs, text-muted |
-| `[+]` | Button (ghost) | 新建 workspace 弹 Modal |
-| Workspace 行 | ListItem | 折叠 / 展开（▸ / ▾）+ 操作菜单（⋯: rename / delete）|
+| REPOS 标题 | 静态 | uppercase, text-xs, text-muted |
 | Repo 行 | ListItem | 点击 → setActiveRepo；右键菜单：relink / remove |
-| `[+ New Workspace]` | Button (ghost) | 底部，全宽 |
+| BRANCHES / STASH / … | SidebarSection | 见 §4 |
 
 ### 3.3 状态标记
 
@@ -125,81 +106,44 @@
 | missing | `StatusBadge variant="missing"` | repo 行右侧 |
 | ahead / behind | `StatusBadge variant="ahead"/"behind"` | repo 行右侧（v0.1 fetch 后展示）|
 
-## 4. Feature Nav
+## 4. Feature 入口（侧栏 sections，无浏览器 Tab）
 
-### 4.1 布局
+History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不再使用横向文字 Tab。
 
-```
-┌────────────────────────────┐
-│ [History] Branches Stash    │  ← tabs
-│ Tags Remotes Worktrees       │
-├────────────────────────────┤
-│                            │
-│   (active tab content)      │
-│   - 文件列表                │
-│   - branch 列表             │
-│   - stash 列表              │
-│                            │
-└────────────────────────────┘
-```
-
-宽度：280px（可拖拽 200-400）。
-
-### 4.2 Tabs
-
-| Tab | 内容（Sprint） | Sprint |
+| Section | 内容 | 默认 |
 |---|---|---|
-| History | commit 列表 + 当前 commit 信息 | 3 |
-| Branches | local / remote branches 列表 | 3 |
-| Stash | stash 列表 | 5 |
-| Tags | tag 列表 | 5 |
-| Remotes | remote + branch tracking | 3 |
-| Worktrees | worktree 列表 | 5 |
+| Repos | 当前 workspace 的仓库 | 展开 |
+| Branches | local / remote | 展开 |
+| Stash | stash 列表（compact，无内嵌 diff 栏）| 折叠 |
+| Tags | tag 列表 | 折叠 |
+| Remotes | remote + tracking | 折叠 |
+| Worktrees | worktree 列表 | 折叠 |
 
-Tabs 横向排（≥ 6 个时滚动）；active tab 下边框 2px accent。
-
-### 4.3 空状态
-
-无 active repo 时整个 Feature Nav 隐藏（与 sidebar 的 active 状态联动）。
+Changes 文件列表在 Working Copy Bar（dirty 时展开），不占用中栏。
 
 ## 5. Main
 
 ### 5.1 布局
 
-Main 本身不是单一组件 — 它根据 Feature Nav 的 active tab 切换内容。例如 History tab 时：
+中栏永远是 History graph（Tide Lanes，行高 28px）。右侧 Inspector（~360px）显示选中 commit 或 working-copy 文件的 diff。
 
 ```
-┌────────────────────────────────────────────────────┐
-│ Commit Graph (h: ~50%)                            │
-│   ●─ ●─ ●── main                                 │
-│   │ ↘                                          │
-│   ●─ ●─ ●  ← feature/foo                       │
-│                                                    │
-│ ─────────── (resize handle, vertical) ─────────── │
-│                                                    │
-│ Selected Commit Details + Diff (h: ~50%)            │
-│   sha · author · date                            │
-│   message                                         │
-│   ── unified │ split ──                          │
-│   @@ -1 +1 @@                                    │
-│   -old                                           │
-│   +new                                           │
-│                                                    │
-└────────────────────────────────────────────────────┘
+┌──────────────────────────────┬─────────────────────┐
+│ Commit Graph (flex)          │ Inspector (~360px)  │
+│   Tide Lanes + commit 行     │  sha · author · date│
+│                              │  message            │
+│                              │  unified / split    │
+└──────────────────────────────┴─────────────────────┘
 ```
 
-也可横向切：commit 详情在左、diff 在右（看个人偏好，v0.1 先纵向）。
+### 5.2 Inspector 内容
 
-### 5.2 各 Tab 对应内容
-
-| Tab | Main 内容 |
+| 选择 | Inspector |
 |---|---|
-| History | 上：commit graph（virtual scroll）；下：commit details + diff |
-| Branches | branch 列表 + 选中 branch 的 commit 链 |
-| Stash | stash 列表 + 选中 stash 的 diff |
-| Tags | tag 列表 + 选中 tag 的 commit details |
-| Remotes | remote 列表 + branch tracking 状态 |
-| Worktrees | worktree 列表 + 当前 worktree 信息 |
+| History 中的 commit | commit details + diff |
+| Working Copy Bar 中的 Unstaged 文件 | 仅 worktree vs index（unstaged）diff |
+| Working Copy Bar 中的 Staged 文件 | 仅 index vs HEAD（staged）diff |
+| 无选择 | 当前 working-copy 两侧总览 |
 
 ### 5.3 空状态
 

@@ -17,17 +17,17 @@ use std::sync::{Arc, Mutex};
 
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_ssh_key, add_worktree,
-    apply_stash, checkout_branch, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
-    create_branch, create_workspace, delete_branch, delete_ssh_key, delete_workspace, drop_stash,
-    execute_interactive_rebase, explain_conflict, fetch, generate_commit_message, get_ahead_behind,
-    get_ai_key_status, get_blame, get_branches, get_commit_diff, get_commit_log, get_conflict_sides,
-    get_file_diff, get_stash_diff, get_workdir_diff, get_working_copy, get_workspace, init_repo,
-    interactive_rebase_paused, list_conflicts, list_repos, list_ssh_keys, list_stashes,
-    list_workspaces, list_worktrees, merge_branch, merge_in_progress, plan_interactive_rebase,
-    pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
-    rename_workspace, resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all,
-    stage_files, test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind,
-    AiKeyStatus, AppContext,
+    apply_stash, checkout_branch, clear_ai_api_key, clone_repo, commit,
+    continue_interactive_rebase, create_branch, create_workspace, delete_branch, delete_ssh_key,
+    delete_workspace, drop_stash, execute_interactive_rebase, explain_conflict, fetch,
+    generate_commit_message, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
+    get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff, get_stash_diff,
+    get_workdir_diff, get_working_copy, get_workspace, init_repo, interactive_rebase_paused,
+    list_conflicts, list_repos, list_ssh_keys, list_stashes, list_workspaces, list_worktrees,
+    merge_branch, merge_in_progress, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
+    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, resolve_conflict,
+    save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection,
+    unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -36,8 +36,8 @@ use domain::error::AppError;
 use domain::history::CommitSummary;
 use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
-use domain::worktree::WorktreeInfo;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
+use domain::worktree::WorktreeInfo;
 use infrastructure::git::conflict::{ConflictFile, ConflictSides};
 use infrastructure::git::diff::DiffSummary;
 use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, InteractiveRebaseTodo};
@@ -46,6 +46,9 @@ use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
 use infrastructure::persistence::{migrations, open as open_state, SqliteWorkspaceRepo};
 use infrastructure::ssh::keys::{SshKey, SshTestResult};
+use std::fmt::Display;
+use tauri::WebviewWindow;
+use tauri_plugin_decoration::WebviewWindowExt;
 use tracing::info;
 
 // ─── App meta ─────────────────────────────────────────────────────────────
@@ -97,10 +100,7 @@ fn cmd_set_active_repo(
 }
 
 #[tauri::command]
-fn cmd_get_workspace(
-    ctx: tauri::State<'_, AppContext>,
-    id: String,
-) -> Result<Workspace, AppError> {
+fn cmd_get_workspace(ctx: tauri::State<'_, AppContext>, id: String) -> Result<Workspace, AppError> {
     get_workspace(&ctx, id)
 }
 
@@ -128,10 +128,7 @@ fn cmd_clear_ai_api_key(workspace_id: String, provider: String) -> Result<(), Ap
 }
 
 #[tauri::command]
-fn cmd_get_ai_key_status(
-    workspace_id: String,
-    provider: String,
-) -> Result<AiKeyStatus, AppError> {
+fn cmd_get_ai_key_status(workspace_id: String, provider: String) -> Result<AiKeyStatus, AppError> {
     get_ai_key_status(workspace_id, provider)
 }
 
@@ -614,6 +611,46 @@ async fn cmd_remove_worktree(
     remove_worktree(&ctx, &workspace_id, name)
 }
 
+// ─── Window decoration (tauri-plugin-decoration v3) ───────────────────────
+
+async fn restore_and_show(
+    window: &WebviewWindow,
+    activation_error: impl Display,
+) -> Result<&'static str, String> {
+    let restore_error = window.restore_decoration().await.err();
+    let show_error = window.show().err();
+
+    match (restore_error, show_error) {
+        (None, None) => Ok("native"),
+        (Some(restore), None) => Err(format!(
+            "custom decoration failed ({activation_error}); native restoration failed ({restore}), but the window was revealed"
+        )),
+        (None, Some(show)) => Err(format!(
+            "custom decoration failed ({activation_error}); native fallback could not be revealed ({show})"
+        )),
+        (Some(restore), Some(show)) => Err(format!(
+            "custom decoration failed ({activation_error}); native restoration failed ({restore}); revealing the fallback also failed ({show})"
+        )),
+    }
+}
+
+#[tauri::command]
+async fn activate_and_show(window: WebviewWindow) -> Result<&'static str, String> {
+    if let Err(error) = window.activate_decoration().await {
+        return restore_and_show(&window, error).await;
+    }
+
+    #[cfg(target_os = "macos")]
+    if let Err(error) = window.set_traffic_lights_inset(14.0, 14.0).await {
+        return restore_and_show(&window, error).await;
+    }
+
+    match window.show() {
+        Ok(()) => Ok("custom"),
+        Err(error) => restore_and_show(&window, error).await,
+    }
+}
+
 // ─── App startup ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -634,8 +671,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_decoration::init())
         .manage(ctx)
         .invoke_handler(tauri::generate_handler![
+            activate_and_show,
             get_app_version,
             cmd_list_workspaces,
             cmd_create_workspace,

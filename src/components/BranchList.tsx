@@ -35,8 +35,15 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/ContextMenu";
 import { InteractiveRebaseDialog } from "@/components/InteractiveRebaseDialog";
-import { ArrowRight, GitBranch, GitMerge, GitPullRequestArrow, ListOrdered, Plus, Trash2 } from "lucide-react";
-import { SyncButtons } from "@/components/ui/SyncButtons";
+import {
+  ArrowRight,
+  GitBranch,
+  GitMerge,
+  GitPullRequestArrow,
+  ListOrdered,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
@@ -304,10 +311,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         await popStash(activeWorkspaceId, 0);
         showNotice(`Checked out ${name} and re-applied stash`);
       } catch {
-        showNotice(
-          `Checked out ${name}. Stash re-apply failed; the stash was kept.`,
-          "danger",
-        );
+        showNotice(`Checked out ${name}. Stash re-apply failed; the stash was kept.`, "danger");
       }
     } else {
       await checkoutBranch(activeWorkspaceId, name, mode === "force");
@@ -412,8 +416,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       showNotice("Cleared interactive rebase pause state");
     });
 
-  const selectedBranch = branches.find((b) => b.name === selectedName) ?? null;
-  const canSync = Boolean(selectedName && activeRepoId);
   const bannerError = error ?? wc.actionError;
 
   const localBranches = branches.filter((b) => b.kind === "local");
@@ -514,15 +516,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
             >
               <Plus size={14} />
             </Button>
-            <SyncButtons
-              ahead={selectedBranch?.ahead ?? wc.data?.ahead ?? 0}
-              behind={selectedBranch?.behind ?? wc.data?.behind ?? 0}
-              onPull={wc.pull}
-              onPush={wc.push}
-              pullDisabled={!canSync}
-              pushDisabled={!canSync}
-              inProgress={wc.syncPending}
-            />
           </>
         }
       >
@@ -539,7 +532,12 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 }}
               />
             </div>
-            <Button variant="primary" size="sm" disabled={busy || !newName.trim()} onClick={handleCreate}>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={busy || !newName.trim()}
+              onClick={handleCreate}
+            >
               Create
             </Button>
           </div>

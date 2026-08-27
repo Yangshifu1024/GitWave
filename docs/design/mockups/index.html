@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitWave · 主界面校对稿</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --foam: #f4f6f8;
+        --mist: #e6ebef;
+        --elevated: #eef1f4;
+        --ink: #1b2228;
+        --ink-2: #4a5560;
+        --muted: #7a8692;
+        --tide: #1a8f8a;
+        --tide-hover: #157873;
+        --abyss: #12161a;
+        --coral: #d64545;
+        --hair: #d5dce2;
+        --ahead: #2f9e6b;
+        --behind: #c47a1a;
+        --lane-0: #1a8f8a;
+        --lane-1: #2a7b8c;
+        --lane-2: #3d6b9a;
+        --lane-3: #4a5fa8;
+        --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        font-family: var(--sans);
+        background: #cfd6dc;
+        color: var(--ink);
+        line-height: 1.25;
+      }
+      .preview-bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 12px 16px;
+        background: #b8c0c8;
+      }
+      .preview-bar button {
+        font: 500 12px/1 var(--sans);
+        border: 0;
+        border-radius: 6px;
+        padding: 7px 12px;
+        background: #e8edf1;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .preview-bar button[aria-pressed="true"] {
+        background: var(--tide);
+        color: #fff;
+      }
+      .preview-bar span {
+        margin-left: auto;
+        font-size: 12px;
+        color: #44515c;
+      }
+      .stage {
+        padding: 24px;
+        display: flex;
+        justify-content: center;
+      }
+      .window {
+        width: min(1280px, 100%);
+        height: 800px;
+        border-radius: 10px;
+        overflow: hidden;
+        display: none;
+        flex-direction: column;
+        background: var(--foam);
+        box-shadow: 0 18px 48px rgba(18, 22, 26, 0.22);
+      }
+      .window.is-on {
+        display: flex;
+      }
+      .window.dark {
+        --foam: #161b20;
+        --mist: #12161a;
+        --elevated: #1c2329;
+        --ink: #e8ecf0;
+        --ink-2: #b4bec8;
+        --muted: #8b97a3;
+        --tide: #3ebab3;
+        --tide-hover: #5ec9c2;
+        --hair: #2a323a;
+        --ahead: #3ecf8e;
+        --behind: #e0a04a;
+        --lane-0: #3ebab3;
+        --lane-1: #5ba4b8;
+        --lane-2: #6b8fc4;
+        --lane-3: #7a7ad1;
+        background: var(--foam);
+      }
+      .toolbar {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px 0 78px;
+        background: var(--mist);
+        border-bottom: 1px solid var(--hair);
+        flex-shrink: 0;
+        position: relative;
+      }
+      .lights {
+        position: absolute;
+        left: 14px;
+        top: 14px;
+        display: flex;
+        gap: 6px;
+      }
+      .lights i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: block;
+      }
+      .lights i:nth-child(1) {
+        background: #ff5f57;
+      }
+      .lights i:nth-child(2) {
+        background: #febc2e;
+      }
+      .lights i:nth-child(3) {
+        background: #28c840;
+      }
+      .chip,
+      .tool-btn,
+      .kbd {
+        font-size: 12px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 6px;
+        padding: 0 8px;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+      }
+      .chip {
+        font-weight: 500;
+      }
+      .chip.muted {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .sep {
+        color: var(--muted);
+        opacity: 0.5;
+      }
+      .pill {
+        font-size: 11px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--tide) 16%, transparent);
+        color: var(--tide);
+      }
+      .stat-up {
+        color: var(--ahead);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .stat-dn {
+        color: var(--behind);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .tool-btn {
+        color: var(--ink-2);
+      }
+      .tool-btn:disabled {
+        opacity: 0.4;
+      }
+      .kbd {
+        font-family: var(--mono);
+        font-size: 11px;
+        border: 1px solid var(--hair);
+        color: var(--ink-2);
+        background: var(--elevated);
+      }
+      .toolbar .right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+      .sidebar {
+        width: 220px;
+        background: var(--mist);
+        border-right: 1px solid var(--hair);
+        overflow: auto;
+        flex-shrink: 0;
+        padding: 6px 0 12px;
+      }
+      .sec-label {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 10px 12px 4px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 28px;
+        padding: 0 12px 0 9px;
+        font-size: 13px;
+        border-left: 3px solid transparent;
+        color: var(--ink);
+      }
+      .row.sel {
+        background: color-mix(in srgb, var(--tide) 12%, transparent);
+        border-left-color: var(--tide);
+        font-weight: 500;
+      }
+      .row .dim {
+        color: var(--muted);
+        font-size: 12px;
+        margin-left: auto;
+      }
+      .graph {
+        flex: 1;
+        min-width: 0;
+        background: var(--foam);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .commit {
+        display: grid;
+        grid-template-columns: 56px 64px 1fr auto;
+        align-items: center;
+        height: 28px;
+        padding: 0 12px 0 8px;
+        font-size: 13px;
+        border-left: 2px solid transparent;
+        gap: 8px;
+      }
+      .commit.sel {
+        background: color-mix(in srgb, var(--tide) 14%, transparent);
+        border-left-color: var(--tide);
+      }
+      .commit .sha {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .commit .msg {
+        truncate: true;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .commit .meta {
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .inspector {
+        width: 360px;
+        background: var(--elevated);
+        border-left: 1px solid var(--hair);
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .insp-head {
+        padding: 12px 14px 10px;
+        border-bottom: 1px solid var(--hair);
+      }
+      .insp-head h2 {
+        margin: 0 0 4px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .insp-head p {
+        margin: 0;
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+      .diff {
+        flex: 1;
+        overflow: auto;
+        padding: 10px 0 16px;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .hunk {
+        color: var(--muted);
+        padding: 4px 14px;
+      }
+      .add {
+        background: color-mix(in srgb, var(--ahead) 14%, transparent);
+        color: var(--ink);
+      }
+      .del {
+        background: color-mix(in srgb, var(--coral) 14%, transparent);
+        color: var(--ink);
+      }
+      .ctx {
+        color: var(--ink-2);
+      }
+      .ln {
+        display: flex;
+      }
+      .ln span:first-child {
+        width: 36px;
+        text-align: right;
+        padding-right: 10px;
+        color: var(--muted);
+        flex-shrink: 0;
+      }
+      .ln span:last-child {
+        white-space: pre;
+        padding-right: 14px;
+      }
+      .wc {
+        flex-shrink: 0;
+        background: var(--mist);
+        border-top: 1px solid var(--hair);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .wc.clean {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+      }
+      .wc.dirty {
+        height: 220px;
+        display: flex;
+        flex-direction: column;
+      }
+      .wc-head {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--hair);
+        color: var(--ink-2);
+      }
+      .wc-cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr 280px;
+        flex: 1;
+        min-height: 0;
+      }
+      .wc-col {
+        border-right: 1px solid var(--hair);
+        padding: 8px;
+        overflow: auto;
+      }
+      .wc-col:last-child {
+        border-right: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .wc-col h3 {
+        margin: 0 0 6px;
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .file {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 26px;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 0 6px;
+        border-radius: 6px;
+      }
+      .file.sel {
+        background: color-mix(in srgb, var(--tide) 12%, transparent);
+      }
+      .m {
+        color: var(--behind);
+        font-weight: 600;
+        width: 12px;
+      }
+      .a {
+        color: var(--ahead);
+        font-weight: 600;
+        width: 12px;
+      }
+      .q {
+        color: var(--muted);
+        font-weight: 600;
+        width: 12px;
+      }
+      textarea {
+        flex: 1;
+        resize: none;
+        border: 1px solid var(--hair);
+        background: var(--foam);
+        color: var(--ink);
+        border-radius: 6px;
+        padding: 8px;
+        font: 13px/1.35 var(--sans);
+      }
+      .commit-btn {
+        align-self: flex-end;
+        background: var(--tide);
+        color: #fff;
+        border: 0;
+        border-radius: 6px;
+        height: 28px;
+        padding: 0 12px;
+        font: 500 12px var(--sans);
+      }
+      .ghost-btn {
+        background: transparent;
+        border: 0;
+        color: var(--ink-2);
+        font: 500 12px var(--sans);
+        height: 28px;
+      }
+      .empty {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: var(--muted);
+      }
+      .empty h2 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .empty p {
+        margin: 0;
+        font-size: 12px;
+        max-width: 260px;
+        text-align: center;
+      }
+      .empty .commit-btn {
+        margin-top: 8px;
+      }
+      .folder {
+        width: 28px;
+        height: 22px;
+        border: 1.5px solid var(--muted);
+        border-radius: 3px 3px 2px 2px;
+        position: relative;
+        opacity: 0.7;
+      }
+      .folder::before {
+        content: "";
+        position: absolute;
+        top: -5px;
+        left: -1.5px;
+        width: 10px;
+        height: 5px;
+        border: 1.5px solid var(--muted);
+        border-bottom: 0;
+        border-radius: 2px 2px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-bar">
+      <button type="button" data-go="history" aria-pressed="true">Light · History</button>
+      <button type="button" data-go="dirty" aria-pressed="false">Light · Dirty</button>
+      <button type="button" data-go="dark" aria-pressed="false">Dark · History</button>
+      <button type="button" data-go="empty" aria-pressed="false">Empty</button>
+      <span>校对：无居中 Logo · 无浏览器 Tab · 无纯白 · 无系统蓝</span>
+    </div>
+    <div class="stage">
+      <!-- Light History -->
+      <div class="window is-on" id="history">
+        <div class="toolbar">
+          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span class="chip">Client Work ▾</span>
+          <span class="sep">·</span>
+          <span class="chip">gitwave</span>
+          <span class="pill">main</span>
+          <span class="stat-up">↑2</span>
+          <span class="stat-dn">↓1</span>
+          <button class="tool-btn" type="button">Fetch</button>
+          <button class="tool-btn" type="button">Pull ↓1</button>
+          <button class="tool-btn" type="button">Push ↑2</button>
+          <div class="right">
+            <span class="kbd">⌘K</span>
+            <button class="tool-btn" type="button" aria-label="Theme">☀</button>
+          </div>
+        </div>
+        <div class="body">
+          <aside class="sidebar">
+            <div class="sec-label">Repos</div>
+            <div class="row sel">gitwave</div>
+            <div class="row">notes</div>
+            <div class="sec-label">Branches</div>
+            <div class="row sel">main <span class="dim">HEAD</span></div>
+            <div class="row">feature/tide-lanes</div>
+            <div class="row">origin/main <span class="dim">remote</span></div>
+            <div class="sec-label">Stash</div>
+            <div class="row">stash@{0} wip graph</div>
+            <div class="sec-label">Tags</div>
+            <div class="row"><span class="dim">No tags</span></div>
+            <div class="sec-label">Remotes</div>
+            <div class="row">origin</div>
+            <div class="sec-label">Worktrees</div>
+            <div class="row">main <span class="dim">this</span></div>
+          </aside>
+          <section class="graph">
+            <div class="commit sel">
+              <svg width="52" height="28" aria-hidden="true">
+                <path
+                  d="M14 0 C14 10, 14 10, 14 14"
+                  stroke="var(--lane-0)"
+                  stroke-width="1.6"
+                  fill="none"
+                />
+                <path
+                  d="M14 14 C14 22, 30 18, 30 28"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.6"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="4"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">a4f12c8</span>
+              <span class="msg">feat(graph): tide lane curves</span>
+              <span class="meta">yang · 2h ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28" aria-hidden="true">
+                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.6" />
+                <path
+                  d="M30 0 C30 12, 14 12, 14 14"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.6"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">9e81b04</span>
+              <span class="msg">fix(ui): native toolbar chrome</span>
+              <span class="meta">yang · 5h ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28" aria-hidden="true">
+                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.6" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">c0ceaf5</span>
+              <span class="msg">docs: design tokens for tide palette</span>
+              <span class="meta">yang · 1d ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28" aria-hidden="true">
+                <path d="M14 0 V14" stroke="var(--lane-0)" stroke-width="1.6" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">f5f05b3</span>
+              <span class="msg">fix(diff): keep chrome unselectable</span>
+              <span class="meta">yang · 2d ago</span>
+            </div>
+          </section>
+          <aside class="inspector">
+            <div class="insp-head">
+              <h2>feat(graph): tide lane curves</h2>
+              <p>a4f12c8 · yang · 2 hours ago</p>
+            </div>
+            <div class="diff">
+              <div class="hunk">@@ src/components/CommitGraph.tsx @@</div>
+              <div class="ln ctx"><span>10</span><span>const ROW_H = 28;</span></div>
+              <div class="ln del">
+                <span>11</span><span>-const LANE_COLORS = ["#007aff", "#2ecc71"];</span>
+              </div>
+              <div class="ln add">
+                <span>11</span><span>+const LANE_COLORS = ["#1A8F8A", "#2A7B8C"];</span>
+              </div>
+              <div class="ln ctx"><span>12</span><span>const NODE_R = 3.5;</span></div>
+            </div>
+          </aside>
+        </div>
+        <footer class="wc clean"><span>main · clean</span><span>2 ↑ · 1 ↓</span></footer>
+      </div>
+
+      <!-- Light Dirty -->
+      <div class="window" id="dirty">
+        <div class="toolbar">
+          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span class="chip">Client Work ▾</span>
+          <span class="sep">·</span>
+          <span class="chip">gitwave</span>
+          <span class="pill">feature/tide-lanes</span>
+          <button class="tool-btn" type="button">Fetch</button>
+          <button class="tool-btn" type="button" disabled>Pull</button>
+          <button class="tool-btn" type="button" disabled>Push</button>
+          <div class="right">
+            <span class="kbd">⌘K</span><button class="tool-btn" type="button">☀</button>
+          </div>
+        </div>
+        <div class="body">
+          <aside class="sidebar">
+            <div class="sec-label">Repos</div>
+            <div class="row sel">gitwave</div>
+            <div class="sec-label">Branches</div>
+            <div class="row">main</div>
+            <div class="row sel">feature/tide-lanes <span class="dim">HEAD</span></div>
+          </aside>
+          <section class="graph">
+            <div class="commit">
+              <svg width="52" height="28">
+                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.6" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">a4f12c8</span>
+              <span class="msg">feat(graph): tide lane curves</span>
+              <span class="meta">yang · 2h ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28">
+                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.6" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">9e81b04</span>
+              <span class="msg">fix(ui): native toolbar chrome</span>
+              <span class="meta">yang · 5h ago</span>
+            </div>
+          </section>
+          <aside class="inspector">
+            <div class="insp-head">
+              <h2>src/App.tsx</h2>
+              <p>working copy · unstaged</p>
+            </div>
+            <div class="diff">
+              <div class="hunk">@@ src/App.tsx @@</div>
+              <div class="ln del">
+                <span>78</span
+                ><span>-&lt;h1 className="absolute left-1/2"&gt;GitWave&lt;/h1&gt;</span>
+              </div>
+              <div class="ln add"><span>78</span><span>+&lt;Toolbar /&gt;</span></div>
+            </div>
+          </aside>
+        </div>
+        <footer class="wc dirty">
+          <div class="wc-head"><span>feature/tide-lanes · 3 unstaged · 1 staged</span></div>
+          <div class="wc-cols">
+            <div class="wc-col">
+              <h3>Unstaged (3)</h3>
+              <div class="file sel">
+                <span class="m">M</span> src/App.tsx <span class="stat-up">+40</span>
+                <span class="stat-dn">−28</span>
+              </div>
+              <div class="file">
+                <span class="m">M</span> src/styles/tokens.css <span class="stat-up">+24</span>
+                <span class="stat-dn">−11</span>
+              </div>
+              <div class="file"><span class="q">?</span> docs/design/mockups/index.html</div>
+            </div>
+            <div class="wc-col">
+              <h3>Staged (1)</h3>
+              <div class="file">
+                <span class="m">M</span> src/components/CommitGraph.tsx
+                <span class="stat-up">+18</span>
+              </div>
+            </div>
+            <div class="wc-col">
+              <textarea>feat(ui): native toolbar and tide lanes</textarea>
+              <div style="display: flex; justify-content: space-between">
+                <button class="ghost-btn" type="button">AI Generate</button>
+                <button class="commit-btn" type="button">Commit</button>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+
+      <!-- Dark History -->
+      <div class="window dark" id="dark">
+        <div class="toolbar">
+          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span class="chip">Client Work ▾</span>
+          <span class="sep">·</span>
+          <span class="chip">gitwave</span>
+          <span class="pill">main</span>
+          <span class="stat-up">↑2</span>
+          <span class="stat-dn">↓1</span>
+          <button class="tool-btn" type="button">Fetch</button>
+          <button class="tool-btn" type="button">Pull ↓1</button>
+          <button class="tool-btn" type="button">Push ↑2</button>
+          <div class="right">
+            <span class="kbd">⌘K</span><button class="tool-btn" type="button">☾</button>
+          </div>
+        </div>
+        <div class="body">
+          <aside class="sidebar">
+            <div class="sec-label">Repos</div>
+            <div class="row sel">gitwave</div>
+            <div class="sec-label">Branches</div>
+            <div class="row sel">main <span class="dim">HEAD</span></div>
+            <div class="row">feature/tide-lanes</div>
+            <div class="sec-label">Stash</div>
+            <div class="row">stash@{0} wip graph</div>
+          </aside>
+          <section class="graph">
+            <div class="commit sel">
+              <svg width="52" height="28">
+                <path
+                  d="M14 0 C14 10, 14 10, 14 14"
+                  stroke="var(--lane-0)"
+                  stroke-width="1.6"
+                  fill="none"
+                />
+                <path
+                  d="M14 14 C14 22, 30 18, 30 28"
+                  stroke="var(--lane-1)"
+                  stroke-width="1.6"
+                  fill="none"
+                />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="4"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">a4f12c8</span>
+              <span class="msg">feat(graph): tide lane curves</span>
+              <span class="meta">yang · 2h ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28">
+                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.6" />
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="3.5"
+                  fill="var(--lane-0)"
+                  stroke="var(--foam)"
+                  stroke-width="1.5"
+                />
+              </svg>
+              <span class="sha">9e81b04</span>
+              <span class="msg">fix(ui): native toolbar chrome</span>
+              <span class="meta">yang · 5h ago</span>
+            </div>
+          </section>
+          <aside class="inspector">
+            <div class="insp-head">
+              <h2>feat(graph): tide lane curves</h2>
+              <p>a4f12c8 · yang · 2 hours ago</p>
+            </div>
+            <div class="diff">
+              <div class="hunk">@@ src/styles/tokens.css @@</div>
+              <div class="ln add"><span>15</span><span>+--color-accent: #3EBAB3;</span></div>
+              <div class="ln ctx"><span>16</span><span>--color-bg-primary: #161B20;</span></div>
+            </div>
+          </aside>
+        </div>
+        <footer class="wc clean"><span>main · clean</span><span>2 ↑ · 1 ↓</span></footer>
+      </div>
+
+      <!-- Empty -->
+      <div class="window" id="empty">
+        <div class="toolbar">
+          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span class="chip muted">Select workspace ▾</span>
+          <button class="tool-btn" type="button" disabled>Fetch</button>
+          <button class="tool-btn" type="button" disabled>Pull</button>
+          <button class="tool-btn" type="button" disabled>Push</button>
+          <div class="right">
+            <span class="kbd">⌘K</span><button class="tool-btn" type="button">☀</button>
+          </div>
+        </div>
+        <div class="body">
+          <aside class="sidebar">
+            <div class="sec-label">Repos</div>
+            <div class="row"><span class="dim">No repositories yet</span></div>
+            <div class="sec-label">Branches</div>
+            <div class="row"><span class="dim">Select a repository</span></div>
+          </aside>
+          <section class="graph">
+            <div class="empty">
+              <div class="folder" aria-hidden="true"></div>
+              <h2>Select a workspace</h2>
+              <p>Create or choose a workspace in the toolbar to open repositories.</p>
+              <button class="commit-btn" type="button">New workspace</button>
+            </div>
+          </section>
+          <aside class="inspector"></aside>
+        </div>
+        <footer class="wc clean"><span>No repository selected</span></footer>
+      </div>
+    </div>
+    <script>
+      const buttons = [...document.querySelectorAll("[data-go]")];
+      const screens = ["history", "dirty", "dark", "empty"];
+      function show(id) {
+        screens.forEach((s) => document.getElementById(s).classList.toggle("is-on", s === id));
+        buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.go === id)));
+        history.replaceState(null, "", "#" + id);
+      }
+      buttons.forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
+      const hash = location.hash.slice(1);
+      if (screens.includes(hash)) show(hash);
+    </script>
+  </body>
+</html>

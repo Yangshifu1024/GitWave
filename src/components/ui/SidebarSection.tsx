@@ -24,22 +24,15 @@ export function SidebarSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section
-      className={cn("flex flex-col shrink-0 border-b border-border-subtle", className)}
-    >
-      <div
-        className={cn(
-          "shrink-0 flex items-center gap-1",
-          open && "border-b border-border-subtle",
-        )}
-      >
+    <section className={cn("flex flex-col shrink-0", className)}>
+      <div className="shrink-0 flex items-center gap-1">
         <button
           type="button"
           aria-expanded={open}
           aria-label={open ? `Collapse ${title}` : `Expand ${title}`}
           onClick={() => setOpen((value) => !value)}
           className={cn(
-            "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-2",
+            "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
             "text-xs font-semibold text-text-muted uppercase tracking-wide",
             "hover:bg-bg-primary/60 hover:text-text-secondary",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",

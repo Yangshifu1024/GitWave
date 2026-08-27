@@ -35,7 +35,9 @@ pub fn list_worktrees(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
     for name in names.iter().flatten() {
         let wt = repo.find_worktree(name).map_err(map_git_err)?;
         let path = wt.path().to_string_lossy().into_owned();
-        let is_locked = wt.is_locked().is_ok_and(|status| !matches!(status, git2::WorktreeLockStatus::Unlocked));
+        let is_locked = wt
+            .is_locked()
+            .is_ok_and(|status| !matches!(status, git2::WorktreeLockStatus::Unlocked));
         // Open the linked repo to read its HEAD branch when possible.
         let branch = Repository::open(wt.path()).ok().and_then(|r| {
             r.head()
@@ -78,7 +80,9 @@ pub fn add_worktree(
         .map_err(map_git_err)?;
     opts.reference(Some(&reference));
 
-    let wt = repo.worktree(name, path, Some(&opts)).map_err(map_git_err)?;
+    let wt = repo
+        .worktree(name, path, Some(&opts))
+        .map_err(map_git_err)?;
     Ok(WorktreeInfo {
         name: name.to_string(),
         path: wt.path().to_string_lossy().into_owned(),
@@ -116,10 +120,10 @@ mod tests {
     #[test]
     fn add_and_remove_worktree() {
         let (path, repo) = build_linear_repo(2);
-        let wt_path = path.parent().unwrap().join(format!(
-            "gitwave-wt-{}",
-            std::process::id()
-        ));
+        let wt_path = path
+            .parent()
+            .unwrap()
+            .join(format!("gitwave-wt-{}", std::process::id()));
         let _ = fs::remove_dir_all(&wt_path);
 
         let info = add_worktree(&repo, "feat-wt", &wt_path, "feat-wt", true).unwrap();

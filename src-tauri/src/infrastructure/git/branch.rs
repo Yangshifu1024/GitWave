@@ -175,7 +175,10 @@ mod tests {
             err.to_string().to_lowercase().contains("conflict"),
             "expected checkout conflict, got {err}"
         );
-        assert_eq!(fs::read_to_string(path.join("file0.txt")).unwrap(), "dirty\n");
+        assert_eq!(
+            fs::read_to_string(path.join("file0.txt")).unwrap(),
+            "dirty\n"
+        );
         cleanup(&path);
     }
 
@@ -193,7 +196,10 @@ mod tests {
         fs::write(path.join("file0.txt"), "dirty\n").unwrap();
 
         checkout_branch(&repo, "feature", true).unwrap();
-        assert_ne!(fs::read_to_string(path.join("file0.txt")).unwrap(), "dirty\n");
+        assert_ne!(
+            fs::read_to_string(path.join("file0.txt")).unwrap(),
+            "dirty\n"
+        );
         cleanup(&path);
     }
 }

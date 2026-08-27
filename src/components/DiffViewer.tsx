@@ -28,11 +28,7 @@ function WordDiffSpans({
   }
   let endBefore = before.length;
   let endAfter = after.length;
-  while (
-    endBefore > start &&
-    endAfter > start &&
-    before[endBefore - 1] === after[endAfter - 1]
-  ) {
+  while (endBefore > start && endAfter > start && before[endBefore - 1] === after[endAfter - 1]) {
     endBefore -= 1;
     endAfter -= 1;
   }
@@ -55,8 +51,10 @@ interface DiffViewerProps {
   commitOid?: string;
   /** If provided, show the working-copy diff */
   workdir?: boolean;
-  /** Path to show diff for (when commitOid is set, path specifies which file) */
+  /** Path to show diff for */
   path?: string;
+  /** Working-copy only: true = staged (index vs HEAD), false = unstaged (worktree vs index). */
+  staged?: boolean | null;
 }
 
 function getExt(path: string): string {
@@ -238,6 +236,16 @@ function FileDiffView({
           <span className="shrink-0 max-w-full break-all text-sm font-medium font-mono text-text-primary">
             {name}
           </span>
+          {fileDiff.staged === true ? (
+            <span className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent">
+              Staged
+            </span>
+          ) : null}
+          {fileDiff.staged === false ? (
+            <span className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-text-muted/15 text-text-secondary">
+              Unstaged
+            </span>
+          ) : null}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs">
           <span className="min-w-0 truncate font-mono text-text-muted">
@@ -249,7 +257,12 @@ function FileDiffView({
             <span className="text-success">+{fileDiff.additions}</span>
             <span className="text-danger">-{fileDiff.deletions}</span>
             {onBlame ? (
-              <Button type="button" variant="ghost" size="sm" onClick={() => onBlame(fileDiff.path)}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onBlame(fileDiff.path)}
+              >
                 Blame
               </Button>
             ) : null}
@@ -285,6 +298,7 @@ export function DiffViewer({
   commitOid,
   workdir = false,
   path,
+  staged = null,
 }: DiffViewerProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -336,9 +350,9 @@ export function DiffViewer({
   useEffect(() => {
     setPanel("diff");
     setBlamePath(null);
-  }, [path]);
+  }, [path, staged]);
 
-  const visible = diff ? filterDiffSummary(diff, path) : null;
+  const visible = diff ? filterDiffSummary(diff, path, staged) : null;
 
   if (!activeWorkspaceId) {
     return (
@@ -392,7 +406,11 @@ export function DiffViewer({
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm px-4 text-center">
         {path
-          ? `No diff for ${path}`
+          ? staged === true
+            ? `No staged diff for ${path}`
+            : staged === false
+              ? `No unstaged diff for ${path}`
+              : `No diff for ${path}`
           : workdir
             ? "No uncommitted changes"
             : "No diff available"}
@@ -403,10 +421,20 @@ export function DiffViewer({
   return (
     <div className="h-full min-h-0 overflow-auto">
       {/* Toolbar */}
-      <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-bg-primary border-b border-border-subtle">
+      <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-bg-elevated border-b border-border-subtle">
         <span className="text-sm text-text-secondary">
           {visible.files.length} file{visible.files.length !== 1 ? "s" : ""} changed
         </span>
+        {workdir && staged === true ? (
+          <span className="rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent">
+            Staged
+          </span>
+        ) : null}
+        {workdir && staged === false ? (
+          <span className="rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-text-muted/15 text-text-secondary">
+            Unstaged
+          </span>
+        ) : null}
         <span className="text-success text-sm">+{visible.total_additions}</span>
         <span className="text-danger text-sm">-{visible.total_deletions}</span>
         <div className="ml-auto flex gap-1">
@@ -433,9 +461,9 @@ export function DiffViewer({
 
       {/* Files */}
       <div className="p-4 select-text">
-        {visible.files.map((file, i) => (
+        {visible.files.map((file) => (
           <FileDiffView
-            key={i}
+            key={`${file.staged ? "s" : "u"}:${file.path}`}
             fileDiff={file}
             mode={mode}
             onBlame={(p) => {

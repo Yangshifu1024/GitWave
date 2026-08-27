@@ -23,7 +23,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PathInput } from "@/components/ui/PathInput";
 import { FolderPlus, GitBranch, FolderInput, Link2, Trash2 } from "lucide-react";
-import { SyncButtons } from "@/components/ui/SyncButtons";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
@@ -193,8 +192,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
 
-  const headerError =
-    (actionError && !adding && !relinking ? actionError : null) ?? wc.actionError;
+  const headerError = (actionError && !adding && !relinking ? actionError : null) ?? wc.actionError;
 
   return (
     <>
@@ -202,12 +200,12 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
         title="Repos"
         actions={
           <>
-            <SyncButtons
-              onFetch={wc.fetch}
-              fetchDisabled={!activeRepoId}
-              inProgress={wc.syncPending}
-            />
-            <Button variant="ghost" size="sm" onClick={() => startAdd("init")} aria-label="Init repo">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => startAdd("init")}
+              aria-label="Init repo"
+            >
               <GitBranch size={14} />
             </Button>
             <Button
@@ -241,66 +239,66 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
           />
         ) : (
           <ul className="py-1">
-          {repos.map((r) => (
-            <li key={r.id}>
-              <ListItem
-                selected={r.id === activeRepoId}
-                onClick={() => {
-                  if (r.status === "missing" || r.id === activeRepoId) return;
-                  void activateRepo(r.id).catch((e: unknown) =>
-                    setActionError(formatAppError(e)),
-                  );
-                }}
-                leading={null}
-                trailing={
-                  <span className="flex items-center gap-1">
-                    {r.status === "missing" && <StatusBadge variant="missing" />}
-                    {r.status === "missing" ? (
+            {repos.map((r) => (
+              <li key={r.id}>
+                <ListItem
+                  selected={r.id === activeRepoId}
+                  onClick={() => {
+                    if (r.status === "missing" || r.id === activeRepoId) return;
+                    void activateRepo(r.id).catch((e: unknown) =>
+                      setActionError(formatAppError(e)),
+                    );
+                  }}
+                  leading={null}
+                  trailing={
+                    <span className="flex items-center gap-1">
+                      {r.status === "missing" && <StatusBadge variant="missing" />}
+                      {r.status === "missing" ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRelinking(r);
+                            setRelinkPath(r.path);
+                            setActionError(null);
+                          }}
+                          className="p-1"
+                          aria-label="Relink repo"
+                        >
+                          <Link2 size={13} />
+                        </Button>
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setRelinking(r);
-                          setRelinkPath(r.path);
-                          setActionError(null);
+                          setRemoving(r);
                         }}
-                        className="p-1"
-                        aria-label="Relink repo"
+                        className="p-1 text-danger hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                        aria-label="Remove repo"
                       >
-                        <Link2 size={13} />
+                        <Trash2 size={13} />
                       </Button>
-                    ) : null}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRemoving(r);
-                      }}
-                      className="p-1 text-danger hover:text-danger opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-                      aria-label="Remove repo"
-                    >
-                      <Trash2 size={13} />
-                    </Button>
-                  </span>
-                }
-              >
-                <span
-                  className={
-                    r.id === activeRepoId
-                      ? "truncate font-mono text-xs text-text-primary font-medium"
-                      : "truncate font-mono text-xs text-text-secondary"
+                    </span>
                   }
-                  title={r.path}
                 >
-                  {basename(r.path)}
-                </span>
-              </ListItem>
-            </li>
-          ))}
-        </ul>
-      )}
+                  <span
+                    className={
+                      r.id === activeRepoId
+                        ? "truncate font-mono text-xs text-text-primary font-medium"
+                        : "truncate font-mono text-xs text-text-secondary"
+                    }
+                    title={r.path}
+                  >
+                    {basename(r.path)}
+                  </span>
+                </ListItem>
+              </li>
+            ))}
+          </ul>
+        )}
       </SidebarSection>
 
       {/* Init modal */}
@@ -552,9 +550,7 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
         </Modal>
       )}
       <ErrorAlert
-        message={
-          headerError ?? (error ? `Failed to load repos: ${formatAppError(error)}` : null)
-        }
+        message={headerError ?? (error ? `Failed to load repos: ${formatAppError(error)}` : null)}
         onDismiss={() => {
           setActionError(null);
           wc.setActionError(null);

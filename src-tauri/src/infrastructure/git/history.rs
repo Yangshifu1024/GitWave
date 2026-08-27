@@ -396,8 +396,7 @@ mod tests {
         let tip = &log[0];
         assert!(
             tip.refs.iter().any(|r| {
-                r.name == "main"
-                    || (r.kind == CommitRefKind::Head && r.name == "HEAD")
+                r.name == "main" || (r.kind == CommitRefKind::Head && r.name == "HEAD")
             }),
             "tip should carry main or HEAD refs, got {:?}",
             tip.refs
@@ -436,11 +435,11 @@ mod tests {
 
         let messages: Vec<&str> = log.iter().map(|c| c.message_summary.as_str()).collect();
         assert!(
-            messages.iter().any(|m| *m == "b1") && messages.iter().any(|m| *m == "b2"),
+            messages.contains(&"b1") && messages.contains(&"b2"),
             "expected feature-branch commits in --all log, got {messages:?}"
         );
         assert!(
-            messages.iter().any(|m| *m == "a2") && messages.iter().any(|m| m.contains("merge")),
+            messages.contains(&"a2") && messages.iter().any(|m| m.contains("merge")),
             "expected main-line commits in --all log, got {messages:?}"
         );
     }

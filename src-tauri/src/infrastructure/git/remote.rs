@@ -106,9 +106,7 @@ pub fn pull(repo: &Repository, remote_name: &str) -> Result<()> {
         .get()
         .target()
         .ok_or_else(|| AppError::Protocol("upstream has no target".into()))?;
-    let annotated = repo
-        .find_annotated_commit(their_oid)
-        .map_err(map_git_err)?;
+    let annotated = repo.find_annotated_commit(their_oid).map_err(map_git_err)?;
 
     let (analysis, _) = repo.merge_analysis(&[&annotated]).map_err(map_git_err)?;
 

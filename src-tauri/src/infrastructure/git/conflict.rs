@@ -110,8 +110,7 @@ pub fn resolve_conflict(repo: &Repository, path: &str, content: &str) -> Result<
         .ok_or_else(|| AppError::Protocol("bare repo has no workdir".into()))?;
     let full = wd.join(path);
     if let Some(parent) = full.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| AppError::Unknown(format!("mkdir: {e}")))?;
+        std::fs::create_dir_all(parent).map_err(|e| AppError::Unknown(format!("mkdir: {e}")))?;
     }
     std::fs::write(&full, content).map_err(|e| AppError::Unknown(format!("write: {e}")))?;
 
@@ -167,9 +166,7 @@ mod tests {
         fs::write(repo.workdir().unwrap().join("file0.txt"), "feature\n").unwrap();
         {
             let mut index = repo.index().unwrap();
-            index
-                .add_path(std::path::Path::new("file0.txt"))
-                .unwrap();
+            index.add_path(std::path::Path::new("file0.txt")).unwrap();
             let tree = index.write_tree().unwrap();
             let tree = repo.find_tree(tree).unwrap();
             let parent = repo.find_commit(base).unwrap();
@@ -184,9 +181,7 @@ mod tests {
         fs::write(repo.workdir().unwrap().join("file0.txt"), "main\n").unwrap();
         {
             let mut index = repo.index().unwrap();
-            index
-                .add_path(std::path::Path::new("file0.txt"))
-                .unwrap();
+            index.add_path(std::path::Path::new("file0.txt")).unwrap();
             let tree = index.write_tree().unwrap();
             let tree = repo.find_tree(tree).unwrap();
             let parent = repo.find_commit(base).unwrap();
@@ -195,7 +190,10 @@ mod tests {
         }
 
         let res = merge_branch(&repo, "feature").unwrap();
-        assert_eq!(res.kind, crate::infrastructure::git::merge::MergeKind::ThreeWay);
+        assert_eq!(
+            res.kind,
+            crate::infrastructure::git::merge::MergeKind::ThreeWay
+        );
         assert!(!res.conflicts.is_empty());
         assert!(is_merge_in_progress(&repo));
 

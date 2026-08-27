@@ -5,72 +5,74 @@
 
 ## 1. Color（色板）
 
+命名色（品牌）：**Foam** `#F4F6F8` · **Mist** `#E6EBEF` · **Ink** `#1B2228` · **Tide** `#1A8F8A` · **Abyss** `#12161A` · **Coral** `#D64545`。
+
 ### 1.1 Light theme
 
 ```
 背景
-  bg-primary        #ffffff       主背景（窗口）
-  bg-secondary      #fafafa       面板背景（sidebar / nav）
-  bg-elevated       #ffffff       卡片 / 列表项
-  bg-overlay        rgba(0,0,0,0.35)  模态遮罩
+  bg-primary        #F4F6F8       Foam 主画布（history / inspector）
+  bg-secondary      #E6EBEF       Mist 侧栏 / 工具栏
+  bg-elevated       #EEF1F4       抬升面（列表 hover / inspector）
+  bg-overlay        rgba(27,34,40,0.40)  模态遮罩
 
 文本
-  text-primary      #1f1f1f       主要文本
-  text-secondary    #555555       次要文本 / 标签
-  text-muted        #888888       辅助 / 占位
-  text-inverse      #ffffff       深色背景上的文字
+  text-primary      #1B2228       Ink
+  text-secondary    #4A5560       次要文本 / 标签
+  text-muted        #7A8692       辅助 / 占位
+  text-inverse      #ffffff       深色 / Tide 按钮上的文字
 
 边框 / 分隔
-  border-subtle     #e3e3e3       浅分隔线
-  border-default    #cccccc       控件边框
-  border-strong     #999999       强分隔
+  border-subtle     #D5DCE2       浅分隔线
+  border-default    #C5CDD4       控件边框
+  border-strong     #9AA4AE       强分隔
 
 状态色
-  accent            #007aff       macOS systemBlue（accent-color）
-  accent-hover      #0066cc       悬停态
-  success           #2ecc71       成功
-  warning           #f39c12       警告
-  danger            #c0392b       危险 / 删除 / missing
-  info              #3498db       信息提示
+  accent            #1A8F8A       Tide
+  accent-hover      #157873       悬停
+  success           #2F9E6B       成功
+  warning           #C47A1A       警告
+  danger            #D64545       Coral
+  info              #3D6B9A       信息（靛蓝族，不用系统蓝）
 
 仓库 / 分支状态（语义）
-  status-active     #2ecc71       仓库 active
-  status-missing    #c0392b       仓库 missing
-  branch-local      #007aff       本地分支
-  branch-current    #5856d6       当前 HEAD（紫）
-  branch-remote     #8e8e93       远程分支（灰）
-  branch-ahead      #34c759       ahead（绿）
-  branch-behind     #ff9500       behind（橙）
-  branch-conflict   #ff3b30       conflict（红）
+  status-active     #2F9E6B       仓库 active
+  status-missing    #D64545       仓库 missing
+  branch-local      #1A8F8A       本地分支（Tide）
+  branch-current    #1A8F8A       当前 HEAD（Tide）
+  branch-remote     #7A8692       远程分支（灰）
+  branch-ahead      #2F9E6B       ahead
+  branch-behind     #C47A1A       behind
+  branch-conflict   #D64545       conflict
 ```
 
 ### 1.2 Dark theme
 
 ```
 背景
-  bg-primary        #1a1a1a       主背景
-  bg-secondary      #232323       面板背景
-  bg-elevated       #2a2a2a       卡片 / 列表项
-  bg-overlay        rgba(0,0,0,0.5)  模态遮罩
+  bg-primary        #161B20       略抬升画布
+  bg-secondary      #12161A       Abyss 侧栏 / 工具栏
+  bg-elevated       #1C2329       inspector / 菜单
+  bg-overlay        rgba(0,0,0,0.55)  模态遮罩
 
 文本
-  text-primary      #f0f0f0       主要文本
-  text-secondary    #c0c0c0       次要文本
-  text-muted        #8e8e93       辅助
-  text-inverse      #1f1f1f       深色背景
+  text-primary      #E8ECF0
+  text-secondary    #B4BEC8
+  text-muted        #8B97A3
+  text-inverse      #12161A
 
 边框
-  border-subtle     #2a2a2a
-  border-default    #3a3a3a
-  border-strong     #5a5a5a
+  border-subtle     #2A323A
+  border-default    #3A444E
+  border-strong     #5A6570
 
 状态色（dark mode 调亮）
-  accent            #0a84ff       macOS darkBlue
-  accent-hover      #409cff
-  success           #30d158
-  warning           #ff9f0a
-  danger            #ff453a
-  info              #64d2ff
+  accent            #3EBAB3       Tide 提亮
+  accent-hover      #5EC9C2
+  success           #3ECF8E
+  warning           #E0A04A
+  danger            #E05A5A
+  info              #6B8FC4
 ```
 
 ### 1.3 Semantic 映射（Tailwind）
@@ -113,10 +115,8 @@ font-sans
   fallback: system-ui, -apple-system, sans sans-serif
 
 font-mono
-  macOS:    "SF Mono", Menlo, Monaco
-  Windows:  Consolas, "Cascadia Code"
-  Linux:    "JetBrains Mono", "DejaVu Sans Mono"
-  fallback: ui-monospace, monospace
+  SHA / 路径 / diff: "IBM Plex Mono"
+  fallback: "SF Mono", Menlo, Monaco, Consolas, "Cascadia Code", ui-monospace
 ```
 
 ### 3.2 Scale

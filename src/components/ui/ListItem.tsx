@@ -42,7 +42,7 @@ export function ListItem({
           : undefined
       }
       className={cn(
-        "group flex items-center gap-2 px-3 py-2 select-none",
+        "group flex items-center gap-2 px-3 py-1.5 select-none",
         "rounded-md transition-colors duration-150",
         "text-sm text-text-primary",
         "border-l-[3px]",

@@ -63,7 +63,10 @@ fn pause_path(repo: &Repository) -> PathBuf {
 
 fn resolve_upstream(repo: &Repository, upstream: &str) -> Result<Oid> {
     let obj = repo.revparse_single(upstream).map_err(map_git_err)?;
-    Ok(obj.peel(git2::ObjectType::Commit).map_err(map_git_err)?.id())
+    Ok(obj
+        .peel(git2::ObjectType::Commit)
+        .map_err(map_git_err)?
+        .id())
 }
 
 /// Commits reachable from HEAD but not from `upstream`, oldest-first.
@@ -92,10 +95,7 @@ pub fn plan_interactive_rebase(
     for oid_res in walk {
         let oid = oid_res.map_err(map_git_err)?;
         let commit = repo.find_commit(oid).map_err(map_git_err)?;
-        let summary = commit
-            .summary()
-            .unwrap_or("(no message)")
-            .to_string();
+        let summary = commit.summary().unwrap_or("(no message)").to_string();
         todos.push(InteractiveRebaseTodo {
             oid: oid.to_string(),
             summary,
@@ -125,7 +125,8 @@ fn abort_cherry_pick_state(repo: &Repository) {
 fn cherry_pick_onto_head(repo: &Repository, commit_oid: Oid) -> Result<()> {
     let commit = repo.find_commit(commit_oid).map_err(map_git_err)?;
     let mut opts = git2::CherrypickOptions::new();
-    repo.cherrypick(&commit, Some(&mut opts)).map_err(map_git_err)?;
+    repo.cherrypick(&commit, Some(&mut opts))
+        .map_err(map_git_err)?;
     let conflicts = collect_index_conflicts(repo)?;
     if !conflicts.is_empty() {
         abort_cherry_pick_state(repo);
@@ -138,11 +139,7 @@ fn cherry_pick_onto_head(repo: &Repository, commit_oid: Oid) -> Result<()> {
     Ok(())
 }
 
-fn commit_index(
-    repo: &Repository,
-    parents: &[&git2::Commit],
-    message: &str,
-) -> Result<Oid> {
+fn commit_index(repo: &Repository, parents: &[&git2::Commit], message: &str) -> Result<Oid> {
     let mut index = repo.index().map_err(map_git_err)?;
     let tree_oid = index.write_tree().map_err(map_git_err)?;
     let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
@@ -177,7 +174,8 @@ pub fn execute_interactive_rebase(
     if active.is_empty() {
         // All dropped → move HEAD to upstream.
         let obj = repo.find_object(upstream_oid, None).map_err(map_git_err)?;
-        repo.reset(&obj, ResetType::Hard, None).map_err(map_git_err)?;
+        repo.reset(&obj, ResetType::Hard, None)
+            .map_err(map_git_err)?;
         let _ = fs::remove_file(pause_path(repo));
         return Ok(InteractiveRebaseResult {
             kind: InteractiveRebaseKind::Clean,
@@ -188,7 +186,8 @@ pub fn execute_interactive_rebase(
 
     // Hard reset to upstream base, then cherry-pick each todo.
     let obj = repo.find_object(upstream_oid, None).map_err(map_git_err)?;
-    repo.reset(&obj, ResetType::Hard, None).map_err(map_git_err)?;
+    repo.reset(&obj, ResetType::Hard, None)
+        .map_err(map_git_err)?;
     let _ = fs::remove_file(pause_path(repo));
 
     replay_todos(repo, upstream, &active)
@@ -214,7 +213,11 @@ fn replay_todos(
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
                     return conflict_from_err(e);
                 }
-                let head = repo.head().map_err(map_git_err)?.peel_to_commit().map_err(map_git_err)?;
+                let head = repo
+                    .head()
+                    .map_err(map_git_err)?
+                    .peel_to_commit()
+                    .map_err(map_git_err)?;
                 let msg = message_for(todo, &commit);
                 let new_oid = commit_index(repo, &[&head], &msg)?;
                 let _ = new_oid;
@@ -224,7 +227,11 @@ fn replay_todos(
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
                     return conflict_from_err(e);
                 }
-                let head = repo.head().map_err(map_git_err)?.peel_to_commit().map_err(map_git_err)?;
+                let head = repo
+                    .head()
+                    .map_err(map_git_err)?
+                    .peel_to_commit()
+                    .map_err(map_git_err)?;
                 let msg = message_for(todo, &commit);
                 let new_oid = commit_index(repo, &[&head], &msg)?;
                 let remaining: Vec<InteractiveRebaseTodo> =
@@ -256,7 +263,11 @@ fn replay_todos(
                     return conflict_from_err(e);
                 }
                 // Amend HEAD: same parents as HEAD, new tree from index, maybe combined msg.
-                let head = repo.head().map_err(map_git_err)?.peel_to_commit().map_err(map_git_err)?;
+                let head = repo
+                    .head()
+                    .map_err(map_git_err)?
+                    .peel_to_commit()
+                    .map_err(map_git_err)?;
                 let parents: Vec<git2::Commit> = head.parents().collect();
                 let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
                 let mut index = repo.index().map_err(map_git_err)?;
@@ -356,7 +367,9 @@ mod tests {
             .unwrap();
         let todos = plan_interactive_rebase(&repo, "base").unwrap();
         assert_eq!(todos.len(), 2);
-        assert!(todos.iter().all(|t| t.action == InteractiveRebaseAction::Pick));
+        assert!(todos
+            .iter()
+            .all(|t| t.action == InteractiveRebaseAction::Pick));
         let _ = root;
         cleanup(&path);
     }
@@ -373,10 +386,7 @@ mod tests {
         }
         let res = execute_interactive_rebase(&repo, "base", &todos).unwrap();
         assert_eq!(res.kind, InteractiveRebaseKind::Clean);
-        assert_eq!(
-            repo.head().unwrap().peel_to_commit().unwrap().id(),
-            first
-        );
+        assert_eq!(repo.head().unwrap().peel_to_commit().unwrap().id(), first);
         cleanup(&path);
     }
 

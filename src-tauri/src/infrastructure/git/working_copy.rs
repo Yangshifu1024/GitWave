@@ -38,9 +38,11 @@ pub fn status(repo: &Repository, repo_id: &str) -> Result<WorkingCopy> {
             continue;
         }
         let s = entry.status();
-        let old_path = entry
-            .head_to_index()
-            .and_then(|d| d.old_file().path().map(|p| p.to_string_lossy().into_owned()));
+        let old_path = entry.head_to_index().and_then(|d| {
+            d.old_file()
+                .path()
+                .map(|p| p.to_string_lossy().into_owned())
+        });
 
         if let Some(kind) = index_kind(s) {
             files.push(FileChange {
@@ -164,8 +166,7 @@ pub fn unstage_paths(repo: &Repository, paths: &[String]) -> Result<()> {
     match repo.head() {
         Ok(head) => {
             let obj = head.peel(git2::ObjectType::Commit).map_err(map_git_err)?;
-            repo.reset_default(Some(&obj), paths)
-                .map_err(map_git_err)?;
+            repo.reset_default(Some(&obj), paths).map_err(map_git_err)?;
         }
         Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
             // No HEAD commit yet — unstage = remove from index.
@@ -278,7 +279,11 @@ mod tests {
         let sha = commit(&repo, "add extra").unwrap();
         assert_eq!(sha.len(), 40);
         let wc = status(&repo, "r-1").unwrap();
-        assert!(wc.files.is_empty(), "clean after commit, got {:?}", wc.files);
+        assert!(
+            wc.files.is_empty(),
+            "clean after commit, got {:?}",
+            wc.files
+        );
         cleanup(&path);
     }
 

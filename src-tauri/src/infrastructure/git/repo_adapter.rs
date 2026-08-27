@@ -189,7 +189,7 @@ mod tests {
             &dest,
             None,
         )
-            .expect_err("should fail");
+        .expect_err("should fail");
         let cat = err.category();
         assert!(
             matches!(cat, "Network" | "Protocol" | "Credential" | "Unknown"),

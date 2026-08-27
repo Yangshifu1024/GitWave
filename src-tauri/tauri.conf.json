@@ -12,18 +12,31 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "GitWave",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
         "minHeight": 600,
+        "decorations": true,
+        "visible": false,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "decorations": false
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 14
+        }
       }
     ],
     "security": {
-      "csp": null
+      "capabilities": ["default"],
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "img-src": "'self' asset: http://asset.localhost data:",
+        "style-src": "'self' tauri-plugin-decoration: http://tauri-plugin-decoration.localhost https://tauri-plugin-decoration.localhost",
+        "style-src-elem": "'self' tauri-plugin-decoration: http://tauri-plugin-decoration.localhost https://tauri-plugin-decoration.localhost"
+      }
     }
   },
   "bundle": {

@@ -112,10 +112,7 @@ export function getWorkspace(id: string): Promise<Workspace> {
   return invoke<Workspace>("cmd_get_workspace", { id });
 }
 
-export function updateWorkspaceSettings(
-  id: string,
-  settings: WorkspaceSettings,
-): Promise<void> {
+export function updateWorkspaceSettings(id: string, settings: WorkspaceSettings): Promise<void> {
   return invoke<void>("cmd_update_workspace_settings", { id, settings });
 }
 
@@ -124,11 +121,7 @@ export interface AiKeyStatus {
   has_key: boolean;
 }
 
-export function setAiApiKey(
-  workspaceId: string,
-  provider: string,
-  apiKey: string,
-): Promise<void> {
+export function setAiApiKey(workspaceId: string, provider: string, apiKey: string): Promise<void> {
   return invoke<void>("cmd_set_ai_api_key", { workspaceId, provider, apiKey });
 }
 
@@ -276,6 +269,8 @@ export interface FileDiff {
   additions: number;
   deletions: number;
   hunks: DiffHunk[];
+  /** Working-copy only: true = index vs HEAD, false = worktree vs index. */
+  staged?: boolean | null;
 }
 
 export interface DiffSummary {
@@ -369,11 +364,7 @@ export function deleteBranch(workspaceId: string, name: string): Promise<void> {
   return invoke<void>("cmd_delete_branch", { workspaceId, name });
 }
 
-export function checkoutBranch(
-  workspaceId: string,
-  name: string,
-  force = false,
-): Promise<void> {
+export function checkoutBranch(workspaceId: string, name: string, force = false): Promise<void> {
   return invoke<void>("cmd_checkout_branch", { workspaceId, name, force });
 }
 
@@ -391,13 +382,7 @@ export function rebaseBranch(workspaceId: string, upstream: string): Promise<Reb
 
 // ─── Interactive rebase ──────────────────────────────────────────────────────
 
-export type InteractiveRebaseAction =
-  | "pick"
-  | "reword"
-  | "edit"
-  | "squash"
-  | "fixup"
-  | "drop";
+export type InteractiveRebaseAction = "pick" | "reword" | "edit" | "squash" | "fixup" | "drop";
 
 export interface InteractiveRebaseTodo {
   oid: string;
@@ -407,10 +392,7 @@ export interface InteractiveRebaseTodo {
 }
 
 export type InteractiveRebaseKind =
-  | "clean"
-  | "already_up_to_date"
-  | "conflicts"
-  | "paused_for_edit";
+  "clean" | "already_up_to_date" | "conflicts" | "paused_for_edit";
 
 export interface InteractiveRebaseResult {
   kind: InteractiveRebaseKind;
@@ -440,9 +422,7 @@ export function executeInteractiveRebase(
   });
 }
 
-export function continueInteractiveRebase(
-  workspaceId: string,
-): Promise<InteractiveRebaseResult> {
+export function continueInteractiveRebase(workspaceId: string): Promise<InteractiveRebaseResult> {
   return invoke<InteractiveRebaseResult>("cmd_continue_interactive_rebase", { workspaceId });
 }
 
@@ -479,11 +459,7 @@ export function getConflictSides(workspaceId: string, path: string): Promise<Con
   return invoke<ConflictSides>("cmd_get_conflict_sides", { workspaceId, path });
 }
 
-export function resolveConflict(
-  workspaceId: string,
-  path: string,
-  content: string,
-): Promise<void> {
+export function resolveConflict(workspaceId: string, path: string, content: string): Promise<void> {
   return invoke<void>("cmd_resolve_conflict", { workspaceId, path, content });
 }
 
@@ -501,13 +477,7 @@ export function explainConflict(workspaceId: string, path: string): Promise<stri
 
 // ─── Working copy ────────────────────────────────────────────────────────────
 
-export type FileStatusKind =
-  | "modified"
-  | "added"
-  | "deleted"
-  | "untracked"
-  | "renamed"
-  | "copied";
+export type FileStatusKind = "modified" | "added" | "deleted" | "untracked" | "renamed" | "copied";
 
 export interface FileChange {
   path: string;

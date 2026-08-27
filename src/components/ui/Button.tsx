@@ -7,7 +7,7 @@ const buttonVariants = cva(
     "inline-flex items-center justify-center gap-2",
     "font-medium text-sm",
     "rounded-md transition-colors duration-200",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
     "disabled:opacity-50 disabled:cursor-not-allowed",
   ].join(" "),
   {
@@ -18,7 +18,7 @@ const buttonVariants = cva(
           "bg-bg-elevated border border-border-default text-text-primary hover:bg-bg-secondary",
         danger:
           "bg-bg-elevated border border-danger text-danger hover:bg-danger hover:text-text-inverse",
-        ghost: "bg-transparent hover:bg-bg-secondary text-text-primary",
+        ghost: "bg-transparent hover:bg-bg-primary/55 text-text-primary",
       },
       size: {
         sm: "h-7 px-2 text-xs",

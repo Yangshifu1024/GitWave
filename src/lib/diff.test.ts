@@ -20,6 +20,7 @@ function fileDiff(path: string, additions: number, deletions: number): FileDiff 
     additions,
     deletions,
     hunks: [],
+    staged: null,
   };
 }
 
@@ -72,5 +73,26 @@ describe("filterDiffSummary", () => {
       total_deletions: 0,
     };
     expect(filterDiffSummary(windowsDiff, "src/lib.rs").files).toHaveLength(1);
+  });
+
+  it("keeps only the requested working-copy side when a path is on both", () => {
+    const mixed: DiffSummary = {
+      files: [
+        { ...fileDiff("a.ts", 4, 0), staged: true },
+        { ...fileDiff("a.ts", 1, 2), staged: false },
+      ],
+      total_additions: 5,
+      total_deletions: 2,
+    };
+    expect(filterDiffSummary(mixed, "a.ts", true)).toEqual({
+      files: [mixed.files[0]],
+      total_additions: 4,
+      total_deletions: 0,
+    });
+    expect(filterDiffSummary(mixed, "a.ts", false)).toEqual({
+      files: [mixed.files[1]],
+      total_additions: 1,
+      total_deletions: 2,
+    });
   });
 });

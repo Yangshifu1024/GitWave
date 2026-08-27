@@ -54,7 +54,7 @@ export function CommitMessageBox({
           "rounded-md border border-border-default bg-bg-elevated",
           "px-3 py-2 text-sm text-text-primary placeholder:text-text-muted",
           "transition-colors duration-200",
-          "focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2",
+          "focus:outline-none focus:ring-2 focus:ring-accent",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           amendMessage != null && "border-warning/50",
         )}
@@ -62,9 +62,7 @@ export function CommitMessageBox({
       />
       {(value.length > 0 && value.length < 10) || value.length >= 72 ? (
         <p className="text-xs text-text-muted text-right -mt-1">
-          {value.length < 10
-            ? `${value.length} chars`
-            : `${value.length} chars (first line > 72)`}
+          {value.length < 10 ? `${value.length} chars` : `${value.length} chars (first line > 72)`}
         </p>
       ) : null}
       <div className="flex items-center justify-between gap-2">

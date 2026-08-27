@@ -34,6 +34,13 @@ impl DiffSummary {
         files.extend(other.files);
         Self::new(files)
     }
+
+    pub fn mark_staged(mut self, staged: bool) -> Self {
+        for file in &mut self.files {
+            file.staged = Some(staged);
+        }
+        self
+    }
 }
 
 /// Diff the working tree against the index (unstaged changes).
@@ -145,6 +152,7 @@ fn diff_to_files(diff: &Diff) -> Result<Vec<FileDiff>> {
                 additions: 0,
                 deletions: 0,
                 hunks: Vec::new(),
+                staged: None,
             });
             true
         },
@@ -351,7 +359,11 @@ mod tests {
         if file.is_none() {
             panic!(
                 "expected src/lib.rs, got {:?}",
-                summary.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>()
+                summary
+                    .files
+                    .iter()
+                    .map(|f| f.path.as_str())
+                    .collect::<Vec<_>>()
             );
         }
         let file = file.unwrap();
@@ -374,12 +386,32 @@ mod tests {
             additions,
             deletions,
             hunks: vec![],
+            staged: None,
         };
-        let merged = DiffSummary::new(vec![file("a.ts", 3, 1)]).merge(DiffSummary::new(vec![
-            file("b.ts", 2, 4),
-        ]));
+        let merged = DiffSummary::new(vec![file("a.ts", 3, 1)])
+            .merge(DiffSummary::new(vec![file("b.ts", 2, 4)]));
         assert_eq!(merged.files.len(), 2);
         assert_eq!(merged.total_additions, 5);
         assert_eq!(merged.total_deletions, 5);
+    }
+
+    #[test]
+    fn mark_staged_tags_both_sides_when_same_path_merges() {
+        let file = |path: &str, additions: u32| FileDiff {
+            path: path.into(),
+            old_sha: None,
+            new_sha: None,
+            additions,
+            deletions: 0,
+            hunks: vec![],
+            staged: None,
+        };
+        let merged = DiffSummary::new(vec![file("a.ts", 4)])
+            .mark_staged(true)
+            .merge(DiffSummary::new(vec![file("a.ts", 1)]).mark_staged(false));
+        assert_eq!(merged.files.len(), 2);
+        assert_eq!(merged.files[0].staged, Some(true));
+        assert_eq!(merged.files[1].staged, Some(false));
+        assert_eq!(merged.total_additions, 5);
     }
 }

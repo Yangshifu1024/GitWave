@@ -12,10 +12,10 @@ use crate::domain::error::{AppError, Result};
 use crate::domain::history::CommitSummary;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
-use crate::domain::worktree::WorktreeInfo;
 use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
 };
+use crate::domain::worktree::WorktreeInfo;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
@@ -27,30 +27,30 @@ use crate::infrastructure::git::conflict::{
     resolve_conflict as infra_resolve_conflict, ConflictFile, ConflictSides,
 };
 use crate::infrastructure::git::diff::{
-    diff_commit_vs_parent as infra_diff_commit_vs_parent, diff_index_to_head as infra_diff_index_to_head,
-    diff_paths as infra_diff_paths, diff_workdir_to_index as infra_diff_workdir_to_index,
-    DiffSummary,
+    diff_commit_vs_parent as infra_diff_commit_vs_parent,
+    diff_index_to_head as infra_diff_index_to_head, diff_paths as infra_diff_paths,
+    diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
 };
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_log as infra_commit_log,
     list_branches as infra_list_branches,
 };
-use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
 use crate::infrastructure::git::interactive_rebase::{
     abort_interactive_rebase_pause as infra_abort_irebase_pause,
     continue_interactive_rebase as infra_continue_irebase,
     execute_interactive_rebase as infra_execute_irebase,
     interactive_rebase_paused as infra_irebase_paused,
-    plan_interactive_rebase as infra_plan_irebase, InteractiveRebaseResult,
-    InteractiveRebaseTodo,
+    plan_interactive_rebase as infra_plan_irebase, InteractiveRebaseResult, InteractiveRebaseTodo,
 };
+use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::remote::{
     fetch as infra_fetch, pull as infra_pull, push as infra_push,
 };
 use crate::infrastructure::git::stash::{
-    apply_stash as infra_apply_stash, drop_stash as infra_drop_stash, list_stashes as infra_list_stashes,
-    pop_stash as infra_pop_stash, save_stash as infra_save_stash, stash_diff as infra_stash_diff,
+    apply_stash as infra_apply_stash, drop_stash as infra_drop_stash,
+    list_stashes as infra_list_stashes, pop_stash as infra_pop_stash,
+    save_stash as infra_save_stash, stash_diff as infra_stash_diff,
 };
 use crate::infrastructure::git::working_copy::{
     commit as infra_commit, stage_all as infra_stage_all, stage_paths as infra_stage_paths,
@@ -177,9 +177,7 @@ pub fn update_workspace_settings(
     settings: WorkspaceSettings,
 ) -> Result<()> {
     let provider = settings.ai_provider.as_deref().unwrap_or("");
-    if !provider.is_empty()
-        && !matches!(provider, "openai" | "anthropic" | "ollama")
-    {
+    if !provider.is_empty() && !matches!(provider, "openai" | "anthropic" | "ollama") {
         return Err(AppError::Protocol(format!(
             "unsupported ai_provider: {provider}"
         )));
@@ -230,13 +228,14 @@ pub fn clone_repo(
     url: String,
     dest_path: String,
     replace_dest: bool,
-    on_progress: Option<Box<dyn Fn(crate::infrastructure::git::repo_adapter::CloneProgress) + Send>>,
+    on_progress: Option<
+        Box<dyn Fn(crate::infrastructure::git::repo_adapter::CloneProgress) + Send>,
+    >,
 ) -> Result<RepoRef> {
     let dest = PathBuf::from(&dest_path);
     if replace_dest && dest.exists() {
-        std::fs::remove_dir_all(&dest).map_err(|e| {
-            AppError::Unknown(format!("failed to clear dest for retry: {e}"))
-        })?;
+        std::fs::remove_dir_all(&dest)
+            .map_err(|e| AppError::Unknown(format!("failed to clear dest for retry: {e}")))?;
     }
     if url.starts_with("ssh://") || url.starts_with("git@") {
         crate::infrastructure::git::repo_adapter::clone_ssh(&url, &dest, on_progress)?;
@@ -391,21 +390,20 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
 
 /// Generate a commit message suggestion from staged/workdir diff + recent commits.
 /// Result is always returned for the user to edit — never auto-commits (P1).
-pub async fn generate_commit_message(
-    ctx: &AppContext,
-    workspace_id: String,
-) -> Result<String> {
+pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    let provider = settings
-        .ai_provider
+    let provider = settings.ai_provider.clone().ok_or_else(|| {
+        AppError::Protocol("AI provider not configured for this Workspace".into())
+    })?;
+    let model = settings
+        .ai_model
         .clone()
-        .ok_or_else(|| AppError::Protocol("AI provider not configured for this Workspace".into()))?;
-    let model = settings.ai_model.clone().unwrap_or_else(|| match provider.as_str() {
-        "anthropic" => "claude-3-5-haiku-latest".into(),
-        "ollama" => "llama3.2".into(),
-        _ => "gpt-4o-mini".into(),
-    });
+        .unwrap_or_else(|| match provider.as_str() {
+            "anthropic" => "claude-3-5-haiku-latest".into(),
+            "ollama" => "llama3.2".into(),
+            _ => "gpt-4o-mini".into(),
+        });
     let api_key = if provider == "ollama" {
         None
     } else {
@@ -428,15 +426,12 @@ pub async fn generate_commit_message(
     user.push_str("\nUnstaged changes:\n");
     append_diff_summary(&mut user, &workdir);
 
-    let system = settings
-        .prompt_templates
-        .commit
-        .unwrap_or_else(|| {
-            "You write concise git commit messages. Output ONLY the message text. \
+    let system = settings.prompt_templates.commit.unwrap_or_else(|| {
+        "You write concise git commit messages. Output ONLY the message text. \
              Prefer conventional commits (type: summary). First line <= 72 chars. \
              Do not wrap in markdown fences."
-                .into()
-        });
+            .into()
+    });
 
     crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
         provider,
@@ -475,12 +470,13 @@ pub fn get_commit_log(
     infra_commit_log(&repo, max)
 }
 
-/// Get the working-copy diff (unstaged changes).
+/// Get the working-copy diff. Staged files are tagged `staged: true` (index vs HEAD);
+/// unstaged files are tagged `staged: false` (worktree vs index). Same path can appear twice.
 pub fn get_workdir_diff(ctx: &AppContext, workspace_id: &str) -> Result<DiffSummary> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    let unstaged = infra_diff_workdir_to_index(&repo)?;
-    let staged = infra_diff_index_to_head(&repo)?;
+    let unstaged = infra_diff_workdir_to_index(&repo)?.mark_staged(false);
+    let staged = infra_diff_index_to_head(&repo)?.mark_staged(true);
     Ok(staged.merge(unstaged))
 }
 
@@ -647,11 +643,14 @@ pub async fn explain_conflict(
         .ai_provider
         .clone()
         .ok_or_else(|| AppError::Protocol("AI provider not configured".into()))?;
-    let model = settings.ai_model.clone().unwrap_or_else(|| match provider.as_str() {
-        "anthropic" => "claude-3-5-haiku-latest".into(),
-        "ollama" => "llama3.2".into(),
-        _ => "gpt-4o-mini".into(),
-    });
+    let model = settings
+        .ai_model
+        .clone()
+        .unwrap_or_else(|| match provider.as_str() {
+            "anthropic" => "claude-3-5-haiku-latest".into(),
+            "ollama" => "llama3.2".into(),
+            _ => "gpt-4o-mini".into(),
+        });
     let api_key = if provider == "ollama" {
         None
     } else {
@@ -1007,8 +1006,7 @@ mod tests {
     fn list_repos_marks_missing_when_path_deleted() {
         let ctx = fresh_ctx();
         let ws = create_workspace(&ctx, "Default".into()).unwrap();
-        let tmp =
-            std::env::temp_dir().join(format!("gitwave-uc-missing-{}", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("gitwave-uc-missing-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
         crate::infrastructure::git::repo_adapter::init(&tmp).expect("init");
