@@ -20,7 +20,8 @@ export function gateCheckout(input: CheckoutGateInput): CheckoutGate {
     return {
       kind: "blocked",
       reason: "remote",
-      message: "Create or check out a local branch. Remote-tracking branches cannot be checked out directly.",
+      message:
+        "Create or check out a local branch. Remote-tracking branches cannot be checked out directly.",
     };
   }
   if (input.mergeInProgress) {

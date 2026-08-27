@@ -2,13 +2,7 @@ import { useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 
-import {
-  fetchRemote,
-  formatAppError,
-  pullRemote,
-  pushRemote,
-  type SyncProgress,
-} from "@/lib/api";
+import { fetchRemote, formatAppError, pullRemote, pushRemote, type SyncProgress } from "@/lib/api";
 import { useSyncStore } from "@/stores/syncStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 

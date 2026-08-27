@@ -87,7 +87,12 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
 
   if (!workspaceId || !repoId) {
     return (
-      <p className={cn("text-text-muted", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
+      <p
+        className={cn(
+          "text-text-muted",
+          compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm",
+        )}
+      >
         Select a repository to manage worktrees
       </p>
     );
@@ -95,7 +100,12 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
 
   if (loading) {
     return (
-      <p className={cn("text-text-muted italic", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
+      <p
+        className={cn(
+          "text-text-muted italic",
+          compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm",
+        )}
+      >
         Loading worktrees…
       </p>
     );
@@ -103,7 +113,12 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
 
   return (
     <div className={cn("min-h-0 flex flex-col", !compact && "h-full overflow-hidden")}>
-      <div className={cn("shrink-0", compact ? "px-2 py-1" : "px-3 py-2 border-b border-border-subtle")}>
+      <div
+        className={cn(
+          "shrink-0",
+          compact ? "px-2 py-1" : "px-3 py-2 border-b border-border-subtle",
+        )}
+      >
         <Button
           variant="secondary"
           size="sm"
@@ -132,7 +147,12 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
               disabled={busy}
             />
           ) : (
-            <Input placeholder="Branch (optional)" value={branch} onChange={setBranch} disabled={busy} />
+            <Input
+              placeholder="Branch (optional)"
+              value={branch}
+              onChange={setBranch}
+              disabled={busy}
+            />
           )}
           <div className="flex justify-end">
             <Button
@@ -195,10 +215,7 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
                     <span className="text-text-muted font-normal"> · {wt.branch}</span>
                   ) : null}
                 </span>
-                <span
-                  className="text-[10px] text-text-muted font-mono truncate"
-                  title={wt.path}
-                >
+                <span className="text-[10px] text-text-muted font-mono truncate" title={wt.path}>
                   {wt.path}
                 </span>
               </div>

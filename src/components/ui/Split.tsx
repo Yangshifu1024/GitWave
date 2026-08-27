@@ -1,4 +1,12 @@
-import { type ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { cn } from "@/lib/utils";
 
 interface SplitContextValue {

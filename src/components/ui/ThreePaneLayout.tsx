@@ -93,12 +93,18 @@ export function ThreePaneLayout({
 }: ThreePaneLayoutProps): React.JSX.Element {
   const [sidebarWidth, setSidebarWidth] = useState(initialSidebarWidth);
   const [inspectorWidth, setInspectorWidth] = useState(initialInspectorWidth);
-  const dragSidebarOrigin = useCallback((delta: number) => {
-    setSidebarWidth((width) => clamp(width + delta, sidebarMin, sidebarMax));
-  }, [sidebarMax, sidebarMin]);
-  const dragInspectorOrigin = useCallback((delta: number) => {
-    setInspectorWidth((width) => clamp(width - delta, inspectorMin, inspectorMax));
-  }, [inspectorMax, inspectorMin]);
+  const dragSidebarOrigin = useCallback(
+    (delta: number) => {
+      setSidebarWidth((width) => clamp(width + delta, sidebarMin, sidebarMax));
+    },
+    [sidebarMax, sidebarMin],
+  );
+  const dragInspectorOrigin = useCallback(
+    (delta: number) => {
+      setInspectorWidth((width) => clamp(width - delta, inspectorMin, inspectorMax));
+    },
+    [inspectorMax, inspectorMin],
+  );
 
   const onSidebarHandleDown = useColumnDrag(dragSidebarOrigin);
   const onInspectorHandleDown = useColumnDrag(dragInspectorOrigin);
@@ -108,10 +114,7 @@ export function ThreePaneLayout({
     : `${sidebarWidth}px ${HANDLE_PX}px minmax(${mainMin}px, 1fr) ${HANDLE_PX}px ${inspectorWidth}px`;
 
   return (
-    <div
-      className="grid h-full w-full min-w-0 overflow-hidden"
-      style={{ gridTemplateColumns }}
-    >
+    <div className="grid h-full w-full min-w-0 overflow-hidden" style={{ gridTemplateColumns }}>
       <div className="min-w-0 min-h-0 h-full overflow-hidden">{sidebar}</div>
 
       {inspectorMaximized ? null : (

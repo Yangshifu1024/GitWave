@@ -1,23 +1,12 @@
 import { useEffect, useState } from "react";
 import type { InteractiveRebaseAction, InteractiveRebaseTodo } from "@/lib/api";
-import {
-  executeInteractiveRebase,
-  formatAppError,
-  planInteractiveRebase,
-} from "@/lib/api";
+import { executeInteractiveRebase, formatAppError, planInteractiveRebase } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ACTIONS: InteractiveRebaseAction[] = [
-  "pick",
-  "reword",
-  "edit",
-  "squash",
-  "fixup",
-  "drop",
-];
+const ACTIONS: InteractiveRebaseAction[] = ["pick", "reword", "edit", "squash", "fixup", "drop"];
 
 interface InteractiveRebaseDialogProps {
   open: boolean;
@@ -63,7 +52,9 @@ export function InteractiveRebaseDialog({
 
   const updateAction = (index: number, action: InteractiveRebaseAction) => {
     setTodos((prev) =>
-      prev.map((t, i) => (i === index ? { ...t, action, message: action === "reword" ? t.message : t.message } : t)),
+      prev.map((t, i) =>
+        i === index ? { ...t, action, message: action === "reword" ? t.message : t.message } : t,
+      ),
     );
   };
 
@@ -109,7 +100,8 @@ export function InteractiveRebaseDialog({
     >
       <div className="flex flex-col gap-3 max-h-[60vh]">
         <p className="text-xs text-text-muted">
-          Drag to reorder. Actions: pick / reword / edit / squash / fixup / drop. Does not auto-push.
+          Drag to reorder. Actions: pick / reword / edit / squash / fixup / drop. Does not
+          auto-push.
         </p>
         {error ? <p className="text-xs text-danger">{error}</p> : null}
         {loading ? (
@@ -139,9 +131,7 @@ export function InteractiveRebaseDialog({
                     className="text-xs bg-bg-primary border border-border-subtle rounded px-1 py-0.5 text-text-primary"
                     value={todo.action}
                     disabled={busy}
-                    onChange={(e) =>
-                      updateAction(index, e.target.value as InteractiveRebaseAction)
-                    }
+                    onChange={(e) => updateAction(index, e.target.value as InteractiveRebaseAction)}
                   >
                     {ACTIONS.map((a) => (
                       <option key={a} value={a}>
@@ -157,7 +147,11 @@ export function InteractiveRebaseDialog({
                 {todo.action === "reword" || todo.action === "squash" ? (
                   <textarea
                     className="w-full text-xs font-mono bg-bg-primary border border-border-subtle rounded p-1.5 text-text-primary resize-y min-h-[48px]"
-                    placeholder={todo.action === "reword" ? "New commit message" : "Combined message (optional)"}
+                    placeholder={
+                      todo.action === "reword"
+                        ? "New commit message"
+                        : "Combined message (optional)"
+                    }
                     value={todo.message ?? ""}
                     disabled={busy}
                     onChange={(e) => updateMessage(index, e.target.value)}

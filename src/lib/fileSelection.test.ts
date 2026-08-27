@@ -22,17 +22,19 @@ describe("nextFileSelection", () => {
   });
 
   it("toggle adds or removes a path without moving the anchor", () => {
-    expect(
-      nextFileSelection(ordered, new Set(["a.ts"]), "c.ts", "toggle", "a.ts"),
-    ).toEqual({ selected: new Set(["a.ts", "c.ts"]), anchor: "a.ts" });
-    expect(
-      nextFileSelection(ordered, new Set(["a.ts", "c.ts"]), "c.ts", "toggle", "a.ts"),
-    ).toEqual({ selected: new Set(["a.ts"]), anchor: "a.ts" });
+    expect(nextFileSelection(ordered, new Set(["a.ts"]), "c.ts", "toggle", "a.ts")).toEqual({
+      selected: new Set(["a.ts", "c.ts"]),
+      anchor: "a.ts",
+    });
+    expect(nextFileSelection(ordered, new Set(["a.ts", "c.ts"]), "c.ts", "toggle", "a.ts")).toEqual(
+      { selected: new Set(["a.ts"]), anchor: "a.ts" },
+    );
   });
 
   it("range selects from the anchor to the clicked path", () => {
-    expect(
-      nextFileSelection(ordered, new Set(["a.ts"]), "c.ts", "range", "a.ts"),
-    ).toEqual({ selected: new Set(["a.ts", "b.ts", "c.ts"]), anchor: "a.ts" });
+    expect(nextFileSelection(ordered, new Set(["a.ts"]), "c.ts", "range", "a.ts")).toEqual({
+      selected: new Set(["a.ts", "b.ts", "c.ts"]),
+      anchor: "a.ts",
+    });
   });
 });

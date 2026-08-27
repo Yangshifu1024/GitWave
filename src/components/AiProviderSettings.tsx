@@ -91,7 +91,9 @@ export function AiProviderSettings({
         ai_provider: provider,
         ai_model: model.trim() || null,
         ai_base_url:
-          trimmedBase && trimmedBase !== defaultBaseUrl(provider) ? trimmedBase : trimmedBase || null,
+          trimmedBase && trimmedBase !== defaultBaseUrl(provider)
+            ? trimmedBase
+            : trimmedBase || null,
       };
       await updateWorkspaceSettings(workspaceId, settings);
       if (provider !== "ollama" && apiKey.trim()) {
@@ -125,108 +127,108 @@ export function AiProviderSettings({
       description="Workspace-scoped. Cloud keys use OS keychain (BYOK). AI never auto-commits."
       size="sm"
     >
-        <div className="flex flex-col gap-3">
-          <label className="text-xs text-text-secondary">
-            Provider
-            <select
-              className="mt-1 w-full h-8 rounded-md border border-border-default bg-bg-elevated px-2 text-sm"
-              value={provider}
-              onChange={(e) => {
-                const next = e.target.value as ProviderId;
-                setProvider(next);
-                setModel(defaultModel(next));
-                setBaseUrl(defaultBaseUrl(next));
+      <div className="flex flex-col gap-3">
+        <label className="text-xs text-text-secondary">
+          Provider
+          <select
+            className="mt-1 w-full h-8 rounded-md border border-border-default bg-bg-elevated px-2 text-sm"
+            value={provider}
+            onChange={(e) => {
+              const next = e.target.value as ProviderId;
+              setProvider(next);
+              setModel(defaultModel(next));
+              setBaseUrl(defaultBaseUrl(next));
+            }}
+          >
+            {PROVIDERS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <Input placeholder="Model" value={model} onChange={setModel} />
+
+        <div className="flex flex-col gap-1">
+          <Input placeholder="API base URL" value={baseUrl} onChange={setBaseUrl} />
+          <p className="text-[11px] text-text-muted">{baseUrlHint(provider)}</p>
+        </div>
+
+        {provider === "ollama" ? (
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                probeOllama(baseUrl.trim() || undefined)
+                  .then((models) => {
+                    setOllamaModels(models);
+                    setNotice(
+                      models.length
+                        ? `Found ${models.length} local model(s)`
+                        : "Ollama reachable but no models listed",
+                    );
+                  })
+                  .catch((e) => setError(formatAppError(e)));
               }}
             >
-              {PROVIDERS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <Input placeholder="Model" value={model} onChange={setModel} />
-
-          <div className="flex flex-col gap-1">
-            <Input placeholder="API base URL" value={baseUrl} onChange={setBaseUrl} />
-            <p className="text-[11px] text-text-muted">{baseUrlHint(provider)}</p>
-          </div>
-
-          {provider === "ollama" ? (
-            <>
+              Detect Ollama
+            </Button>
+            {ollamaModels.length > 0 ? (
+              <p className="text-xs text-text-muted truncate">{ollamaModels.join(", ")}</p>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Input
+              type="password"
+              placeholder={
+                keyStatus?.has_key ? "API key (leave blank to keep existing)" : "API key"
+              }
+              value={apiKey}
+              onChange={setApiKey}
+            />
+            {keyStatus?.has_key ? (
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="sm"
+                className="self-start text-danger"
                 onClick={() => {
-                  setError(null);
-                  probeOllama(baseUrl.trim() || undefined)
-                    .then((models) => {
-                      setOllamaModels(models);
-                      setNotice(
-                        models.length
-                          ? `Found ${models.length} local model(s)`
-                          : "Ollama reachable but no models listed",
-                      );
+                  void clearAiApiKey(workspaceId, provider)
+                    .then(() => {
+                      setNotice("API key cleared");
+                      void queryClient.invalidateQueries({
+                        queryKey: ["ai-key", workspaceId, provider],
+                      });
                     })
                     .catch((e) => setError(formatAppError(e)));
                 }}
               >
-                Detect Ollama
+                Clear stored key
               </Button>
-              {ollamaModels.length > 0 ? (
-                <p className="text-xs text-text-muted truncate">{ollamaModels.join(", ")}</p>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <Input
-                type="password"
-                placeholder={
-                  keyStatus?.has_key ? "API key (leave blank to keep existing)" : "API key"
-                }
-                value={apiKey}
-                onChange={setApiKey}
-              />
-              {keyStatus?.has_key ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="self-start text-danger"
-                  onClick={() => {
-                    void clearAiApiKey(workspaceId, provider)
-                      .then(() => {
-                        setNotice("API key cleared");
-                        void queryClient.invalidateQueries({
-                          queryKey: ["ai-key", workspaceId, provider],
-                        });
-                      })
-                      .catch((e) => setError(formatAppError(e)));
-                  }}
-                >
-                  Clear stored key
-                </Button>
-              ) : null}
-            </>
-          )}
+            ) : null}
+          </>
+        )}
 
-          {error ? <p className="text-xs text-danger">{error}</p> : null}
-          {notice ? <p className="text-xs text-text-secondary">{notice}</p> : null}
+        {error ? <p className="text-xs text-danger">{error}</p> : null}
+        {notice ? <p className="text-xs text-text-secondary">{notice}</p> : null}
 
-          <div className="flex justify-end gap-2 mt-2">
-            <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={saveMut.isPending}
-              onClick={() => saveMut.mutate()}
-            >
-              Save
-            </Button>
-          </div>
+        <div className="flex justify-end gap-2 mt-2">
+          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={saveMut.isPending}
+            onClick={() => saveMut.mutate()}
+          >
+            Save
+          </Button>
         </div>
-      </Modal>
+      </div>
+    </Modal>
   );
 }

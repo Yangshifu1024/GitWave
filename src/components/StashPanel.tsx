@@ -84,7 +84,12 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
 
   if (!workspaceId || !repoId) {
     return (
-      <p className={cn("text-text-muted", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
+      <p
+        className={cn(
+          "text-text-muted",
+          compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm",
+        )}
+      >
         Select a repository to manage stashes
       </p>
     );
@@ -92,7 +97,12 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
 
   if (loading) {
     return (
-      <p className={cn("text-text-muted italic", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm")}>
+      <p
+        className={cn(
+          "text-text-muted italic",
+          compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm",
+        )}
+      >
         Loading stashes…
       </p>
     );
@@ -131,9 +141,21 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
           compact ? "max-h-52" : "flex flex-1 min-h-0 overflow-hidden",
         )}
       >
-        <div className={cn("min-w-0", !compact && "flex-1 overflow-auto border-r border-border-subtle")}>
+        <div
+          className={cn(
+            "min-w-0",
+            !compact && "flex-1 overflow-auto border-r border-border-subtle",
+          )}
+        >
           {entries.length === 0 ? (
-            <p className={cn("text-text-muted", compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm px-4 text-center")}>
+            <p
+              className={cn(
+                "text-text-muted",
+                compact
+                  ? "px-3 py-1.5 text-xs"
+                  : "flex items-center justify-center h-full text-sm px-4 text-center",
+              )}
+            >
               {compact ? "No stashes" : "No stashes yet. Save uncommitted work with Stash."}
             </p>
           ) : (
@@ -205,7 +227,9 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
                 }
               >
                 <div className="flex flex-col min-w-0">
-                  <span className={cn("text-text-primary truncate", compact ? "text-xs" : "text-sm")}>
+                  <span
+                    className={cn("text-text-primary truncate", compact ? "text-xs" : "text-sm")}
+                  >
                     {`stash@{${e.index}}`} · {e.message || "(no message)"}
                   </span>
                   <span className="text-[10px] text-text-muted font-mono">{e.oid.slice(0, 7)}</span>

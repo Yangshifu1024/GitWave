@@ -32,7 +32,9 @@ export function useMacTitlebarWindow(dragZoneRef: RefObject<HTMLElement | null>)
 
       if (event.detail === 1) {
         event.preventDefault();
-        void getCurrentWindow().startDragging().catch(() => undefined);
+        void getCurrentWindow()
+          .startDragging()
+          .catch(() => undefined);
       }
     };
 
