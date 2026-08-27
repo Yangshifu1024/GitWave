@@ -45,7 +45,8 @@ use crate::infrastructure::git::interactive_rebase::{
 use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::remote::{
-    fetch as infra_fetch, pull as infra_pull, push as infra_push, SyncProgress,
+    fetch as infra_fetch, list_remotes as infra_list_remotes,
+    pull_with_options as infra_pull_with_options, push as infra_push, PullOptions, SyncProgress,
 };
 use crate::infrastructure::git::stash::{
     apply_stash as infra_apply_stash, drop_stash as infra_drop_stash,
@@ -812,11 +813,29 @@ pub fn pull(
     ctx: &AppContext,
     workspace_id: &str,
     remote: Option<String>,
+    branch: Option<String>,
+    rebase: bool,
+    stash: bool,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
+    let mut repo = ctx.open_repo(&repo_path)?;
+    infra_pull_with_options(
+        &mut repo,
+        remote.as_deref().unwrap_or("origin"),
+        PullOptions {
+            branch,
+            rebase,
+            stash,
+        },
+        on_progress,
+    )
+}
+
+pub fn list_remotes(ctx: &AppContext, workspace_id: &str) -> Result<Vec<String>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_pull(&repo, remote.as_deref().unwrap_or("origin"), on_progress)
+    infra_list_remotes(&repo)
 }
 
 pub fn push(

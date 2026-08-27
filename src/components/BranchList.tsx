@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BranchInfo } from "@/lib/api";
 import {
   abortInteractiveRebasePause,
@@ -11,6 +11,7 @@ import {
   getBranches,
   getWorkingCopy,
   interactiveRebasePaused,
+  listRemotes,
   listWorktrees,
   mergeBranch,
   mergeInProgress,
@@ -188,6 +189,13 @@ function BranchRow({
 
 type BranchNotice = { text: string; variant: "success" | "danger" };
 
+interface PullDialogState {
+  remote: string;
+  branch: string;
+  rebase: boolean;
+  stash: boolean;
+}
+
 interface BranchListProps {
   /** Fired when the user clicks a branch row, with the full branch (name + tip sha). */
   onBranchSelect?: (branch: BranchInfo) => void;
@@ -206,6 +214,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const [notice, setNotice] = useState<BranchNotice | null>(null);
   const [newName, setNewName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [pullDialog, setPullDialog] = useState<PullDialogState | null>(null);
   const [irebaseOnto, setIrebaseOnto] = useState<string | null>(null);
   const [irebasePaused, setIrebasePaused] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -423,6 +432,44 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const bannerError = error ?? wc.actionError;
 
+  const remotesQuery = useQuery({
+    queryKey: ["remotes", activeWorkspaceId],
+    queryFn: () => listRemotes(activeWorkspaceId!),
+    enabled: pullDialog !== null && Boolean(activeWorkspaceId),
+  });
+  const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data]);
+
+  const openPullDialog = () => {
+    const d = wc.data;
+    const upstream = d?.upstream ?? "";
+    const slash = upstream.indexOf("/");
+    setPullDialog({
+      remote: slash > 0 ? upstream.slice(0, slash) : "origin",
+      branch: slash > 0 ? upstream.slice(slash + 1) : (d?.branch ?? "main"),
+      rebase: false,
+      stash: false,
+    });
+  };
+
+  // The fetched remote list wins over the seeded default once it arrives.
+  useEffect(() => {
+    if (!pullDialog || remotes.length === 0) return;
+    if (!remotes.includes(pullDialog.remote)) {
+      setPullDialog({ ...pullDialog, remote: remotes[0]! });
+    }
+  }, [pullDialog, remotes]);
+
+  const remoteOptions = remotes.length > 0 ? remotes : [pullDialog?.remote ?? "origin"];
+  const branchOptions = (() => {
+    if (!pullDialog) return [];
+    const prefix = `${pullDialog.remote}/`;
+    const names = branches
+      .filter((b) => b.kind === "remote" && b.name.startsWith(prefix))
+      .map((b) => b.name.slice(prefix.length));
+    if (!names.includes(pullDialog.branch)) names.unshift(pullDialog.branch);
+    return names;
+  })();
+
   const visibleBranches = filterRemoteBranches(branches);
   const localBranches = visibleBranches.filter((b) => b.kind === "local");
   const remoteBranches = visibleBranches.filter((b) => b.kind === "remote");
@@ -515,14 +562,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
             <BranchSyncButtons
               ahead={wc.data?.ahead ?? 0}
               behind={wc.data?.behind ?? 0}
-              onPull={wc.pull}
+              onPull={openPullDialog}
               onPush={wc.push}
-              pullDisabled={
-                !activeRepoId ||
-                wc.isSyncBusy ||
-                (wc.data?.behind ?? 0) === 0 ||
-                wc.data?.branch === "(detached)"
-              }
+              pullDisabled={!activeRepoId || wc.isSyncBusy || wc.data?.branch === "(detached)"}
               pushDisabled={
                 !activeRepoId ||
                 wc.isSyncBusy ||
@@ -656,6 +698,99 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           <div className="flex justify-end">
             <Button variant="primary" size="sm" onClick={() => setSwitchDialog(null)}>
               OK
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {pullDialog ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setPullDialog(null);
+          }}
+          title="Pull"
+          description="Pull remote branches and merge them into your local branch"
+          size="sm"
+        >
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Remote</span>
+              <select
+                className="flex-1 min-w-0 bg-bg-primary border border-border-subtle rounded px-1.5 py-1 text-xs text-text-primary"
+                value={pullDialog.remote}
+                disabled={wc.isSyncBusy}
+                onChange={(e) => setPullDialog({ ...pullDialog, remote: e.target.value })}
+              >
+                {remoteOptions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
+              <select
+                className="flex-1 min-w-0 bg-bg-primary border border-border-subtle rounded px-1.5 py-1 text-xs text-text-primary"
+                value={pullDialog.branch}
+                disabled={wc.isSyncBusy}
+                onChange={(e) => setPullDialog({ ...pullDialog, branch: e.target.value })}
+              >
+                {branchOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {pullDialog.remote}/{b}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Into</span>
+              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
+                {wc.data?.branch ?? "—"}
+              </span>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-text-primary">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={pullDialog.rebase}
+                disabled={wc.isSyncBusy}
+                onChange={(e) => setPullDialog({ ...pullDialog, rebase: e.target.checked })}
+              />
+              Rebase instead of merge
+            </label>
+            <label className="flex items-center gap-2 text-xs text-text-primary">
+              <input
+                type="checkbox"
+                className="accent-accent"
+                checked={pullDialog.stash}
+                disabled={wc.isSyncBusy}
+                onChange={(e) => setPullDialog({ ...pullDialog, stash: e.target.checked })}
+              />
+              Stash and reapply local changes
+            </label>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setPullDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={wc.isSyncBusy}
+              onClick={() => {
+                const options = {
+                  remote: pullDialog.remote,
+                  branch: pullDialog.branch,
+                  rebase: pullDialog.rebase,
+                  stash: pullDialog.stash,
+                };
+                setPullDialog(null);
+                wc.pull(options);
+              }}
+            >
+              Pull
             </Button>
           </div>
         </Modal>

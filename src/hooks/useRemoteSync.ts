@@ -2,7 +2,14 @@ import { useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 
-import { fetchRemote, formatAppError, pullRemote, pushRemote, type SyncProgress } from "@/lib/api";
+import {
+  fetchRemote,
+  formatAppError,
+  pullRemote,
+  pushRemote,
+  type PullOptions,
+  type SyncProgress,
+} from "@/lib/api";
 import { useSyncStore } from "@/stores/syncStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
@@ -18,7 +25,7 @@ function ensureSyncProgressListener(): void {
 
 export interface UseRemoteSyncResult {
   fetch: () => void;
-  pull: () => void;
+  pull: (options?: PullOptions) => void;
   push: () => void;
   syncPending: { fetch: boolean; pull: boolean; push: boolean };
   isSyncBusy: boolean;
@@ -57,7 +64,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   });
 
   const pullMut = useMutation({
-    mutationFn: () => pullRemote(workspaceId!),
+    mutationFn: (options: PullOptions | undefined) => pullRemote(workspaceId!, options),
     onMutate: () => useSyncStore.getState().startOp("pull"),
     onSuccess: () => {
       invalidate();
@@ -82,9 +89,9 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       if (!workspaceId || isSyncBusy) return;
       fetchMut.mutate();
     },
-    pull: () => {
+    pull: (options?: PullOptions) => {
       if (!workspaceId || isSyncBusy) return;
-      pullMut.mutate();
+      pullMut.mutate(options);
     },
     push: () => {
       if (!workspaceId || isSyncBusy) return;

@@ -539,8 +539,26 @@ export function fetchRemote(workspaceId: string, remote?: string): Promise<void>
   return invoke<void>("cmd_fetch", { workspaceId, remote: remote ?? null });
 }
 
-export function pullRemote(workspaceId: string, remote?: string): Promise<void> {
-  return invoke<void>("cmd_pull", { workspaceId, remote: remote ?? null });
+export interface PullOptions {
+  remote?: string;
+  /** Remote-tracking branch short name (e.g. `main`); defaults to the configured upstream. */
+  branch?: string;
+  rebase?: boolean;
+  stash?: boolean;
+}
+
+export function pullRemote(workspaceId: string, options?: PullOptions): Promise<void> {
+  return invoke<void>("cmd_pull", {
+    workspaceId,
+    remote: options?.remote ?? null,
+    branch: options?.branch ?? null,
+    rebase: options?.rebase ?? false,
+    stash: options?.stash ?? false,
+  });
+}
+
+export function listRemotes(workspaceId: string): Promise<string[]> {
+  return invoke<string[]>("cmd_list_remotes", { workspaceId });
 }
 
 export function pushRemote(workspaceId: string, remote?: string): Promise<void> {

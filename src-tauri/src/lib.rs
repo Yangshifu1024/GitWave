@@ -556,6 +556,9 @@ async fn cmd_pull(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     remote: Option<String>,
+    branch: Option<String>,
+    rebase: Option<bool>,
+    stash: Option<bool>,
 ) -> Result<(), AppError> {
     use application::use_cases::pull;
     use infrastructure::git::remote::SyncProgress;
@@ -571,10 +574,35 @@ async fn cmd_pull(
     let workspaces = Arc::clone(&ctx.workspaces);
     tauri::async_runtime::spawn_blocking(move || {
         let local_ctx = AppContext::new(workspaces);
-        pull(&local_ctx, &workspace_id, remote, on_progress)
+        pull(
+            &local_ctx,
+            &workspace_id,
+            remote,
+            branch,
+            rebase.unwrap_or(false),
+            stash.unwrap_or(false),
+            on_progress,
+        )
     })
     .await
     .map_err(|e| AppError::Unknown(format!("pull task join: {e}")))?
+}
+
+#[tauri::command]
+async fn cmd_list_remotes(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<String>, AppError> {
+    use application::use_cases::list_remotes;
+    use std::sync::Arc;
+
+    let workspaces = Arc::clone(&ctx.workspaces);
+    tauri::async_runtime::spawn_blocking(move || {
+        let local_ctx = AppContext::new(workspaces);
+        list_remotes(&local_ctx, &workspace_id)
+    })
+    .await
+    .map_err(|e| AppError::Unknown(format!("list remotes task join: {e}")))?
 }
 
 #[tauri::command]
@@ -822,6 +850,7 @@ pub fn run() {
             cmd_ignore_path,
             cmd_fetch,
             cmd_pull,
+            cmd_list_remotes,
             cmd_push,
             cmd_list_stashes,
             cmd_save_stash,
