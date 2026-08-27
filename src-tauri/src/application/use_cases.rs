@@ -479,7 +479,9 @@ pub fn get_commit_log(
 pub fn get_workdir_diff(ctx: &AppContext, workspace_id: &str) -> Result<DiffSummary> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_diff_workdir_to_index(&repo)
+    let unstaged = infra_diff_workdir_to_index(&repo)?;
+    let staged = infra_diff_index_to_head(&repo)?;
+    Ok(staged.merge(unstaged))
 }
 
 /// Get diff between a commit and its parent.

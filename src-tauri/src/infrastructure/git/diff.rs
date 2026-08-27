@@ -28,6 +28,12 @@ impl DiffSummary {
             total_deletions,
         }
     }
+
+    pub fn merge(self, other: Self) -> Self {
+        let mut files = self.files;
+        files.extend(other.files);
+        Self::new(files)
+    }
 }
 
 /// Diff the working tree against the index (unstaged changes).
@@ -203,6 +209,7 @@ fn diff_to_files(diff: &Diff) -> Result<Vec<FileDiff>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::diff::FileDiff;
     use crate::infrastructure::git::test_helpers::build_linear_repo;
     use std::fs;
 
@@ -272,5 +279,23 @@ mod tests {
         cleanup(&path);
 
         assert_eq!(summary.files.len(), 0);
+    }
+
+    #[test]
+    fn diff_summary_merge_concatenates_files_and_totals() {
+        let file = |path: &str, additions: u32, deletions: u32| FileDiff {
+            path: path.into(),
+            old_sha: None,
+            new_sha: None,
+            additions,
+            deletions,
+            hunks: vec![],
+        };
+        let merged = DiffSummary::new(vec![file("a.ts", 3, 1)]).merge(DiffSummary::new(vec![
+            file("b.ts", 2, 4),
+        ]));
+        assert_eq!(merged.files.len(), 2);
+        assert_eq!(merged.total_additions, 5);
+        assert_eq!(merged.total_deletions, 5);
     }
 }

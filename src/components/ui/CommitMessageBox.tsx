@@ -10,6 +10,8 @@ export interface CommitMessageBoxProps {
   onAiGenerate?: () => void;
   amendMessage?: string | null;
   disabled?: boolean;
+  /** `inline` puts actions beside the textarea for the bottom commit bar. */
+  layout?: "stack" | "inline";
   className?: string;
 }
 
@@ -24,6 +26,7 @@ export function CommitMessageBox({
   onAiGenerate,
   amendMessage = null,
   disabled = false,
+  layout = "stack",
   className,
 }: CommitMessageBoxProps): React.JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -39,79 +42,82 @@ export function CommitMessageBox({
   };
 
   const canSubmit = value.trim().length > 0 && !disabled;
+  const inline = layout === "inline";
+
+  const actions = (
+    <div className={cn("flex items-center gap-2", inline && "shrink-0")}>
+      <Button
+        variant="primary"
+        size="sm"
+        disabled={!canSubmit}
+        onClick={onSubmit}
+        className={inline ? undefined : "flex-1"}
+      >
+        {amendMessage != null ? "Amend commit" : "Commit"}
+      </Button>
+
+      {amendMessage != null && (
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            onChange(amendMessage);
+            textareaRef.current?.focus();
+          }}
+          title="Prefill with last commit message"
+        >
+          Amend
+        </Button>
+      )}
+
+      {onAiGenerate && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onAiGenerate}
+          title="Generate commit message with AI"
+          aria-label="Generate commit message with AI"
+        >
+          <Sparkles size={16} />
+        </Button>
+      )}
+    </div>
+  );
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.currentTarget.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="feat: your commit message here…"
-        disabled={disabled}
-        rows={4}
-        maxLength={500}
-        className={cn(
-          "flex-1 w-full resize-none",
-          "rounded-md border border-border-default bg-bg-elevated",
-          "px-3 py-2 text-sm text-text-primary placeholder:text-text-muted",
-          "transition-colors duration-200",
-          "focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2",
-          "disabled:opacity-50 disabled:cursor-not-allowed",
-          amendMessage != null && "border-warning/50",
-        )}
-        aria-label="Commit message"
-      />
-
-      {/* Action buttons */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="primary"
-          size="sm"
-          disabled={!canSubmit}
-          onClick={onSubmit}
-          className="flex-1"
-        >
-          {amendMessage != null ? "Amend commit" : "Commit"}
-        </Button>
-
-        {amendMessage != null && (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={disabled}
-            onClick={() => {
-              onChange(amendMessage);
-              textareaRef.current?.focus();
-            }}
-            title="Prefill with last commit message"
-          >
-            Amend
-          </Button>
-        )}
-
-        {onAiGenerate && (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={onAiGenerate}
-            title="Generate commit message with AI"
-            aria-label="Generate commit message with AI"
-          >
-            <Sparkles size={16} />
-          </Button>
-        )}
+    <div className={cn("flex gap-2", inline ? "flex-row items-start" : "flex-col", className)}>
+      <div className={cn("flex flex-col gap-1", inline && "flex-1 min-w-0")}>
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.currentTarget.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="feat: your commit message here…"
+          disabled={disabled}
+          rows={inline ? 2 : 4}
+          maxLength={500}
+          className={cn(
+            "w-full resize-none",
+            "rounded-md border border-border-default bg-bg-elevated",
+            "px-3 py-2 text-sm text-text-primary placeholder:text-text-muted",
+            "transition-colors duration-200",
+            "focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2",
+            "disabled:opacity-50 disabled:cursor-not-allowed",
+            amendMessage != null && "border-warning/50",
+          )}
+          aria-label="Commit message"
+        />
+        <p className="text-xs text-text-muted text-right min-h-[1rem]">
+          {value.length > 0 && value.length < 10
+            ? `${value.length} chars`
+            : value.length >= 72
+              ? `${value.length} chars (first line > 72)`
+              : null}
+        </p>
       </div>
-
-      {/* Character count hint */}
-      <p className="text-xs text-text-muted text-right">
-        {value.length > 0 && value.length < 10
-          ? `${value.length} chars`
-          : value.length >= 72
-            ? `${value.length} chars (first line > 72)`
-            : null}
-      </p>
+      {actions}
     </div>
   );
 }

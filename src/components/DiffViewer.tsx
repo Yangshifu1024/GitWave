@@ -4,7 +4,9 @@ import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { BlameView } from "@/components/BlameView";
+import { filterDiffSummary } from "@/lib/diff";
 import { cn } from "@/lib/utils";
+import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
 type DiffViewMode = "unified" | "split";
 type PanelMode = "diff" | "blame";
@@ -267,10 +269,14 @@ function FileDiffView({
 export function DiffViewer({
   commitOid,
   workdir = false,
-  path: _path,
+  path,
 }: DiffViewerProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const { data: workingCopy } = useWorkingCopy();
+  const fileSignature = workdir
+    ? (workingCopy?.files.map((f) => `${f.staged}:${f.path}:${f.kind}`).join("|") ?? "")
+    : "";
   const [diff, setDiff] = useState<DiffSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<DiffViewMode>("unified");
@@ -310,7 +316,14 @@ export function DiffViewer({
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspaceId, activeRepoId, commitOid, workdir]);
+  }, [activeWorkspaceId, activeRepoId, commitOid, workdir, fileSignature]);
+
+  useEffect(() => {
+    setPanel("diff");
+    setBlamePath(null);
+  }, [path]);
+
+  const visible = diff ? filterDiffSummary(diff, path) : null;
 
   if (!activeWorkspaceId) {
     return (
@@ -360,10 +373,14 @@ export function DiffViewer({
     );
   }
 
-  if (!diff || diff.files.length === 0) {
+  if (!visible || visible.files.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        {workdir ? "No uncommitted changes" : "No diff available"}
+      <div className="flex items-center justify-center h-full text-text-muted text-sm px-4 text-center">
+        {path
+          ? `No diff for ${path}`
+          : workdir
+            ? "No uncommitted changes"
+            : "No diff available"}
       </div>
     );
   }
@@ -373,10 +390,10 @@ export function DiffViewer({
       {/* Toolbar */}
       <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-bg-primary border-b border-border-subtle">
         <span className="text-sm text-text-secondary">
-          {diff.files.length} file{diff.files.length !== 1 ? "s" : ""} changed
+          {visible.files.length} file{visible.files.length !== 1 ? "s" : ""} changed
         </span>
-        <span className="text-success text-sm">+{diff.total_additions}</span>
-        <span className="text-danger text-sm">-{diff.total_deletions}</span>
+        <span className="text-success text-sm">+{visible.total_additions}</span>
+        <span className="text-danger text-sm">-{visible.total_deletions}</span>
         <div className="ml-auto flex gap-1">
           <Button
             type="button"
@@ -401,7 +418,7 @@ export function DiffViewer({
 
       {/* Files */}
       <div className="p-4">
-        {diff.files.map((file, i) => (
+        {visible.files.map((file, i) => (
           <FileDiffView
             key={i}
             fileDiff={file}

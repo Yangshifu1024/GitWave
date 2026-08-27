@@ -22,6 +22,7 @@ import { BranchList } from "@/components/BranchList";
 import { StashPanel } from "@/components/StashPanel";
 import { WorktreePanel } from "@/components/WorktreePanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
+import { ChangesPanel } from "@/components/ChangesPanel";
 
 function App(): React.JSX.Element {
   const [version, setVersion] = useState<string>("…");
@@ -30,16 +31,29 @@ function App(): React.JSX.Element {
     repoId: string;
     sha: string;
   } | null>(null);
+  const [workdirSelection, setWorkdirSelection] = useState<{
+    repoId: string;
+    path: string;
+  } | null>(null);
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
 
   const selectedCommitOid =
     commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;
+  const selectedWorkdirPath =
+    workdirSelection && workdirSelection.repoId === activeRepoId ? workdirSelection.path : null;
 
   const handleCommitSelect = (sha: string): void => {
     if (!activeRepoId) return;
+    setWorkdirSelection(null);
     setCommitSelection({ repoId: activeRepoId, sha });
+  };
+
+  const handleWorkdirFileSelect = (path: string): void => {
+    if (!activeRepoId) return;
+    setCommitSelection(null);
+    setWorkdirSelection({ repoId: activeRepoId, path });
   };
 
   // Initialize theme immediately so the <html> class is correct on first render
@@ -122,6 +136,8 @@ function App(): React.JSX.Element {
             <FeatureNav
               selectedCommitOid={selectedCommitOid}
               onCommitSelect={handleCommitSelect}
+              selectedWorkdirPath={selectedWorkdirPath}
+              onWorkdirFileSelect={handleWorkdirFileSelect}
             />
           </Pane>
 
@@ -129,13 +145,16 @@ function App(): React.JSX.Element {
 
           {/* Main: 30% */}
           <Pane initialSize="30%" minSize={240}>
-            <MainContent selectedCommitOid={selectedCommitOid} />
+            <MainContent
+              selectedCommitOid={selectedCommitOid}
+              selectedWorkdirPath={selectedWorkdirPath}
+            />
           </Pane>
         </Split>
       </div>
 
       {/* ── Working Copy Bar ─────────────────────────────────────────────── */}
-      {showWorkingCopy && <WorkingCopyBar repoId={activeRepoId} initialHeight={120} />}
+      {showWorkingCopy && <WorkingCopyBar repoId={activeRepoId} />}
       <ConflictPanel />
     </div>
   );
@@ -186,16 +205,21 @@ function SshKeyManagerModalWrapper({ onClose }: { onClose: () => void }): React.
 function FeatureNav({
   selectedCommitOid,
   onCommitSelect,
+  selectedWorkdirPath,
+  onWorkdirFileSelect,
 }: {
   selectedCommitOid: string | null;
   onCommitSelect: (sha: string) => void;
+  selectedWorkdirPath: string | null;
+  onWorkdirFileSelect: (path: string) => void;
 }): React.JSX.Element {
-  const [activeTab, setActiveTab] = useState("history");
+  const [activeTab, setActiveTab] = useState("changes");
 
   return (
     <div className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-hidden">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full min-h-0">
         <TabsList className="shrink-0 px-2">
+          <TabsTrigger value="changes">Changes</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="branches">Branches</TabsTrigger>
           <TabsTrigger value="stash">Stash</TabsTrigger>
@@ -203,6 +227,10 @@ function FeatureNav({
           <TabsTrigger value="remotes">Remotes</TabsTrigger>
           <TabsTrigger value="worktrees">Worktrees</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="changes" className="flex-1 min-h-0 overflow-hidden p-0">
+          <ChangesPanel selectedPath={selectedWorkdirPath} onSelectFile={onWorkdirFileSelect} />
+        </TabsContent>
 
         <TabsContent value="history" className="flex-1 min-h-0 overflow-hidden p-0">
           <CommitGraph selectedSha={selectedCommitOid} onCommitSelect={onCommitSelect} />
@@ -253,8 +281,10 @@ function FeatureNav({
 /** Main content area — shows diff for selected commit or working copy */
 function MainContent({
   selectedCommitOid,
+  selectedWorkdirPath,
 }: {
   selectedCommitOid: string | null;
+  selectedWorkdirPath: string | null;
 }): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -294,7 +324,11 @@ function MainContent({
       {selectedCommitOid ? (
         <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
       ) : (
-        <DiffViewer key={activeRepoId} workdir={true} />
+        <DiffViewer
+          key={activeRepoId}
+          workdir={true}
+          path={selectedWorkdirPath ?? undefined}
+        />
       )}
     </main>
   );

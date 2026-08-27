@@ -13,7 +13,7 @@ export interface FileChange {
 
 export interface FileListItemProps {
   change: FileChange;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>) => void;
   onStageToggle?: () => void;
   selected?: boolean;
   className?: string;
@@ -34,10 +34,13 @@ export function FileListItem({
 
   return (
     <div
-      role="button"
+      role="option"
+      aria-selected={selected}
       tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => e.key === "Enter" && onClick?.()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onClick?.(e);
+      }}
       className={cn(
         "flex items-center gap-2 px-3 py-1.5",
         "rounded-md transition-colors duration-150",

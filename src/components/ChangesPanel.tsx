@@ -1,0 +1,197 @@
+import { useState } from "react";
+import { ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { FileListItem } from "@/components/ui/FileListItem";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { formatAppError, type FileChange } from "@/lib/api";
+import { useWorkingCopy } from "@/hooks/useWorkingCopy";
+import { modifierFromPointerEvent, nextFileSelection } from "@/lib/fileSelection";
+
+export interface ChangesPanelProps {
+  selectedPath: string | null;
+  onSelectFile: (path: string) => void;
+}
+
+function FileSection({
+  title,
+  actionLabel,
+  actionVariant,
+  files,
+  emptyLabel,
+  selectedPath,
+  onSelectFile,
+  onStageToggle,
+  onBulkAction,
+}: {
+  title: string;
+  actionLabel: string;
+  actionVariant: "primary" | "secondary";
+  files: FileChange[];
+  emptyLabel: string;
+  selectedPath: string | null;
+  onSelectFile: (path: string) => void;
+  onStageToggle: (file: FileChange) => void;
+  onBulkAction: (paths: string[]) => void;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [anchor, setAnchor] = useState<string | null>(null);
+
+  const orderedPaths = files.map((file) => file.path);
+  const selectedInSection = orderedPaths.filter((path) => selected.has(path));
+
+  const handleFileClick = (
+    path: string,
+    event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    const next = nextFileSelection(
+      orderedPaths,
+      selected,
+      path,
+      modifierFromPointerEvent(event),
+      anchor,
+    );
+    setSelected(next.selected);
+    setAnchor(next.anchor);
+    onSelectFile(path);
+  };
+
+  const handleBulk = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (selectedInSection.length === 0) return;
+    onBulkAction(selectedInSection);
+    setSelected(new Set());
+  };
+
+  return (
+    <div
+      className={cn("flex flex-col min-h-0 border-b border-border-subtle", open ? "flex-1" : "shrink-0")}
+      onKeyDown={(event) => {
+        if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "a") return;
+        if (event.shiftKey || files.length === 0) return;
+        event.preventDefault();
+        setSelected(new Set(files.map((file) => file.path)));
+      }}
+    >
+      <div className="shrink-0 flex items-center gap-1 pr-1">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          className={cn(
+            "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
+            "text-xs font-medium text-text-muted uppercase tracking-wide",
+            "hover:bg-bg-primary/60 hover:text-text-secondary",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+          )}
+        >
+          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {title} ({files.length})
+        </button>
+        <Button
+          type="button"
+          variant={actionVariant}
+          size="sm"
+          className="shrink-0 mx-1.5 min-w-[4.5rem]"
+          disabled={selectedInSection.length === 0}
+          onClick={handleBulk}
+          title={`${actionLabel} selected files`}
+        >
+          {actionLabel}
+        </Button>
+      </div>
+      {open ? (
+        <div
+          role="listbox"
+          aria-label={title}
+          aria-multiselectable="true"
+          className="flex-1 min-h-0 overflow-auto px-1 pb-2 select-none"
+        >
+          {files.length === 0 ? (
+            <p className="px-2 py-1 text-xs text-text-muted italic">{emptyLabel}</p>
+          ) : (
+            files.map((file) => (
+              <FileListItem
+                key={`${file.staged ? "s" : "u"}-${file.path}`}
+                change={file}
+                selected={selected.has(file.path) || selectedPath === file.path}
+                onClick={(event) => handleFileClick(file.path, event)}
+                onStageToggle={() => onStageToggle(file)}
+              />
+            ))
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function ChangesPanel({
+  selectedPath,
+  onSelectFile,
+}: ChangesPanelProps): React.JSX.Element {
+  const {
+    repoId,
+    isLoading,
+    isError,
+    error,
+    actionError,
+    unstagedFiles,
+    stagedFiles,
+    stage,
+    unstage,
+  } = useWorkingCopy();
+
+  if (!repoId) {
+    return (
+      <EmptyState
+        icon={<FolderOpen size={24} />}
+        title="No repository selected"
+        description="Select a repository to see uncommitted changes."
+        className="py-8"
+      />
+    );
+  }
+
+  if (isLoading && unstagedFiles.length === 0 && stagedFiles.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <span className="text-xs text-text-muted italic">Loading…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      {(actionError || isError) && (
+        <div className="shrink-0 px-3 py-1 text-xs text-danger border-b border-border-subtle">
+          {actionError ?? (error ? formatAppError(error) : "Failed to load working copy")}
+        </div>
+      )}
+
+      <FileSection
+        title="Unstaged"
+        actionLabel="Stage"
+        actionVariant="primary"
+        files={unstagedFiles}
+        emptyLabel="No unstaged changes"
+        selectedPath={selectedPath}
+        onSelectFile={onSelectFile}
+        onStageToggle={(file) => stage([file.path])}
+        onBulkAction={(paths) => stage(paths)}
+      />
+      <FileSection
+        title="Staged"
+        actionLabel="Unstage"
+        actionVariant="secondary"
+        files={stagedFiles}
+        emptyLabel="No staged changes"
+        selectedPath={selectedPath}
+        onSelectFile={onSelectFile}
+        onStageToggle={(file) => unstage([file.path])}
+        onBulkAction={(paths) => unstage(paths)}
+      />
+    </div>
+  );
+}
