@@ -10,11 +10,9 @@ import {
   updateWorkspaceSettings,
   type WorkspaceSettings,
 } from "@/lib/api";
-import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { Sparkles } from "lucide-react";
 
 const PROVIDERS = [
   { id: "openai", label: "OpenAI" },
@@ -42,10 +40,18 @@ function baseUrlHint(provider: ProviderId): string {
   return "Default: https://api.openai.com (compatible /v1/chat/completions)";
 }
 
-export function AiProviderSettings(): React.JSX.Element {
-  const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+export function AiProviderSettings({
+  workspaceId,
+  workspaceName,
+  open,
+  onOpenChange,
+}: {
+  workspaceId: string | null;
+  workspaceName?: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}): React.JSX.Element | null {
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [provider, setProvider] = useState<ProviderId>("openai");
   const [model, setModel] = useState(defaultModel("openai"));
   const [baseUrl, setBaseUrl] = useState(defaultBaseUrl("openai"));
@@ -102,40 +108,23 @@ export function AiProviderSettings(): React.JSX.Element {
     onError: (e) => setError(formatAppError(e)),
   });
 
-  if (!workspaceId) {
-    return (
-      <Button variant="ghost" size="sm" className="p-1" disabled title="Select a workspace first">
-        <Sparkles size={16} />
-      </Button>
-    );
-  }
+  if (!workspaceId) return null;
 
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="p-1"
-        onClick={() => setOpen(true)}
-        aria-label="AI provider settings"
-        title="AI provider"
-      >
-        <Sparkles size={16} />
-      </Button>
-
-      <Modal
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) {
-            setError(null);
-            setNotice(null);
-          }
-        }}
-        title="AI provider"
-        description="Workspace-scoped. Cloud keys use OS keychain (BYOK). AI never auto-commits."
-        size="sm"
-      >
+    <Modal
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) {
+          setError(null);
+          setNotice(null);
+          setApiKey("");
+        }
+      }}
+      title={workspaceName ? `AI provider · ${workspaceName}` : "AI provider"}
+      description="Workspace-scoped. Cloud keys use OS keychain (BYOK). AI never auto-commits."
+      size="sm"
+    >
         <div className="flex flex-col gap-3">
           <label className="text-xs text-text-secondary">
             Provider
@@ -225,7 +214,7 @@ export function AiProviderSettings(): React.JSX.Element {
           {notice ? <p className="text-xs text-text-secondary">{notice}</p> : null}
 
           <div className="flex justify-end gap-2 mt-2">
-            <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>
+            <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
               Close
             </Button>
             <Button
@@ -239,6 +228,5 @@ export function AiProviderSettings(): React.JSX.Element {
           </div>
         </div>
       </Modal>
-    </>
   );
 }

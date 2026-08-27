@@ -57,7 +57,11 @@
   --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.18), 0 2px 4px rgba(0, 0, 0, 0.08);
   --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.08);
 
-  /* z-index — see docs/design/01-tokens.md §7 */
+  /* z-index — `--z-*` maps to `z-*` utilities in Tailwind v4 */
+  --z-elevated: 10;
+  --z-popover: 100;
+  --z-modal: 1000;
+  --z-toast: 2000;
   --z-index-elevated: 10;
   --z-index-popover: 100;
   --z-index-modal: 1000;

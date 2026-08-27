@@ -24,7 +24,7 @@ export function Tooltip({
             side={side}
             sideOffset={4}
             className={cn(
-              "z-popover rounded radius-sm",
+              "z-popover rounded-sm",
               "bg-bg-elevated border border-border-default",
               "px-2 py-1 text-xs text-text-primary",
               "shadow-modal",

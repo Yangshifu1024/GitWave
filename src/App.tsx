@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Split, Pane, ResizeHandle } from "@/components/ui/Split";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { RepoList } from "@/components/RepoList";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { WindowControls } from "@/components/WindowControls";
@@ -74,17 +73,10 @@ function App(): React.JSX.Element {
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <header
         data-tauri-drag-region
-        className={`flex items-center shrink-0 h-12 ${
+        className={`relative z-20 flex items-center shrink-0 h-12 ${
           isMacOS() ? "pl-20 pr-4" : "px-4"
         } gap-4 bg-bg-secondary border-b border-border-subtle`}
       >
-        {/* Left: Workspace switcher (DropdownMenu: select + create).
-            drag.js auto-blocks <button> children, so no explicit
-            no-drag-region needed on the wrapper. */}
-        <div className="shrink-0">
-          <WorkspaceSwitcherDropdown />
-        </div>
-
         {/* Center: app title (absolutely centered regardless of sibling widths) */}
         <h1 className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-text-primary pointer-events-none">
           GitWave
@@ -95,7 +87,6 @@ function App(): React.JSX.Element {
             no-drag-region needed on the wrapper. */}
         <div className="ml-auto flex items-center gap-1">
           <ThemeToggle />
-          <AiProviderSettings />
           <SshKeyManagerPopover />
           <Button variant="ghost" size="sm" className="p-1" aria-label="Help">
             <HelpCircle size={16} />
@@ -115,17 +106,22 @@ function App(): React.JSX.Element {
         <Split direction="horizontal">
           {/* Sidebar: 20% */}
           <Pane initialSize="20%" minSize={180} maxSize={480}>
-            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-auto">
-              {activeWorkspaceId ? (
-                <RepoList workspaceId={activeWorkspaceId} />
-              ) : (
-                <EmptyState
-                  icon={<FolderOpen size={24} />}
-                  title="No workspace selected"
-                  description="Select or create a workspace to see repos."
-                  className="flex-1"
-                />
-              )}
+            <aside className="flex flex-col h-full bg-bg-secondary border-r border-border-subtle overflow-hidden">
+              <div className="shrink-0 border-b border-border-subtle">
+                <WorkspaceSwitcherDropdown />
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                {activeWorkspaceId ? (
+                  <RepoList workspaceId={activeWorkspaceId} />
+                ) : (
+                  <EmptyState
+                    icon={<FolderOpen size={24} />}
+                    title="No workspace selected"
+                    description="Select or create a workspace above to see repos."
+                    className="flex-1"
+                  />
+                )}
+              </div>
             </aside>
           </Pane>
 
