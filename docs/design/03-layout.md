@@ -10,7 +10,7 @@
 │  Client Work - gitwave - main（居中）                             ⌘K  ☀ │
 ├────────────┬──────────────────────────────────┬─────────────────────────┤
 │            │                                  │                         │
-│ Sidebar    │  History graph (flex)            │  Inspector (~480px)     │
+│ Sidebar    │  History graph (flex)            │  Inspector (~500px)     │
 │ (w: 320px) │                                  │                         │
 │            │                                  │                         │
 │            │                                  │                         │
@@ -151,11 +151,11 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 ### 5.1 布局
 
-中栏永远是 History graph（Tide Lanes，行高 28px）。右侧 Inspector（~480px）显示选中 commit 或 working-copy 文件的 diff。
+中栏永远是 History graph（Tide Lanes，行高 28px）。右侧 Inspector（~500px）显示选中 commit 或 working-copy 文件的 diff。
 
 ```
 ┌──────────────────────────────┬─────────────────────┐
-│ Commit Graph (flex)          │ Inspector (~480px)  │
+│ Commit Graph (flex)          │ Inspector (~500px)  │
 │   Tide Lanes + commit 行     │  sha · author · date│
 │                              │  message            │
 │                              │  unified / split    │
@@ -186,13 +186,13 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Local Changes(7)    WORKSPACE    REPOSITORY    BRANCH                        │
-│                   [⇱New][✎Rename][✦AI][⌫Del] [⩚Init][⤓Clone]… [⎇New][⇣][⇡]  │
+│  LOCAL      WORKSPACE    REPOSITORY    BRANCH                                │
+│ [Changes] [⇱New][✎Rename][✦AI][⌫Del] [⩚Init][⤓Clone]… [⎇New][⇣][⇡]          │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- 最左 `Local Changes(n)`（n 为变更文件条目数；n = 0 或无活动仓库时禁用；点击弹出 WorkingCopyModal）
-- 三组操作水平居中；每组两行：第一行组头（居中大写），第二行操作按钮（图标在前、文字在后）
+- 四组操作水平居中；每组两行：第一行组头（居中大写），第二行操作按钮（图标在前、文字在后）
+- Local 组：Changes（打开 WorkingCopyModal）——干净时绿色 `Changes`，有变更时黄色 `Changes(n)`（n 为变更文件数）；无活动仓库时禁用
 - Workspace：New / Rename / AI Provider / Delete（作用于活动 workspace）
 - Repository：Init / Clone / Add Local / Fetch
 - Branch：New Branch（当前 tip）/ Pull（Fork 式对话框：Remote / Branch / Into + rebase + stash）/ Push

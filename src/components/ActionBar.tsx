@@ -86,6 +86,7 @@ function ActionBarButton({
   onClick,
   disabled = false,
   danger = false,
+  tone,
 }: {
   icon: React.ReactNode;
   /** Visible button text (short — the group header carries the context). */
@@ -95,8 +96,18 @@ function ActionBarButton({
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  /** Text color override for stateful actions (e.g. clean vs dirty). */
+  tone?: "success" | "warning";
 }): React.JSX.Element {
   const hint = title ?? label;
+  const toneClass =
+    tone === "success"
+      ? "text-success hover:bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)]"
+      : tone === "warning"
+        ? "text-warning hover:bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)]"
+        : danger
+          ? "hover:text-danger"
+          : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary";
   return (
     <Tooltip content={hint}>
       <button
@@ -105,10 +116,9 @@ function ActionBarButton({
         aria-label={hint}
         onClick={onClick}
         className={cn(
-          "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs text-text-secondary",
-          "hover:bg-bg-elevated hover:text-text-primary",
+          "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs",
+          toneClass,
           "disabled:opacity-40 disabled:pointer-events-none",
-          danger && "hover:text-danger",
         )}
       >
         {icon}
@@ -397,21 +407,18 @@ export function ActionBar(): React.JSX.Element {
   return (
     <>
       <div className="flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
-        <button
-          type="button"
-          disabled={localChangesDisabled}
-          onClick={() => setWcModalOpen(true)}
-          className={cn(
-            "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs font-medium",
-            "bg-accent/10 text-accent hover:bg-accent/20",
-            "disabled:opacity-40 disabled:pointer-events-none",
-          )}
-          aria-label={`Local changes: ${changeCount}`}
-        >
-          <FileDiff size={14} />
-          Local Changes({changeCount})
-        </button>
         <div className="flex-1" />
+        <ActionBarGroup label="Local">
+          <ActionBarButton
+            icon={<FileDiff size={14} />}
+            label={changeCount > 0 ? `Changes(${changeCount})` : "Changes"}
+            title="Local changes"
+            tone={changeCount > 0 ? "warning" : "success"}
+            disabled={localChangesDisabled}
+            onClick={() => setWcModalOpen(true)}
+          />
+        </ActionBarGroup>
+        <GroupDivider />
         <ActionBarGroup label="Workspace">
           <ActionBarButton
             icon={<FolderPlus size={14} />}
