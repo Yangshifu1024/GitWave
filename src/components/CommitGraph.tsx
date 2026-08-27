@@ -7,9 +7,11 @@ import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { FolderOpen } from "lucide-react";
+import { Circle, FolderOpen, GitBranch, Tag } from "lucide-react";
 
 const ROW_H = 28;
+const INITIAL_LIMIT = 200;
+const PAGE_SIZE = 300;
 const LANE_GAP = 14;
 const NODE_R = 3.2;
 const LANE_COLORS = [
@@ -44,147 +46,196 @@ function laneX(lane: number): number {
 
 function RefBadge({
   r,
+  lane,
   emphasize = false,
 }: {
   r: CommitRef;
+  lane: number;
   emphasize?: boolean;
 }): React.JSX.Element {
-  const styles =
-    r.kind === "head"
-      ? "bg-branch-current text-text-inverse border-branch-current"
-      : r.kind === "local_branch"
-        ? emphasize
-          ? "bg-branch-current/20 text-branch-current border-branch-current/50 font-semibold"
-          : "bg-accent/10 text-accent border-accent/30"
-        : r.kind === "tag"
-          ? "bg-warning/15 text-warning border-warning/40"
-          : "bg-bg-elevated text-text-muted border-border-default";
+  // Base chrome shared by all badges.
+  const chrome =
+    "inline-flex items-center gap-1 shrink-0 px-1 py-0 rounded text-[9px] leading-none font-medium border";
+  const title = r.kind.replace("_", " ");
 
+  // HEAD marker.
+  if (r.kind === "head") {
+    return (
+      <span
+        className={cn(chrome, "bg-branch-current text-text-inverse border-branch-current")}
+        title={title}
+      >
+        {r.name}
+      </span>
+    );
+  }
+
+  // Tags: keep the warning scheme, prefixed with a small tag icon (Fork-style).
+  if (r.kind === "tag") {
+    return (
+      <span className={cn(chrome, "bg-warning/15 text-warning border-warning/40")} title={title}>
+        <Tag size={8} />
+        {r.name}
+      </span>
+    );
+  }
+
+  // Current branch keeps the accent treatment.
+  if (emphasize) {
+    return (
+      <span
+        className={cn(
+          chrome,
+          "bg-branch-current/20 text-branch-current border-branch-current/50 font-semibold",
+        )}
+        title={title}
+      >
+        {r.name}
+      </span>
+    );
+  }
+
+  // Branch badges: tinted with the lane color their line uses (Fork-style).
+  const lineColor = laneColor(lane);
   return (
     <span
-      className={cn(
-        "inline-flex items-center shrink-0 px-1 py-0 rounded text-[9px] leading-none font-medium border",
-        styles,
-      )}
-      title={r.kind.replace("_", " ")}
+      className={chrome}
+      style={{
+        backgroundColor: `color-mix(in srgb, ${lineColor} 14%, transparent)`,
+        borderColor: `color-mix(in srgb, ${lineColor} 45%, transparent)`,
+        color: lineColor,
+      }}
+      title={title}
     >
+      {r.kind === "remote_branch" ? <Circle size={8} /> : <GitBranch size={8} />}
       {r.name}
     </span>
   );
 }
 
-/** True when a newer commit's edge keeps `lane` live into this row from above. */
-function laneContinuesFromAbove(
-  commits: CommitSummary[],
-  shaToIndex: Map<string, number>,
-  index: number,
-  lane: number,
-): boolean {
-  for (let i = 0; i < index; i++) {
-    const c = commits[i];
-    if (!c) continue;
-    for (const pSha of c.parents) {
-      const pIdx = shaToIndex.get(pSha);
-      if (pIdx === undefined || pIdx < index) continue;
-      // Edge from row i crosses/arrives at rows >= index.
-      if (c.lane === lane) return true;
-      const parent = commits[pIdx];
-      if (parent && parent.lane === lane) return true;
-    }
+interface RowArt {
+  /** Lanes drawn as a full-height vertical line through this row. */
+  verticals: number[];
+  /** Lanes whose edge arrives into this row's node from the row top. */
+  incoming: number[];
+  /** Straight stub from the node down to the row bottom (first parent). */
+  hasStub: boolean;
+  /** Lanes curving away from the node to the row bottom (additional parents). */
+  outCurves: number[];
+}
+
+const EMPTY_ROW_ART: RowArt = { verticals: [], incoming: [], hasStub: false, outCurves: [] };
+
+/**
+ * Edge routing à la Fork: every child→parent edge travels down the CHILD's
+ * lane (additional parents depart sideways toward the parent's lane) and
+ * curves into the parent's node in the parent's row. Tips are always solid
+ * (stub from the node down), so parallel branch lanes render as long
+ * continuous lines instead of per-row elbows.
+ */
+function computeRowArt(commits: CommitSummary[], shaToIndex: Map<string, number>): RowArt[] {
+  const art: RowArt[] = commits.map(() => ({
+    verticals: [],
+    incoming: [],
+    hasStub: false,
+    outCurves: [],
+  }));
+
+  for (let i = 0; i < commits.length; i++) {
+    const c = commits[i]!;
+    // A dangling stub still hints at parents beyond the loaded window.
+    if (c.parents.length > 0) art[i]!.hasStub = true;
+
+    const parentRows = c.parents
+      .map((p) => shaToIndex.get(p))
+      .filter((v): v is number => v !== undefined);
+
+    parentRows.forEach((p, k) => {
+      const parent = commits[p]!;
+      // First parent travels on the child's lane; additional parents depart
+      // toward the parent's lane within the child's row.
+      const travelLane = k === 0 ? c.lane : parent.lane;
+      for (let r = i + 1; r < p; r++) {
+        const row = art[r]!;
+        if (!row.verticals.includes(travelLane)) row.verticals.push(travelLane);
+      }
+      const arrival = art[p]!;
+      if (!arrival.incoming.includes(travelLane)) arrival.incoming.push(travelLane);
+      if (k > 0 && !art[i]!.outCurves.includes(parent.lane)) {
+        art[i]!.outCurves.push(parent.lane);
+      }
+    });
   }
-  return false;
+
+  return art;
 }
 
 interface GraphRowProps {
   commit: CommitSummary;
-  commits: CommitSummary[];
-  shaToIndex: Map<string, number>;
-  rowIndex: number;
+  art: RowArt;
   maxLane: number;
-  activeLanes: number[];
   isHead: boolean;
 }
 
-/** Per-row SVG: through-lines, merge elbows, commit node (newest-first). */
-function GraphRow({
-  commit,
-  commits,
-  shaToIndex,
-  rowIndex,
-  maxLane,
-  activeLanes,
-  isHead,
-}: GraphRowProps): React.JSX.Element {
+/** Per-row SVG: through-lines, incoming/outgoing curves, commit node (newest-first). */
+function GraphRow({ commit, art, maxLane, isHead }: GraphRowProps): React.JSX.Element {
   const width = laneX(maxLane) + LANE_GAP / 2;
   const cy = ROW_H / 2;
   const cx = laneX(commit.lane);
   const color = isHead ? "var(--color-branch-current)" : laneColor(commit.lane);
 
-  const parentEdges = commit.parents
-    .map((pSha) => {
-      const pIdx = shaToIndex.get(pSha);
-      if (pIdx === undefined) return null;
-      const parent = commits[pIdx];
-      if (!parent) return null;
-      return { lane: parent.lane, color: laneColor(parent.lane) };
-    })
-    .filter((e): e is { lane: number; color: string } => e !== null);
-
-  const parentLanes = [...new Map(parentEdges.map((e) => [e.lane, e])).values()];
-  // Tip: nothing above → no upper stub. Root / orphan parent: no lower stub.
-  const fromAbove = laneContinuesFromAbove(commits, shaToIndex, rowIndex, commit.lane);
-
   return (
     <svg width={width} height={ROW_H} className="shrink-0 overflow-visible" aria-hidden>
-      {activeLanes.map((lane) => {
+      {art.verticals.map((lane) => (
+        <line
+          key={`thru-${lane}`}
+          x1={laneX(lane)}
+          y1={0}
+          x2={laneX(lane)}
+          y2={ROW_H}
+          stroke={laneColor(lane)}
+          strokeWidth={1.5}
+        />
+      ))}
+
+      {/* Edges arriving into this node from above */}
+      {art.incoming.map((lane) => {
         const x = laneX(lane);
-        const c = laneColor(lane);
-        if (lane === commit.lane) {
-          // Branch tip: circle is the terminus — skip upper half.
-          if (!fromAbove) return null;
-          return (
-            <path
-              key={`thru-${lane}`}
-              d={`M ${x} 0 C ${x} ${cy * 0.35}, ${x} ${cy * 0.65}, ${x} ${cy - NODE_R}`}
-              fill="none"
-              stroke={c}
-              strokeWidth={1.5}
-            />
-          );
-        }
-        return (
+        return x === cx ? (
+          <line
+            key={`in-${lane}`}
+            x1={x}
+            y1={0}
+            x2={x}
+            y2={cy - NODE_R}
+            stroke={laneColor(lane)}
+            strokeWidth={1.5}
+          />
+        ) : (
           <path
-            key={`thru-${lane}`}
-            d={`M ${x} 0 C ${x} ${ROW_H * 0.35}, ${x} ${ROW_H * 0.65}, ${x} ${ROW_H}`}
+            key={`in-${lane}`}
+            d={`M ${x} 0 C ${x} ${cy * 0.5}, ${cx} ${cy * 0.5}, ${cx} ${cy - NODE_R}`}
             fill="none"
-            stroke={c}
+            stroke={laneColor(lane)}
             strokeWidth={1.5}
           />
         );
       })}
 
-      {/* Only draw downward stubs/curves when a parent is in the loaded log. */}
-      {parentLanes.map(({ lane: pLane, color: pColor }) => {
-        const px = laneX(pLane);
-        if (pLane === commit.lane) {
-          return (
-            <path
-              key={`edge-${pLane}`}
-              d={`M ${cx} ${cy + NODE_R} C ${cx} ${cy + (ROW_H - cy) * 0.45}, ${cx} ${ROW_H * 0.85}, ${cx} ${ROW_H}`}
-              fill="none"
-              stroke={color}
-              strokeWidth={1.5}
-            />
-          );
-        }
-        const midY = cy + (ROW_H - cy) * 0.62;
-        const wave = (px - cx) * 0.18;
+      {/* First-parent stub straight down */}
+      {art.hasStub ? (
+        <line x1={cx} y1={cy + NODE_R} x2={cx} y2={ROW_H} stroke={color} strokeWidth={1.5} />
+      ) : null}
+
+      {/* Additional parents depart sideways toward their lane */}
+      {art.outCurves.map((lane) => {
+        const x = laneX(lane);
         return (
           <path
-            key={`edge-${pLane}`}
-            d={`M ${cx} ${cy + NODE_R} C ${cx + wave} ${midY}, ${px - wave} ${midY}, ${px} ${ROW_H}`}
+            key={`out-${lane}`}
+            d={`M ${cx} ${cy + NODE_R} C ${cx} ${ROW_H * 0.7}, ${x} ${ROW_H * 0.7}, ${x} ${ROW_H}`}
             fill="none"
-            stroke={pColor}
+            stroke={color}
             strokeWidth={1.5}
           />
         );
@@ -224,11 +275,8 @@ function GraphRow({
 
 interface CommitRowProps {
   commit: CommitSummary;
-  commits: CommitSummary[];
-  shaToIndex: Map<string, number>;
-  rowIndex: number;
+  art: RowArt;
   maxLane: number;
-  activeLanes: number[];
   onSelect: (sha: string) => void;
   isSelected: boolean;
   isHead: boolean;
@@ -236,11 +284,8 @@ interface CommitRowProps {
 
 function CommitRow({
   commit,
-  commits,
-  shaToIndex,
-  rowIndex,
+  art,
   maxLane,
-  activeLanes,
   onSelect,
   isSelected,
   isHead,
@@ -263,15 +308,7 @@ function CommitRow({
       )}
       style={{ height: `${ROW_H}px` }}
     >
-      <GraphRow
-        commit={commit}
-        commits={commits}
-        shaToIndex={shaToIndex}
-        rowIndex={rowIndex}
-        maxLane={maxLane}
-        activeLanes={activeLanes}
-        isHead={isHead}
-      />
+      <GraphRow commit={commit} art={art} maxLane={maxLane} isHead={isHead} />
 
       <span className="font-mono text-[10px] text-text-muted w-14 shrink-0 tabular-nums">
         {shortSha(commit.sha)}
@@ -283,6 +320,7 @@ function CommitRow({
             <RefBadge
               key={`${r.kind}:${r.name}`}
               r={r}
+              lane={commit.lane}
               emphasize={isHead && r.kind !== "remote_branch"}
             />
           ))}
@@ -311,33 +349,6 @@ function CommitRow({
   );
 }
 
-function computeActiveLanes(
-  commits: CommitSummary[],
-  shaToIndex: Map<string, number>,
-  index: number,
-): number[] {
-  const lanes = new Set<number>();
-  const commit = commits[index];
-  if (!commit) return [];
-
-  lanes.add(commit.lane);
-
-  for (let i = 0; i < index; i++) {
-    const c = commits[i];
-    if (!c) continue;
-    for (const pSha of c.parents) {
-      const pIdx = shaToIndex.get(pSha);
-      if (pIdx !== undefined && pIdx >= index) {
-        const parent = commits[pIdx];
-        if (parent) lanes.add(parent.lane);
-        if (pIdx > index) lanes.add(c.lane);
-      }
-    }
-  }
-
-  return [...lanes].sort((a, b) => a - b);
-}
-
 interface CommitGraphProps {
   onCommitSelect?: (sha: string) => void;
   selectedSha?: string | null;
@@ -357,6 +368,7 @@ export function CommitGraph({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localSelected, setLocalSelected] = useState<string | null>(null);
+  const [limit, setLimit] = useState(INITIAL_LIMIT);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const selectedSha = selectedShaProp !== undefined ? selectedShaProp : localSelected;
@@ -370,27 +382,45 @@ export function CommitGraph({
 
   const maxLane = useMemo(() => commits.reduce((m, c) => Math.max(m, c.lane), 0), [commits]);
 
-  const activeLanesByIndex = useMemo(
-    () => commits.map((_, i) => computeActiveLanes(commits, shaToIndex, i)),
-    [commits, shaToIndex],
-  );
+  const rowArtByIndex = useMemo(() => computeRowArt(commits, shaToIndex), [commits, shaToIndex]);
+
+  // Pagination key: context (workspace/repo/epoch) switch resets the window;
+  // growing `limit` refetches a larger prefix of the same deterministic walk.
+  const fetchKey = `${activeWorkspaceId ?? ""}|${activeRepoId ?? ""}|${historyEpoch}`;
+  const prevFetchKeyRef = React.useRef<string | null>(null);
 
   useEffect(() => {
+    const isNewContext = prevFetchKeyRef.current !== fetchKey;
+    prevFetchKeyRef.current = fetchKey;
     if (!activeWorkspaceId || !activeRepoId) {
       setCommits([]);
       setError(null);
       return;
     }
+    if (isNewContext && limit !== INITIAL_LIMIT) {
+      // Repo / epoch switched: drop the previous window and let this state
+      // change re-trigger the fetch with the initial size.
+      setLimit(INITIAL_LIMIT);
+      return;
+    }
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    getCommitLog(activeWorkspaceId, 200)
+    getCommitLog(activeWorkspaceId, limit)
       .then(setCommits)
       .catch((e) => {
-        setCommits([]);
-        setError(formatAppError(e));
+        if (!cancelled) {
+          setCommits([]);
+          setError(formatAppError(e));
+        }
       })
-      .finally(() => setLoading(false));
-  }, [activeWorkspaceId, activeRepoId, historyEpoch]);
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId, activeRepoId, historyEpoch, limit, fetchKey]);
 
   const virtualizer = useVirtualizer({
     count: commits.length,
@@ -398,6 +428,17 @@ export function CommitGraph({
     estimateSize: () => ROW_H,
     overscan: 10,
   });
+
+  // "Load more" fires while scrolling near the bottom; a short page means the
+  // walk reached the root.
+  const hasMore = commits.length >= limit;
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el || loading || !hasMore) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 600) {
+      setLimit((l) => l + PAGE_SIZE);
+    }
+  };
 
   // Locate request from the sidebar (branch click): center the commit in the
   // viewport. One-shot per seq — history refreshes must not yank the scroll
@@ -446,7 +487,7 @@ export function CommitGraph({
     );
   }
 
-  if (loading) {
+  if (loading && commits.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
         Loading history...
@@ -471,7 +512,7 @@ export function CommitGraph({
   }
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto">
+    <div ref={scrollRef} className="h-full overflow-auto" onScroll={handleScroll}>
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
@@ -496,11 +537,8 @@ export function CommitGraph({
             >
               <CommitRow
                 commit={commit}
-                commits={commits}
-                shaToIndex={shaToIndex}
-                rowIndex={virtualRow.index}
+                art={rowArtByIndex[virtualRow.index] ?? EMPTY_ROW_ART}
                 maxLane={maxLane}
-                activeLanes={activeLanesByIndex[virtualRow.index] ?? [commit.lane]}
                 onSelect={handleSelect}
                 isSelected={selectedSha === commit.sha}
                 isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
@@ -509,6 +547,14 @@ export function CommitGraph({
           );
         })}
       </div>
+
+      {loading && commits.length > 0 ? (
+        <div className="py-2 text-center text-[10px] text-text-muted">Loading older commits…</div>
+      ) : !hasMore && commits.length > 0 ? (
+        <div className="py-2 text-center text-[10px] text-text-muted">
+          End of history · {commits.length} commits
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -86,61 +86,117 @@ pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
         });
     }
 
-    // columns[i] = sha expected next in this lane (looking downward / older).
-    let mut columns: Vec<Option<String>> = Vec::new();
+    // columns[i] = (sha, branch tag) expected next in this lane. The tag is
+    // the branch lineage the reservation belongs to: a commit carrying its
+    // own branch ref only consumes a reservation for that same branch — a
+    // stacked branch tip starts a fresh lane (Fork-style staircase).
+    let mut columns: Vec<Option<(String, Option<String>)>> = Vec::new();
     let mut out: Vec<CommitSummary> = Vec::with_capacity(raw.len());
 
     for c in raw {
-        // Prefer an existing column reserved for this sha; else first free / new.
-        let lane: usize = columns
+        let refs = refs_by_sha.get(&c.sha).cloned().unwrap_or_default();
+        let branch_refs: Vec<&str> = refs
             .iter()
-            .position(|slot| slot.as_deref() == Some(c.sha.as_str()))
-            .unwrap_or_else(|| {
-                columns
-                    .iter()
-                    .position(|slot| slot.is_none())
-                    .unwrap_or_else(|| {
-                        columns.push(None);
-                        columns.len() - 1
-                    })
+            .filter(|r| {
+                matches!(
+                    r.kind,
+                    CommitRefKind::LocalBranch | CommitRefKind::RemoteBranch
+                )
+            })
+            .map(|r| r.name.as_str())
+            .collect();
+
+        let matching: Vec<usize> = columns
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| slot.as_ref().is_some_and(|(sha, _)| sha == c.sha.as_str()))
+            .map(|(i, _)| i)
+            .collect();
+
+        let lane: usize = if !matching.is_empty() {
+            let own = matching.iter().copied().find(|i| {
+                columns[*i]
+                    .as_ref()
+                    .and_then(|(_, tag)| tag.as_deref())
+                    .is_some_and(|tag| branch_refs.contains(&tag))
             });
+            match own {
+                Some(i) => i,
+                // Tip of a stacked branch: the reserved line belongs to a
+                // different branch — start a fresh lane.
+                None if !branch_refs.is_empty() => {
+                    columns.push(None);
+                    columns.len() - 1
+                }
+                None => matching[0],
+            }
+        } else {
+            // First free lane. Branch tips pin their parent reservation on it
+            // below, so sibling tips each end up on their own lane while
+            // freed lanes get reused (Fork-style).
+            columns
+                .iter()
+                .position(|slot| slot.is_none())
+                .unwrap_or_else(|| {
+                    columns.push(None);
+                    columns.len() - 1
+                })
+        };
 
         if lane >= columns.len() {
             columns.resize(lane + 1, None);
         }
 
+        // Lineage flowing down this lane: the commit's primary branch ref,
+        // or the lane's existing tag for plain (ref-less) commits.
+        let lineage = primary_branch(&refs)
+            .map(str::to_string)
+            .or_else(|| columns[lane].as_ref().and_then(|(_, tag)| tag.clone()));
+
         // This commit occupies `lane`; clear every column that was waiting for it
         // (merge of multiple tips into one commit).
         for slot in columns.iter_mut() {
-            if slot.as_deref() == Some(c.sha.as_str()) {
+            if slot.as_ref().is_some_and(|(sha, _)| sha == c.sha.as_str()) {
                 *slot = None;
             }
         }
 
-        // Place parents: first parent continues on `lane`; others open new lanes.
-        // If a parent is already reserved elsewhere, leave it (edge will curve).
+        // Place parents. First parent: always pin the lane's reservation to
+        // it — the tip's edge occupies this lane while travelling down to the
+        // parent, which is what keeps sibling tips on separate lanes (and
+        // lets a reserved-elsewhere parent still be reached by the curve).
+        // Additional parents: open a lane tagged with the parent's own branch;
+        // if the parent is already reserved elsewhere, leave it (edge curves).
         for (pi, parent) in c.parents.iter().enumerate() {
+            if pi == 0 {
+                columns[lane] = Some((parent.clone(), lineage.clone()));
+                continue;
+            }
             let already = columns
                 .iter()
-                .any(|slot| slot.as_deref() == Some(parent.as_str()));
+                .any(|slot| slot.as_ref().is_some_and(|(sha, _)| sha == parent.as_str()));
             if already {
                 continue;
             }
-            if pi == 0 {
-                columns[lane] = Some(parent.clone());
-            } else {
-                let free = columns
-                    .iter()
-                    .position(|slot| slot.is_none())
-                    .unwrap_or_else(|| {
-                        columns.push(None);
-                        columns.len() - 1
-                    });
-                columns[free] = Some(parent.clone());
-            }
+            let free = columns
+                .iter()
+                .position(|slot| slot.is_none())
+                .unwrap_or_else(|| {
+                    columns.push(None);
+                    columns.len() - 1
+                });
+            let parent_tag = refs_by_sha.get(parent).and_then(|rs| {
+                rs.iter()
+                    .find(|r| {
+                        matches!(
+                            r.kind,
+                            CommitRefKind::LocalBranch | CommitRefKind::RemoteBranch
+                        )
+                    })
+                    .map(|r| r.name.clone())
+            });
+            columns[free] = Some((parent.clone(), parent_tag));
         }
-
-        let refs = refs_by_sha.get(&c.sha).cloned().unwrap_or_default();
 
         out.push(CommitSummary {
             sha: c.sha,
@@ -155,6 +211,18 @@ pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
     }
 
     Ok(out)
+}
+
+/// Primary branch lineage name for a commit (first local/remote branch ref).
+fn primary_branch(refs: &[CommitRef]) -> Option<&str> {
+    refs.iter()
+        .find(|r| {
+            matches!(
+                r.kind,
+                CommitRefKind::LocalBranch | CommitRefKind::RemoteBranch
+            )
+        })
+        .map(|r| r.name.as_str())
 }
 
 /// Map commit SHA → decorations (local/remote branches, tags, HEAD).
@@ -475,6 +543,76 @@ mod tests {
         assert_ne!(
             merge.lane, secondary_commit.lane,
             "merge curve requires secondary parent on another lane"
+        );
+    }
+
+    #[test]
+    fn commit_log_stacked_branch_tips_get_staircase_lanes() {
+        let (path, repo) = build_linear_repo(3);
+        // Stacked branches like renovate's: main@v2 (HEAD), b1@v1, b0@v0 —
+        // each older commit is the tip of a different branch.
+        let v1 = repo
+            .revparse_single("HEAD~1")
+            .unwrap()
+            .peel(git2::ObjectType::Commit)
+            .unwrap();
+        repo.branch("b1", v1.as_commit().unwrap(), false).unwrap();
+        let v0 = repo
+            .revparse_single("HEAD~2")
+            .unwrap()
+            .peel(git2::ObjectType::Commit)
+            .unwrap();
+        repo.branch("b0", v0.as_commit().unwrap(), false).unwrap();
+
+        let log = commit_log(&repo, 100).unwrap();
+        cleanup(&path);
+
+        let lanes: Vec<u32> = log.iter().map(|c| c.lane).collect();
+        assert_eq!(
+            lanes,
+            vec![0, 1, 2],
+            "each stacked branch tip should start a fresh lane, got {lanes:?}"
+        );
+    }
+
+    #[test]
+    fn commit_log_sibling_branch_tips_get_distinct_lanes() {
+        let (path, repo) = build_linear_repo(2); // v0 <- v1(main)
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        let parent = repo
+            .revparse_single("HEAD")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        let tree = parent.tree().unwrap();
+
+        // Two sibling commits, both children of the same parent (like a fan
+        // of one-commit renovate/* branches).
+        for (name, message) in [("s1", "s1"), ("s2", "s2")] {
+            repo.commit(
+                Some(format!("refs/heads/{name}").as_str()),
+                &sig,
+                &sig,
+                message,
+                &tree,
+                &[&parent],
+            )
+            .unwrap();
+        }
+
+        let log = commit_log(&repo, 100).unwrap();
+        cleanup(&path);
+
+        let lane_of = |msg: &str| {
+            log.iter()
+                .find(|c| c.message_summary == msg)
+                .expect("sibling commit in log")
+                .lane
+        };
+        assert_ne!(
+            lane_of("s1"),
+            lane_of("s2"),
+            "sibling branch tips must not share a lane"
         );
     }
 
