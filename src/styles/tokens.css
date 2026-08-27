@@ -53,10 +53,11 @@
 
   /* fonts */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Cantarell, Ubuntu,
-    "Helvetica Neue", system-ui, sans-serif;
+    "Roboto", "Segoe UI", "Helvetica Neue", Arial, "Microsoft YaHei", "PingFang SC",
+    "Noto Sans CJK SC", sans-serif;
   --font-mono:
-    "IBM Plex Mono", "SF Mono", Menlo, Monaco, Consolas, "Cascadia Code", ui-monospace, monospace;
+    "Roboto Mono", "SF Mono", Menlo, Consolas, "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+    monospace;
 
   /* radius */
   --radius-sm: 4px;
