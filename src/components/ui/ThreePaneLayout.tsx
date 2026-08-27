@@ -1,7 +1,7 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-const HANDLE_PX = 2;
+const HANDLE_PX = 1;
 
 interface ThreePaneLayoutProps {
   sidebar: ReactNode;
@@ -85,8 +85,8 @@ export function ThreePaneLayout({
   initialSidebarWidth = 320,
   sidebarMin = 320,
   sidebarMax = 480,
-  initialInspectorWidth = 360,
-  inspectorMin = 240,
+  initialInspectorWidth = 480,
+  inspectorMin = 360,
   inspectorMax = 720,
   mainMin = 280,
   inspectorClassName,

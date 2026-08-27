@@ -21,6 +21,7 @@ import {
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { gateCheckout } from "@/lib/checkoutGate";
+import { filterRemoteBranches } from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -188,7 +189,8 @@ function BranchRow({
 type BranchNotice = { text: string; variant: "success" | "danger" };
 
 interface BranchListProps {
-  onBranchSelect?: (name: string) => void;
+  /** Fired when the user clicks a branch row, with the full branch (name + tip sha). */
+  onBranchSelect?: (branch: BranchInfo) => void;
 }
 
 export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Element {
@@ -229,7 +231,10 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   }, [notice]);
 
   useEffect(() => {
+    // Repo switch: drop the previous repo's rows immediately so a click during
+    // the reload window can't select a branch that belongs to the old repo.
     setSelectedName(null);
+    setBranches([]);
   }, [activeRepoId]);
 
   useEffect(() => {
@@ -248,7 +253,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         if (cancelled) return;
         setBranches(updated);
         setSelectedName((prev) => {
-          if (prev && updated.some((b) => b.name === prev)) return prev;
+          if (prev && filterRemoteBranches(updated).some((b) => b.name === prev)) return prev;
           return updated.find((b) => b.is_current)?.name ?? null;
         });
       })
@@ -318,7 +323,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       showNotice(`Checked out ${name}`);
     }
     setSelectedName(name);
-    onBranchSelect?.(name);
     void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
   };
 
@@ -361,7 +365,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const handleSelect = (name: string) => {
     setSelectedName(name);
-    onBranchSelect?.(name);
+    const branch = branches.find((b) => b.name === name);
+    if (branch) onBranchSelect?.(branch);
   };
 
   const handleDelete = (name: string) =>
@@ -418,8 +423,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const bannerError = error ?? wc.actionError;
 
-  const localBranches = branches.filter((b) => b.kind === "local");
-  const remoteBranches = branches.filter((b) => b.kind === "remote");
+  const visibleBranches = filterRemoteBranches(branches);
+  const localBranches = visibleBranches.filter((b) => b.kind === "local");
+  const remoteBranches = visibleBranches.filter((b) => b.kind === "remote");
 
   const renderBody = (): React.JSX.Element => {
     if (!activeWorkspaceId) {

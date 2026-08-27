@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { Toolbar } from "@/components/Toolbar";
@@ -11,6 +11,8 @@ import { SidebarSection } from "@/components/ui/SidebarSection";
 import { WorkingCopyBar } from "@/components/ui/WorkingCopyBar";
 import { FolderOpen } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
+import type { BranchInfo } from "@/lib/api";
+import type { LocateRequest } from "@/lib/commitLocate";
 import { CommitGraph } from "@/components/CommitGraph";
 import { DiffViewer } from "@/components/DiffViewer";
 import { BranchList } from "@/components/BranchList";
@@ -31,6 +33,9 @@ function App(): React.JSX.Element {
     path: string;
     staged: boolean;
   } | null>(null);
+  /** One-shot request for CommitGraph to center a commit; `seq` re-fires on repeated clicks. */
+  const [locateRequest, setLocateRequest] = useState<LocateRequest | null>(null);
+  const locateSeq = useRef(0);
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -66,6 +71,17 @@ function App(): React.JSX.Element {
     setCommitSelection({ repoId: activeRepoId, sha });
   };
 
+  const handleBranchSelect = (branch: BranchInfo): void => {
+    if (!activeRepoId || !branch.last_commit_sha) return;
+    handleCommitSelect(branch.last_commit_sha);
+    locateSeq.current += 1;
+    setLocateRequest({
+      repoId: activeRepoId,
+      sha: branch.last_commit_sha,
+      seq: locateSeq.current,
+    });
+  };
+
   const handleWorkdirFileSelect = (path: string, staged: boolean): void => {
     if (!activeRepoId) return;
     setCommitSelection(null);
@@ -87,12 +103,12 @@ function App(): React.JSX.Element {
               "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
           )}
           sidebar={
-            <aside className="flex flex-col h-full bg-bg-secondary overflow-x-hidden overflow-y-auto select-none pane-edge-right">
+            <aside className="flex flex-col h-full bg-bg-primary overflow-x-hidden overflow-y-auto no-scrollbar select-none pane-edge-right">
               <WorkspaceList />
               {activeWorkspaceId ? (
                 <>
                   <RepoList workspaceId={activeWorkspaceId} />
-                  <BranchList />
+                  <BranchList onBranchSelect={handleBranchSelect} />
                   <SidebarSection title="Stash" defaultOpen={false}>
                     <StashPanel compact />
                   </SidebarSection>
@@ -117,8 +133,12 @@ function App(): React.JSX.Element {
             </aside>
           }
           main={
-            <section className="flex flex-col h-full bg-bg-primary overflow-hidden">
-              <CommitGraph selectedSha={selectedCommitOid} onCommitSelect={handleCommitSelect} />
+            <section className="flex flex-col h-full bg-bg-panel overflow-hidden">
+              <CommitGraph
+                selectedSha={selectedCommitOid}
+                onCommitSelect={handleCommitSelect}
+                locateRequest={locateRequest}
+              />
             </section>
           }
           inspector={
@@ -156,7 +176,7 @@ function MainContent({
 
   if (!activeWorkspaceId) {
     return (
-      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated pane-edge-left">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-panel pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
           title="Select a workspace"
@@ -169,7 +189,7 @@ function MainContent({
 
   if (!activeRepoId) {
     return (
-      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated pane-edge-left">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-panel pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
           title="No repository selected"
@@ -181,7 +201,7 @@ function MainContent({
   }
 
   return (
-    <main className="flex flex-col h-full min-h-0 bg-bg-elevated pane-edge-left overflow-hidden">
+    <main className="flex flex-col h-full min-h-0 bg-bg-panel pane-edge-left overflow-hidden">
       {selectedCommitOid ? (
         <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
       ) : (

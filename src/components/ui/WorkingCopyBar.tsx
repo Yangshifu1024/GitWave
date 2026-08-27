@@ -69,7 +69,7 @@ export function WorkingCopyBar({
         <div
           className={cn(
             "flex items-center justify-between px-3.5",
-            "bg-bg-secondary border-t border-border-subtle",
+            "bg-bg-primary border-t border-border-subtle",
             "shadow-[0_-4px_16px_color-mix(in_srgb,var(--color-text-primary)_5%,transparent)]",
             "text-xs text-text-muted",
             className,
@@ -100,7 +100,7 @@ export function WorkingCopyBar({
         <div
           className={cn(
             "flex items-center justify-between px-3.5 gap-2",
-            "bg-bg-secondary border-t border-border-subtle",
+            "bg-bg-primary border-t border-border-subtle",
             "shadow-[0_-4px_16px_color-mix(in_srgb,var(--color-text-primary)_5%,transparent)]",
             "text-xs text-text-muted",
             className,
@@ -138,7 +138,7 @@ export function WorkingCopyBar({
     <>
       <div
         className={cn(
-          "flex flex-col shrink-0 bg-bg-secondary border-t border-border-subtle",
+          "flex flex-col shrink-0 bg-bg-primary border-t border-border-subtle",
           "shadow-[0_-4px_16px_color-mix(in_srgb,var(--color-text-primary)_5%,transparent)]",
           "transition-[height] duration-200 ease-out",
           className,
