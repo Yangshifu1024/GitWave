@@ -61,6 +61,20 @@
 - HEAD 与当前分支（emphasize）保持既有 accent 处理
 - `RefBadge` 增加 `lane` prop，CommitRow 传入 `commit.lane`
 
+## 追加 3：主链提交被误甩侧 lane（用户截图反馈 5，2026-08-28）
+
+GitWave 自身仓库出现怪异曲线：`fix: ci` 等主链提交被甩到 lane 1/2 再折回。根因：阶梯
+规则对**任何**带分支引用且预留 tag 不匹配的提交生效——但仓库里大量主链提交背着已合并 /
+落后的分支引用（如 fix/window-controls-active-repo 指在 main 链上），它们的预留 tag 是
+主干 lineage（"main"），与自身分支引用不匹配 → 误开新 lane，主干折线。
+
+- 修复：引入 `is_tip`（加载列表中没有任何提交以它为父）——**只有真 tip 才允许阶梯开新
+  lane**；有子提交的提交必然处于连续线上，一律沿子提交的预留走
+- 堆叠链测试语义修正：链式提交（每个都有子节点）应保持连续 lane [0,0,0]（原来的
+  [0,1,2] 预期本身就是错误约定），测试更名为 `commit_log_branch_ref_chain_stays_continuous`
+- 兄弟扇出测试不受影响（兄弟 tip 无子节点，仍各开新 lane）
+- cargo fmt / clippy（0 警告）/ test 113 通过
+
 ## 验证
 
 - [x] `npm run typecheck` / `lint` / `format:check` / `test`（43）/ `build` 全绿

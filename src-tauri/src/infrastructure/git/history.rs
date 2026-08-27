@@ -88,9 +88,12 @@ pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
 
     // columns[i] = (sha, branch tag) expected next in this lane. The tag is
     // the branch lineage the reservation belongs to: a commit carrying its
-    // own branch ref only consumes a reservation for that same branch — a
-    // stacked branch tip starts a fresh lane (Fork-style staircase).
+    // own branch ref only consumes a reservation for that same branch. Only
+    // TRUE tips (no child in the loaded list) may start a fresh lane —
+    // ref-bearing commits on a continuous line follow their child's line.
     let mut columns: Vec<Option<(String, Option<String>)>> = Vec::new();
+    let parent_shas: std::collections::HashSet<String> =
+        raw.iter().flat_map(|c| c.parents.iter().cloned()).collect();
     let mut out: Vec<CommitSummary> = Vec::with_capacity(raw.len());
 
     for c in raw {
@@ -105,6 +108,9 @@ pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
             })
             .map(|r| r.name.as_str())
             .collect();
+        // A commit that is some other commit's parent lies on a continuous
+        // line and must never be pushed onto a fresh lane.
+        let is_tip = !parent_shas.contains(&c.sha);
 
         let matching: Vec<usize> = columns
             .iter()
@@ -122,9 +128,9 @@ pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
             });
             match own {
                 Some(i) => i,
-                // Tip of a stacked branch: the reserved line belongs to a
-                // different branch — start a fresh lane.
-                None if !branch_refs.is_empty() => {
+                // True tip of a stacked branch: the reserved line belongs to
+                // a different branch — start a fresh lane.
+                None if !branch_refs.is_empty() && is_tip => {
                     columns.push(None);
                     columns.len() - 1
                 }
@@ -547,10 +553,11 @@ mod tests {
     }
 
     #[test]
-    fn commit_log_stacked_branch_tips_get_staircase_lanes() {
+    fn commit_log_branch_ref_chain_stays_continuous() {
         let (path, repo) = build_linear_repo(3);
-        // Stacked branches like renovate's: main@v2 (HEAD), b1@v1, b0@v0 —
-        // each older commit is the tip of a different branch.
+        // Merged-away feature refs stacked on a linear chain: main@v2 (HEAD),
+        // b1@v1, b0@v0 — every commit is some other commit's parent, so the
+        // chain must stay on one continuous lane (no staircase zigzag).
         let v1 = repo
             .revparse_single("HEAD~1")
             .unwrap()
@@ -570,8 +577,8 @@ mod tests {
         let lanes: Vec<u32> = log.iter().map(|c| c.lane).collect();
         assert_eq!(
             lanes,
-            vec![0, 1, 2],
-            "each stacked branch tip should start a fresh lane, got {lanes:?}"
+            vec![0, 0, 0],
+            "a ref-bearing chain with children stays continuous, got {lanes:?}"
         );
     }
 
