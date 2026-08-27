@@ -61,7 +61,7 @@
 │  Toolbar  Client Work - gitwave - main（居中）                ⌘K  ☀ │
 ├────────────┬───────────────────────────────┬────────────────────┤
 │ Sidebar    │  History graph（主角）         │  Inspector         │
-│ (220px)    │  flex                         │  (~360px)          │
+│ (320px)    │  flex                         │  (~360px)          │
 │ workspaces │  Tide Lanes + commit 行       │  详情 / diff       │
 │ repos      │                               │                    │
 │ branches   │                               │                    │

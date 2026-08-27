@@ -11,7 +11,7 @@
 ├────────────┬──────────────────────────────────┬─────────────────────────┤
 │            │                                  │                         │
 │ Sidebar    │  History graph (flex)            │  Inspector (~360px)     │
-│ (w: 220px) │                                  │                         │
+│ (w: 320px) │                                  │                         │
 │            │                                  │                         │
 │            │                                  │                         │
 │            │                                  │                         │
@@ -73,6 +73,15 @@ ahead/behind 数字显示在 **BRANCHES section 标题栏** 的 Pull / Push 按�
 
 详见 `04-working-copy.md` §8 完整快捷键表。
 
+### 2.5 Sync 全局进度条
+
+Fetch / Pull / Push 进行时，Toolbar **底边**显示 2px Tide 进度条（`SyncProgressBar`）：
+
+- 有传输量时 determinate（`receivedObjects / totalObjects`）
+- 否则 indeterminate shimmer
+- 同步期间居中标题可临时显示 `Fetching from origin…` 等操作文案
+- 完成后 150ms fade-out
+
 ## 3. Sidebar
 
 ### 3.1 布局
@@ -92,7 +101,7 @@ ahead/behind 数字显示在 **BRANCHES section 标题栏** 的 Pull / Push 按�
 └──────────────────────────┘
 ```
 
-宽度：220px（可拖拽 180-360）。背景 Mist，与 Foam 画布区分。**Workspaces 列表置顶**，其下为 Repos / Branches 等 sections。
+宽度：320px（可拖拽 320-480）。背景 Mist，与 Foam 画布区分。**Workspaces 列表置顶**，其下为 Repos / Branches 等 sections。
 
 ### 3.2 元素
 
