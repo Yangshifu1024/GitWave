@@ -255,7 +255,7 @@ function CommitRow({
       onKeyDown={(e) => e.key === "Enter" && onSelect(commit.sha)}
       aria-current={isHead ? "true" : undefined}
       className={cn(
-        "flex items-center gap-2 px-2 py-0 cursor-pointer border-b border-border-subtle",
+        "flex items-center gap-2 px-2 py-0 cursor-pointer",
         "transition-colors duration-fast border-l-2 border-l-transparent",
         !isSelected && !isHead && "hover:bg-bg-elevated",
         isHead && !isSelected && "bg-accent/10 border-l-accent hover:bg-accent/20",
