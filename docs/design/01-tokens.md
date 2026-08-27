@@ -25,9 +25,10 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
 
 ```
 背景
-  bg-primary        #ECECEC       系统窗口灰画布（history / inspector）
-  bg-secondary      #DFDFDF       侧栏 / 工具栏
-  bg-elevated       #F4F4F5       抬升面（列表 hover / inspector）
+  bg-primary        #ECECEE       系统窗口灰画布（应用根 / 顶栏 / 侧栏 / WorkingCopyBar）
+  bg-secondary      #DFDFDF       层次色（gutter / hover / 菜单焦点）
+  bg-elevated       #F4F4F5       抬升面（列表 hover / 菜单 / 模态）
+  bg-panel          #F8F8F8       中 / 右面板画布（history / inspector）
   bg-overlay        rgba(0,0,0,0.38)  模态遮罩
 
 文本
@@ -73,9 +74,10 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
 
 ```
 背景
-  bg-primary        #262628       系统暗窗口画布
-  bg-secondary      #202022       侧栏 / 工具栏
-  bg-elevated       #313134       inspector / 菜单
+  bg-primary        #262628       系统暗窗口画布（应用根 / 顶栏 / 侧栏 / WorkingCopyBar）
+  bg-secondary      #202022       层次色
+  bg-elevated       #313134       菜单 / 抬升面
+  bg-panel          #262628       中 / 右面板画布（同 bg-primary，dark 不区分）
   bg-overlay        rgba(0,0,0,0.55)  模态遮罩
 
 文本
@@ -107,6 +109,7 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
 bg-primary        #F4F6F8 (Foam)           #161B20
 bg-secondary      #E6EBEF (Mist)           #12161A (Abyss)
 bg-elevated       #EEF1F4                  #1C2329
+bg-panel          = bg-primary             = bg-primary
 bg-overlay        rgba(27,34,40,0.40)      = 共享 rgba(0,0,0,0.55)
 text-primary      #1B2228 (Ink)            #E8ECF0
 text-secondary    #4A5560                  #B4BEC8
@@ -127,6 +130,7 @@ lane-1..5         #1A8F8A #3D6B9A #4A5FA8 #5B56A8 #7A8692
 ```
 Tailwind 类              Token                 用途
 bg-bg-primary         →   bg-primary
+bg-bg-panel           →   bg-panel
 bg-bg-secondary       →   bg-secondary
 text-text-secondary   →   text-secondary
 border-border-default →   border-default

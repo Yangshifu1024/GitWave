@@ -195,7 +195,7 @@ function GraphRow({
         cy={cy}
         r={isHead ? NODE_R + 1 : NODE_R}
         fill={color}
-        stroke="var(--color-bg-primary)"
+        stroke="var(--color-bg-panel)"
         strokeWidth={1.5}
       />
       {isHead ? (

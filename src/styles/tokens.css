@@ -19,9 +19,11 @@
 
 @theme {
   /* colors */
-  --color-bg-primary: #ececec;
+  --color-bg-primary: #ececee;
   --color-bg-secondary: #dfdfdf;
   --color-bg-elevated: #f4f4f5;
+  /* Center (history) + inspector pane canvas — lighter than the window canvas */
+  --color-bg-panel: #f8f8f8;
   --color-bg-overlay: rgb(0 0 0 / 0.38);
   --color-text-primary: #1b1b1d;
   --color-text-secondary: #55555b;
@@ -101,6 +103,7 @@
     --color-bg-primary: #262628;
     --color-bg-secondary: #202022;
     --color-bg-elevated: #313134;
+    --color-bg-panel: #262628;
     --color-bg-overlay: rgb(0 0 0 / 0.55);
     --color-text-primary: #efeff1;
     --color-text-secondary: #a8a8ad;
@@ -141,6 +144,7 @@
       --color-bg-primary: #262628;
       --color-bg-secondary: #202022;
       --color-bg-elevated: #313134;
+      --color-bg-panel: #262628;
       --color-bg-overlay: rgb(0 0 0 / 0.55);
       --color-text-primary: #efeff1;
       --color-text-secondary: #a8a8ad;
@@ -181,6 +185,7 @@
     --color-bg-primary: #f4f6f8;
     --color-bg-secondary: #e6ebef;
     --color-bg-elevated: #eef1f4;
+    --color-bg-panel: #f4f6f8;
     --color-bg-overlay: rgb(27 34 40 / 0.4);
     --color-text-primary: #1b2228;
     --color-text-secondary: #4a5560;
@@ -204,6 +209,7 @@
     --color-bg-primary: #161b20;
     --color-bg-secondary: #12161a;
     --color-bg-elevated: #1c2329;
+    --color-bg-panel: #161b20;
     --color-text-primary: #e8ecf0;
     --color-text-secondary: #b4bec8;
     --color-text-muted: #8b97a3;
@@ -228,6 +234,7 @@
       --color-bg-primary: #161b20;
       --color-bg-secondary: #12161a;
       --color-bg-elevated: #1c2329;
+      --color-bg-panel: #161b20;
       --color-text-primary: #e8ecf0;
       --color-text-secondary: #b4bec8;
       --color-text-muted: #8b97a3;
@@ -306,6 +313,38 @@
 
   *::-webkit-scrollbar-corner {
     background: var(--color-scrollbar-track);
+  }
+
+  /* Scrollbar track always follows the nearest declared canvas: each bg-*
+   * utility re-declares the custom property, and it inherits to every
+   * scrollbar inside that pane (center + inspector use bg-bg-panel, sidebar
+   * and WorkingCopyBar sit on bg-bg-primary, chrome gray stays the :root
+   * default). */
+  .bg-bg-primary {
+    --color-scrollbar-track: var(--color-bg-primary);
+  }
+
+  .bg-bg-secondary {
+    --color-scrollbar-track: var(--color-bg-secondary);
+  }
+
+  .bg-bg-elevated {
+    --color-scrollbar-track: var(--color-bg-elevated);
+  }
+
+  .bg-bg-panel {
+    --color-scrollbar-track: var(--color-bg-panel);
+  }
+
+  /* Hide scrollbars while keeping the area scrollable (wheel / trackpad). */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
 
   *,

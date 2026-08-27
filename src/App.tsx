@@ -133,7 +133,7 @@ function App(): React.JSX.Element {
             </aside>
           }
           main={
-            <section className="flex flex-col h-full bg-bg-primary overflow-hidden">
+            <section className="flex flex-col h-full bg-bg-panel overflow-hidden">
               <CommitGraph
                 selectedSha={selectedCommitOid}
                 onCommitSelect={handleCommitSelect}
@@ -176,7 +176,7 @@ function MainContent({
 
   if (!activeWorkspaceId) {
     return (
-      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated pane-edge-left">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-panel pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
           title="Select a workspace"
@@ -189,7 +189,7 @@ function MainContent({
 
   if (!activeRepoId) {
     return (
-      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-elevated pane-edge-left">
+      <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-panel pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
           title="No repository selected"
@@ -201,7 +201,7 @@ function MainContent({
   }
 
   return (
-    <main className="flex flex-col h-full min-h-0 bg-bg-elevated pane-edge-left overflow-hidden">
+    <main className="flex flex-col h-full min-h-0 bg-bg-panel pane-edge-left overflow-hidden">
       {selectedCommitOid ? (
         <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
       ) : (

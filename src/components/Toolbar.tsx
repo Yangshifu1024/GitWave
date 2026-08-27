@@ -38,7 +38,7 @@ export function Toolbar(): React.JSX.Element {
     <header
       className={cn(
         "app-toolbar relative z-20 flex items-center shrink-0 h-10 gap-1.5",
-        "bg-bg-secondary border-b border-border-subtle",
+        "bg-bg-primary border-b border-border-subtle",
         isMacOS() && "app-toolbar--macos",
       )}
     >
