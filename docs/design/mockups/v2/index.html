@@ -343,6 +343,16 @@
         color: var(--ink-2);
       }
 
+      .sec-add:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+
+      .sec-add:disabled:hover {
+        background: transparent;
+        color: var(--muted);
+      }
+
       .src-row {
         display: flex;
         align-items: center;
@@ -942,7 +952,7 @@
           </div>
           <div class="right">
             <span class="kbd">⌘K</span>
-            <button class="icon-btn" type="button">☀</button>
+            <button class="icon-btn" type="button" aria-label="Theme">☀</button>
           </div>
         </header>
         <div class="body">
@@ -950,20 +960,22 @@
             <div class="sec ws-sec">
               <div class="sec-head">
                 <span class="sec-label">Workspaces</span>
-                <button class="sec-add" type="button">+</button>
+                <button class="sec-add" type="button" aria-label="New workspace">+</button>
               </div>
               <div class="src-row sel">Client Work <span class="dot"></span></div>
               <div class="src-row">Personal</div>
+              <div class="src-row">Side Projects</div>
             </div>
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
                 <div class="sec-actions">
                   <button class="sec-act" type="button">Fetch</button>
-                  <button class="sec-add" type="button">+</button>
+                  <button class="sec-add" type="button" aria-label="Add repo">+</button>
                 </div>
               </div>
-              <div class="src-row sel">gitwave</div>
+              <div class="src-row sel">gitwave <span class="dot"></span></div>
+              <div class="src-row">notes</div>
             </div>
             <div class="sec">
               <div class="sec-head">
@@ -976,26 +988,54 @@
               </div>
               <div class="src-row">main</div>
               <div class="src-row sel">feature/tide-lanes <span class="trail">HEAD</span></div>
+              <div class="src-row remote">origin/main <span class="trail">remote</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Stash</span></div>
+              <div class="src-row">stash@{0} wip graph</div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Tags</span></div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">No tags</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Remotes</span></div>
+              <div class="src-row">origin</div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Worktrees</span></div>
+              <div class="src-row">main <span class="trail">this</span></div>
             </div>
           </aside>
           <section class="graph">
             <div class="commit">
-              <svg width="52" height="28">
-                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
+              <svg width="52" height="28" aria-hidden="true">
+                <path d="M14 0 C14 10,14 10,14 14" stroke="var(--lane-0)" stroke-width="1.75" fill="none" />
+                <path d="M14 14 C14 22,30 18,30 28" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
                 <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
               </svg>
               <span class="sha">a4f12c8</span>
-              <span class="msg">feat(graph): tide lane curves</span>
+              <span class="msg"><span class="ref-pill">main</span>feat(graph): tide lane curves</span>
               <span class="meta">yang · 2h ago</span>
             </div>
             <div class="commit">
-              <svg width="52" height="28">
+              <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
+                <path d="M30 0 C30 12,14 12,14 14" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
                 <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
               </svg>
               <span class="sha">9e81b04</span>
               <span class="msg">fix(ui): native toolbar chrome</span>
               <span class="meta">yang · 5h ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28" aria-hidden="true">
+                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
+                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+              </svg>
+              <span class="sha">c0ceaf5</span>
+              <span class="msg">docs: design tokens for tide palette</span>
+              <span class="meta">yang · 1d ago</span>
             </div>
           </section>
           <aside class="inspector">
@@ -1082,19 +1122,22 @@
             <div class="sec ws-sec">
               <div class="sec-head">
                 <span class="sec-label">Workspaces</span>
-                <button class="sec-add" type="button">+</button>
+                <button class="sec-add" type="button" aria-label="New workspace">+</button>
               </div>
               <div class="src-row sel">Client Work <span class="dot"></span></div>
               <div class="src-row">Personal</div>
+              <div class="src-row">Side Projects</div>
             </div>
             <div class="sec">
               <div class="sec-head">
                 <span class="sec-label">Repos</span>
                 <div class="sec-actions">
                   <button class="sec-act" type="button">Fetch</button>
+                  <button class="sec-add" type="button" aria-label="Add repo">+</button>
                 </div>
               </div>
-              <div class="src-row sel">gitwave</div>
+              <div class="src-row sel">gitwave <span class="dot"></span></div>
+              <div class="src-row">notes</div>
             </div>
             <div class="sec">
               <div class="sec-head">
@@ -1102,19 +1145,33 @@
                 <div class="sec-actions">
                   <button class="sec-act" type="button">Pull <span class="dn">↓1</span></button>
                   <button class="sec-act" type="button">Push <span class="up">↑2</span></button>
+                  <button class="sec-add" type="button">+</button>
                 </div>
               </div>
               <div class="src-row sel">main <span class="trail">HEAD</span></div>
               <div class="src-row">feature/tide-lanes</div>
+              <div class="src-row remote">origin/main <span class="trail">remote</span></div>
             </div>
             <div class="sec">
               <div class="sec-head"><span class="sec-label">Stash</span></div>
               <div class="src-row">stash@{0} wip graph</div>
             </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Tags</span></div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">No tags</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Remotes</span></div>
+              <div class="src-row">origin</div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Worktrees</span></div>
+              <div class="src-row">main <span class="trail">this</span></div>
+            </div>
           </aside>
           <section class="graph">
             <div class="commit sel">
-              <svg width="52" height="28">
+              <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 C14 10,14 10,14 14" stroke="var(--lane-0)" stroke-width="1.75" fill="none" />
                 <path d="M14 14 C14 22,30 18,30 28" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
                 <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
@@ -1124,13 +1181,40 @@
               <span class="meta">yang · 2h ago</span>
             </div>
             <div class="commit">
-              <svg width="52" height="28">
+              <svg width="52" height="28" aria-hidden="true">
                 <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
+                <path d="M30 0 C30 12,14 12,14 14" stroke="var(--lane-1)" stroke-width="1.75" fill="none" />
                 <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
               </svg>
               <span class="sha">9e81b04</span>
               <span class="msg">fix(ui): native toolbar chrome</span>
               <span class="meta">yang · 5h ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28" aria-hidden="true">
+                <path d="M14 0 V28" stroke="var(--lane-0)" stroke-width="1.75" />
+                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+              </svg>
+              <span class="sha">c0ceaf5</span>
+              <span class="msg">docs: design tokens for tide palette</span>
+              <span class="meta">yang · 1d ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28" aria-hidden="true">
+                <path d="M14 0 V14" stroke="var(--lane-0)" stroke-width="1.75" />
+                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+              </svg>
+              <span class="sha">f5f05b3</span>
+              <span class="msg">fix(diff): keep chrome unselectable</span>
+              <span class="meta">yang · 2d ago</span>
+            </div>
+            <div class="commit">
+              <svg width="52" height="28" aria-hidden="true">
+                <circle cx="14" cy="14" r="3.5" fill="var(--lane-0)" stroke="var(--foam)" stroke-width="1.5" />
+              </svg>
+              <span class="sha">b2a91d0</span>
+              <span class="msg">chore: workspace persistence</span>
+              <span class="meta">yang · 3d ago</span>
             </div>
           </section>
           <aside class="inspector">
@@ -1139,16 +1223,31 @@
               <p class="meta-line">a4f12c8 · yang · 2 hours ago</p>
             </div>
             <div class="file-bar">
-              <span class="fname">src/styles/tokens.css</span>
-              <span class="delta"><span class="p">+6</span></span>
+              <span class="fname">src/components/CommitGraph.tsx</span>
+              <span class="delta"><span class="p">+18</span> <span class="m">−7</span></span>
             </div>
             <div class="diff">
-              <div class="hunk">@@ tokens.css @@</div>
+              <div class="hunk">@@ -8,7 +8,9 @@ export function CommitGraph</div>
+              <div class="ln ctx">
+                <span class="gutter">10</span><span class="code">const ROW_H = 28;</span>
+              </div>
+              <div class="ln del">
+                <span class="gutter">11</span
+                ><span class="code">-const LANE_COLORS = ["#007aff", "#2ecc71"];</span>
+              </div>
               <div class="ln add">
-                <span class="gutter">15</span><span class="code">+--color-accent: #3EBAB3;</span>
+                <span class="gutter">11</span
+                ><span class="code">+const LANE_COLORS = ["#3EBAB3", "#5BA4B8", "#6B8FC4"];</span>
               </div>
               <div class="ln ctx">
-                <span class="gutter">16</span><span class="code">--color-bg-primary: #161B20;</span>
+                <span class="gutter">12</span><span class="code">const NODE_R = 3.5;</span>
+              </div>
+              <div class="ln add">
+                <span class="gutter">13</span
+                ><span class="code">+// Tide Lanes: signature bezier curves</span>
+              </div>
+              <div class="ln ctx">
+                <span class="gutter">14</span><span class="code"></span>
               </div>
             </div>
           </aside>
@@ -1173,7 +1272,7 @@
             <div class="sec ws-sec">
               <div class="sec-head">
                 <span class="sec-label">Workspaces</span>
-                <button class="sec-add" type="button">+</button>
+                <button class="sec-add" type="button" aria-label="New workspace">+</button>
               </div>
               <div class="src-row"><span class="trail" style="margin-left: 0">No workspaces yet</span></div>
             </div>
@@ -1182,6 +1281,7 @@
                 <span class="sec-label">Repos</span>
                 <div class="sec-actions">
                   <button class="sec-act" type="button" disabled>Fetch</button>
+                  <button class="sec-add" type="button" aria-label="Add repo" disabled>+</button>
                 </div>
               </div>
               <div class="src-row"><span class="trail" style="margin-left: 0">No repositories yet</span></div>
@@ -1192,9 +1292,26 @@
                 <div class="sec-actions">
                   <button class="sec-act" type="button" disabled>Pull</button>
                   <button class="sec-act" type="button" disabled>Push</button>
+                  <button class="sec-add" type="button" disabled>+</button>
                 </div>
               </div>
               <div class="src-row"><span class="trail" style="margin-left: 0">Select a repository</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Stash</span></div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">No stash entries</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Tags</span></div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">No tags</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Remotes</span></div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">No remotes</span></div>
+            </div>
+            <div class="sec">
+              <div class="sec-head"><span class="sec-label">Worktrees</span></div>
+              <div class="src-row"><span class="trail" style="margin-left: 0">No worktrees</span></div>
             </div>
           </aside>
           <section class="graph">
@@ -1209,7 +1326,15 @@
               <button class="cta" type="button" style="margin-top: 6px">New workspace</button>
             </div>
           </section>
-          <aside class="inspector"></aside>
+          <aside class="inspector">
+            <div class="insp-head">
+              <h2>No selection</h2>
+              <p class="meta-line">Select a commit or file to inspect</p>
+            </div>
+            <div class="diff" style="display: flex; align-items: center; justify-content: center; color: var(--muted); font-family: var(--sans); font-size: 12px">
+              Inspector empty
+            </div>
+          </aside>
         </div>
         <footer class="wc clean"><span>No repository selected</span></footer>
       </div>
