@@ -191,6 +191,11 @@ export function generatePrDescription(
   });
 }
 
+/** AI explanation of a single commit (read-only advice). */
+export function explainCommit(workspaceId: string, sha: string): Promise<AiGenerateOutcome> {
+  return invoke<AiGenerateOutcome>("cmd_explain_commit", { workspaceId, sha });
+}
+
 // ─── Repo commands ───────────────────────────────────────────────────────
 
 export function listRepos(workspaceId: string): Promise<RepoRef[]> {

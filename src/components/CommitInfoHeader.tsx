@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Chip } from "@heroui/react";
-import { Cherry, Tag as TagIcon, Trash2, Undo2 } from "lucide-react";
+import { Cherry, Sparkles, Tag as TagIcon, Trash2, Undo2 } from "lucide-react";
 
 import {
   cherryPickCommit,
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
+import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 function formatDateTime(time: number): string {
@@ -52,6 +53,7 @@ export function CommitInfoHeader({
   const [pending, setPending] = useState<CommitAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [explainOpen, setExplainOpen] = useState(false);
 
   // Tags on this commit (listed inside the tag manager modal).
   const { data: tags = [], refetch: refetchTags } = useQuery({
@@ -128,6 +130,16 @@ export function CommitInfoHeader({
           <Button
             variant="ghost"
             size="sm"
+            aria-label="Explain this commit with AI"
+            title="Explain with AI"
+            onClick={() => setExplainOpen(true)}
+          >
+            <Sparkles size={13} />
+            Explain
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             aria-label="Manage tags on this commit"
             title="Manage tags"
             onClick={() => setTagOpen(true)}
@@ -159,6 +171,16 @@ export function CommitInfoHeader({
           </Button>
         </span>
       </div>
+
+      {explainOpen ? (
+        <CommitExplainModal
+          workspaceId={workspaceId}
+          sha={data.sha}
+          subject={subject}
+          open
+          onClose={() => setExplainOpen(false)}
+        />
+      ) : null}
 
       {tagOpen ? (
         <TagManagerModal

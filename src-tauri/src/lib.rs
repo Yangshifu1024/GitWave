@@ -20,8 +20,8 @@ use application::{
     apply_stash, checkout_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit,
     continue_interactive_rebase, create_branch, create_tag, create_workspace, delete_branch,
     delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
-    drop_stash, execute_interactive_rebase, explain_conflict, export_workspace, fetch,
-    generate_commit_message, generate_pr_description, get_ahead_behind, get_ai_key_status,
+    drop_stash, execute_interactive_rebase, explain_commit, explain_conflict, export_workspace,
+    fetch, generate_commit_message, generate_pr_description, get_ahead_behind, get_ai_key_status,
     get_blame, get_branches, get_commit_details, get_commit_diff, get_commit_log,
     get_conflict_sides, get_file_diff, get_gitignore, get_repo_ai_rules, get_stash_diff,
     get_workdir_diff, get_working_copy, get_workspace, ignore_path, import_workspace, init_repo,
@@ -179,6 +179,15 @@ async fn cmd_generate_pr_description(
     base: Option<String>,
 ) -> Result<PrDescriptionOutcome, AppError> {
     generate_pr_description(&ctx, workspace_id, base).await
+}
+
+#[tauri::command]
+async fn cmd_explain_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    sha: String,
+) -> Result<AiGenerateOutcome, AppError> {
+    explain_commit(&ctx, workspace_id, sha).await
 }
 
 // ─── Repo commands (Sprint 2) ────────────────────────────────────────────
@@ -989,6 +998,7 @@ pub fn run() {
             cmd_probe_ollama,
             cmd_generate_commit_message,
             cmd_generate_pr_description,
+            cmd_explain_commit,
             cmd_get_repo_ai_rules,
             cmd_init_repo,
             cmd_clone_repo,

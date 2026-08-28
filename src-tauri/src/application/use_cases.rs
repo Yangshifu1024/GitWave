@@ -29,6 +29,7 @@ use crate::infrastructure::git::conflict::{
 };
 use crate::infrastructure::git::diff::{
     diff_commit_vs_parent as infra_diff_commit_vs_parent,
+    diff_commit_vs_parent_files as infra_diff_commit_vs_parent_files,
     diff_index_to_head as infra_diff_index_to_head,
     diff_index_to_head_files as infra_diff_index_to_head_files, diff_paths as infra_diff_paths,
     diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
@@ -1116,6 +1117,57 @@ pub async fn generate_pr_description(
     })
 }
 
+// ─── AI history explain ─────────────────────────────────────────────────────
+
+pub const DEFAULT_EXPLAIN_SYSTEM: &str = "You explain git commits for a human developer. \
+Describe what changed and why it likely matters: start from the commit message, then the diff. \
+Keep it under 200 words, plain prose or short bullets. If the diff contradicts the message, \
+say so. Base everything strictly on the provided data.";
+
+/// Assemble the explain prompt: full message + changed-file summary + patch.
+fn build_explain_user_prompt(
+    message_full: &str,
+    summary: &DiffSummary,
+    files: &[FileDiff],
+) -> String {
+    let mut user = format!("Commit message:\n{message_full}\n\nChanged files:\n");
+    append_diff_summary(&mut user, summary);
+    user.push_str("\nDiff (unified format, may be truncated):\n");
+    append_diff_patch(&mut user, files, 12_000);
+    user
+}
+
+/// AI explanation of a single commit — read-only advice, nothing is
+/// applied to the repository (P1).
+pub async fn explain_commit(
+    ctx: &AppContext,
+    workspace_id: String,
+    sha: String,
+) -> Result<AiGenerateOutcome> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    // Scoped so the !Send git2 handle drops before the await.
+    let (user, system) = {
+        let repo_path = active_repo_path(ctx, &workspace_id)?;
+        let repo = ctx.open_repo(&repo_path)?;
+        let oid = infra_resolve_ref_oid(&repo, &sha)?;
+        let details = infra_commit_details(&repo, &sha)?;
+        let summary = infra_diff_commit_vs_parent(&repo, oid)?;
+        let files = infra_diff_commit_vs_parent_files(&repo, oid)?;
+        let user = build_explain_user_prompt(&details.message_full, &summary, &files);
+        let system = with_repo_rules(
+            DEFAULT_EXPLAIN_SYSTEM.to_string(),
+            repo.workdir().and_then(infra_read_ai_rules),
+        );
+        (user, system)
+    };
+    generate_with_failover(chain, system, user).await
+}
+
 /// Rebase the current HEAD onto an upstream.
 pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Result<RebaseResult> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
@@ -1685,6 +1737,20 @@ mod tests {
             "style reference included"
         );
         assert!(prompt.contains("--- a/a.txt"), "diff patch included");
+    }
+
+    #[test]
+    fn explain_prompt_carries_message_files_and_patch() {
+        let summary = DiffSummary {
+            files: vec![],
+            total_additions: 0,
+            total_deletions: 0,
+        };
+        let prompt = build_explain_user_prompt("feat: a\n\nbody", &summary, &patch_fixture(None));
+        assert!(prompt.starts_with("Commit message:\nfeat: a\n\nbody\n"));
+        assert!(prompt.contains("Changed files:"));
+        assert!(prompt.contains("(none)"));
+        assert!(prompt.contains("--- a/a.txt"));
     }
 
     #[test]
