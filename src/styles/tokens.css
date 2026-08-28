@@ -411,6 +411,18 @@
     outline-offset: 1px;
   }
 
+  /* Buttons never show a focus/selection ring anywhere in the app (user
+     request): suppress both the global outline above and HeroUI's
+     data-focus-visible ring on button-like elements. */
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  button[data-focus-visible="true"],
+  [role="button"][data-focus-visible="true"],
+  .button[data-focus-visible="true"] {
+    outline: none;
+    box-shadow: none;
+  }
+
   /* Custom titlebar (tauri-plugin-decoration) — see docs/design/03-layout.md */
   :root {
     --app-titlebar-height: 40px;
