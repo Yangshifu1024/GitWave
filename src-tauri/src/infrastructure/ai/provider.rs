@@ -24,6 +24,9 @@ pub struct ProviderAttempt {
     pub provider: String,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+    /// Model id valid for THIS provider — model namespaces do not mix
+    /// across vendors, so each attempt resolves its own.
+    pub model: String,
 }
 
 fn trim_base(base: &str) -> String {
@@ -82,6 +85,7 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
         provider: req.provider.clone(),
         base_url: req.base_url.clone(),
         api_key: req.api_key.clone(),
+        model: req.model.clone(),
     }];
     attempts.extend(req.fallbacks);
     let total = attempts.len();
@@ -89,7 +93,7 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     let mut last_err: Option<AppError> = None;
     for attempt in &attempts {
         for pass in 0..2 {
-            let result = attempt_chat(&client(), attempt, &req.model, &system, &user).await;
+            let result = attempt_chat(client(), attempt, &system, &user).await;
             match result {
                 Ok(text) => return Ok(text),
                 Err(e) => {
@@ -110,14 +114,15 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     }))
 }
 
-/// Dispatch one request to a single provider attempt.
+/// Dispatch one request to a single provider attempt (each attempt carries
+/// its own model — provider ids and model namespaces do not mix).
 async fn attempt_chat(
     client: &reqwest::Client,
     attempt: &ProviderAttempt,
-    model: &str,
     system: &str,
     user: &str,
 ) -> Result<String> {
+    let model = attempt.model.as_str();
     match attempt.provider.to_ascii_lowercase().as_str() {
         "openai" => match attempt.api_key.as_deref().filter(|k| !k.is_empty()) {
             Some(key) => {
@@ -149,18 +154,26 @@ async fn attempt_chat(
     }
 }
 
-/// Network/timeout errors are worth one same-provider retry; credential,
-/// parameter and protocol errors are not.
-fn is_transient(e: &AppError) -> bool {
-    matches!(e, AppError::Network(_))
+/// Classify an HTTP error status: 401/403 are credential problems, other
+/// 4xx are request/parameter problems (neither is retried nor failover-
+/// blocking differently — both move to the next provider), 5xx and
+/// timeouts are transient network conditions.
+fn http_status_error(provider: &str, status: u16, detail: String) -> AppError {
+    let base = format!("{provider} HTTP {status}: {detail}");
+    if status == 401 || status == 403 {
+        AppError::Credential(base)
+    } else if (400..500).contains(&status) {
+        AppError::Protocol(base)
+    } else {
+        AppError::Network(base)
+    }
 }
 
-/// Probe local Ollama (`GET /api/tags`).
+/// Probe local Ollama (`GET /api/tags`) using the shared timeout client.
 pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
     let base = ollama_base(base_url);
     let url = format!("{}/api/tags", base);
-    let client = reqwest::Client::new();
-    let resp = client
+    let resp = client()
         .get(&url)
         .send()
         .await
@@ -213,12 +226,14 @@ async fn openai_chat(
         .await
         .map_err(|e| AppError::Unknown(format!("openai json: {e}")))?;
     if !status.is_success() {
-        return Err(AppError::Network(format!(
-            "openai HTTP {status}: {}",
+        return Err(http_status_error(
+            "openai",
+            status.as_u16(),
             body["error"]["message"]
                 .as_str()
                 .unwrap_or("request failed")
-        )));
+                .to_string(),
+        ));
     }
     body["choices"][0]["message"]["content"]
         .as_str()
@@ -261,12 +276,14 @@ async fn anthropic_chat(
         .await
         .map_err(|e| AppError::Unknown(format!("anthropic json: {e}")))?;
     if !status.is_success() {
-        return Err(AppError::Network(format!(
-            "anthropic HTTP {status}: {}",
+        return Err(http_status_error(
+            "anthropic",
+            status.as_u16(),
             body["error"]["message"]
                 .as_str()
                 .unwrap_or("request failed")
-        )));
+                .to_string(),
+        ));
     }
     if let Some(text) = anthropic_content_text(&body) {
         return Ok(text);
@@ -339,7 +356,11 @@ async fn ollama_chat(
         .await
         .map_err(|e| AppError::Unknown(format!("ollama json: {e}")))?;
     if !status.is_success() {
-        return Err(AppError::Network(format!("ollama HTTP {status}")));
+        return Err(http_status_error(
+            "ollama",
+            status.as_u16(),
+            "request failed".into(),
+        ));
     }
     body["message"]["content"]
         .as_str()
@@ -365,6 +386,7 @@ mod tests {
                 provider: "acme2".into(),
                 base_url: None,
                 api_key: None,
+                model: "m".into(),
             }],
         };
         let err = generate_text(req).await.unwrap_err();

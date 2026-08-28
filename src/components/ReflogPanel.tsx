@@ -45,6 +45,9 @@ function formatTime(time: number): string {
   });
 }
 
+/** A reflog entry plus the resolved recovery position (see recoversOld). */
+type RecoveryTarget = ReflogEntry & { oid: string };
+
 /**
  * M2 recovery panel: semantic reflog timeline for HEAD (or the current
  * branch) with deterministic recovery actions and an optional AI
@@ -75,13 +78,21 @@ export function ReflogPanel(): React.JSX.Element {
 
   const [selected, setSelected] = useState<ReflogEntry | null>(null);
   const [busy, setBusy] = useState(false);
-  const [branchModal, setBranchModal] = useState<ReflogEntry | null>(null);
+  const [branchModal, setBranchModal] = useState<RecoveryTarget | null>(null);
   const [branchName_, setBranchName_] = useState("");
-  const [resetModal, setResetModal] = useState<ReflogEntry | null>(null);
+  const [resetModal, setResetModal] = useState<RecoveryTarget | null>(null);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
 
   if (!workspaceId || !repoId) return <></>;
+
+  // For reset/amend entries the PREVIOUS position (old_oid) holds what the
+  // operation discarded — that is the recovery target, not the new one.
+
+  // For reset/amend entries the PREVIOUS position (old_oid) holds what the
+  // operation discarded — that is the recovery target, not the new one.
+  const recoversOld = selected?.action === "reset" || selected?.action === "amend";
+  const recoveryOid = selected ? (recoversOld ? selected.old_oid : selected.new_oid) : "";
 
   const afterMutation = (): void => {
     bumpHistory();
@@ -92,7 +103,7 @@ export function ReflogPanel(): React.JSX.Element {
   const submitRecoveryBranch = (): void => {
     if (!branchModal || !branchName_.trim() || busy) return;
     setBusy(true);
-    createBranch(workspaceId, branchName_.trim(), branchModal.new_oid)
+    createBranch(workspaceId, branchName_.trim(), branchModal.oid)
       .then(() => {
         toast({ title: `Recovery branch "${branchName_.trim()}" created` });
         setBranchModal(null);
@@ -105,9 +116,9 @@ export function ReflogPanel(): React.JSX.Element {
   const submitReset = (): void => {
     if (!resetModal || busy) return;
     setBusy(true);
-    resetHeadHard(workspaceId, resetModal.new_oid)
+    resetHeadHard(workspaceId, resetModal.oid)
       .then(() => {
-        toast({ title: `Branch reset to ${resetModal.new_oid.slice(0, 7)}` });
+        toast({ title: `Branch reset to ${resetModal.oid.slice(0, 7)}` });
         setResetModal(null);
         setSelected(null);
         afterMutation();
@@ -207,8 +218,8 @@ export function ReflogPanel(): React.JSX.Element {
               className="h-6 px-2 text-[11px]"
               disabled={busy}
               onClick={() => {
-                setBranchName_(`recovery-${selected.new_oid.slice(0, 7)}`);
-                setBranchModal(selected);
+                setBranchName_(`recovery-${recoveryOid.slice(0, 7)}`);
+                setBranchModal({ ...selected, oid: recoveryOid });
               }}
             >
               <Undo2 size={12} />
@@ -219,10 +230,10 @@ export function ReflogPanel(): React.JSX.Element {
               size="sm"
               className="h-6 px-2 text-[11px]"
               disabled={busy}
-              onClick={() => setResetModal(selected)}
+              onClick={() => setResetModal({ ...selected, oid: recoveryOid })}
             >
               <RotateCcw size={12} />
-              Reset branch here
+              {recoversOld ? "Reset back here" : "Reset branch here"}
             </Button>
             <Button
               variant="secondary"
@@ -250,7 +261,7 @@ export function ReflogPanel(): React.JSX.Element {
           open
           onOpenChange={(o) => !o && setBranchModal(null)}
           title="Create recovery branch"
-          description={`Branch the current state at ${branchModal.new_oid.slice(0, 7)} so the commits stay reachable.`}
+          description={`Branch ${recoversOld ? "the previous position" : "the current state"} at ${branchModal.oid.slice(0, 7)} so the commits stay reachable.`}
           size="sm"
         >
           <Input value={branchName_} onChange={setBranchName_} autoFocus />
@@ -274,7 +285,7 @@ export function ReflogPanel(): React.JSX.Element {
         <Modal
           open
           onOpenChange={(o) => !o && setResetModal(null)}
-          title={`Reset "${branchName || "current branch"}" to ${resetModal.new_oid.slice(0, 7)}?`}
+          title={`Reset "${branchName || "current branch"}" to ${resetModal.oid.slice(0, 7)}?`}
           description="Hard reset: the branch moves and uncommitted changes are discarded. This cannot be undone automatically — the reflog keeps a record."
           size="sm"
         >

@@ -424,14 +424,6 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
     ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match primary.provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
 
     let repo_path = active_repo_path(ctx, &workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -478,7 +470,7 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
 
     crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
         provider: primary.provider.clone(),
-        model,
+        model: primary.model.clone(),
         base_url: primary.base_url.clone(),
         api_key: primary.api_key.clone(),
         system,
@@ -486,6 +478,15 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
         fallbacks: chain[1..].to_vec(),
     })
     .await
+}
+
+/// Provider-appropriate default model when the user has not configured one.
+fn default_model(provider: &str) -> String {
+    match provider {
+        "anthropic" => "claude-3-5-haiku-latest".into(),
+        "ollama" => "llama3.2".into(),
+        _ => "gpt-4o-mini".into(),
+    }
 }
 
 /// Ordered provider ids for AI calls: primary `ai_provider` then the
@@ -526,6 +527,17 @@ fn ai_chain(settings: &WorkspaceSettings, workspace_id: &str) -> Result<Vec<Prov
                 _ => continue,
             }
         };
+        // Model namespaces do not mix across vendors: the user's configured
+        // model applies to the primary attempt only; fallbacks use each
+        // provider's default model.
+        let model = if idx == 0 {
+            settings
+                .ai_model
+                .clone()
+                .unwrap_or_else(|| default_model(&provider))
+        } else {
+            default_model(&provider)
+        };
         out.push(ProviderAttempt {
             provider,
             base_url: if idx == 0 {
@@ -534,6 +546,7 @@ fn ai_chain(settings: &WorkspaceSettings, workspace_id: &str) -> Result<Vec<Prov
                 None
             },
             api_key,
+            model,
         });
     }
     if out.is_empty() {
@@ -838,14 +851,6 @@ pub async fn explain_conflict(
     ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match primary.provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
     let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
     let system = settings.prompt_templates.conflict.unwrap_or_else(|| {
         "You explain git merge conflicts for a human developer. \
@@ -862,7 +867,7 @@ pub async fn explain_conflict(
     );
     crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
         provider: primary.provider.clone(),
-        model,
+        model: primary.model.clone(),
         base_url: primary.base_url.clone(),
         api_key: primary.api_key.clone(),
         system,
@@ -982,14 +987,6 @@ pub async fn explain_health(ctx: &AppContext, workspace_id: String) -> Result<St
     ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match primary.provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
 
     let report = get_health(ctx, &workspace_id)?;
     let user = format!(
@@ -1007,7 +1004,7 @@ Write a short health assessment:          what looks fine, what needs attention,
 
     crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
         provider: primary.provider.clone(),
-        model,
+        model: primary.model.clone(),
         base_url: primary.base_url.clone(),
         api_key: primary.api_key.clone(),
         system,
@@ -1039,14 +1036,6 @@ pub async fn explain_reflog(
     ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match primary.provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
 
     let repo_path = active_repo_path(ctx, &workspace_id)?;
     // git2::Repository is !Send — resolve subjects inside a scope so it is
@@ -1068,7 +1057,7 @@ pub async fn explain_reflog(
 
     crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
         provider: primary.provider.clone(),
-        model,
+        model: primary.model.clone(),
         base_url: primary.base_url.clone(),
         api_key: primary.api_key.clone(),
         system,

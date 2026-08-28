@@ -117,8 +117,10 @@ fn with_repo<T>(
     f(&repo).map_err(|e| e.to_string())
 }
 
-/// Repo-relative file read with the same escape guards as the app's discard
-/// path (no absolute paths, no `..` segments).
+/// Repo-relative file read. Hardened for the MCP threat model: lexical
+/// checks (absolute paths, `..` segments) plus canonicalization so symlinks
+/// inside the worktree cannot resolve outside it, and a blanket refusal to
+/// read `.git` internals (config may carry credential-bearing URLs).
 fn read_file(repo_path: &Path, rel: &str) -> Result<String, String> {
     if Path::new(rel).is_absolute() || rel.split(['/', '\\']).any(|seg| seg == "..") {
         return Err("path escapes worktree".into());
@@ -127,7 +129,23 @@ fn read_file(repo_path: &Path, rel: &str) -> Result<String, String> {
     if !abs.starts_with(repo_path) {
         return Err("path escapes worktree".into());
     }
-    std::fs::read_to_string(&abs).map_err(|e| format!("read {rel}: {e}"))
+    let canonical_root =
+        std::fs::canonicalize(repo_path).map_err(|e| format!("resolve worktree: {e}"))?;
+    let canonical = std::fs::canonicalize(&abs).map_err(|e| format!("resolve {rel}: {e}"))?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err("path escapes worktree".into());
+    }
+    let inside_git_dir = canonical
+        .strip_prefix(&canonical_root)
+        .map(|rel| {
+            rel.components()
+                .any(|c| c.as_os_str().eq_ignore_ascii_case(".git"))
+        })
+        .unwrap_or(true);
+    if inside_git_dir {
+        return Err("reading .git internals is not allowed".into());
+    }
+    std::fs::read_to_string(&canonical).map_err(|e| format!("read {rel}: {e}"))
 }
 
 /// Handle one JSON-RPC message. Returns the response for requests; `None`
@@ -137,9 +155,7 @@ fn handle(msg: &Value, repo_path: &Path) -> Option<Value> {
     let id = msg.get("id").cloned();
 
     // Notifications have no id — acknowledge nothing.
-    if id.is_none() {
-        return None;
-    }
+    id.as_ref()?;
 
     let result: Result<Value, String> = match method.as_str() {
         "initialize" => Ok(json!({
@@ -299,6 +315,28 @@ mod tests {
         assert_eq!(resp["result"]["content"][0]["text"], "hello\n");
 
         // Escape guard: `..` and absolute paths are rejected.
+        let msg = json!({ "jsonrpc": "2.0", "id": 6, "method": "tools/call",
+            "params": { "name": "read_file", "arguments": { "path": ".git/config" } } });
+        let resp = handle(&msg, &dir).unwrap();
+        assert_eq!(
+            resp["result"]["isError"], true,
+            "git internals must be refused"
+        );
+
+        // Symlink escape (unix only — creating symlinks on Windows needs
+        // privileges; the canonicalize guard is platform-independent).
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("/etc/hostname", dir.join("evil-link")).unwrap();
+            let msg = json!({ "jsonrpc": "2.0", "id": 7, "method": "tools/call",
+                "params": { "name": "read_file", "arguments": { "path": "evil-link" } } });
+            let resp = handle(&msg, &dir).unwrap();
+            assert_eq!(
+                resp["result"]["isError"], true,
+                "symlink escape must be refused"
+            );
+        }
+
         let msg = json!({ "jsonrpc": "2.0", "id": 5, "method": "tools/call",
             "params": { "name": "read_file", "arguments": { "path": "../secret" } } });
         let resp = handle(&msg, &dir).unwrap();

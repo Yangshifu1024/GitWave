@@ -85,7 +85,7 @@ pub fn list_reflog(repo: &Repository, reference: &str) -> Result<Vec<ReflogEntry
         )));
     }
     let log = repo.reflog(&name).map_err(map_git_err)?;
-    if log.len() == 0 {
+    if log.is_empty() {
         return Err(AppError::Protocol(format!(
             "no reflog for reference: {reference}"
         )));

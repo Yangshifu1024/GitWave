@@ -81,7 +81,7 @@ fn large_files(repo: &Repository, limit: usize) -> Vec<LargeFile> {
             }
         }
     }
-    found.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+    found.sort_by_key(|f| std::cmp::Reverse(f.size_bytes));
     found.truncate(limit);
     found
 }
@@ -111,10 +111,6 @@ pub fn collect_health(repo: &Repository) -> Result<HealthReport> {
         .len() as u32;
 
     // Branches: count, stale (tip older than cutoff), current ahead count.
-    let head_ref = repo.head().ok();
-    let current_name = head_ref
-        .as_ref()
-        .and_then(|h| h.shorthand().map(str::to_string));
     let mut stale_branches: Vec<String> = Vec::new();
     let mut branch_count = 0u32;
     let mut unpushed: Option<u32> = None;
@@ -132,7 +128,11 @@ pub fn collect_health(repo: &Repository) -> Result<HealthReport> {
         let Some(oid) = branch.get().target() else {
             continue;
         };
-        let commit = repo.find_commit(oid).map_err(map_git_err)?;
+        // A branch pointing at a pruned object is skipped, not fatal — one
+        // broken ref must not take down the whole report.
+        let Ok(commit) = repo.find_commit(oid) else {
+            continue;
+        };
         if is_current {
             if let Ok(upstream) = branch.upstream() {
                 if let (Some(a), Some(b)) = (branch.get().target(), upstream.get().target()) {
