@@ -100,7 +100,7 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       ) : (
         <span
           className={cn(
-            "flex-1 px-2",
+            "flex-1 px-2 whitespace-pre-wrap",
             line.kind === "removed" && "bg-diff-del-bg",
             line.kind === "context" && "text-text-primary",
           )}
@@ -115,7 +115,7 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       ) : (
         <span
           className={cn(
-            "flex-1 px-2",
+            "flex-1 px-2 whitespace-pre-wrap",
             line.kind === "added" && "bg-diff-add-bg",
             line.kind === "context" && "text-text-primary",
           )}
@@ -161,7 +161,7 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       <span className="shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
       </span>
-      <span className={cn("flex-1 px-2 min-w-0", bgClass)}>
+      <span className={cn("flex-1 px-2 min-w-0 whitespace-pre-wrap", bgClass)}>
         {prefix} {line.content}
       </span>
     </div>
@@ -182,7 +182,7 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
               {line.old_line_no ?? ""}
             </span>
             <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
-            <span className="flex-1 px-2 text-danger">
+            <span className="flex-1 px-2 text-danger whitespace-pre-wrap">
               - <WordDiffSpans before={line.content} after={next.content} side="removed" />
             </span>
           </div>
@@ -191,7 +191,7 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
             <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
               {next.new_line_no ?? ""}
             </span>
-            <span className="flex-1 px-2 text-success">
+            <span className="flex-1 px-2 text-success whitespace-pre-wrap">
               + <WordDiffSpans before={line.content} after={next.content} side="added" />
             </span>
           </div>
