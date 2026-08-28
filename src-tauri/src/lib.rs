@@ -9,9 +9,9 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-mod application;
-mod domain;
-mod infrastructure;
+pub mod application;
+pub mod domain;
+pub mod infrastructure;
 
 use std::sync::{Arc, Mutex};
 
