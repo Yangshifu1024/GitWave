@@ -23,6 +23,7 @@ import { StashPanel } from "@/components/StashPanel";
 import { WorktreePanel } from "@/components/WorktreePanel";
 import { SubmodulesPanel } from "@/components/SubmodulesPanel";
 import { TagsPanel } from "@/components/TagsPanel";
+import { RemotesPanel } from "@/components/RemotesPanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
 import { cn } from "@/lib/utils";
@@ -125,9 +126,7 @@ function App(): React.JSX.Element {
                       <TagsPanel onSelect={handleTagSelect} />
                     </SidebarSection>
                     <SidebarSection title="Remotes" defaultOpen={false}>
-                      <p className="px-3 py-1.5 text-xs text-text-muted">
-                        Remote list coming later
-                      </p>
+                      <RemotesPanel />
                     </SidebarSection>
                     <SidebarSection title="Worktrees" defaultOpen={false}>
                       <WorktreePanel compact />
