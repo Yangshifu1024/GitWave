@@ -47,7 +47,9 @@ export function ToastProvider({ children }: ToastProviderProps): React.JSX.Eleme
   return (
     <>
       {children}
-      <Toast.Provider />
+      {/* Top center: operation notices (checkout, merge, rebase) must not
+          cover the bottom-anchored working-copy / progress surfaces. */}
+      <Toast.Provider placement="top" />
     </>
   );
 }

@@ -23,7 +23,7 @@ import {
   rebaseBranch,
   saveStash,
 } from "@/lib/api";
-import { Alert } from "@heroui/react";
+import { useToast } from "@/components/ui/Toast";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { gateCheckout } from "@/lib/checkoutGate";
@@ -208,8 +208,6 @@ function BranchRow({
   );
 }
 
-type BranchNotice = { text: string; variant: "success" | "danger" };
-
 interface BranchListProps {
   /** Fired when the user clicks a branch row, with the full branch (name + tip sha). */
   onBranchSelect?: (branch: BranchInfo) => void;
@@ -225,7 +223,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<BranchNotice | null>(null);
   const [irebaseOnto, setIrebaseOnto] = useState<string | null>(null);
   const [irebasePaused, setIrebasePaused] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -244,15 +241,12 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     bumpHistoryEpoch();
   }, [bumpHistoryEpoch]);
 
-  const showNotice = useCallback((text: string, variant: BranchNotice["variant"] = "success") => {
-    setNotice({ text, variant });
-  }, []);
-
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(null), 5000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+  const { toast } = useToast();
+  // Sidebar operation results (checkout, merge, rebase) surface as
+  // top-center HeroUI toasts instead of an inline banner.
+  const showNotice = (text: string, variant: "success" | "danger" = "success") => {
+    toast({ title: text, variant });
+  };
 
   useEffect(() => {
     // Repo switch: drop the previous repo's rows immediately so a click during
@@ -303,7 +297,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (!activeWorkspaceId || busy) return;
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
       await fn();
       refresh();
@@ -621,19 +614,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
               Discard pause
             </Button>
           </div>
-        ) : null}
-
-        {notice ? (
-          <Alert
-            status={notice.variant === "success" ? "success" : "danger"}
-            className={cn(
-              "shrink-0 rounded-none border-0 border-b px-3 py-2 text-xs shadow-none",
-              notice.variant === "success" && "bg-success/20 text-success border-b-success/40",
-              notice.variant === "danger" && "bg-danger/20 text-danger border-b-danger/40",
-            )}
-          >
-            <Alert.Description>{notice.text}</Alert.Description>
-          </Alert>
         ) : null}
 
         <div>{renderBody()}</div>
