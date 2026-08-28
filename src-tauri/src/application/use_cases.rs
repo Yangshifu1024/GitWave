@@ -16,6 +16,7 @@ use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
 };
 use crate::domain::worktree::WorktreeInfo;
+use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
@@ -618,16 +619,39 @@ pub async fn generate_commit_message(
     user.push_str("\nStaged diff (unified format, may be truncated):\n");
     append_diff_patch(&mut user, &staged_files, 12_000);
 
-    let system = settings.prompt_templates.commit.unwrap_or_else(|| {
-        "You write concise git commit messages. Output ONLY the message text. \
+    let system = with_repo_rules(
+        settings.prompt_templates.commit.unwrap_or_else(|| {
+            "You write concise git commit messages. Output ONLY the message text. \
              Prefer conventional commits (type: summary). First line <= 72 chars. \
              Base the message strictly on the provided staged diff — do not invent \
              changes that are not visible in it. \
              Do not wrap in markdown fences."
-            .into()
-    });
+                .into()
+        }),
+        repo.workdir().and_then(infra_read_ai_rules),
+    );
 
     generate_with_failover(chain, system, user).await
+}
+
+/// Append the repo's `.gitwave/AI.md` (when present) to a system prompt so
+/// per-repo conventions ride along with every AI request.
+fn with_repo_rules(system: String, rules: Option<String>) -> String {
+    match rules {
+        Some(rules) if !rules.trim().is_empty() => format!(
+            "{system}\n\nRepository AI rules (from .gitwave/AI.md — they refine the \
+             guidance above for this repository):\n{rules}"
+        ),
+        _ => system,
+    }
+}
+
+/// Report the active repo's per-repo AI rules content so the settings UI
+/// can show whether rules are in effect. `None` when absent.
+pub fn get_repo_ai_rules(ctx: &AppContext, workspace_id: &str) -> Result<Option<String>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    Ok(repo.workdir().and_then(infra_read_ai_rules))
 }
 
 fn append_diff_summary(buf: &mut String, diff: &DiffSummary) {
@@ -914,13 +938,19 @@ pub async fn explain_conflict(
         |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
     let chain = resolve_ai_chain(&settings, &key_lookup)?;
     let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
-    let system = settings.prompt_templates.conflict.unwrap_or_else(|| {
-        "You explain git merge conflicts for a human developer. \
+    let repo_path = active_repo_path(ctx, &workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    let rules = repo.workdir().and_then(infra_read_ai_rules);
+    let system = with_repo_rules(
+        settings.prompt_templates.conflict.unwrap_or_else(|| {
+            "You explain git merge conflicts for a human developer. \
          Describe what each side intends and suggest a resolution approach. \
          Do NOT output a full rewritten file unless asked. \
          Clearly state this is advice only — the user must apply changes."
-            .into()
-    });
+                .into()
+        }),
+        rules,
+    );
     let user = format!(
         "Conflict in `{path}`\n\n=== BASE ===\n{}\n\n=== OURS ===\n{}\n\n=== THEIRS ===\n{}\n",
         sides.base.as_deref().unwrap_or("(missing)"),
@@ -1455,6 +1485,17 @@ mod tests {
         assert!(!should_failover(&AppError::Protocol("bad prompt".into())));
         assert!(!should_failover(&AppError::Credential("no key".into())));
         assert!(!should_failover(&AppError::Unknown("empty content".into())));
+    }
+
+    #[test]
+    fn repo_rules_are_appended_only_when_present() {
+        let base = "Base prompt.".to_string();
+        assert_eq!(with_repo_rules(base.clone(), None), base);
+        assert_eq!(with_repo_rules(base.clone(), Some("   ".into())), base);
+        let with = with_repo_rules(base, Some("Keep subjects short.".into()));
+        assert!(with.starts_with("Base prompt."));
+        assert!(with.contains(".gitwave/AI.md"));
+        assert!(with.contains("Keep subjects short."));
     }
 
     #[test]

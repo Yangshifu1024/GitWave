@@ -164,6 +164,11 @@ export function generateCommitMessage(workspaceId: string): Promise<AiGenerateOu
   return invoke<AiGenerateOutcome>("cmd_generate_commit_message", { workspaceId });
 }
 
+/** Active repo's `.gitwave/AI.md` content, or null when absent. */
+export function getRepoAiRules(workspaceId: string): Promise<string | null> {
+  return invoke<string | null>("cmd_get_repo_ai_rules", { workspaceId });
+}
+
 // ─── Repo commands ───────────────────────────────────────────────────────
 
 export function listRepos(workspaceId: string): Promise<RepoRef[]> {

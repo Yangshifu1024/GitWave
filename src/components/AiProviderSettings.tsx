@@ -5,6 +5,7 @@ import {
   clearAiApiKey,
   formatAppError,
   getAiKeyStatus,
+  getRepoAiRules,
   getWorkspace,
   probeOllama,
   setAiApiKey,
@@ -82,6 +83,12 @@ export function AiProviderSettings({
     queryKey: ["ai-key", workspaceId, provider],
     queryFn: () => getAiKeyStatus(workspaceId!, provider),
     enabled: Boolean(workspaceId && open && provider !== "ollama"),
+  });
+
+  const { data: repoRules } = useQuery({
+    queryKey: ["repo-ai-rules", workspaceId],
+    queryFn: () => getRepoAiRules(workspaceId!),
+    enabled: Boolean(workspaceId && open),
   });
 
   useEffect(() => {
@@ -181,6 +188,12 @@ export function AiProviderSettings({
       size="md"
     >
       <div className="flex flex-col gap-3">
+        {repoRules ? (
+          <p className="rounded-md bg-bg-secondary px-2 py-1.5 text-[11px] text-text-secondary">
+            Per-repo AI rules active — <code>.gitwave/AI.md</code> ({repoRules.length} chars) is
+            appended to every AI prompt for the active repo.
+          </p>
+        ) : null}
         <Label className="text-xs text-text-secondary">
           Provider
           <Select
