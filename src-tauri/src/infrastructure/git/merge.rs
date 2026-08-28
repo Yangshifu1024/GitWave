@@ -73,6 +73,12 @@ pub fn merge_preview(repo: &Repository, branch_name: &str) -> Result<MergePrevie
     })
 }
 
+/// Merge commit subject, mirroring git's default `Merge branch 'x'` style
+/// (double quotes per user preference).
+fn merge_message(branch_name: &str) -> String {
+    format!("Merge branch \"{branch_name}\"")
+}
+
 fn resolve_tips(repo: &Repository, branch_name: &str) -> Result<(git2::Oid, git2::Oid)> {
     let branch = repo
         .find_branch(branch_name, git2::BranchType::Local)
@@ -166,7 +172,7 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
                 Some("HEAD"),
                 &sig,
                 &sig,
-                &format!("merge {branch_name}"),
+                &merge_message(branch_name),
                 &their_commit.tree().map_err(map_git_err)?,
                 &[&our_commit, &their_commit],
             )
@@ -203,7 +209,7 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
     if !conflicts.is_empty() {
         let _ = std::fs::write(
             repo.path().join("MERGE_MSG"),
-            format!("merge {branch_name}\n"),
+            format!("{}\n", merge_message(branch_name)),
         );
         return Ok(MergeResult {
             kind: MergeKind::ThreeWay,
@@ -221,7 +227,7 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
             Some("HEAD"),
             &sig,
             &sig,
-            &format!("merge {branch_name}"),
+            &merge_message(branch_name),
             &repo.find_tree(merged_tree_oid).map_err(map_git_err)?,
             &[&our_commit, &their_commit],
         )
@@ -309,6 +315,11 @@ mod tests {
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(res.kind, MergeKind::ThreeWay);
         assert_eq!(head.parent_count(), 2, "no-ff must create a merge commit");
+        assert_eq!(
+            head.summary(),
+            Some("Merge branch \"main\""),
+            "merge subject follows the git default style"
+        );
         assert_eq!(head.parent(1).unwrap().id(), main_tip);
         // Regression for the Aug 2026 empty-merge data loss: merging a
         // fast-forwardable branch with --no-ff must bring the target's
