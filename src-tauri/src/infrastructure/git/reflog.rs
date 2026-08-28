@@ -19,9 +19,49 @@ pub struct ReflogEntry {
     pub new_oid: String,
     /// Raw reflog message, e.g. `commit: fix x`, `reset: moving to v1.0`.
     pub message: String,
+    /// Semantic action class derived from the message (see [`classify`]).
+    pub action: String,
     pub committer: String,
     /// Unix epoch seconds.
     pub time: i64,
+}
+
+/// Classify a raw reflog message into a stable action id for the recovery
+/// UI and AI prompts.
+pub fn classify(message: &str) -> &'static str {
+    let m = message.trim_start();
+    let lower = m.to_lowercase();
+    if lower.starts_with("commit (initial)") {
+        "initial_commit"
+    } else if lower.starts_with("commit (amend)") {
+        "amend"
+    } else if lower.starts_with("commit") {
+        "commit"
+    } else if lower.starts_with("checkout") {
+        "checkout"
+    } else if lower.starts_with("reset") {
+        "reset"
+    } else if lower.starts_with("merge") {
+        "merge"
+    } else if lower.starts_with("rebase") {
+        "rebase"
+    } else if lower.starts_with("pull") {
+        "pull"
+    } else if lower.starts_with("push") {
+        "push"
+    } else if lower.starts_with("branch") {
+        "branch"
+    } else if lower.starts_with("revert") {
+        "revert"
+    } else if lower.starts_with("cherry-pick") {
+        "cherry_pick"
+    } else if lower.starts_with("stash") {
+        "stash"
+    } else if lower.starts_with("clone") {
+        "clone"
+    } else {
+        "other"
+    }
 }
 
 /// Accept `HEAD` or a branch shorthand; anything containing `refs/` passes
@@ -56,6 +96,7 @@ pub fn list_reflog(repo: &Repository, reference: &str) -> Result<Vec<ReflogEntry
         .map(|entry| ReflogEntry {
             old_oid: entry.id_old().to_string(),
             new_oid: entry.id_new().to_string(),
+            action: classify(entry.message().unwrap_or("")).to_string(),
             message: entry.message().unwrap_or("").to_string(),
             committer: entry.committer().name().unwrap_or("").to_string(),
             time: entry.committer().when().seconds(),
@@ -100,6 +141,25 @@ mod tests {
         let log = list_reflog(&repo, "side").unwrap();
         assert_eq!(log.len(), 1);
         cleanup(&path);
+    }
+
+    #[test]
+    fn classify_covers_common_git_operations() {
+        assert_eq!(classify("commit: fix login"), "commit");
+        assert_eq!(classify("commit (initial): bootstrap"), "initial_commit");
+        assert_eq!(classify("commit (amend): fix"), "amend");
+        assert_eq!(classify("checkout: moving from main to side"), "checkout");
+        assert_eq!(classify("reset: moving to v1.0"), "reset");
+        assert_eq!(classify("merge feat: Merge made by ort"), "merge");
+        assert_eq!(
+            classify("rebase (finish): refs/heads/main onto 9c3"),
+            "rebase"
+        );
+        assert_eq!(classify("pull: fast-forward"), "pull");
+        assert_eq!(classify("branch: Created from HEAD"), "branch");
+        assert_eq!(classify("revert: Revert \"x\""), "revert");
+        assert_eq!(classify("cherry-pick: onto main"), "cherry_pick");
+        assert_eq!(classify("mystery operation"), "other");
     }
 
     #[test]

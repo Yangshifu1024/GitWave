@@ -79,8 +79,8 @@ use crate::infrastructure::git::tag::{
 };
 use crate::infrastructure::git::working_copy::{
     commit as infra_commit, discard_worktree_changes as infra_discard_worktree_changes,
-    ignore_path as infra_ignore_path, stage_all as infra_stage_all,
-    stage_paths as infra_stage_paths, status as infra_wc_status,
+    ignore_path as infra_ignore_path, reset_head_hard as infra_reset_head_hard,
+    stage_all as infra_stage_all, stage_paths as infra_stage_paths, status as infra_wc_status,
     unstage_paths as infra_unstage_paths,
 };
 use crate::infrastructure::git::worktree::{
@@ -871,6 +871,16 @@ pub async fn explain_conflict(
     .await
 }
 
+/// Commit subject for a reflog position, or a placeholder when the oid
+/// is zero/unresolvable (branch creation, pruned commits).
+fn subject_of(repo: &git2::Repository, oid: &str) -> String {
+    git2::Oid::from_str(oid)
+        .ok()
+        .and_then(|o| repo.find_commit(o).ok())
+        .and_then(|c| c.summary().map(str::to_string))
+        .unwrap_or_else(|| "(not resolvable — maybe zero oid or pruned)".into())
+}
+
 /// Rebase the current HEAD onto an upstream.
 pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Result<RebaseResult> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
@@ -955,6 +965,67 @@ pub fn list_reflog(
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_list_reflog(&repo, reference.as_deref().unwrap_or("HEAD"))
+}
+
+/// `git reset --hard <oid>` on the current branch — M2 recovery action,
+/// always behind an explicit user confirmation upstream (P1).
+pub fn reset_hard(ctx: &AppContext, workspace_id: &str, oid: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_reset_head_hard(&repo, oid)
+}
+
+/// AI explanation of a reflog event + recovery advice (advice only, P1).
+pub async fn explain_reflog(
+    ctx: &AppContext,
+    workspace_id: String,
+    old_oid: String,
+    new_oid: String,
+    action: String,
+    message: String,
+) -> Result<String> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    ensure_ai_online(&settings)?;
+    let chain = ai_chain(&settings, &workspace_id)?;
+    let primary = &chain[0];
+    let model = settings
+        .ai_model
+        .clone()
+        .unwrap_or_else(|| match primary.provider.as_str() {
+            "anthropic" => "claude-3-5-haiku-latest".into(),
+            "ollama" => "llama3.2".into(),
+            _ => "gpt-4o-mini".into(),
+        });
+
+    let repo_path = active_repo_path(ctx, &workspace_id)?;
+    // git2::Repository is !Send — resolve subjects inside a scope so it is
+    // dropped before the network await.
+    let (old_subject, new_subject) = {
+        let repo = ctx.open_repo(&repo_path)?;
+        (subject_of(&repo, &old_oid), subject_of(&repo, &new_oid))
+    };
+
+    let system = settings.prompt_templates.reflog.clone().unwrap_or_else(|| {
+        "You are a git recovery assistant. A single reflog entry is provided.          In 2-4 sentences: explain what happened to the branch, then give one          concrete recovery recommendation (create a recovery branch at a sha,          git reset --hard, or checkout). Advice only — you never execute          anything. Do not wrap in markdown fences."
+            .into()
+    });
+    let user = format!(
+        "Reflog entry\nAction: {action}\nMessage: {message}\n\nPrevious position: {old}\n  ({old_subject})\n\nNew position: {new}\n  ({new_subject})\n",
+        old = old_oid,
+        new = new_oid,
+    );
+
+    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
+        provider: primary.provider.clone(),
+        model,
+        base_url: primary.base_url.clone(),
+        api_key: primary.api_key.clone(),
+        system,
+        user,
+        fallbacks: chain[1..].to_vec(),
+    })
+    .await
 }
 
 /// All tags in the active repo (S3).

@@ -13,6 +13,8 @@ export interface PromptTemplates {
   commit: string | null;
   conflict: string | null;
   pr: string | null;
+  /** M2 recovery assistant (reflog explanation). */
+  reflog?: string | null;
 }
 
 export interface WorkspaceSettings {
@@ -472,6 +474,8 @@ export interface SubmoduleInfo {
 export interface ReflogEntry {
   old_oid: string;
   new_oid: string;
+  /** Semantic action class from the backend (commit/reset/checkout/...). */
+  action: string;
   message: string;
   committer: string;
   time: number;
@@ -479,6 +483,23 @@ export interface ReflogEntry {
 
 export function listReflog(workspaceId: string, reference?: string): Promise<ReflogEntry[]> {
   return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId, reference: reference ?? null });
+}
+
+export function resetHeadHard(workspaceId: string, oid: string): Promise<void> {
+  return invoke<void>("cmd_reset_hard", { workspaceId, oid });
+}
+
+export function explainReflog(
+  workspaceId: string,
+  entry: Pick<ReflogEntry, "old_oid" | "new_oid" | "action" | "message">,
+): Promise<string> {
+  return invoke<string>("cmd_explain_reflog", {
+    workspaceId,
+    oldOid: entry.old_oid,
+    newOid: entry.new_oid,
+    action: entry.action,
+    message: entry.message,
+  });
 }
 
 // --- Remotes (M1) -----------------------------------------------------------
