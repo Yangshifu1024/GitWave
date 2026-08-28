@@ -21,6 +21,8 @@ export interface WorkspaceSettings {
   ai_base_url?: string | null;
   /** PM 1.6 offline mode: refuse cloud AI calls (Ollama keeps working). */
   ai_offline?: boolean;
+  /** Ordered fallback providers tried after `ai_provider` (M0 failover). */
+  ai_providers?: string[];
   prompt_templates: PromptTemplates;
   commit_convention: string | null;
   theme_override: string | null;

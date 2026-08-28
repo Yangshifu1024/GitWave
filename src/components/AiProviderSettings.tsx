@@ -64,6 +64,7 @@ export function AiProviderSettings({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  const [fallbackText, setFallbackText] = useState("");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [tplCommit, setTplCommit] = useState("");
   const [tplConflict, setTplConflict] = useState("");
@@ -90,6 +91,7 @@ export function AiProviderSettings({
     setModel(s.ai_model ?? defaultModel(resolved));
     setBaseUrl(s.ai_base_url ?? defaultBaseUrl(resolved));
     setOffline(Boolean(s.ai_offline));
+    setFallbackText((s.ai_providers ?? []).join("\n"));
     setTplCommit(s.prompt_templates.commit ?? "");
     setTplConflict(s.prompt_templates.conflict ?? "");
     setTplPr(s.prompt_templates.pr ?? "");
@@ -108,6 +110,10 @@ export function AiProviderSettings({
             ? trimmedBase
             : trimmedBase || null,
         ai_offline: offline,
+        ai_providers: fallbackText
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0),
         prompt_templates: {
           commit: tplCommit.trim() || null,
           conflict: tplConflict.trim() || null,
@@ -230,6 +236,16 @@ export function AiProviderSettings({
         <Checkbox checked={offline} onChange={setOffline} className="text-xs">
           Offline mode — disable all cloud AI calls (Ollama still allowed)
         </Checkbox>
+
+        <Textarea
+          value={fallbackText}
+          onChange={setFallbackText}
+          placeholder={
+            "Fallback providers, one per line, tried in order\ne.g. anthropic / openai / ollama"
+          }
+          rows={2}
+          spellCheck={false}
+        />
 
         <Button
           variant="secondary"

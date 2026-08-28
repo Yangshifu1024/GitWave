@@ -16,6 +16,7 @@ use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
 };
 use crate::domain::worktree::WorktreeInfo;
+use crate::infrastructure::ai::ProviderAttempt;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
@@ -413,23 +414,17 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
 pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    let provider = settings.ai_provider.clone().ok_or_else(|| {
-        AppError::Protocol("AI provider not configured for this Workspace".into())
-    })?;
     ensure_ai_online(&settings)?;
+    let chain = ai_chain(&settings, &workspace_id)?;
+    let primary = &chain[0];
     let model = settings
         .ai_model
         .clone()
-        .unwrap_or_else(|| match provider.as_str() {
+        .unwrap_or_else(|| match primary.provider.as_str() {
             "anthropic" => "claude-3-5-haiku-latest".into(),
             "ollama" => "llama3.2".into(),
             _ => "gpt-4o-mini".into(),
         });
-    let api_key = if provider == "ollama" {
-        None
-    } else {
-        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
-    };
 
     let repo_path = active_repo_path(ctx, &workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -475,14 +470,71 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
     });
 
     crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
-        provider,
+        provider: primary.provider.clone(),
         model,
-        base_url: settings.ai_base_url,
-        api_key,
+        base_url: primary.base_url.clone(),
+        api_key: primary.api_key.clone(),
         system,
         user,
+        fallbacks: chain[1..].to_vec(),
     })
     .await
+}
+
+/// Ordered provider ids for AI calls: primary `ai_provider` then the
+/// `ai_providers` fallback chain (deduped). Offline mode keeps only Ollama.
+fn provider_chain_ids(settings: &WorkspaceSettings) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    if let Some(p) = settings.ai_provider.as_deref() {
+        let p = p.trim();
+        if !p.is_empty() {
+            ids.push(p.to_string());
+        }
+    }
+    for f in &settings.ai_providers {
+        let f = f.trim();
+        if !f.is_empty() && !ids.iter().any(|i| i == f) {
+            ids.push(f.to_string());
+        }
+    }
+    if settings.ai_offline {
+        ids.retain(|p| p == "ollama");
+    }
+    ids
+}
+
+/// Resolve the chain into attempts with per-provider keychain credentials.
+/// Cloud providers without a stored key are skipped (they cannot succeed).
+/// The primary keeps the workspace base-url override; fallbacks use each
+/// provider's default endpoint.
+fn ai_chain(settings: &WorkspaceSettings, workspace_id: &str) -> Result<Vec<ProviderAttempt>> {
+    let ids = provider_chain_ids(settings);
+    let mut out = Vec::new();
+    for (idx, provider) in ids.into_iter().enumerate() {
+        let api_key = if provider == "ollama" {
+            None
+        } else {
+            match crate::infrastructure::ai::get_api_key(workspace_id, &provider) {
+                Ok(Some(k)) if !k.is_empty() => Some(k),
+                _ => continue,
+            }
+        };
+        out.push(ProviderAttempt {
+            provider,
+            base_url: if idx == 0 {
+                settings.ai_base_url.clone()
+            } else {
+                None
+            },
+            api_key,
+        });
+    }
+    if out.is_empty() {
+        return Err(AppError::Protocol(
+            "no usable AI provider configured (check provider, key and offline settings)".into(),
+        ));
+    }
+    Ok(out)
 }
 
 /// PM 1.6 offline mode: cloud providers are refused, local Ollama keeps working.
@@ -777,23 +829,16 @@ pub async fn explain_conflict(
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
     ensure_ai_online(&settings)?;
-    let provider = settings
-        .ai_provider
-        .clone()
-        .ok_or_else(|| AppError::Protocol("AI provider not configured".into()))?;
+    let chain = ai_chain(&settings, &workspace_id)?;
+    let primary = &chain[0];
     let model = settings
         .ai_model
         .clone()
-        .unwrap_or_else(|| match provider.as_str() {
+        .unwrap_or_else(|| match primary.provider.as_str() {
             "anthropic" => "claude-3-5-haiku-latest".into(),
             "ollama" => "llama3.2".into(),
             _ => "gpt-4o-mini".into(),
         });
-    let api_key = if provider == "ollama" {
-        None
-    } else {
-        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
-    };
     let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
     let system = settings.prompt_templates.conflict.unwrap_or_else(|| {
         "You explain git merge conflicts for a human developer. \
@@ -809,12 +854,13 @@ pub async fn explain_conflict(
         sides.theirs.as_deref().unwrap_or("(missing)"),
     );
     crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
-        provider,
+        provider: primary.provider.clone(),
         model,
-        base_url: settings.ai_base_url,
-        api_key,
+        base_url: primary.base_url.clone(),
+        api_key: primary.api_key.clone(),
         system,
         user,
+        fallbacks: chain[1..].to_vec(),
     })
     .await
 }
@@ -1319,6 +1365,35 @@ mod tests {
         append_diff_patch(&mut buf, &patch_fixture(Some("x".repeat(500))), 40);
         assert!(buf.contains("[diff truncated due to size]"));
         assert!(buf.len() < 500, "budget must bound output: {}", buf.len());
+    }
+
+    #[test]
+    fn provider_chain_dedups_and_respects_offline() {
+        let settings = WorkspaceSettings {
+            ai_provider: Some("openai".into()),
+            ai_providers: vec![
+                "anthropic".into(),
+                "openai".into(),
+                "ollama".into(),
+                "".into(),
+            ],
+            ..WorkspaceSettings::default()
+        };
+        let ids = provider_chain_ids(&settings);
+        assert_eq!(
+            ids,
+            vec![
+                "openai".to_string(),
+                "anthropic".to_string(),
+                "ollama".to_string()
+            ]
+        );
+
+        let offline = WorkspaceSettings {
+            ai_offline: true,
+            ..settings
+        };
+        assert_eq!(provider_chain_ids(&offline), vec!["ollama".to_string()]);
     }
 
     fn fresh_ctx() -> AppContext {

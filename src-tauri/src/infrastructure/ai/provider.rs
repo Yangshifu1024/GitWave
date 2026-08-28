@@ -13,6 +13,17 @@ pub struct AiGenerateRequest {
     pub api_key: Option<String>,
     pub system: String,
     pub user: String,
+    /// Ordered fallback providers tried after `provider` fails. Empty = no
+    /// failover. Base URLs/keys are per attempt (resolved by the caller).
+    pub fallbacks: Vec<ProviderAttempt>,
+}
+
+/// One failover attempt: provider identity + its resolved credentials.
+#[derive(Debug, Clone)]
+pub struct ProviderAttempt {
+    pub provider: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
 }
 
 fn trim_base(base: &str) -> String {
@@ -45,32 +56,103 @@ fn ollama_base(base: Option<String>) -> String {
     trim_base(base.as_deref().unwrap_or("http://127.0.0.1:11434"))
 }
 
+/// Shared HTTP client: fixed request timeout (a hung provider must not
+/// freeze the UI's generate flow) instead of a fresh client per call.
+fn client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .expect("reqwest client")
+    })
+}
+
 /// Generate assistant text. Never auto-applies git mutations (P1).
+///
+/// Tries `req.provider` first, then each `req.fallbacks` entry in order.
+/// Network-level failures get one same-provider retry; other errors move
+/// straight to the next provider. When every attempt fails, the LAST error
+/// is returned.
 pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
-    let provider = req.provider.to_ascii_lowercase();
     let user = scrub_secrets(&req.user);
     let system = scrub_secrets(&req.system);
 
-    match provider.as_str() {
-        "openai" => {
-            let key = req
-                .api_key
-                .filter(|k| !k.is_empty())
-                .ok_or_else(|| AppError::Credential("OpenAI API key not configured".into()))?;
-            openai_chat(&key, &req.model, &system, &user, req.base_url).await
+    let mut attempts: Vec<ProviderAttempt> = vec![ProviderAttempt {
+        provider: req.provider.clone(),
+        base_url: req.base_url.clone(),
+        api_key: req.api_key.clone(),
+    }];
+    attempts.extend(req.fallbacks);
+    let total = attempts.len();
+
+    let mut last_err: Option<AppError> = None;
+    for attempt in &attempts {
+        for pass in 0..2 {
+            let result = attempt_chat(&client(), attempt, &req.model, &system, &user).await;
+            match result {
+                Ok(text) => return Ok(text),
+                Err(e) => {
+                    let transient = matches!(e, AppError::Network(_));
+                    last_err = Some(e);
+                    if pass == 0 && !transient {
+                        break; // non-transient: fail over to the next provider now
+                    }
+                }
+            }
         }
-        "anthropic" => {
-            let key = req
-                .api_key
-                .filter(|k| !k.is_empty())
-                .ok_or_else(|| AppError::Credential("Anthropic API key not configured".into()))?;
-            anthropic_chat(&key, &req.model, &system, &user, req.base_url).await
+    }
+
+    Err(last_err.unwrap_or_else(|| {
+        AppError::Unknown(format!(
+            "all {total} AI provider attempt(s) failed with no error captured"
+        ))
+    }))
+}
+
+/// Dispatch one request to a single provider attempt.
+async fn attempt_chat(
+    client: &reqwest::Client,
+    attempt: &ProviderAttempt,
+    model: &str,
+    system: &str,
+    user: &str,
+) -> Result<String> {
+    match attempt.provider.to_ascii_lowercase().as_str() {
+        "openai" => match attempt.api_key.as_deref().filter(|k| !k.is_empty()) {
+            Some(key) => {
+                openai_chat(client, key, model, system, user, attempt.base_url.clone()).await
+            }
+            None => Err(AppError::Credential("OpenAI API key not configured".into())),
+        },
+        "anthropic" => match attempt.api_key.as_deref().filter(|k| !k.is_empty()) {
+            Some(key) => {
+                anthropic_chat(client, key, model, system, user, attempt.base_url.clone()).await
+            }
+            None => Err(AppError::Credential(
+                "Anthropic API key not configured".into(),
+            )),
+        },
+        "ollama" => {
+            ollama_chat(
+                client,
+                &ollama_base(attempt.base_url.clone()),
+                model,
+                system,
+                user,
+            )
+            .await
         }
-        "ollama" => ollama_chat(&ollama_base(req.base_url), &req.model, &system, &user).await,
         other => Err(AppError::Protocol(format!(
             "unsupported AI provider: {other} (use openai, anthropic, or ollama)"
         ))),
     }
+}
+
+/// Network/timeout errors are worth one same-provider retry; credential,
+/// parameter and protocol errors are not.
+fn is_transient(e: &AppError) -> bool {
+    matches!(e, AppError::Network(_))
 }
 
 /// Probe local Ollama (`GET /api/tags`).
@@ -103,6 +185,7 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
 }
 
 async fn openai_chat(
+    client: &reqwest::Client,
     api_key: &str,
     model: &str,
     system: &str,
@@ -110,7 +193,6 @@ async fn openai_chat(
     base_url: Option<String>,
 ) -> Result<String> {
     let url = openai_endpoint(base_url);
-    let client = reqwest::Client::new();
     let resp = client
         .post(&url)
         .bearer_auth(api_key)
@@ -146,6 +228,7 @@ async fn openai_chat(
 }
 
 async fn anthropic_chat(
+    client: &reqwest::Client,
     api_key: &str,
     model: &str,
     system: &str,
@@ -153,7 +236,6 @@ async fn anthropic_chat(
     base_url: Option<String>,
 ) -> Result<String> {
     let url = anthropic_endpoint(base_url);
-    let client = reqwest::Client::new();
     // Hybrid-reasoning models (GLM 5.x, Claude extended thinking) always
     // emit a thinking block first; max_tokens must leave ample room for it
     // or the response is truncated mid-thought with no text block at all
@@ -230,9 +312,14 @@ fn anthropic_content_text(body: &Value) -> Option<String> {
     }
 }
 
-async fn ollama_chat(base: &str, model: &str, system: &str, user: &str) -> Result<String> {
+async fn ollama_chat(
+    client: &reqwest::Client,
+    base: &str,
+    model: &str,
+    system: &str,
+    user: &str,
+) -> Result<String> {
     let url = format!("{}/api/chat", base);
-    let client = reqwest::Client::new();
     let resp = client
         .post(&url)
         .json(&json!({
@@ -264,6 +351,28 @@ async fn ollama_chat(base: &str, model: &str, system: &str, user: &str) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn unsupported_chain_reports_last_error() {
+        let req = AiGenerateRequest {
+            provider: "acme".into(),
+            model: "m".into(),
+            base_url: None,
+            api_key: None,
+            system: "s".into(),
+            user: "u".into(),
+            fallbacks: vec![ProviderAttempt {
+                provider: "acme2".into(),
+                base_url: None,
+                api_key: None,
+            }],
+        };
+        let err = generate_text(req).await.unwrap_err();
+        assert!(
+            err.to_string().contains("acme2"),
+            "last attempt's error should surface: {err}"
+        );
+    }
 
     #[test]
     fn extracts_plain_text_block() {

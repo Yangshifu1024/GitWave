@@ -30,6 +30,10 @@ pub struct WorkspaceSettings {
     /// Ollama keeps working.
     #[serde(default)]
     pub ai_offline: bool,
+    /// Ordered fallback chain tried after `ai_provider` (M0 failover). The
+    /// primary field stays chain-head for backward compatibility.
+    #[serde(default)]
+    pub ai_providers: Vec<String>,
     pub prompt_templates: PromptTemplates,
     pub commit_convention: Option<String>,
     pub theme_override: Option<String>,
