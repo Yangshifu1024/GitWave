@@ -28,6 +28,8 @@ export interface ChangesPanelProps {
   onSelectFile: (path: string, staged: boolean) => void;
   /** `bar` = horizontal 3-column grid; `modal` = single column inside WorkingCopyModal */
   layout?: "stacked" | "bar" | "modal";
+  /** Fired after a successful commit (the hosting modal closes itself). */
+  onCommitted?: () => void;
 }
 
 function FileSection({
@@ -247,6 +249,7 @@ export function ChangesPanel({
   selectedStaged,
   onSelectFile,
   layout = "stacked",
+  onCommitted,
 }: ChangesPanelProps): React.JSX.Element {
   const bar = layout === "bar";
   const modal = layout === "modal";
@@ -373,7 +376,12 @@ export function ChangesPanel({
         onChange={setMessage}
         onSubmit={() => {
           if (stagedFiles.length === 0 || !message.trim()) return;
-          commitMessage(message, { onSuccess: () => setMessage("") });
+          commitMessage(message, {
+            onSuccess: () => {
+              setMessage("");
+              onCommitted?.();
+            },
+          });
         }}
         onAiGenerate={handleAiGenerate}
         disabled={stagedFiles.length === 0 || commitPending || aiBusy}

@@ -68,6 +68,7 @@ export function WorkingCopyModal({
             selectedStaged={selected?.staged ?? null}
             onSelectFile={(path, staged) => setSelected({ path, staged })}
             layout="modal"
+            onCommitted={() => onOpenChange(false)}
           />
         </div>
         <div className="min-h-0 overflow-hidden">

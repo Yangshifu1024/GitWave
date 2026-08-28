@@ -626,19 +626,26 @@ export function ActionBar(): React.JSX.Element {
             if (!open) endAdd();
           }}
           title="Initialize new repo"
+          description="Create a fresh Git repository in an empty folder."
           size="sm"
         >
-          <PathInput
-            autoFocus
-            directory
-            value={initPath}
-            onChange={setInitPath}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && initPath.trim()) initMut.mutate({ path: initPath.trim() });
-            }}
-            placeholder="Absolute path, e.g. /Users/me/projects/new"
-            error={actionError}
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-text-secondary" htmlFor="init-path">
+              Location
+            </label>
+            <PathInput
+              id="init-path"
+              autoFocus
+              directory
+              value={initPath}
+              onChange={setInitPath}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && initPath.trim()) initMut.mutate({ path: initPath.trim() });
+              }}
+              placeholder="/Users/me/projects/new"
+              error={actionError}
+            />
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={endAdd}>
               Cancel
@@ -663,6 +670,7 @@ export function ActionBar(): React.JSX.Element {
             if (!open) endAdd();
           }}
           title="Clone remote repo"
+          description="Copy a remote repository into a local folder."
           size="sm"
         >
           <div className="flex flex-col gap-3">
@@ -774,20 +782,27 @@ export function ActionBar(): React.JSX.Element {
             if (!open) endAdd();
           }}
           title="Add existing local repo"
+          description="Register an existing Git working tree with this workspace."
           size="sm"
         >
-          <PathInput
-            autoFocus
-            directory
-            value={localPath}
-            onChange={setLocalPath}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && localPath.trim())
-                localMut.mutate({ path: localPath.trim() });
-            }}
-            placeholder="Absolute path to an existing git working tree"
-            error={actionError}
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-text-secondary" htmlFor="add-local-path">
+              Location
+            </label>
+            <PathInput
+              id="add-local-path"
+              autoFocus
+              directory
+              value={localPath}
+              onChange={setLocalPath}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && localPath.trim())
+                  localMut.mutate({ path: localPath.trim() });
+              }}
+              placeholder="/Users/me/projects/existing"
+              error={actionError}
+            />
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={endAdd}>
               Cancel

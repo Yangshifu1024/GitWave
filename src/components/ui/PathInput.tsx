@@ -35,6 +35,9 @@ export function PathInput({
   placeholder,
   error,
   disabled,
+  autoFocus,
+  onKeyDown,
+  id,
 }: PathInputProps): React.JSX.Element {
   async function browse(): Promise<void> {
     try {
@@ -61,6 +64,9 @@ export function PathInput({
         placeholder={placeholder}
         error={error}
         disabled={disabled}
+        autoFocus={autoFocus}
+        onKeyDown={onKeyDown}
+        id={id}
         className="flex-1 min-w-0"
       />
       <Button
@@ -69,11 +75,11 @@ export function PathInput({
         size="md"
         onClick={() => void browse()}
         disabled={disabled}
-        className="shrink-0"
+        className="shrink-0 px-2"
         aria-label={directory ? "Browse for directory" : "Browse for file"}
+        title={directory ? "Browse for directory" : "Browse for file"}
       >
         {directory ? <FolderOpen size={14} /> : <File size={14} />}
-        <span>Browse…</span>
       </Button>
     </div>
   );
