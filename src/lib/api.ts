@@ -43,6 +43,14 @@ export interface AiGenerateOutcome {
   used_fallback: boolean;
 }
 
+/** AI-generated PR description (title + markdown body). Never creates a PR. */
+export interface PrDescriptionOutcome {
+  title: string;
+  body: string;
+  provider_used: string;
+  used_fallback: boolean;
+}
+
 export interface RepoRef {
   id: string;
   workspace_id: string;
@@ -167,6 +175,20 @@ export function generateCommitMessage(workspaceId: string): Promise<AiGenerateOu
 /** Active repo's `.gitwave/AI.md` content, or null when absent. */
 export function getRepoAiRules(workspaceId: string): Promise<string | null> {
   return invoke<string | null>("cmd_get_repo_ai_rules", { workspaceId });
+}
+
+/**
+ * AI PR description for the active branch vs `base` (default: first of
+ * origin/main, origin/master, main, master). Copy-ready output only.
+ */
+export function generatePrDescription(
+  workspaceId: string,
+  base?: string,
+): Promise<PrDescriptionOutcome> {
+  return invoke<PrDescriptionOutcome>("cmd_generate_pr_description", {
+    workspaceId,
+    base: base ?? null,
+  });
 }
 
 // ─── Repo commands ───────────────────────────────────────────────────────

@@ -18,7 +18,7 @@ pub use branch::{BranchInfo, BranchKind};
 pub use diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};
 pub use error::{AppError, Result};
 pub use history::{
-    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary,
+    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary, PrCommit,
 };
 pub use stash::StashEntry;
 pub use working_copy::{FileChange, FileStatusKind, WorkingCopy};

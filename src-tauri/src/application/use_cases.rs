@@ -9,7 +9,7 @@ use crate::domain::blame::BlameLine;
 use crate::domain::branch::BranchInfo;
 use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
-use crate::domain::history::{CommitDetails, CommitSummary};
+use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
@@ -36,7 +36,8 @@ use crate::infrastructure::git::diff::{
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_details as infra_commit_details,
     commit_log as infra_commit_log, commit_recent_messages as infra_commit_recent_messages,
-    list_branches as infra_list_branches,
+    commits_ahead_of as infra_commits_ahead_of, list_branches as infra_list_branches,
+    resolve_ref_oid as infra_resolve_ref_oid,
 };
 use crate::infrastructure::git::interactive_rebase::{
     abort_interactive_rebase_pause as infra_abort_irebase_pause,
@@ -972,6 +973,149 @@ pub async fn explain_conflict(
     generate_with_failover(chain, system, user).await
 }
 
+// ─── AI PR description ──────────────────────────────────────────────────────
+
+/// Generated PR title + markdown body, plus which provider served it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PrDescriptionOutcome {
+    pub title: String,
+    pub body: String,
+    pub provider_used: String,
+    pub used_fallback: bool,
+}
+
+pub const DEFAULT_PR_SYSTEM: &str =
+    "You write pull request titles and descriptions for a human reviewer. \
+The FIRST line of your output is the PR title: plain text, at most 72 characters, no prefix. \
+After the title leave one blank line, then write the description in markdown: a short summary \
+paragraph, bullet points for the notable changes, and a short 'Testing' section. \
+Base everything strictly on the provided commits and diff — do not invent changes. \
+Do not wrap the output in markdown fences.";
+
+/// Default base candidates for PR description generation, in order.
+const PR_BASE_CANDIDATES: [&str; 4] = ["origin/main", "origin/master", "main", "master"];
+
+fn default_pr_base(repo: &git2::Repository) -> Result<String> {
+    for candidate in PR_BASE_CANDIDATES {
+        if infra_resolve_ref_oid(repo, candidate).is_ok() {
+            return Ok(candidate.to_string());
+        }
+    }
+    Err(AppError::Protocol(
+        "no base branch found (tried origin/main, origin/master, main, master) — \
+         pick a base branch explicitly"
+            .into(),
+    ))
+}
+
+/// Split raw model output into title (first line) + markdown body.
+fn split_pr_text(text: &str) -> (String, String) {
+    let text = text.trim();
+    match text.split_once('\n') {
+        Some((title, rest)) => (title.trim().to_string(), rest.trim().to_string()),
+        None => (text.to_string(), String::new()),
+    }
+}
+
+/// Assemble the user prompt: branch segment commits + combined diff.
+fn build_pr_user_prompt(
+    branch: &str,
+    base: &str,
+    commits: &[PrCommit],
+    files: &[FileDiff],
+) -> String {
+    let mut user = format!(
+        "Branch: {branch}\nBase: {base}\n\nCommits ({}):\n",
+        commits.len()
+    );
+    for c in commits {
+        let short = &c.sha[..c.sha.len().min(7)];
+        user.push_str(&format!("- {short} {}\n", c.subject));
+    }
+    user.push_str("\nFull commit messages of the branch (style reference):\n");
+    for c in commits.iter().take(5) {
+        user.push_str("---\n");
+        user.push_str(&c.message_full);
+        user.push_str("\n---\n");
+    }
+    user.push_str("\nCombined diff of the branch (unified format, may be truncated):\n");
+    append_diff_patch(&mut user, files, 12_000);
+    user
+}
+
+/// AI-generated PR description for the active branch vs `base` (default:
+/// first existing of origin/main, origin/master, main, master). Never
+/// creates a PR (P1) — output is copy-ready text for the user.
+pub async fn generate_pr_description(
+    ctx: &AppContext,
+    workspace_id: String,
+    base: Option<String>,
+) -> Result<PrDescriptionOutcome> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    // Scoped so the !Send git2 handles (Repository / Commit) drop before
+    // the await — the command future must stay Send.
+    let (user, system) = {
+        let repo_path = active_repo_path(ctx, &workspace_id)?;
+        let repo = ctx.open_repo(&repo_path)?;
+        let head = match repo.head() {
+            Ok(head) => head.peel_to_commit().map_err(AppError::from)?,
+            Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
+                return Err(AppError::Protocol(
+                    "repository has no commits yet — nothing to describe".into(),
+                ));
+            }
+            Err(e) => return Err(AppError::from(e)),
+        };
+        let branch = repo
+            .head()
+            .ok()
+            .and_then(|h| h.shorthand().map(str::to_string))
+            .unwrap_or_else(|| "HEAD (detached)".to_string());
+
+        let base_name = match base.filter(|b| !b.trim().is_empty()) {
+            Some(b) => b,
+            None => default_pr_base(&repo)?,
+        };
+        let base_oid = infra_resolve_ref_oid(&repo, &base_name)?;
+        let merge_base = repo.merge_base(base_oid, head.id()).map_err(|_| {
+            AppError::Protocol(format!("no common ancestor between HEAD and {base_name}"))
+        })?;
+        let commits = infra_commits_ahead_of(&repo, merge_base, head.id(), 30)?;
+        if commits.is_empty() {
+            return Err(AppError::Protocol(format!(
+                "no commits ahead of {base_name} — nothing to describe"
+            )));
+        }
+        let files = infra_diff_paths(&repo, merge_base, head.id())?;
+
+        let user = build_pr_user_prompt(&branch, &base_name, &commits, &files);
+        let system = with_repo_rules(
+            settings
+                .prompt_templates
+                .pr
+                .clone()
+                .filter(|t| !t.trim().is_empty())
+                .unwrap_or_else(|| DEFAULT_PR_SYSTEM.to_string()),
+            repo.workdir().and_then(infra_read_ai_rules),
+        );
+        (user, system)
+    };
+
+    let outcome = generate_with_failover(chain, system, user).await?;
+    let (title, body) = split_pr_text(&outcome.text);
+    Ok(PrDescriptionOutcome {
+        title,
+        body,
+        provider_used: outcome.provider_used,
+        used_fallback: outcome.used_fallback,
+    })
+}
+
 /// Rebase the current HEAD onto an upstream.
 pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Result<RebaseResult> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
@@ -1508,6 +1652,39 @@ mod tests {
         assert!(with.starts_with("Base prompt."));
         assert!(with.contains(".gitwave/AI.md"));
         assert!(with.contains("Keep subjects short."));
+    }
+
+    #[test]
+    fn split_pr_text_separates_title_and_body() {
+        let (title, body) = split_pr_text("feat: add LFS support\n\nSummary.\n- item");
+        assert_eq!(title, "feat: add LFS support");
+        assert_eq!(body, "Summary.\n- item");
+        let (title, body) = split_pr_text("  title only  ");
+        assert_eq!(title, "title only");
+        assert_eq!(body, "");
+        let (title, body) = split_pr_text("\n\ntitle\n");
+        assert_eq!(title, "title");
+        assert_eq!(body, "");
+    }
+
+    #[test]
+    fn pr_user_prompt_lists_commits_and_diff() {
+        let commits = vec![PrCommit {
+            sha: "1234567890abcdef".into(),
+            subject: "feat: a".into(),
+            message_full: "feat: a\n\nbody".into(),
+        }];
+        let prompt =
+            build_pr_user_prompt("feature/x", "origin/main", &commits, &patch_fixture(None));
+        assert!(prompt.contains("Branch: feature/x"));
+        assert!(prompt.contains("Base: origin/main"));
+        assert!(prompt.contains("Commits (1):"));
+        assert!(prompt.contains("- 1234567 feat: a"));
+        assert!(
+            prompt.contains("feat: a\n\nbody"),
+            "style reference included"
+        );
+        assert!(prompt.contains("--- a/a.txt"), "diff patch included");
     }
 
     #[test]

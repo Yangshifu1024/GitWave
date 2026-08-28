@@ -84,6 +84,17 @@ pub struct CommitDetails {
     pub files: Vec<FileSummary>,
 }
 
+/// One commit on a branch segment (commits ahead of a base branch) —
+/// input for AI PR description prompts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PrCommit {
+    pub sha: String,
+    /// First line of the commit message.
+    pub subject: String,
+    /// Full trimmed commit message (subject + body).
+    pub message_full: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

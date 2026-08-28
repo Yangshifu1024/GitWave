@@ -19,6 +19,7 @@ import {
   FolderOpen,
   FolderPlus,
   GitBranch,
+  GitPullRequest,
   Pencil,
   Sparkles,
   Trash2,
@@ -56,6 +57,7 @@ import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Label } from "@/components/ui/Label";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
+import { PrDescriptionModal } from "@/components/PrDescriptionModal";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 
 interface PullDialogState {
@@ -365,6 +367,7 @@ export function ActionBar(): React.JSX.Element {
   const [branchError, setBranchError] = useState<string | null>(null);
   const [pullDialog, setPullDialog] = useState<PullDialogState | null>(null);
   const [pushDialog, setPushDialog] = useState<{ tags: boolean; force: boolean } | null>(null);
+  const [prOpen, setPrOpen] = useState(false);
 
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
@@ -570,6 +573,13 @@ export function ActionBar(): React.JSX.Element {
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={() => setPushDialog({ tags: false, force: false })}
           />
+          <ActionBarButton
+            icon={<GitPullRequest size={14} />}
+            label="PR"
+            title="AI PR description for the current branch"
+            disabled={noRepo || detached}
+            onClick={() => setPrOpen(true)}
+          />
         </ActionBarGroup>
 
         <div className="flex-1" />
@@ -722,6 +732,10 @@ export function ActionBar(): React.JSX.Element {
         open={aiOpen}
         onOpenChange={setAiOpen}
       />
+
+      {prOpen && activeWorkspaceId ? (
+        <PrDescriptionModal workspaceId={activeWorkspaceId} open onClose={() => setPrOpen(false)} />
+      ) : null}
 
       {/* Repository: init */}
       {adding === "init" && (
