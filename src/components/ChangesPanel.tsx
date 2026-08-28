@@ -38,6 +38,8 @@ function FileSection({
   actionLabel,
   actionVariant,
   allActionLabel,
+  dangerActionLabel,
+  allDangerActionLabel,
   files,
   emptyLabel,
   selectedPath,
@@ -46,6 +48,8 @@ function FileSection({
   onStageToggle,
   onBulkAction,
   onAllAction,
+  onDangerAction,
+  onAllDangerAction,
   onDiscardFile,
   onIgnoreFile,
   layout,
@@ -54,6 +58,12 @@ function FileSection({
   actionLabel: string;
   actionVariant: "primary" | "secondary";
   allActionLabel?: string;
+  /** Destructive bulk action on the selected files (with confirmation upstream). */
+  dangerActionLabel?: string;
+  onDangerAction?: (paths: string[]) => void;
+  /** Destructive action on every file in the section (with confirmation upstream). */
+  allDangerActionLabel?: string;
+  onAllDangerAction?: () => void;
   files: FileChange[];
   emptyLabel: string;
   selectedPath: string | null;
@@ -101,6 +111,13 @@ function FileSection({
     setSelected(new Set());
   };
 
+  const handleDangerBulk = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (selectedInSection.length === 0 || !onDangerAction) return;
+    onDangerAction(selectedInSection);
+    setSelected(new Set());
+  };
+
   return (
     <div
       className={cn(
@@ -121,7 +138,7 @@ function FileSection({
     >
       <div className={cn("shrink-0 flex items-center gap-1", fixed ? "px-2 py-1" : "pr-1")}>
         {fixed ? (
-          <h3 className="flex-1 min-w-0 px-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+          <h3 className="flex-1 min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
             {title} ({files.length})
           </h3>
         ) : (
@@ -170,6 +187,35 @@ function FileSection({
         >
           {actionLabel}
         </Button>
+        {allDangerActionLabel && onAllDangerAction ? (
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            className="shrink-0"
+            disabled={files.length === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAllDangerAction();
+            }}
+            title={`${allDangerActionLabel} files`}
+          >
+            {allDangerActionLabel}
+          </Button>
+        ) : null}
+        {dangerActionLabel && onDangerAction ? (
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            className="shrink-0"
+            disabled={selectedInSection.length === 0}
+            onClick={handleDangerBulk}
+            title={`${dangerActionLabel} selected files`}
+          >
+            {dangerActionLabel}
+          </Button>
+        ) : null}
       </div>
       {sectionOpen ? (
         <div
@@ -278,11 +324,17 @@ export function ChangesPanel({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPromptOpen, setAiPromptOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
-  /** Context-menu action awaiting confirmation (destructive ops only). */
-  const [pendingAction, setPendingAction] = useState<{
-    type: "discard" | "ignore";
-    file: FileChange;
-  } | null>(null);
+  /** Context-menu / bulk action awaiting confirmation (destructive ops only). */
+  const [pendingAction, setPendingAction] = useState<
+    { type: "discard"; files: FileChange[] } | { type: "ignore"; file: FileChange } | null
+  >(null);
+
+  /** Queue a discard confirmation for one or more unstaged files. */
+  const requestDiscard = (files: FileChange[]) => {
+    const discardable = files.filter((file) => file.kind !== "renamed");
+    if (discardable.length === 0) return;
+    setPendingAction({ type: "discard", files: discardable });
+  };
 
   const { data: workspace } = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -430,8 +482,17 @@ export function ChangesPanel({
       onStageToggle={(file) => stage([file.path])}
       onBulkAction={(paths) => stage(paths)}
       onAllAction={() => stage(unstagedFiles.map((file) => file.path))}
-      onDiscardFile={(file) => setPendingAction({ type: "discard", file })}
+      onDiscardFile={(file) => setPendingAction({ type: "discard", files: [file] })}
       onIgnoreFile={(file) => setPendingAction({ type: "ignore", file })}
+      {...(modal
+        ? {
+            allDangerActionLabel: "Discard All",
+            onAllDangerAction: () => requestDiscard(unstagedFiles),
+            dangerActionLabel: "Discard",
+            onDangerAction: (paths: string[]) =>
+              requestDiscard(unstagedFiles.filter((file) => paths.includes(file.path))),
+          }
+        : {})}
       layout={layout}
     />
   );
@@ -441,6 +502,7 @@ export function ChangesPanel({
       title="Staged"
       actionLabel="Unstage"
       actionVariant="secondary"
+      allActionLabel="Unstage All"
       files={stagedFiles}
       emptyLabel="No staged changes"
       selectedPath={selectedPath}
@@ -448,6 +510,7 @@ export function ChangesPanel({
       onSelectFile={onSelectFile}
       onStageToggle={(file) => unstage([file.path])}
       onBulkAction={(paths) => unstage(paths)}
+      onAllAction={() => unstage(stagedFiles.map((file) => file.path))}
       layout={layout}
     />
   );
@@ -457,10 +520,10 @@ export function ChangesPanel({
   const confirmDialogs =
     pendingAction?.type === "discard" ? (
       <DiscardConfirmModal
-        file={pendingAction.file}
+        files={pendingAction.files}
         onCancel={closePending}
         onConfirm={() => {
-          discard([pendingAction.file.path]);
+          discard(pendingAction.files.map((file) => file.path));
           closePending();
         }}
       />
@@ -489,26 +552,40 @@ export function ChangesPanel({
   );
 }
 
-/** Confirmation for the destructive discard of one unstaged file. */
+/** Confirmation for the destructive discard of one or more unstaged files. */
 function DiscardConfirmModal({
-  file,
+  files,
   onCancel,
   onConfirm,
 }: {
-  file: FileChange;
+  files: FileChange[];
   onCancel: () => void;
   onConfirm: () => void;
 }): React.JSX.Element {
-  const untracked = file.kind === "untracked";
-  const description = untracked
-    ? `"${file.path}" is not tracked by git — discarding deletes the file from disk permanently.`
-    : `Uncommitted changes in "${file.path}" will be restored to the last staged version. This cannot be undone.`;
+  const single = files.length === 1;
+  const first = files[0];
+  const untracked = single && first?.kind === "untracked";
+  const hasUntracked = files.some((file) => file.kind === "untracked");
+
+  let title: string;
+  let description: string;
+  if (single && first) {
+    title = `Discard changes in "${first.path}"?`;
+    description = untracked
+      ? `"${first.path}" is not tracked by git — discarding deletes the file from disk permanently.`
+      : `Uncommitted changes in "${first.path}" will be restored to the last staged version. This cannot be undone.`;
+  } else {
+    title = `Discard changes in ${files.length} files?`;
+    description = hasUntracked
+      ? `${files.length} files will be discarded: tracked files are restored to their last staged version and untracked files are deleted from disk permanently. This cannot be undone.`
+      : `Uncommitted changes in ${files.length} files will be restored to their last staged version. This cannot be undone.`;
+  }
 
   return (
     <Modal
       open
       onOpenChange={(open) => !open && onCancel()}
-      title={`Discard changes in "${file.path}"?`}
+      title={title}
       description={description}
       size="sm"
     >
@@ -517,7 +594,7 @@ function DiscardConfirmModal({
           Cancel
         </Button>
         <Button variant="danger" size="sm" onClick={onConfirm}>
-          {untracked ? "Delete file" : "Discard"}
+          {single ? (untracked ? "Delete file" : "Discard") : `Discard ${files.length} files`}
         </Button>
       </div>
     </Modal>
