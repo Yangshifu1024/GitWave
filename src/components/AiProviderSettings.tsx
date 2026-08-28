@@ -70,6 +70,7 @@ export function AiProviderSettings({
   const [tplConflict, setTplConflict] = useState("");
   const [tplPr, setTplPr] = useState("");
   const [tplReflog, setTplReflog] = useState("");
+  const [tplHealth, setTplHealth] = useState("");
 
   const { data: workspace } = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -97,6 +98,7 @@ export function AiProviderSettings({
     setTplConflict(s.prompt_templates.conflict ?? "");
     setTplPr(s.prompt_templates.pr ?? "");
     setTplReflog(s.prompt_templates.reflog ?? "");
+    setTplHealth(s.prompt_templates.health ?? "");
   }, [workspace]);
 
   const saveMut = useMutation({
@@ -121,6 +123,7 @@ export function AiProviderSettings({
           conflict: tplConflict.trim() || null,
           pr: tplPr.trim() || null,
           reflog: tplReflog.trim() || null,
+          health: tplHealth.trim() || null,
         },
       };
       await updateWorkspaceSettings(workspaceId, settings);
@@ -283,6 +286,12 @@ export function AiProviderSettings({
               value={tplReflog}
               onChange={setTplReflog}
               placeholder="Override the recovery-assistant system prompt"
+            />
+            <PromptTemplateField
+              label="Health summarizer"
+              value={tplHealth}
+              onChange={setTplHealth}
+              placeholder="Override the health-report system prompt"
             />
           </div>
         ) : null}
