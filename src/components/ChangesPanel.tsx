@@ -17,6 +17,7 @@ import { Modal } from "@/components/ui/Modal";
 import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
+import { Radio, RadioGroup } from "@heroui/react";
 import { formatAppError, generateCommitMessage, getWorkspace, type FileChange } from "@/lib/api";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { deriveIgnorePatterns } from "@/lib/ignorePattern";
@@ -124,20 +125,23 @@ function FileSection({
             {title} ({files.length})
           </h3>
         ) : (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
             className={cn(
-              "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
+              "h-auto flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
               "text-xs font-medium text-text-muted uppercase tracking-wide",
               "hover:bg-bg-primary/60 hover:text-text-secondary",
               "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
+              "rounded-none border-0 shadow-none bg-transparent",
             )}
           >
             {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             {title} ({files.length})
-          </button>
+          </Button>
         )}
         {allActionLabel && onAllAction ? (
           <Button
@@ -543,28 +547,30 @@ function IgnoreScopeModal({
       description={`Appends the chosen pattern to the repo-root .gitignore (shared with collaborators). The file stays on disk but leaves the change list if untracked.`}
       size="sm"
     >
-      <div role="radiogroup" aria-label="Ignore scope" className="flex flex-col gap-1">
+      <RadioGroup
+        value={choice}
+        onChange={setChoice}
+        aria-label="Ignore scope"
+        className="flex w-full flex-col gap-1 [&_[data-slot=radio]]:mt-0"
+      >
         {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={choice === option.value}
-            onClick={() => setChoice(option.value)}
-            className={cn(
-              "flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors",
-              choice === option.value
-                ? "border-accent bg-accent/5 ring-accent/30 ring-1"
-                : "border-border-default hover:border-border-strong",
-            )}
-          >
-            <span className="shrink-0 text-sm text-text-primary">{option.label}</span>
-            <code className="min-w-0 truncate font-mono text-xs text-text-secondary">
-              {option.value}
-            </code>
-          </button>
+          <Radio key={option.value} value={option.value} className="w-full">
+            <Radio.Content
+              className={cn(
+                "h-auto w-full flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors",
+                choice === option.value
+                  ? "border-accent bg-accent/5 ring-accent/30 ring-1"
+                  : "border-border-default hover:border-border-strong",
+              )}
+            >
+              <span className="shrink-0 text-sm text-text-primary">{option.label}</span>
+              <code className="min-w-0 truncate font-mono text-xs text-text-secondary">
+                {option.value}
+              </code>
+            </Radio.Content>
+          </Radio>
         ))}
-      </div>
+      </RadioGroup>
       <div className="flex justify-end gap-2">
         <Button variant="secondary" size="sm" onClick={onCancel}>
           Cancel

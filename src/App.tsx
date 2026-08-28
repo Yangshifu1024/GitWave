@@ -9,6 +9,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SidebarSection } from "@/components/ui/SidebarSection";
+import { ToastProvider } from "@/components/ui/Toast";
 import { FolderOpen, GitCommitHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import type { BranchInfo } from "@/lib/api";
@@ -64,66 +65,70 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <div
-      className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
-      data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
-    >
-      <Toolbar />
+    <ToastProvider>
+      <div
+        className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
+        data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
+      >
+        <Toolbar />
 
-      <ActionBar />
+        <ActionBar />
 
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-        <ThreePaneLayout
-          inspectorMaximized={inspectorMaximized}
-          inspectorClassName={cn(
-            inspectorMaximized &&
-              "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
-          )}
-          sidebar={
-            <aside className="flex flex-col h-full bg-bg-panel overflow-x-hidden overflow-y-auto no-scrollbar select-none pane-edge-right">
-              <WorkspaceList />
-              {activeWorkspaceId ? (
-                <>
-                  <RepoList workspaceId={activeWorkspaceId} />
-                  <BranchList onBranchSelect={handleBranchSelect} />
-                  <SidebarSection title="Stash" defaultOpen={false}>
-                    <StashPanel compact />
-                  </SidebarSection>
-                  <SidebarSection title="Tags" defaultOpen={false}>
-                    <p className="px-3 py-1.5 text-xs text-text-muted">No tags yet</p>
-                  </SidebarSection>
-                  <SidebarSection title="Remotes" defaultOpen={false}>
-                    <p className="px-3 py-1.5 text-xs text-text-muted">Remote list coming later</p>
-                  </SidebarSection>
-                  <SidebarSection title="Worktrees" defaultOpen={false}>
-                    <WorktreePanel compact />
-                  </SidebarSection>
-                </>
-              ) : (
-                <EmptyState
-                  icon={<FolderOpen size={22} />}
-                  title="No workspace selected"
-                  description="Choose or create a workspace in the sidebar."
-                  className="flex-1"
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+          <ThreePaneLayout
+            inspectorMaximized={inspectorMaximized}
+            inspectorClassName={cn(
+              inspectorMaximized &&
+                "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
+            )}
+            sidebar={
+              <aside className="flex flex-col h-full bg-bg-panel overflow-x-hidden overflow-y-auto no-scrollbar select-none pane-edge-right">
+                <WorkspaceList />
+                {activeWorkspaceId ? (
+                  <>
+                    <RepoList workspaceId={activeWorkspaceId} />
+                    <BranchList onBranchSelect={handleBranchSelect} />
+                    <SidebarSection title="Stash" defaultOpen={false}>
+                      <StashPanel compact />
+                    </SidebarSection>
+                    <SidebarSection title="Tags" defaultOpen={false}>
+                      <p className="px-3 py-1.5 text-xs text-text-muted">No tags yet</p>
+                    </SidebarSection>
+                    <SidebarSection title="Remotes" defaultOpen={false}>
+                      <p className="px-3 py-1.5 text-xs text-text-muted">
+                        Remote list coming later
+                      </p>
+                    </SidebarSection>
+                    <SidebarSection title="Worktrees" defaultOpen={false}>
+                      <WorktreePanel compact />
+                    </SidebarSection>
+                  </>
+                ) : (
+                  <EmptyState
+                    icon={<FolderOpen size={22} />}
+                    title="No workspace selected"
+                    description="Choose or create a workspace in the sidebar."
+                    className="flex-1"
+                  />
+                )}
+              </aside>
+            }
+            main={
+              <section className="flex flex-col h-full bg-bg-panel overflow-hidden">
+                <CommitGraph
+                  selectedSha={selectedCommitOid}
+                  onCommitSelect={handleCommitSelect}
+                  locateRequest={locateRequest}
                 />
-              )}
-            </aside>
-          }
-          main={
-            <section className="flex flex-col h-full bg-bg-panel overflow-hidden">
-              <CommitGraph
-                selectedSha={selectedCommitOid}
-                onCommitSelect={handleCommitSelect}
-                locateRequest={locateRequest}
-              />
-            </section>
-          }
-          inspector={<MainContent selectedCommitOid={selectedCommitOid} />}
-        />
-      </div>
+              </section>
+            }
+            inspector={<MainContent selectedCommitOid={selectedCommitOid} />}
+          />
+        </div>
 
-      <ConflictPanel />
-    </div>
+        <ConflictPanel />
+      </div>
+    </ToastProvider>
   );
 }
 

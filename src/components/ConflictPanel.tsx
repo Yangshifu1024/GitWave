@@ -13,6 +13,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { ListItem } from "@/components/ui/ListItem";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { InputGroup, TextField } from "@heroui/react";
 import { AlertTriangle, Sparkles, XCircle } from "lucide-react";
 
 export function ConflictPanel(): React.JSX.Element | null {
@@ -224,13 +225,22 @@ export function ConflictPanel(): React.JSX.Element | null {
                 </div>
 
                 <div className="flex flex-1 min-h-0 overflow-hidden">
-                  <textarea
-                    className="flex-1 min-w-0 p-3 font-mono text-xs bg-bg-primary text-text-primary border-0 resize-none focus:outline-none"
+                  <TextField
                     value={editor}
-                    onChange={(e) => setEditor(e.target.value)}
-                    spellCheck={false}
+                    onChange={setEditor}
+                    className="flex-1 min-w-0 flex flex-col"
                     aria-label="Resolved file content"
-                  />
+                  >
+                    <InputGroup
+                      fullWidth
+                      className="flex-1 min-h-0 border-0 shadow-none bg-transparent"
+                    >
+                      <InputGroup.TextArea
+                        className="flex-1 min-w-0 h-full p-3 font-mono text-xs bg-bg-primary text-text-primary border-0 shadow-none resize-none"
+                        spellCheck={false}
+                      />
+                    </InputGroup>
+                  </TextField>
                   {explain ? (
                     <div className="w-80 shrink-0 border-l border-border-subtle overflow-auto p-3 bg-bg-secondary">
                       <p className="text-xs font-medium text-text-secondary mb-2">

@@ -5,6 +5,7 @@ import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { Button } from "@/components/ui/Button";
+import { Chip, Radio, RadioGroup } from "@heroui/react";
 import { BlameView } from "@/components/BlameView";
 import { filterDiffSummary } from "@/lib/diff";
 import { cn } from "@/lib/utils";
@@ -228,30 +229,36 @@ function SegmentedControl({
   segments,
   active,
   onSelect,
+  "aria-label": ariaLabel,
 }: {
   segments: { key: string; label: string }[];
   active: string | null;
   onSelect: (key: string) => void;
+  "aria-label": string;
 }): React.JSX.Element {
   return (
-    <div className="flex items-center rounded-md border border-border-subtle bg-bg-primary p-0.5">
+    <RadioGroup
+      value={active ?? ""}
+      onChange={onSelect}
+      orientation="horizontal"
+      aria-label={ariaLabel}
+      className="flex items-center gap-0 rounded-md border border-border-subtle bg-bg-primary p-0.5 [&_[data-slot=radio]]:mt-0"
+    >
       {segments.map((s) => (
-        <button
-          key={s.key}
-          type="button"
-          aria-pressed={active === s.key}
-          onClick={() => onSelect(s.key)}
-          className={cn(
-            "rounded-sm px-2 py-0.5 text-xs transition-colors duration-fast",
-            active === s.key
-              ? "bg-accent text-text-inverse font-medium"
-              : "text-text-secondary hover:text-text-primary",
-          )}
-        >
-          {s.label}
-        </button>
+        <Radio key={s.key} value={s.key}>
+          <Radio.Content
+            className={cn(
+              "h-auto rounded-sm border-0 px-2 py-0.5 text-xs shadow-none transition-colors duration-fast",
+              active === s.key
+                ? "bg-accent font-medium text-text-inverse"
+                : "bg-transparent text-text-secondary hover:text-text-primary",
+            )}
+          >
+            {s.label}
+          </Radio.Content>
+        </Radio>
       ))}
-    </div>
+    </RadioGroup>
   );
 }
 
@@ -276,15 +283,17 @@ function FileDiffView({
     <div className="mb-3 min-w-0">
       <div className="min-w-0 px-3 py-2 bg-bg-elevated border-b border-border-subtle">
         <div className="flex min-w-0 items-center gap-2" title={fileDiff.path}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             aria-expanded={!collapsed}
             aria-label={collapsed ? "Expand file diff" : "Collapse file diff"}
             onClick={onToggleCollapsed}
-            className="shrink-0 text-text-muted hover:text-text-secondary"
+            className="h-auto shrink-0 p-0 text-text-muted hover:text-text-secondary border-0 shadow-none bg-transparent"
           >
             {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          </button>
+          </Button>
           <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
             {name}
           </span>
@@ -292,14 +301,20 @@ function FileDiffView({
             <span className="min-w-0 truncate text-xs font-mono text-text-muted">{dir}</span>
           ) : null}
           {fileDiff.staged === true ? (
-            <span className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent">
-              Staged
-            </span>
+            <Chip
+              size="sm"
+              className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent shadow-none"
+            >
+              <Chip.Label>Staged</Chip.Label>
+            </Chip>
           ) : null}
           {fileDiff.staged === false ? (
-            <span className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-text-muted/15 text-text-secondary">
-              Unstaged
-            </span>
+            <Chip
+              size="sm"
+              className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-text-muted/15 text-text-secondary shadow-none"
+            >
+              <Chip.Label>Unstaged</Chip.Label>
+            </Chip>
           ) : null}
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs">
@@ -516,6 +531,7 @@ export function DiffViewer({
         <span className="text-danger text-sm">-{visible.total_deletions}</span>
         <div className="ml-auto flex items-center gap-1.5">
           <SegmentedControl
+            aria-label="File fold"
             segments={[
               { key: "expand", label: "Expand" },
               { key: "collapse", label: "Collapse" },
@@ -528,6 +544,7 @@ export function DiffViewer({
             }
           />
           <SegmentedControl
+            aria-label="Diff view"
             segments={[
               { key: "unified", label: "Unified" },
               { key: "split", label: "Split" },

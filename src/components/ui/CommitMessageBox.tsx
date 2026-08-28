@@ -1,4 +1,5 @@
-import { type ChangeEvent, type KeyboardEvent, useRef } from "react";
+import { type KeyboardEvent, useRef } from "react";
+import { InputGroup, TextField } from "@heroui/react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -72,42 +73,45 @@ export function CommitMessageBox({
     <div className={cn("flex flex-col gap-2", className)}>
       <div className="flex flex-wrap gap-1">
         {COMMIT_TYPES.map((type) => (
-          <button
+          <Button
             key={type}
             type="button"
+            variant="ghost"
+            size="sm"
             disabled={disabled}
             onClick={() => applyType(type)}
             className={cn(
-              "rounded-sm border border-border-subtle px-1.5 py-0.5",
+              "h-auto rounded-sm border border-border-subtle px-1.5 py-0.5",
               "font-mono text-[10px] text-text-secondary",
               "hover:border-accent hover:text-accent",
               "disabled:opacity-40 disabled:pointer-events-none",
             )}
           >
             {type}
-          </button>
+          </Button>
         ))}
       </div>
-      <textarea
-        ref={textareaRef}
+      <TextField
         value={value}
-        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.currentTarget.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="feat: your commit message here…"
-        disabled={disabled}
-        rows={6}
-        maxLength={500}
-        className={cn(
-          "w-full resize-none",
-          "rounded-md border border-border-default bg-bg-elevated",
-          "px-3 py-2 text-sm text-text-primary placeholder:text-text-muted",
-          "transition-colors duration-base",
-          "focus:outline-none focus:ring-2 focus:ring-accent",
-          "disabled:opacity-50 disabled:cursor-not-allowed",
-          amendMessage != null && "border-warning/50",
-        )}
+        onChange={onChange}
+        isDisabled={disabled}
+        className="w-full"
         aria-label="Commit message"
-      />
+      >
+        <InputGroup
+          fullWidth
+          className={cn("rounded-md", amendMessage != null && "border-warning/50")}
+        >
+          <InputGroup.TextArea
+            ref={textareaRef}
+            onKeyDown={handleKeyDown}
+            placeholder="feat: your commit message here…"
+            rows={6}
+            maxLength={500}
+            className="w-full resize-none px-3 py-2 text-sm"
+          />
+        </InputGroup>
+      </TextField>
       {value.length > 0 && (value.length < 10 || firstLineLength > 72) ? (
         <p className="text-xs text-text-muted text-right -mt-1">
           {value.length < 10

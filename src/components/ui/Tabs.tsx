@@ -1,61 +1,83 @@
-import { forwardRef } from "react";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { type ReactNode, forwardRef } from "react";
+import { Tabs as HeroTabs } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
-export const Tabs = TabsPrimitive.Root;
+export interface TabsProps {
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  className?: string;
+  orientation?: "horizontal" | "vertical";
+  children?: ReactNode;
+}
 
-export const TabsList = forwardRef<
-  React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      "flex shrink-0 items-center overflow-x-auto overflow-y-hidden border-b border-border-subtle",
-      "[scrollbar-width:none]",
-      "[&::-webkit-scrollbar]:hidden",
-      className,
-    )}
-    {...props}
-  />
-));
+export function Tabs({
+  value,
+  defaultValue,
+  onValueChange,
+  className,
+  orientation,
+  children,
+}: TabsProps): React.JSX.Element {
+  return (
+    <HeroTabs
+      selectedKey={value}
+      defaultSelectedKey={defaultValue}
+      onSelectionChange={(key) => {
+        if (key != null) onValueChange?.(String(key));
+      }}
+      className={className}
+      orientation={orientation}
+    >
+      {children}
+    </HeroTabs>
+  );
+}
+
+export const TabsList = forwardRef<HTMLDivElement, { className?: string; children?: ReactNode }>(
+  ({ className, children }, _ref) => (
+    <HeroTabs.ListContainer
+      className={cn(
+        "flex shrink-0 items-center overflow-x-auto overflow-y-hidden border-b border-border-subtle",
+        "[scrollbar-width:none]",
+        "[&::-webkit-scrollbar]:hidden",
+        className,
+      )}
+    >
+      <HeroTabs.List>{children}</HeroTabs.List>
+    </HeroTabs.ListContainer>
+  ),
+);
 TabsList.displayName = "TabsList";
 
 export const TabsTrigger = forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Trigger
-    ref={ref}
+  HTMLDivElement,
+  { value: string; className?: string; disabled?: boolean; children?: ReactNode }
+>(({ value, className, disabled, children }, _ref) => (
+  <HeroTabs.Tab
+    id={value}
+    isDisabled={disabled}
     className={cn(
       "shrink-0 px-3 py-2 text-sm font-medium text-text-secondary",
       "border-b-2 border-transparent -mb-px",
-      "transition-colors duration-base",
-      "hover:text-text-primary",
-      "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
-      "data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent",
-      "disabled:pointer-events-none disabled:opacity-50",
       className,
     )}
-    {...props}
-  />
+  >
+    {children}
+    <HeroTabs.Indicator />
+  </HeroTabs.Tab>
 ));
 TabsTrigger.displayName = "TabsTrigger";
 
 export const TabsContent = forwardRef<
-  React.ElementRef<typeof TabsPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content
-    ref={ref}
-    className={cn(
-      "flex-1 overflow-auto p-4",
-      "focus-visible:outline-none",
-      "data-[state=active]:animate-in data-[state=inactive]:animate-out",
-      "data-[state=inactive]:fade-out-0 data-[state=active]:fade-in-0",
-      className,
-    )}
-    {...props}
-  />
+  HTMLDivElement,
+  { value: string; className?: string; children?: ReactNode }
+>(({ value, className, children }, _ref) => (
+  <HeroTabs.Panel
+    id={value}
+    className={cn("flex-1 overflow-auto p-4 focus-visible:outline-none", className)}
+  >
+    {children}
+  </HeroTabs.Panel>
 ));
 TabsContent.displayName = "TabsContent";

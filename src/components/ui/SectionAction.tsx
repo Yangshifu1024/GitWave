@@ -1,5 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
 import { Tooltip } from "@/components/ui/Tooltip";
 
 export interface SectionActionProps {
@@ -25,24 +26,25 @@ export function SectionAction({
 }: SectionActionProps): React.JSX.Element {
   const label = tooltip ?? title ?? ariaLabel;
   const button = (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="sm"
       onClick={onClick}
       disabled={disabled || inProgress}
       title={label}
       aria-label={ariaLabel ?? label}
       className={cn(
-        "inline-flex items-center gap-0.5 px-1 py-0.5",
+        "h-auto gap-0.5 px-1 py-0.5",
         "text-[10px] font-semibold uppercase tracking-wide",
         "text-text-muted hover:text-accent",
         "disabled:opacity-40 disabled:pointer-events-none",
-        "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
         className,
       )}
     >
       {inProgress ? <RefreshCw size={10} className="animate-spin" /> : null}
       {children}
-    </button>
+    </Button>
   );
 
   if (tooltip) {

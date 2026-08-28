@@ -3,6 +3,8 @@ import type { InteractiveRebaseAction, InteractiveRebaseTodo } from "@/lib/api";
 import { executeInteractiveRebase, formatAppError, planInteractiveRebase } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
+import { InputGroup, TextField } from "@heroui/react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -127,35 +129,37 @@ export function InteractiveRebaseDialog({
               >
                 <div className="flex items-center gap-2">
                   <GripVertical size={14} className="text-text-muted shrink-0 cursor-grab" />
-                  <select
-                    className="text-xs bg-bg-primary border border-border-subtle rounded px-1 py-0.5 text-text-primary"
+                  <Select
+                    aria-label="Rebase action"
+                    className="h-auto w-auto flex-none px-1 py-0.5 text-xs"
                     value={todo.action}
                     disabled={busy}
-                    onChange={(e) => updateAction(index, e.target.value as InteractiveRebaseAction)}
-                  >
-                    {ACTIONS.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(action) => updateAction(index, action as InteractiveRebaseAction)}
+                    options={ACTIONS.map((a) => ({ value: a, label: a }))}
+                  />
                   <span className="font-mono text-[11px] text-text-muted shrink-0">
                     {todo.oid.slice(0, 7)}
                   </span>
                   <span className="text-xs text-text-primary truncate flex-1">{todo.summary}</span>
                 </div>
                 {todo.action === "reword" || todo.action === "squash" ? (
-                  <textarea
-                    className="w-full text-xs font-mono bg-bg-primary border border-border-subtle rounded p-1.5 text-text-primary resize-y min-h-[48px]"
-                    placeholder={
-                      todo.action === "reword"
-                        ? "New commit message"
-                        : "Combined message (optional)"
-                    }
+                  <TextField
                     value={todo.message ?? ""}
-                    disabled={busy}
-                    onChange={(e) => updateMessage(index, e.target.value)}
-                  />
+                    onChange={(message) => updateMessage(index, message)}
+                    isDisabled={busy}
+                    className="w-full"
+                  >
+                    <InputGroup fullWidth className="rounded">
+                      <InputGroup.TextArea
+                        className="w-full min-h-[48px] resize-y p-1.5 font-mono text-xs text-text-primary"
+                        placeholder={
+                          todo.action === "reword"
+                            ? "New commit message"
+                            : "Combined message (optional)"
+                        }
+                      />
+                    </InputGroup>
+                  </TextField>
                 ) : null}
               </li>
             ))}

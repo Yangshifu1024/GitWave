@@ -37,6 +37,9 @@ export {
 } from "./DropdownMenu";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { PathInput, type PathInputProps } from "./PathInput";
+export { Select, type SelectOption, type SelectProps } from "./Select";
+export { Checkbox, type CheckboxProps } from "./Checkbox";
+export { Label, type LabelProps } from "./Label";
 
 // Working Copy primitives
 export { BranchIndicator, type BranchIndicatorProps } from "./BranchIndicator";

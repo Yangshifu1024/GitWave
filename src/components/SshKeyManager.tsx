@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PathInput } from "@/components/ui/PathInput";
+import { Label } from "@/components/ui/Label";
 import { Key, Trash2, Plus, Wifi } from "lucide-react";
 
 export function SshKeyManager(): React.JSX.Element {
@@ -123,9 +124,9 @@ export function SshKeyManager(): React.JSX.Element {
           }}
         >
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-key-path">
+            <Label className="text-xs font-medium text-text-secondary" htmlFor="ssh-key-path">
               Key path
-            </label>
+            </Label>
             <PathInput
               id="ssh-key-path"
               autoFocus
@@ -171,9 +172,9 @@ export function SshKeyManager(): React.JSX.Element {
           }}
         >
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-host">
+            <Label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-host">
               Host
-            </label>
+            </Label>
             <Input
               id="ssh-test-host"
               value={testHost}
@@ -182,9 +183,9 @@ export function SshKeyManager(): React.JSX.Element {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-user">
+            <Label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-user">
               User
-            </label>
+            </Label>
             <Input id="ssh-test-user" value={testUser} onChange={setTestUser} placeholder="git" />
           </div>
           {actionError && <p className="text-xs text-danger">{actionError}</p>}

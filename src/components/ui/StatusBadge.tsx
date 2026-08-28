@@ -1,3 +1,4 @@
+import { Chip } from "@heroui/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
@@ -31,9 +32,9 @@ export function StatusBadge({
   className,
 }: StatusBadgeProps): React.JSX.Element {
   return (
-    <span className={cn(badgeVariants({ variant }), className)}>
-      {suffix ?? badgeLabel(variant)}
-    </span>
+    <Chip size="sm" className={cn(badgeVariants({ variant }), className)}>
+      <Chip.Label>{suffix ?? badgeLabel(variant)}</Chip.Label>
+    </Chip>
   );
 }
 

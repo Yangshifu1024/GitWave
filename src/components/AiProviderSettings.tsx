@@ -13,6 +13,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
+import { Label } from "@/components/ui/Label";
 
 const PROVIDERS = [
   { id: "openai", label: "OpenAI" },
@@ -128,25 +130,21 @@ export function AiProviderSettings({
       size="sm"
     >
       <div className="flex flex-col gap-3">
-        <label className="text-xs text-text-secondary">
+        <Label className="text-xs text-text-secondary">
           Provider
-          <select
-            className="mt-1 w-full h-8 rounded-md border border-border-default bg-bg-elevated px-2 text-sm"
+          <Select
+            aria-label="Provider"
+            className="mt-1 w-full"
             value={provider}
-            onChange={(e) => {
-              const next = e.target.value as ProviderId;
-              setProvider(next);
-              setModel(defaultModel(next));
-              setBaseUrl(defaultBaseUrl(next));
+            onChange={(next) => {
+              const id = next as ProviderId;
+              setProvider(id);
+              setModel(defaultModel(id));
+              setBaseUrl(defaultBaseUrl(id));
             }}
-          >
-            {PROVIDERS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
+          />
+        </Label>
 
         <Input placeholder="Model" value={model} onChange={setModel} />
 

@@ -1,5 +1,7 @@
 import { type FileStatusKind } from "@/components/ui/StatusIcon";
 import { StatusIcon } from "@/components/ui/StatusIcon";
+import { Button } from "@/components/ui/Button";
+import { Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
 export interface FileChange {
@@ -33,7 +35,8 @@ export function FileListItem({
   const { path, kind, staged, additions, deletions } = change;
 
   return (
-    <div
+    <Surface
+      variant="transparent"
       role="option"
       aria-selected={selected}
       tabIndex={0}
@@ -47,7 +50,7 @@ export function FileListItem({
         // UI (sans) font, one step below body size — the path is a label,
         // not code; the +/- stats below stay mono for column alignment.
         "text-xs",
-        "cursor-pointer",
+        "cursor-pointer shadow-none",
         selected && "bg-accent/10",
         !selected && "hover:bg-bg-secondary",
         "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
@@ -55,18 +58,20 @@ export function FileListItem({
       )}
     >
       {/* Status icon — clicking toggles stage */}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={(e) => {
           e.stopPropagation();
           onStageToggle?.();
         }}
-        className="shrink-0 p-0 border-0 bg-transparent cursor-pointer focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1 rounded"
+        className="shrink-0 h-auto p-0 border-0 bg-transparent rounded"
         title={staged ? "Unstage" : "Stage"}
         aria-label={staged ? `Unstage ${path}` : `Stage ${path}`}
       >
         <StatusIcon kind={kind} staged={staged} />
-      </button>
+      </Button>
 
       {/* File path */}
       <span className="flex-1 min-w-0 truncate text-text-primary" title={path}>
@@ -80,6 +85,6 @@ export function FileListItem({
           {deletions > 0 && <span className="text-danger">-{deletions}</span>}
         </span>
       ) : null}
-    </div>
+    </Surface>
   );
 }
