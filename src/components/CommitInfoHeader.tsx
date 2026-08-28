@@ -48,7 +48,7 @@ export function CommitInfoHeader({
   const body = bodyLines.join("\n").trim();
 
   return (
-    <div className="shrink-0 border-b border-border-subtle bg-bg-elevated px-4 py-2.5">
+    <div className="shrink-0 select-text border-b border-border-subtle bg-bg-elevated px-4 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-sm font-semibold break-words text-text-primary">{subject}</p>
         <span

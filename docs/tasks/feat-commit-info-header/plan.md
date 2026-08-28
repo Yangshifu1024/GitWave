@@ -24,6 +24,10 @@
 - `src/components/CommitInfoHeader.tsx`：新组件（react-query `["commit-details", workspaceId, sha]`）
 - `src/App.tsx`：inspector 顶部接入
 
+## 修订（2026-08-28）
+
+详情卡文字需可选中：`CommitInfoHeader` 根节点补 `select-text`（与 DiffViewer / BlameView 同模式）。
+
 ## 验证
 
 - `cargo test --lib` 120 通过、clippy 0 warning、fmt 通过
