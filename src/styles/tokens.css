@@ -550,3 +550,26 @@
 @utility slide-out-to-right-full {
   --tw-exit-translate-x: 100%;
 }
+
+@layer base {
+  /* Hand cursor on every operable element. Tailwind v4 preflight no longer
+   * sets pointer on <button>, so restore it globally and cover the ARIA
+   * roles Radix injects at runtime (menus, options, tabs, combobox).
+   * Disabled controls keep the default cursor — they are not operable.
+   * Text fields are not listed and keep the I-beam. */
+  button:not(:disabled),
+  select:not(:disabled),
+  a[href],
+  summary,
+  label[for],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="menuitemcheckbox"]:not([aria-disabled="true"]),
+  [role="menuitemradio"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="radio"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="combobox"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
