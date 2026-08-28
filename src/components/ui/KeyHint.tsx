@@ -1,3 +1,4 @@
+import { Kbd } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
 export interface KeyHintProps {
@@ -16,7 +17,7 @@ export function KeyHint({ keys, className }: KeyHintProps): React.JSX.Element {
   return (
     <span className={cn("inline-flex items-center gap-0.5", className)}>
       {keyArray.map((key, i) => (
-        <kbd
+        <Kbd
           key={i}
           className={cn(
             "inline-flex items-center justify-center",
@@ -27,7 +28,7 @@ export function KeyHint({ keys, className }: KeyHintProps): React.JSX.Element {
           )}
         >
           {key}
-        </kbd>
+        </Kbd>
       ))}
     </span>
   );

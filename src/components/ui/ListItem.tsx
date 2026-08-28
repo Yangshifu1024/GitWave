@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
 export interface ListItemProps {
@@ -22,7 +23,8 @@ export function ListItem({
 }: ListItemProps): React.JSX.Element {
   const interactive = Boolean(onClick || onDoubleClick);
   return (
-    <div
+    <Surface
+      variant="transparent"
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
       onClick={onClick}
@@ -45,7 +47,7 @@ export function ListItem({
         "group flex items-center gap-2 px-3 py-1.5 select-none",
         "transition-colors duration-fast",
         "text-[13px] text-text-primary",
-        "border-l-[3px]",
+        "border-l-[3px] rounded-none shadow-none",
         selected && "bg-accent/10 border-l-accent hover:bg-accent/15 font-semibold",
         !selected && "border-l-transparent hover:bg-bg-primary/70 cursor-pointer",
         onClick && "cursor-pointer",
@@ -57,6 +59,6 @@ export function ListItem({
       {leading ? <span className="shrink-0 text-text-muted">{leading}</span> : null}
       <span className="flex-1 min-w-0">{children}</span>
       {trailing ? <span className="shrink-0 flex items-center gap-1">{trailing}</span> : null}
-    </div>
+    </Surface>
   );
 }

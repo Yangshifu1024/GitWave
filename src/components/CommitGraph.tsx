@@ -5,6 +5,7 @@ import type { CommitRef, CommitSummary } from "@/lib/api";
 import { formatAppError, getCommitLog } from "@/lib/api";
 import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { Chip, Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Circle, FolderOpen, GitBranch, Tag } from "lucide-react";
@@ -44,6 +45,13 @@ function laneX(lane: number): number {
   return LANE_GAP / 2 + lane * LANE_GAP;
 }
 
+const REF_NAME_MAX_LEN = 24;
+
+function truncateRefName(name: string): string {
+  if (name.length <= REF_NAME_MAX_LEN) return name;
+  return `${name.slice(0, REF_NAME_MAX_LEN)}...`;
+}
+
 function RefBadge({
   r,
   lane,
@@ -53,63 +61,71 @@ function RefBadge({
   lane: number;
   emphasize?: boolean;
 }): React.JSX.Element {
-  // Base chrome shared by all badges.
-  const chrome =
-    "inline-flex items-center gap-1 shrink-0 px-1 py-0 rounded text-[9px] leading-none font-medium border";
-  const title = r.kind.replace("_", " ");
+  const chrome = cn(
+    "inline-flex items-center gap-1 shrink-0",
+    "rounded px-1 py-0 text-[9px] leading-none font-medium border shadow-none",
+  );
+  const displayName = r.kind === "tag" ? r.name : truncateRefName(r.name);
 
-  // HEAD marker.
   if (r.kind === "head") {
     return (
-      <span
+      <Chip
+        size="sm"
+        title={r.name}
         className={cn(chrome, "bg-branch-current text-text-inverse border-branch-current")}
-        title={title}
       >
-        {r.name}
-      </span>
+        <Chip.Label>{displayName}</Chip.Label>
+      </Chip>
     );
   }
 
-  // Tags: keep the warning scheme, prefixed with a small tag icon (Fork-style).
   if (r.kind === "tag") {
     return (
-      <span className={cn(chrome, "bg-warning/15 text-warning border-warning/40")} title={title}>
-        <Tag size={8} />
-        {r.name}
-      </span>
+      <Chip
+        size="sm"
+        title={r.name}
+        className={cn(chrome, "bg-warning/15 text-warning border-warning/40")}
+      >
+        <Chip.Label className="inline-flex items-center gap-1">
+          <Tag size={8} />
+          {displayName}
+        </Chip.Label>
+      </Chip>
     );
   }
 
-  // Current branch keeps the accent treatment.
   if (emphasize) {
     return (
-      <span
+      <Chip
+        size="sm"
+        title={r.name}
         className={cn(
           chrome,
           "bg-branch-current/20 text-branch-current border-branch-current/50 font-semibold",
         )}
-        title={title}
       >
-        {r.name}
-      </span>
+        <Chip.Label>{displayName}</Chip.Label>
+      </Chip>
     );
   }
 
-  // Branch badges: tinted with the lane color their line uses (Fork-style).
   const lineColor = laneColor(lane);
   return (
-    <span
+    <Chip
+      size="sm"
+      title={r.name}
       className={chrome}
       style={{
         backgroundColor: `color-mix(in srgb, ${lineColor} 14%, transparent)`,
         borderColor: `color-mix(in srgb, ${lineColor} 45%, transparent)`,
         color: lineColor,
       }}
-      title={title}
     >
-      {r.kind === "remote_branch" ? <Circle size={8} /> : <GitBranch size={8} />}
-      {r.name}
-    </span>
+      <Chip.Label className="inline-flex items-center gap-1">
+        {r.kind === "remote_branch" ? <Circle size={8} /> : <GitBranch size={8} />}
+        {displayName}
+      </Chip.Label>
+    </Chip>
   );
 }
 
@@ -293,14 +309,15 @@ function CommitRow({
   const refs = commit.refs ?? [];
 
   return (
-    <div
+    <Surface
+      variant="transparent"
       role="button"
       tabIndex={0}
       onClick={() => onSelect(commit.sha)}
       onKeyDown={(e) => e.key === "Enter" && onSelect(commit.sha)}
       aria-current={isHead ? "true" : undefined}
       className={cn(
-        "flex items-center gap-2 px-2 py-0 cursor-pointer",
+        "flex items-center gap-2 px-2 py-0 cursor-pointer rounded-none shadow-none",
         "transition-colors duration-fast border-l-2 border-l-transparent",
         !isSelected && !isHead && "hover:bg-bg-elevated",
         isHead && !isSelected && "bg-accent/10 border-l-accent hover:bg-accent/20",
@@ -345,7 +362,7 @@ function CommitRow({
         {commit.parents.length > 1 ? <span className="ml-1 text-accent">merge</span> : null}
         {isHead ? <span className="ml-1 text-accent font-medium">HEAD</span> : null}
       </span>
-    </div>
+    </Surface>
   );
 }
 

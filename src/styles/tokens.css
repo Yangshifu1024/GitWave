@@ -14,6 +14,7 @@
  */
 
 @import "tailwindcss";
+@import "@heroui/styles";
 
 /* ─── Light theme · Native Blue (default palette) ─────────────────────── */
 
@@ -572,4 +573,66 @@
   [role="combobox"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }
+}
+
+/* ─── HeroUI v3 bridge ──────────────────────────────────────────────────────
+ * HeroUI component styles consume its own semantic variables (--accent,
+ * --background, ...). Aliasing them to our tokens here means every HeroUI
+ * component renders in GitWave colors, and the indirection via var() makes
+ * all six theme blocks (light/dark × palette × auto-dark) follow
+ * automatically. This block is intentionally UNLAYERED: unlayered
+ * declarations beat HeroUI's @layer base definitions regardless of
+ * specificity. See docs/tasks/feat-heroui-migration/plan.md. */
+:root {
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+  --accent-foreground: var(--color-text-inverse);
+  --accent-soft: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --accent-soft-hover: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  --accent-soft-foreground: var(--color-accent);
+
+  --background: var(--color-bg-primary);
+  --background-secondary: var(--color-bg-secondary);
+  --background-tertiary: var(--color-bg-elevated);
+  --background-inverse: var(--color-text-inverse);
+  --foreground: var(--color-text-primary);
+  --muted: var(--color-text-muted);
+
+  --border: var(--color-border-default);
+  --border-secondary: var(--color-border-subtle);
+  --border-tertiary: var(--color-border-strong);
+  --separator: var(--color-border-subtle);
+  --separator-secondary: var(--color-border-default);
+  --separator-tertiary: var(--color-border-strong);
+
+  --default: var(--color-bg-secondary);
+  --default-hover: var(--color-bg-elevated);
+  --default-foreground: var(--color-text-primary);
+  --default-soft: var(--color-bg-secondary);
+  --default-soft-hover: var(--color-bg-elevated);
+  --default-soft-foreground: var(--color-text-secondary);
+
+  --danger: var(--color-danger);
+  --danger-hover: color-mix(in srgb, var(--color-danger) 88%, black);
+  --danger-foreground: var(--color-text-inverse);
+  --danger-soft: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  --danger-soft-hover: color-mix(in srgb, var(--color-danger) 16%, transparent);
+  --danger-soft-foreground: var(--color-danger);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+
+  --field-background: var(--color-bg-elevated);
+  --field-border: var(--color-border-default);
+  --field-border-hover: var(--color-border-strong);
+  --field-border-focus: var(--color-accent);
+  --field-focus: var(--color-accent);
+  --field-foreground: var(--color-text-primary);
+  --field-placeholder: var(--color-text-muted);
+  --field-radius: var(--radius-md);
+
+  --backdrop: var(--color-bg-overlay);
+  --overlay: var(--color-bg-elevated);
+  --overlay-foreground: var(--color-text-primary);
+  --focus: var(--color-accent);
+  --link: var(--color-accent);
 }

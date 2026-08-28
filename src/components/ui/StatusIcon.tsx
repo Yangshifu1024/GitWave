@@ -1,3 +1,4 @@
+import { Chip } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
 export type FileStatusKind = "modified" | "added" | "deleted" | "untracked" | "renamed" | "copied";
@@ -29,10 +30,12 @@ export function StatusIcon({
   const { char, color } = statusConfig[kind];
 
   return (
-    <span
+    <Chip
+      size="sm"
       className={cn(
-        "inline-flex items-center justify-center",
+        "inline-flex items-center justify-center p-0",
         "w-5 h-5 rounded-sm font-mono text-xs font-bold",
+        "bg-transparent border-0 shadow-none",
         color,
         !staged && "opacity-80",
         staged && "opacity-100",
@@ -41,7 +44,7 @@ export function StatusIcon({
       title={`${kind}${staged ? " (staged)" : " (unstaged)"}`}
       aria-label={`${kind}${staged ? " staged" : " unstaged"}`}
     >
-      {char}
-    </span>
+      <Chip.Label className="font-mono text-xs font-bold">{char}</Chip.Label>
+    </Chip>
   );
 }

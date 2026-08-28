@@ -13,7 +13,7 @@ import "./styles/tokens.css";
 const queryClient = new QueryClient();
 
 // Suppress the WebView's default context menu everywhere except editable
-// elements (keep native copy/paste there). Radix ContextMenus attach their
+// elements (keep native copy/paste there). App ContextMenus attach their
 // own handlers and are unaffected.
 window.addEventListener("contextmenu", (e) => {
   const target = e.target as HTMLElement | null;
@@ -42,9 +42,16 @@ function applyInitialPreferences(): void {
   const storedTheme = localStorage.getItem("gitwave-theme");
   if (storedTheme === "dark") {
     root.classList.add("dark");
+    root.dataset.theme = "dark";
   } else if (storedTheme === "light") {
     root.classList.add("light");
+    root.dataset.theme = "light";
+  } else {
+    // Our tokens still follow prefers-color-scheme when no class is set;
+    // HeroUI keys off data-theme, so resolve it before first paint.
+    root.dataset.theme = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
   }
-  // else: leave class off; CSS @media (prefers-color-scheme: dark) takes over
   applyInitialPalette();
 }

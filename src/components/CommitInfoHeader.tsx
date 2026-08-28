@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Chip } from "@heroui/react";
 
 import { formatAppError, getCommitDetails } from "@/lib/api";
 
@@ -51,12 +52,13 @@ export function CommitInfoHeader({
     <div className="shrink-0 select-text border-b border-border-subtle bg-bg-elevated px-4 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 text-sm font-semibold break-words text-text-primary">{subject}</p>
-        <span
-          className="shrink-0 rounded-sm bg-bg-primary px-1.5 py-0.5 font-mono text-xs text-text-muted tabular-nums"
+        <Chip
+          size="sm"
+          className="shrink-0 rounded-sm bg-bg-primary px-1.5 py-0.5 font-mono text-xs text-text-muted tabular-nums shadow-none"
           title={data.sha}
         >
-          {data.sha.slice(0, 7)}
-        </span>
+          <Chip.Label>{data.sha.slice(0, 7)}</Chip.Label>
+        </Chip>
       </div>
       {body ? (
         <p className="mt-1 text-xs leading-5 whitespace-pre-wrap break-words text-text-secondary">

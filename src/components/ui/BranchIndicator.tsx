@@ -1,4 +1,5 @@
 import { GitBranch, GitCommit } from "lucide-react";
+import { Chip } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
 export interface BranchIndicatorProps {
@@ -43,34 +44,36 @@ export function BranchIndicator({
         </>
       )}
 
-      {/* Ahead chip */}
       {ahead > 0 && !isDetached && (
-        <span
+        <Chip
+          size="sm"
           className={cn(
             "inline-flex items-center gap-0.5",
             "rounded-sm px-1.5 py-0.5",
             "text-xs font-medium",
             "bg-branch-ahead/15 text-branch-ahead",
+            "border-0 shadow-none",
           )}
           title={`${ahead} commit${ahead === 1 ? "" : "s"} ahead of ${upstream ?? "upstream"}`}
         >
           ↑{ahead}
-        </span>
+        </Chip>
       )}
 
-      {/* Behind chip */}
       {behind > 0 && !isDetached && (
-        <span
+        <Chip
+          size="sm"
           className={cn(
             "inline-flex items-center gap-0.5",
             "rounded-sm px-1.5 py-0.5",
             "text-xs font-medium",
             "bg-branch-behind/15 text-branch-behind",
+            "border-0 shadow-none",
           )}
           title={`${behind} commit${behind === 1 ? "" : "s"} behind ${upstream ?? "upstream"}`}
         >
           ↓{behind}
-        </span>
+        </Chip>
       )}
     </div>
   );

@@ -15,6 +15,7 @@ import { usePalette } from "@/hooks/usePalette";
 import { useTheme, type Theme } from "@/hooks/useTheme";
 import { PALETTE_META, type Palette } from "@/lib/palette";
 import { formatAppError, getAppVersion, openDataDir } from "@/lib/api";
+import { Radio, RadioGroup } from "@heroui/react";
 import { Modal } from "@/components/ui/Modal";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { Button } from "@/components/ui/Button";
@@ -53,13 +54,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
           className="flex w-44 shrink-0 flex-col gap-0.5 border-r border-border-subtle pr-2"
         >
           {SECTIONS.map(({ id, label, icon: Icon }) => (
-            <button
+            <Button
               key={id}
               type="button"
-              aria-current={section === id}
+              variant="ghost"
+              size="sm"
+              aria-current={section === id ? "page" : undefined}
               onClick={() => setSection(id)}
               className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-base",
+                "h-auto justify-start flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-base",
                 "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
                 section === id
                   ? "bg-accent/10 font-medium text-accent"
@@ -68,7 +71,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
             >
               <Icon size={15} className="shrink-0" />
               {label}
-            </button>
+            </Button>
           ))}
         </nav>
 
@@ -98,37 +101,44 @@ function AppearanceSection(): React.JSX.Element {
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">Theme</h3>
-        <div role="group" aria-label="Theme" className="grid grid-cols-3 gap-2">
+        <RadioGroup
+          value={theme}
+          onChange={(value) => setTheme(value as Theme)}
+          aria-label="Theme"
+          className="grid grid-cols-3 gap-2 [&_[data-slot=radio]]:mt-0"
+          style={{ display: "grid" }}
+        >
           {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-            <CardOption
-              key={value}
-              selected={theme === value}
-              onSelect={() => setTheme(value)}
-              label={label}
-            >
+            <CardOption key={value} value={value} selected={theme === value} label={label}>
               <Icon size={18} className={theme === value ? "text-accent" : "text-text-secondary"} />
             </CardOption>
           ))}
-        </div>
+        </RadioGroup>
       </section>
 
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
           Color palette
         </h3>
-        <div role="group" aria-label="Color palette" className="grid grid-cols-2 gap-2">
+        <RadioGroup
+          value={palette}
+          onChange={(value) => setPalette(value as Palette)}
+          aria-label="Color palette"
+          className="grid grid-cols-2 gap-2 [&_[data-slot=radio]]:mt-0"
+          style={{ display: "grid" }}
+        >
           {(Object.keys(PALETTE_META) as Palette[]).map((id) => (
             <CardOption
               key={id}
+              value={id}
               selected={palette === id}
-              onSelect={() => setPalette(id)}
               label={PALETTE_META[id].name}
               description={PALETTE_META[id].description}
             >
               <PaletteSwatch meta={PALETTE_META[id]} />
             </CardOption>
           ))}
-        </div>
+        </RadioGroup>
       </section>
     </div>
   );
@@ -158,46 +168,46 @@ function PaletteSwatch({ meta }: { meta: (typeof PALETTE_META)[Palette] }): Reac
   );
 }
 
-/** Card-style toggle option with a preview slot, label and optional description. */
+/** Card-style radio option with a preview slot, label and optional description. */
 function CardOption({
+  value,
   selected,
-  onSelect,
   label,
   description,
   children,
 }: {
+  value: string;
   selected: boolean;
-  onSelect: () => void;
   label: string;
   description?: string;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      className={cn(
-        "rounded-lg border p-2.5 text-left transition-colors",
-        "focus-visible:outline-2 focus-visible:outline-offset-1",
-        selected
-          ? "border-accent bg-accent/5 ring-accent/30 ring-1"
-          : "border-border-default hover:border-border-strong",
-      )}
-    >
-      {children}
-      <span
+    <Radio value={value} className="w-full">
+      <Radio.Content
         className={cn(
-          "block text-sm",
-          selected ? "font-medium text-text-primary" : "text-text-secondary",
+          "flex h-auto w-full flex-col items-start rounded-lg border p-2.5 text-left transition-colors",
+          selected
+            ? "border-accent bg-accent/5 ring-accent/30 ring-1"
+            : "border-border-default hover:border-border-strong",
         )}
       >
-        {label}
-      </span>
-      {description ? (
-        <span className="mt-0.5 block text-xs leading-snug text-text-secondary">{description}</span>
-      ) : null}
-    </button>
+        {children}
+        <span
+          className={cn(
+            "block text-sm",
+            selected ? "font-medium text-text-primary" : "text-text-secondary",
+          )}
+        >
+          {label}
+        </span>
+        {description ? (
+          <span className="mt-0.5 block text-xs leading-snug text-text-secondary">
+            {description}
+          </span>
+        ) : null}
+      </Radio.Content>
+    </Radio>
   );
 }
 

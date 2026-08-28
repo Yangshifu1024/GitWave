@@ -26,6 +26,9 @@ function applyTheme(resolved: "light" | "dark"): void {
   const root = document.documentElement;
   root.classList.remove("light", "dark");
   root.classList.add(resolved);
+  // HeroUI v3 themes key off [data-theme]; the .dark class stays for our
+  // own token blocks.
+  root.dataset.theme = resolved;
 }
 
 /**

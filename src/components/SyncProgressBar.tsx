@@ -1,3 +1,4 @@
+import { ProgressBar } from "@heroui/react";
 import { useSyncStore } from "@/stores/syncStore";
 import { cn } from "@/lib/utils";
 import type { SyncOperation } from "@/lib/api";
@@ -17,29 +18,29 @@ export function SyncProgressBar(): React.JSX.Element | null {
   if (!activeOp) return null;
 
   const determinate = totalObjects > 0;
-  const percent = determinate ? Math.min(100, (receivedObjects / totalObjects) * 100) : 0;
 
   return (
-    <div
+    <ProgressBar
+      aria-label={OP_LABELS[activeOp]}
+      minValue={0}
+      maxValue={determinate ? totalObjects : 100}
+      value={determinate ? receivedObjects : 0}
+      isIndeterminate={!determinate}
       className={cn(
-        "absolute bottom-0 inset-x-0 z-30 h-0.5 overflow-hidden bg-accent/15",
+        "absolute bottom-0 inset-x-0 z-30",
         "transition-opacity duration-fast",
         fading && "opacity-0",
       )}
-      role="progressbar"
-      aria-label={OP_LABELS[activeOp]}
-      aria-valuemin={0}
-      aria-valuemax={determinate ? totalObjects : undefined}
-      aria-valuenow={determinate ? receivedObjects : undefined}
     >
-      <div
-        className={cn(
-          "relative h-full bg-accent transition-[width] duration-fast ease-out",
-          !determinate && "w-full sync-progress-indeterminate",
-        )}
-        style={determinate ? { width: `${percent}%` } : undefined}
-      />
-    </div>
+      <ProgressBar.Track className="h-0.5 rounded-none bg-accent/15 overflow-hidden">
+        <ProgressBar.Fill
+          className={cn(
+            "h-full rounded-none bg-accent",
+            !determinate && "w-full sync-progress-indeterminate",
+          )}
+        />
+      </ProgressBar.Track>
+    </ProgressBar>
   );
 }
 

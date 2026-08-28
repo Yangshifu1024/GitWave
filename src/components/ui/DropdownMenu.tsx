@@ -1,81 +1,75 @@
-import { forwardRef } from "react";
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import { type ReactNode, forwardRef } from "react";
+import { Dropdown, Header, Separator } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
-export const DropdownMenu = DropdownMenuPrimitive.Root;
-export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
-export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
+export const DropdownMenu = Dropdown;
+export const DropdownMenuTrigger = Dropdown.Trigger;
+export const DropdownMenuGroup = ({ children }: { children?: ReactNode }): React.JSX.Element => (
+  <>{children}</>
+);
 
 export const DropdownMenuContent = forwardRef<
-  React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 6, ...props }, ref) => (
-  <DropdownMenuPrimitive.Portal>
-    <DropdownMenuPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      className={cn(
-        "z-popover min-w-[180px] rounded-lg",
-        "bg-bg-elevated border border-border-default shadow-modal",
-        "p-1",
-        "data-[state=open]:animate-in data-[state=closed]:animate-out",
-        "data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
-        "data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-        className,
-      )}
-      {...props}
-    />
-  </DropdownMenuPrimitive.Portal>
+  HTMLDivElement,
+  {
+    className?: string;
+    sideOffset?: number;
+    children?: ReactNode;
+  }
+>(({ className, sideOffset = 6, children }, _ref) => (
+  <Dropdown.Popover
+    offset={sideOffset}
+    className={cn(
+      "z-popover min-w-[180px] rounded-lg",
+      "bg-bg-elevated border border-border-default shadow-modal",
+      "p-1",
+      className,
+    )}
+  >
+    <Dropdown.Menu>{children}</Dropdown.Menu>
+  </Dropdown.Popover>
 ));
 DropdownMenuContent.displayName = "DropdownMenuContent";
 
-export interface DropdownMenuItemProps extends React.ComponentPropsWithoutRef<
-  typeof DropdownMenuPrimitive.Item
-> {
+export interface DropdownMenuItemProps {
+  className?: string;
   destructive?: boolean;
+  disabled?: boolean;
+  onSelect?: () => void;
+  children?: ReactNode;
+  id?: string;
 }
 
-export const DropdownMenuItem = forwardRef<
-  React.ElementRef<typeof DropdownMenuPrimitive.Item>,
-  DropdownMenuItemProps
->(({ className, destructive = false, ...props }, ref) => (
-  <DropdownMenuPrimitive.Item
-    ref={ref}
-    className={cn(
-      "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-      "outline-none transition-colors duration-fast",
-      "focus:bg-bg-secondary",
-      destructive ? "text-danger" : "text-text-primary",
-      "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-      className,
-    )}
-    {...props}
-  />
-));
+export const DropdownMenuItem = forwardRef<HTMLDivElement, DropdownMenuItemProps>(
+  ({ className, destructive = false, disabled, onSelect, children, id }, _ref) => (
+    <Dropdown.Item
+      id={id ?? (typeof children === "string" ? children : undefined)}
+      isDisabled={disabled}
+      variant={destructive ? "danger" : undefined}
+      onAction={onSelect}
+      className={cn(
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+        "outline-none",
+        destructive ? "text-danger" : "text-text-primary",
+        className,
+      )}
+    >
+      {children}
+    </Dropdown.Item>
+  ),
+);
 DropdownMenuItem.displayName = "DropdownMenuItem";
 
-export const DropdownMenuSeparator = forwardRef<
-  React.ElementRef<typeof DropdownMenuPrimitive.Separator>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
->(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.Separator
-    ref={ref}
-    className={cn("my-1 h-px bg-border-subtle", className)}
-    {...props}
-  />
-));
+export const DropdownMenuSeparator = forwardRef<HTMLElement, { className?: string }>(
+  ({ className }, _ref) => <Separator className={cn("my-1 bg-border-subtle", className)} />,
+);
 DropdownMenuSeparator.displayName = "DropdownMenuSeparator";
 
 export const DropdownMenuLabel = forwardRef<
-  React.ElementRef<typeof DropdownMenuPrimitive.Label>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label>
->(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.Label
-    ref={ref}
-    className={cn("px-2 py-1 text-xs font-medium text-text-muted", className)}
-    {...props}
-  />
+  HTMLElement,
+  { className?: string; children?: ReactNode }
+>(({ className, children }, _ref) => (
+  <Header className={cn("px-2 py-1 text-xs font-medium text-text-muted", className)}>
+    {children}
+  </Header>
 ));
 DropdownMenuLabel.displayName = "DropdownMenuLabel";
-
-export { DropdownMenuPrimitive };

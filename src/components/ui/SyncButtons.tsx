@@ -1,4 +1,5 @@
 import { Download, Upload, RefreshCw } from "lucide-react";
+import { Chip } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 
@@ -89,16 +90,17 @@ export function SyncButtons({
           {btn.inProgress ? <RefreshCw size={14} className="animate-spin" /> : btn.icon}
 
           {btn.badge && !btn.inProgress && (
-            <span
+            <Chip
+              size="sm"
               className={cn(
-                "ml-1 rounded-sm px-1 py-0.5 text-xs font-medium",
+                "ml-1 rounded-sm px-1 py-0.5 text-xs font-medium border-0 shadow-none",
                 btn.label === "Push"
                   ? "bg-branch-ahead/15 text-branch-ahead"
                   : "bg-branch-behind/15 text-branch-behind",
               )}
             >
               {btn.badge}
-            </span>
+            </Chip>
           )}
         </Button>
       ))}

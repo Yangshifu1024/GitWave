@@ -40,12 +40,16 @@ import {
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { cn } from "@/lib/utils";
+import { Separator } from "@heroui/react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { PathInput } from "@/components/ui/PathInput";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { Select } from "@/components/ui/Select";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Label } from "@/components/ui/Label";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 
@@ -59,7 +63,9 @@ interface PullDialogState {
 type AddKind = "init" | "clone" | "local" | null;
 
 function GroupDivider(): React.JSX.Element {
-  return <span className="mx-1 h-8 w-px bg-border-subtle" aria-hidden />;
+  return (
+    <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
+  );
 }
 
 function ActionBarGroup({
@@ -110,8 +116,10 @@ function ActionBarButton({
           : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary";
   return (
     <Tooltip content={hint}>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         disabled={disabled}
         aria-label={hint}
         onClick={onClick}
@@ -123,7 +131,7 @@ function ActionBarButton({
       >
         {icon}
         {label}
-      </button>
+      </Button>
     </Tooltip>
   );
 }
@@ -630,9 +638,9 @@ export function ActionBar(): React.JSX.Element {
           size="sm"
         >
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-secondary" htmlFor="init-path">
+            <Label className="text-xs font-medium text-text-secondary" htmlFor="init-path">
               Location
-            </label>
+            </Label>
             <PathInput
               id="init-path"
               autoFocus
@@ -675,9 +683,9 @@ export function ActionBar(): React.JSX.Element {
         >
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-text-secondary" htmlFor="clone-url">
+              <Label className="text-xs font-medium text-text-secondary" htmlFor="clone-url">
                 URL
-              </label>
+              </Label>
               <Input
                 id="clone-url"
                 autoFocus
@@ -700,9 +708,9 @@ export function ActionBar(): React.JSX.Element {
               </p>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-text-secondary" htmlFor="clone-dest">
+              <Label className="text-xs font-medium text-text-secondary" htmlFor="clone-dest">
                 Destination path
-              </label>
+              </Label>
               <PathInput
                 id="clone-dest"
                 directory
@@ -786,9 +794,9 @@ export function ActionBar(): React.JSX.Element {
           size="sm"
         >
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-secondary" htmlFor="add-local-path">
+            <Label className="text-xs font-medium text-text-secondary" htmlFor="add-local-path">
               Location
-            </label>
+            </Label>
             <PathInput
               id="add-local-path"
               autoFocus
@@ -866,62 +874,53 @@ export function ActionBar(): React.JSX.Element {
           size="sm"
         >
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2">
+            <Label className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Remote</span>
-              <select
-                className="flex-1 min-w-0 bg-bg-primary border border-border-subtle rounded px-1.5 py-1 text-xs text-text-primary"
+              <Select
+                aria-label="Remote"
+                className="h-auto flex-1 min-w-0 bg-bg-primary border-border-subtle px-1.5 py-1 text-xs"
                 value={pullDialog.remote}
                 disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, remote: e.target.value })}
-              >
-                {remoteOptions.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+                onChange={(remote) => setPullDialog({ ...pullDialog, remote })}
+                options={remoteOptions.map((r) => ({ value: r, label: r }))}
+              />
+            </Label>
+            <Label className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
-              <select
-                className="flex-1 min-w-0 bg-bg-primary border border-border-subtle rounded px-1.5 py-1 text-xs text-text-primary"
+              <Select
+                aria-label="Branch"
+                className="h-auto flex-1 min-w-0 bg-bg-primary border-border-subtle px-1.5 py-1 text-xs"
                 value={pullDialog.branch}
                 disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, branch: e.target.value })}
-              >
-                {branchOptions.map((b) => (
-                  <option key={b} value={b}>
-                    {pullDialog.remote}/{b}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(branch) => setPullDialog({ ...pullDialog, branch })}
+                options={branchOptions.map((b) => ({
+                  value: b,
+                  label: `${pullDialog.remote}/${b}`,
+                }))}
+              />
+            </Label>
             <div className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Into</span>
               <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
                 {wc.data?.branch ?? "—"}
               </span>
             </div>
-            <label className="flex items-center gap-2 text-xs text-text-primary">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={pullDialog.rebase}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, rebase: e.target.checked })}
-              />
+            <Checkbox
+              checked={pullDialog.rebase}
+              disabled={wc.isSyncBusy}
+              onChange={(rebase) => setPullDialog({ ...pullDialog, rebase })}
+              className="text-text-primary"
+            >
               Rebase instead of merge
-            </label>
-            <label className="flex items-center gap-2 text-xs text-text-primary">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={pullDialog.stash}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPullDialog({ ...pullDialog, stash: e.target.checked })}
-              />
+            </Checkbox>
+            <Checkbox
+              checked={pullDialog.stash}
+              disabled={wc.isSyncBusy}
+              onChange={(stash) => setPullDialog({ ...pullDialog, stash })}
+              className="text-text-primary"
+            >
               Stash and reapply local changes
-            </label>
+            </Checkbox>
           </div>
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => setPullDialog(null)}>
@@ -972,26 +971,22 @@ export function ActionBar(): React.JSX.Element {
                 default ({wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`})
               </span>
             </div>
-            <label className="flex items-center gap-2 text-xs text-text-primary">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={pushDialog.tags}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPushDialog({ ...pushDialog, tags: e.target.checked })}
-              />
+            <Checkbox
+              checked={pushDialog.tags}
+              disabled={wc.isSyncBusy}
+              onChange={(tags) => setPushDialog({ ...pushDialog, tags })}
+              className="text-text-primary"
+            >
               Push all tags
-            </label>
-            <label className="flex items-center gap-2 text-xs text-text-primary">
-              <input
-                type="checkbox"
-                className="accent-accent"
-                checked={pushDialog.force}
-                disabled={wc.isSyncBusy}
-                onChange={(e) => setPushDialog({ ...pushDialog, force: e.target.checked })}
-              />
+            </Checkbox>
+            <Checkbox
+              checked={pushDialog.force}
+              disabled={wc.isSyncBusy}
+              onChange={(force) => setPushDialog({ ...pushDialog, force })}
+              className="text-text-primary"
+            >
               Force push
-            </label>
+            </Checkbox>
           </div>
           <div className="mt-3 flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => setPushDialog(null)}>

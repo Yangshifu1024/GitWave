@@ -1,3 +1,4 @@
+import { EmptyState as HeroEmptyState } from "@heroui/react";
 import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +21,7 @@ export function EmptyState({
   className,
 }: EmptyStateProps): React.JSX.Element {
   return (
-    <div
+    <HeroEmptyState
       className={cn(
         "flex flex-col items-center justify-center gap-3 p-8",
         "text-center",
@@ -33,6 +34,6 @@ export function EmptyState({
         {description ? <p className="text-xs text-text-secondary max-w-xs">{description}</p> : null}
       </div>
       {action ? <div className="mt-1">{action}</div> : null}
-    </div>
+    </HeroEmptyState>
   );
 }
