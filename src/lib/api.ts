@@ -196,6 +196,22 @@ export function explainCommit(workspaceId: string, sha: string): Promise<AiGener
   return invoke<AiGenerateOutcome>("cmd_explain_commit", { workspaceId, sha });
 }
 
+/**
+ * One AI-proposed palette action. `requires_confirm` marks mutating
+ * actions — the UI must not execute those without explicit confirmation.
+ */
+export interface PaletteIntent {
+  action: string;
+  params: Record<string, unknown>;
+  explanation: string;
+  requires_confirm: boolean;
+}
+
+/** Natural-language request → whitelisted palette action proposal. */
+export function aiPaletteIntent(workspaceId: string, query: string): Promise<PaletteIntent> {
+  return invoke<PaletteIntent>("cmd_ai_palette_intent", { workspaceId, query });
+}
+
 // ─── Repo commands ───────────────────────────────────────────────────────
 
 export function listRepos(workspaceId: string): Promise<RepoRef[]> {

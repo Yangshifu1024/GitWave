@@ -10,9 +10,13 @@ import { Button } from "@/components/ui/Button";
 import { useMacTitlebarWindow } from "@/hooks/useMacTitlebarWindow";
 import { isMacOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { useUiStore } from "@/stores/uiStore";
 
 export function Toolbar(): React.JSX.Element {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Settings state lives in the ui store so global shortcuts (Cmd+,) and
+  // the command palette can open it from anywhere.
+  const settingsOpen = useUiStore((s) => s.settingsOpen);
+  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const [aboutOpen, setAboutOpen] = useState(false);
   const dragZoneRef = useRef<HTMLDivElement>(null);
   useMacTitlebarWindow(dragZoneRef);
@@ -28,7 +32,7 @@ export function Toolbar(): React.JSX.Element {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [setSettingsOpen]);
 
   return (
     <header

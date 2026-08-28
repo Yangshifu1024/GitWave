@@ -24,6 +24,7 @@ import { WorktreePanel } from "@/components/WorktreePanel";
 import { SubmodulesPanel } from "@/components/SubmodulesPanel";
 import { TagsPanel } from "@/components/TagsPanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
+import { CommandPalette } from "@/components/CommandPalette";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
 import { cn } from "@/lib/utils";
 
@@ -89,6 +90,14 @@ function App(): React.JSX.Element {
 
   const handleTagSelect = (sha: string): void => {
     if (!activeRepoId) return;
+    handleCommitSelect(sha);
+    locateSeq.current += 1;
+    setLocateRequest({ repoId: activeRepoId, sha, seq: locateSeq.current });
+  };
+
+  /** Command palette "locate_commit": same one-shot locate flow as the sidebar. */
+  const handlePaletteLocate = (sha: string): void => {
+    if (!activeRepoId || !sha) return;
     handleCommitSelect(sha);
     locateSeq.current += 1;
     setLocateRequest({ repoId: activeRepoId, sha, seq: locateSeq.current });
@@ -160,6 +169,8 @@ function App(): React.JSX.Element {
         </div>
 
         <ConflictPanel />
+
+        <CommandPalette requestLocate={handlePaletteLocate} />
       </div>
     </ToastProvider>
   );

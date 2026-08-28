@@ -101,7 +101,12 @@ export function CommitExplainModal({
             <RefreshCw size={13} />
             Regenerate
           </Button>
-          <Button variant="secondary" size="sm" disabled={!text || genMut.isPending} onClick={copy}>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!text || genMut.isPending}
+            onClick={() => void copy()}
+          >
             <Copy size={13} />
             Copy
           </Button>

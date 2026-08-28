@@ -1168,6 +1168,247 @@ pub async fn explain_commit(
     generate_with_failover(chain, system, user).await
 }
 
+// ─── AI command palette (Cmd+K) ─────────────────────────────────────────────
+
+/// One AI-proposed palette action. Mutating actions carry
+/// `requires_confirm = true` and the UI must not execute them without an
+/// explicit user confirmation (P1). commit / push / merge / rebase are not
+/// in the whitelist at all and are rejected server-side.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PaletteIntent {
+    pub action: String,
+    pub params: serde_json::Value,
+    pub explanation: String,
+    pub requires_confirm: bool,
+}
+
+/// Actions the palette may execute without further confirmation (read-only
+/// navigation or dialogs).
+pub const PALETTE_ACTIONS_IMMEDIATE: [&str; 3] = ["explain_commit", "locate_commit", "none"];
+/// Actions that only run after the user confirms the intent card.
+pub const PALETTE_ACTIONS_CONFIRM: [&str; 5] = [
+    "create_branch",
+    "checkout_branch",
+    "create_tag",
+    "stash_changes",
+    "fetch_remotes",
+];
+
+pub const PALETTE_SYSTEM: &str = "You convert a user request into exactly ONE GitWave UI action. \
+Respond with ONLY a JSON object, no prose, no markdown fences: \
+{\"action\": \"...\", \"params\": {...}, \"explanation\": \"one short sentence\"}. \
+Allowed actions and their params:
+- explain_commit {\"sha\": string} — AI explains what a commit changed
+- locate_commit {\"sha\": string} — scroll the history graph to a commit
+- create_branch {\"name\": string, \"from\": string (optional sha or branch)}
+- checkout_branch {\"name\": string}
+- create_tag {\"name\": string, \"sha\": string (optional, defaults to current tip)}
+- stash_changes {\"message\": string (optional)}
+- fetch_remotes {}
+- none {} — when nothing matches
+Pick shas from the provided recent commits when possible. Mutating actions are shown to the \
+user for confirmation first, so prefer the closest matching action over refusing. \
+Never invent actions outside this list.";
+
+fn strip_json_fences(raw: &str) -> &str {
+    let trimmed = raw.trim();
+    let Some(without_open) = trimmed.strip_prefix("```") else {
+        return trimmed;
+    };
+    // Drop an optional language tag on the opening fence line.
+    let body = without_open
+        .split_once('\n')
+        .map(|(_, rest)| rest)
+        .unwrap_or(without_open);
+    body.trim()
+        .strip_suffix("```")
+        .map(str::trim)
+        .unwrap_or(body.trim())
+}
+
+/// Tolerant parse + whitelist validation of the model's JSON output.
+/// Invalid shapes and non-whitelisted actions are hard errors — the palette
+/// shows them as AI errors instead of executing anything.
+fn parse_palette_intent(raw: &str) -> Result<PaletteIntent> {
+    let text = strip_json_fences(raw);
+    let (start, end) = match (text.find('{'), text.rfind('}')) {
+        (Some(s), Some(e)) if e > s => (s, e),
+        _ => {
+            return Err(AppError::Protocol(
+                "AI did not return a JSON action — try rephrasing the request".into(),
+            ));
+        }
+    };
+    let value: serde_json::Value = serde_json::from_str(&text[start..=end])
+        .map_err(|_| AppError::Protocol("AI returned malformed JSON — try again".into()))?;
+
+    let action = value["action"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let explanation = value["explanation"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let params = if value["params"].is_object() {
+        value["params"].clone()
+    } else {
+        serde_json::json!({})
+    };
+
+    let whitelisted = PALETTE_ACTIONS_IMMEDIATE.contains(&action.as_str())
+        || PALETTE_ACTIONS_CONFIRM.contains(&action.as_str());
+    if !whitelisted {
+        let hinted = if action.is_empty() {
+            "empty action".to_string()
+        } else {
+            format!("unsupported action: {action}")
+        };
+        return Err(AppError::Protocol(format!(
+            "{hinted} — commit, push, merge and rebase are never palette-driven (P1)"
+        )));
+    }
+
+    let require_str = |key: &str| -> Result<String> {
+        params[key]
+            .as_str()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| {
+                AppError::Protocol(format!("AI action \"{action}\" is missing \"{key}\""))
+            })
+    };
+    match action.as_str() {
+        "explain_commit" | "locate_commit" => {
+            require_str("sha")?;
+        }
+        "create_branch" | "checkout_branch" | "create_tag" => {
+            require_str("name")?;
+        }
+        _ => {}
+    }
+
+    Ok(PaletteIntent {
+        requires_confirm: PALETTE_ACTIONS_CONFIRM.contains(&action.as_str()),
+        action,
+        params,
+        explanation,
+    })
+}
+
+/// Repository context snapshot fed to the palette prompt: enough for the
+/// model to resolve branch / tag / sha references, small enough to stay
+/// cheap. Read-only assembly — no working-tree access.
+#[derive(serde::Serialize)]
+struct PaletteContext {
+    current_branch: String,
+    local_branches: Vec<String>,
+    remote_branches: Vec<String>,
+    tags: Vec<String>,
+    repos: Vec<PaletteRepo>,
+    recent_commits: Vec<PaletteCommit>,
+}
+
+#[derive(serde::Serialize)]
+struct PaletteRepo {
+    id: String,
+    name: String,
+}
+
+#[derive(serde::Serialize)]
+struct PaletteCommit {
+    sha: String,
+    subject: String,
+}
+
+/// Interpret a natural-language request as a whitelisted palette action.
+/// The AI only *proposes* — execution (with confirmation for mutating
+/// actions) stays in the frontend.
+pub async fn ai_palette_intent(
+    ctx: &AppContext,
+    workspace_id: String,
+    query: String,
+) -> Result<PaletteIntent> {
+    if query.trim().is_empty() {
+        return Err(AppError::Protocol("empty palette request".into()));
+    }
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    let repos = list_repos(ctx, workspace_id.clone())?
+        .into_iter()
+        .map(|r| PaletteRepo {
+            id: r.id,
+            name: r.nickname.unwrap_or(r.path),
+        })
+        .collect();
+    let tags = list_tags(ctx, &workspace_id)?
+        .into_iter()
+        .take(20)
+        .map(|t| t.name)
+        .collect();
+
+    // Scoped so the !Send git2 handle drops before the await.
+    let (current_branch, local_branches, remote_branches, recent_commits, rules) = {
+        let repo_path = active_repo_path(ctx, &workspace_id)?;
+        let repo = ctx.open_repo(&repo_path)?;
+        let current_branch = repo
+            .head()
+            .ok()
+            .and_then(|h| h.shorthand().map(str::to_string))
+            .unwrap_or_else(|| "HEAD (detached)".to_string());
+        let mut local = Vec::new();
+        let mut remote = Vec::new();
+        if let Ok(branches) = repo.branches(None) {
+            for item in branches.flatten() {
+                let (branch, kind) = item;
+                let Some(name) = branch.name().ok().flatten() else {
+                    continue;
+                };
+                match kind {
+                    git2::BranchType::Local if local.len() < 20 => local.push(name.to_string()),
+                    git2::BranchType::Remote if remote.len() < 15 => remote.push(name.to_string()),
+                    _ => {}
+                }
+            }
+        }
+        let recent_commits = infra_commit_log(&repo, 15, None)?
+            .into_iter()
+            .map(|c| PaletteCommit {
+                sha: c.sha,
+                subject: c.message_summary,
+            })
+            .collect();
+        let rules = repo.workdir().and_then(infra_read_ai_rules);
+        (current_branch, local, remote, recent_commits, rules)
+    };
+
+    let snapshot = PaletteContext {
+        current_branch,
+        local_branches,
+        remote_branches,
+        tags,
+        repos,
+        recent_commits,
+    };
+    let user = format!(
+        "Repository context:\n{}\n\nUser request: {}",
+        serde_json::to_string_pretty(&snapshot)
+            .map_err(|e| AppError::Unknown(format!("palette context: {e}")))?,
+        query.trim()
+    );
+    let system = with_repo_rules(PALETTE_SYSTEM.to_string(), rules);
+
+    let outcome = generate_with_failover(chain, system, user).await?;
+    parse_palette_intent(&outcome.text)
+}
+
 /// Rebase the current HEAD onto an upstream.
 pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Result<RebaseResult> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
@@ -1751,6 +1992,47 @@ mod tests {
         assert!(prompt.contains("Changed files:"));
         assert!(prompt.contains("(none)"));
         assert!(prompt.contains("--- a/a.txt"));
+    }
+
+    #[test]
+    fn palette_intent_parses_tolerantly() {
+        let intent = parse_palette_intent(
+            "```json\n{\"action\": \"create_branch\", \"params\": {\"name\": \"fix/auth\"}, \
+             \"explanation\": \"create a branch\"}\n```",
+        )
+        .expect("fenced json");
+        assert_eq!(intent.action, "create_branch");
+        assert!(intent.requires_confirm);
+        assert_eq!(intent.params["name"], "fix/auth");
+
+        let intent =
+            parse_palette_intent("Sure! {\"action\":\"locate_commit\",\"params\":{\"sha\":\"abc1234\"},\"explanation\":\"jump\"}")
+                .expect("prose-wrapped json");
+        assert!(!intent.requires_confirm);
+        assert_eq!(intent.params["sha"], "abc1234");
+
+        // Missing params object defaults to {} for param-less actions.
+        let intent =
+            parse_palette_intent("{\"action\":\"fetch_remotes\",\"explanation\":\"fetch\"}")
+                .expect("no params");
+        assert_eq!(intent.action, "fetch_remotes");
+    }
+
+    #[test]
+    fn palette_intent_rejects_non_whitelisted_and_malformed() {
+        // P1: commit / push / merge / rebase are never palette-driven.
+        for action in ["commit", "push", "merge", "rebase", "force_push"] {
+            let raw = format!("{{\"action\":\"{action}\",\"params\":{{}},\"explanation\":\"x\"}}");
+            let err = parse_palette_intent(&raw).expect_err(action);
+            assert!(err.to_string().contains("unsupported action"), "{err}");
+        }
+        assert!(parse_palette_intent("no json here").is_err());
+        assert!(parse_palette_intent("{\"action\":\"locate_commit\"}").is_err());
+        let err = parse_palette_intent(
+            "{\"action\":\"explain_commit\",\"params\":{},\"explanation\":\"x\"}",
+        )
+        .expect_err("missing sha");
+        assert!(err.to_string().contains("missing \"sha\""), "{err}");
     }
 
     #[test]
