@@ -6,4 +6,5 @@ pub mod ai;
 pub mod git;
 pub mod observability;
 pub mod persistence;
+pub mod process;
 pub mod ssh;

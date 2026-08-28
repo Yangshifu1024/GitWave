@@ -3,11 +3,12 @@
 //! Backed by the system OpenSSH client. No vendored crypto.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
+use crate::infrastructure::process::hidden_command;
 
 /// One SSH key currently loaded in the agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -29,7 +30,7 @@ pub struct SshTestResult {
 /// List keys currently loaded in ssh-agent (`ssh-add -l`).
 /// Returns empty Vec if no agent or no keys — never errors.
 pub fn list_loaded() -> Result<Vec<SshKey>> {
-    let output = Command::new("ssh-add")
+    let output = hidden_command("ssh-add")
         .arg("-l")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -66,7 +67,7 @@ pub fn list_loaded() -> Result<Vec<SshKey>> {
 /// Add a key to the ssh-agent. The user may be prompted for a passphrase
 /// via the controlling tty (or `SSH_ASKPASS` in non-interactive contexts).
 pub fn add(path: &Path) -> Result<()> {
-    let status = Command::new("ssh-add")
+    let status = hidden_command("ssh-add")
         .arg(path)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -85,7 +86,7 @@ pub fn add(path: &Path) -> Result<()> {
 /// Remove a key from the agent (`ssh-add -d`). The key file itself is
 /// not deleted.
 pub fn delete(path: &Path) -> Result<()> {
-    let status = Command::new("ssh-add")
+    let status = hidden_command("ssh-add")
         .arg("-d")
         .arg(path)
         .stdin(Stdio::null())
@@ -106,7 +107,7 @@ pub fn delete(path: &Path) -> Result<()> {
 /// GitHub-style servers return exit 1 with "successfully authenticated"
 /// which we treat as success.
 pub fn test_connection(host: &str, user: &str) -> Result<SshTestResult> {
-    let output = Command::new("ssh")
+    let output = hidden_command("ssh")
         .args([
             "-T",
             "-o",
