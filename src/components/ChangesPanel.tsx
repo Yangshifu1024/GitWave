@@ -380,10 +380,13 @@ export function ChangesPanel({
         onChange={setMessage}
         onSubmit={() => {
           if (stagedFiles.length === 0 || !message.trim()) return;
+          // Snapshot taken at submit time: unstaged work is not part of the
+          // commit, so its presence means the modal should stay open.
+          const hasLeftoverUnstaged = unstagedFiles.length > 0;
           commitMessage(message, {
             onSuccess: () => {
               setMessage("");
-              onCommitted?.();
+              if (!hasLeftoverUnstaged) onCommitted?.();
             },
           });
         }}
