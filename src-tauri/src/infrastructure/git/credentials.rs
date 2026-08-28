@@ -9,9 +9,11 @@
 //! `git2::FetchOptions::remote_callbacks`.
 
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use git2::{Cred, CredentialType, RemoteCallbacks};
+
+use crate::infrastructure::process::hidden_command;
 
 /// Pluggable credential strategy for libgit2 fetch/clone.
 pub trait CredentialProvider: Send + Sync {
@@ -109,7 +111,7 @@ impl CredentialProvider for GitCredentialHelper {
 /// Invoke `git credential fill` for the URL and return parsed user/pass.
 /// Returns `None` if the helper is not configured / fails.
 fn query_helper(url: &str) -> Option<(String, String)> {
-    let mut child = Command::new("git")
+    let mut child = hidden_command("git")
         .args(["credential", "fill"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
