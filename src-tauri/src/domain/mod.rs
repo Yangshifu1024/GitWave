@@ -8,6 +8,7 @@ pub mod branch;
 pub mod diff;
 pub mod error;
 pub mod history;
+pub mod lfs;
 pub mod stash;
 pub mod working_copy;
 pub mod workspace;
@@ -20,6 +21,7 @@ pub use error::{AppError, Result};
 pub use history::{
     CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary, PrCommit,
 };
+pub use lfs::LfsStatus;
 pub use stash::StashEntry;
 pub use working_copy::{FileChange, FileStatusKind, WorkingCopy};
 pub use workspace::{

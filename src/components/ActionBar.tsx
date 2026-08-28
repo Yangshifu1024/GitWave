@@ -20,6 +20,7 @@ import {
   FolderPlus,
   GitBranch,
   GitPullRequest,
+  Package,
   Pencil,
   Sparkles,
   Trash2,
@@ -58,6 +59,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Label } from "@/components/ui/Label";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { PrDescriptionModal } from "@/components/PrDescriptionModal";
+import { LfsPanel } from "@/components/LfsPanel";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 
 interface PullDialogState {
@@ -368,6 +370,7 @@ export function ActionBar(): React.JSX.Element {
   const [pullDialog, setPullDialog] = useState<PullDialogState | null>(null);
   const [pushDialog, setPushDialog] = useState<{ tags: boolean; force: boolean } | null>(null);
   const [prOpen, setPrOpen] = useState(false);
+  const [lfsOpen, setLfsOpen] = useState(false);
 
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
@@ -546,6 +549,13 @@ export function ActionBar(): React.JSX.Element {
             label="Fetch"
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
+          />
+          <ActionBarButton
+            icon={<Package size={14} />}
+            label="LFS"
+            title="Git LFS — track large files"
+            disabled={noRepo}
+            onClick={() => setLfsOpen(true)}
           />
         </ActionBarGroup>
         <GroupDivider />
@@ -735,6 +745,10 @@ export function ActionBar(): React.JSX.Element {
 
       {prOpen && activeWorkspaceId ? (
         <PrDescriptionModal workspaceId={activeWorkspaceId} open onClose={() => setPrOpen(false)} />
+      ) : null}
+
+      {lfsOpen && activeWorkspaceId ? (
+        <LfsPanel workspaceId={activeWorkspaceId} open onClose={() => setLfsOpen(false)} />
       ) : null}
 
       {/* Repository: init */}

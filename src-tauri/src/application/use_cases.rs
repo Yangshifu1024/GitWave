@@ -10,6 +10,7 @@ use crate::domain::branch::BranchInfo;
 use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
+use crate::domain::lfs::LfsStatus;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
@@ -46,6 +47,11 @@ use crate::infrastructure::git::interactive_rebase::{
     execute_interactive_rebase as infra_execute_irebase,
     interactive_rebase_paused as infra_irebase_paused,
     plan_interactive_rebase as infra_plan_irebase, InteractiveRebaseResult, InteractiveRebaseTodo,
+};
+use crate::infrastructure::git::lfs::{
+    lfs_available as infra_lfs_available, lfs_install as infra_lfs_install,
+    lfs_installed as infra_lfs_installed, list_tracked_patterns as infra_lfs_list_patterns,
+    track_pattern as infra_lfs_track, untrack_pattern as infra_lfs_untrack,
 };
 use crate::infrastructure::git::merge::{
     merge_branch as infra_merge_branch, merge_preview as infra_merge_preview, MergePreview,
@@ -1483,6 +1489,48 @@ pub fn update_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Res
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_submodule_update(&repo, name)
+}
+
+// ─── Git LFS use cases ──────────────────────────────────────────────────────
+
+/// Snapshot of the active repo's LFS state (binary available, local filters
+/// wired, tracked patterns).
+pub fn lfs_status(ctx: &AppContext, workspace_id: &str) -> Result<LfsStatus> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    Ok(LfsStatus {
+        available: infra_lfs_available(),
+        installed: infra_lfs_installed(&repo)?,
+        patterns: infra_lfs_list_patterns(&repo)?,
+    })
+}
+
+/// Wire LFS filters into the active repository (`git lfs install --local`).
+/// Requires a `git lfs` binary on PATH.
+pub fn lfs_install(ctx: &AppContext, workspace_id: &str) -> Result<String> {
+    if !infra_lfs_available() {
+        return Err(AppError::Protocol(
+            "git lfs is not installed — install Git LFS (https://git-lfs.com) and restart GitWave"
+                .into(),
+        ));
+    }
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_lfs_install(&repo)
+}
+
+/// Track a path pattern with LFS (appends to `.gitattributes`).
+pub fn lfs_track(ctx: &AppContext, workspace_id: &str, pattern: String) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_lfs_track(&repo, &pattern)
+}
+
+/// Stop tracking a pattern with LFS (removes the `.gitattributes` line).
+pub fn lfs_untrack(ctx: &AppContext, workspace_id: &str, pattern: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_lfs_untrack(&repo, pattern)
 }
 
 /// Read the repo-root `.gitignore` (empty string when absent) — S2 editor.

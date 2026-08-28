@@ -212,6 +212,30 @@ export function aiPaletteIntent(workspaceId: string, query: string): Promise<Pal
   return invoke<PaletteIntent>("cmd_ai_palette_intent", { workspaceId, query });
 }
 
+/** Git LFS state of the active repository. */
+export interface LfsStatus {
+  available: boolean;
+  installed: boolean;
+  patterns: string[];
+}
+
+export function lfsStatus(workspaceId: string): Promise<LfsStatus> {
+  return invoke<LfsStatus>("cmd_lfs_status", { workspaceId });
+}
+
+/** Wire LFS filters into the active repo (`git lfs install --local`). */
+export function lfsInstall(workspaceId: string): Promise<string> {
+  return invoke<string>("cmd_lfs_install", { workspaceId });
+}
+
+export function lfsTrack(workspaceId: string, pattern: string): Promise<void> {
+  return invoke<void>("cmd_lfs_track", { workspaceId, pattern });
+}
+
+export function lfsUntrack(workspaceId: string, pattern: string): Promise<void> {
+  return invoke<void>("cmd_lfs_untrack", { workspaceId, pattern });
+}
+
 // ─── Repo commands ───────────────────────────────────────────────────────
 
 export function listRepos(workspaceId: string): Promise<RepoRef[]> {
