@@ -69,6 +69,7 @@ export function AiProviderSettings({
   const [tplCommit, setTplCommit] = useState("");
   const [tplConflict, setTplConflict] = useState("");
   const [tplPr, setTplPr] = useState("");
+  const [tplReflog, setTplReflog] = useState("");
 
   const { data: workspace } = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -95,6 +96,7 @@ export function AiProviderSettings({
     setTplCommit(s.prompt_templates.commit ?? "");
     setTplConflict(s.prompt_templates.conflict ?? "");
     setTplPr(s.prompt_templates.pr ?? "");
+    setTplReflog(s.prompt_templates.reflog ?? "");
   }, [workspace]);
 
   const saveMut = useMutation({
@@ -118,6 +120,7 @@ export function AiProviderSettings({
           commit: tplCommit.trim() || null,
           conflict: tplConflict.trim() || null,
           pr: tplPr.trim() || null,
+          reflog: tplReflog.trim() || null,
         },
       };
       await updateWorkspaceSettings(workspaceId, settings);
@@ -274,6 +277,12 @@ export function AiProviderSettings({
               value={tplPr}
               onChange={setTplPr}
               placeholder="Reserved for PR description generation (v0.2)"
+            />
+            <PromptTemplateField
+              label="Recovery assistant (reflog)"
+              value={tplReflog}
+              onChange={setTplReflog}
+              placeholder="Override the recovery-assistant system prompt"
             />
           </div>
         ) : null}

@@ -24,6 +24,7 @@ import { WorktreePanel } from "@/components/WorktreePanel";
 import { SubmodulesPanel } from "@/components/SubmodulesPanel";
 import { TagsPanel } from "@/components/TagsPanel";
 import { RemotesPanel } from "@/components/RemotesPanel";
+import { ReflogPanel } from "@/components/ReflogPanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
 import { cn } from "@/lib/utils";
@@ -127,6 +128,9 @@ function App(): React.JSX.Element {
                     </SidebarSection>
                     <SidebarSection title="Remotes" defaultOpen={false}>
                       <RemotesPanel />
+                    </SidebarSection>
+                    <SidebarSection title="Recovery" defaultOpen={false}>
+                      <ReflogPanel />
                     </SidebarSection>
                     <SidebarSection title="Worktrees" defaultOpen={false}>
                       <WorktreePanel compact />
