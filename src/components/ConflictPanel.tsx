@@ -30,6 +30,8 @@ export function ConflictPanel(): React.JSX.Element | null {
   const [explain, setExplain] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** User closed the zero-conflict banner; re-shown if real conflicts appear. */
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const { toast } = useToast();
 
   const refresh = useCallback(async () => {
@@ -59,6 +61,12 @@ export function ConflictPanel(): React.JSX.Element | null {
     return () => window.clearInterval(t);
   }, [workspaceId, repoId, refresh]);
 
+  // A dismissal only hides the zero-conflict banner; real conflicts always
+  // take over again.
+  useEffect(() => {
+    if (files.length > 0) setBannerDismissed(false);
+  }, [files.length]);
+
   const openFile = async (path: string) => {
     if (!workspaceId) return;
     setSelected(path);
@@ -74,6 +82,57 @@ export function ConflictPanel(): React.JSX.Element | null {
   };
 
   if (!workspaceId || !repoId || !active) return null;
+
+  // All conflicts already resolved/staged (typical after resolving outside
+  // the app): a full-screen takeover would dead-end the user — they need to
+  // reach Working Copy to commit the merge. Degrade to a slim dismissible
+  // banner instead; it comes back if real conflicts re-appear.
+  if (files.length === 0) {
+    if (bannerDismissed) return null;
+    return (
+      <div className="fixed top-0 inset-x-0 z-modal flex items-center justify-between gap-3 bg-bg-elevated border-b border-border-subtle px-4 py-2 shadow-modal">
+        <p className="flex items-center gap-2 text-xs text-text-secondary">
+          <AlertTriangle size={14} className="text-warning shrink-0" />
+          Merge in progress — all conflicts resolved. Commit the merge from Working Copy to finish
+          it.
+        </p>
+        <span className="flex items-center gap-2">
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              void (async () => {
+                setBusy(true);
+                try {
+                  await abortMerge(workspaceId);
+                  bumpHistory();
+                  await refresh();
+                } catch (e) {
+                  setError(formatAppError(e));
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          >
+            <XCircle size={14} />
+            Abort merge
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1"
+            aria-label="Dismiss"
+            title="Dismiss"
+            onClick={() => setBannerDismissed(true)}
+          >
+            ✕
+          </Button>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-modal flex items-center justify-center">

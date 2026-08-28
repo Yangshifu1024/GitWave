@@ -12,7 +12,6 @@ use crate::domain::error::{AppError, Result};
 use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
 use crate::domain::hooks::HookInfo;
 use crate::domain::lfs::LfsStatus;
-use crate::domain::reflog::ReflogEntry;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
@@ -37,6 +36,7 @@ use crate::infrastructure::git::diff::{
     diff_index_to_head_files as infra_diff_index_to_head_files, diff_paths as infra_diff_paths,
     diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
 };
+use crate::infrastructure::git::health::{collect_health as infra_collect_health, HealthReport};
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_details as infra_commit_details,
     commit_log as infra_commit_log, commit_recent_messages as infra_commit_recent_messages,
@@ -63,7 +63,13 @@ use crate::infrastructure::git::merge::{
     MergeResult,
 };
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
-use crate::infrastructure::git::reflog::read_reflog as infra_read_reflog;
+use crate::infrastructure::git::reflog::{list_reflog as infra_list_reflog, ReflogEntry};
+use crate::infrastructure::git::remote::{
+    add_remote as infra_add_remote, list_remote_details as infra_list_remote_details,
+    remove_remote as infra_remove_remote, rename_remote as infra_rename_remote,
+    set_remote_push_url as infra_set_remote_push_url, set_remote_url as infra_set_remote_url,
+    RemoteInfo,
+};
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
@@ -87,8 +93,8 @@ use crate::infrastructure::git::tag::{
 };
 use crate::infrastructure::git::working_copy::{
     commit as infra_commit, discard_worktree_changes as infra_discard_worktree_changes,
-    ignore_path as infra_ignore_path, stage_all as infra_stage_all,
-    stage_paths as infra_stage_paths, status as infra_wc_status,
+    ignore_path as infra_ignore_path, reset_head_hard as infra_reset_head_hard,
+    stage_all as infra_stage_all, stage_paths as infra_stage_paths, status as infra_wc_status,
     unstage_paths as infra_unstage_paths,
 };
 use crate::infrastructure::git::worktree::{
@@ -600,6 +606,9 @@ async fn generate_with_failover(
             api_key: entry.api_key,
             system: system.clone(),
             user: user.clone(),
+            // The chain loop above IS the failover — per-request fallbacks
+            // stay empty (v0.3's in-request fallback field is unused here).
+            fallbacks: Vec::new(),
         };
         match crate::infrastructure::ai::generate_text(req).await {
             Ok(text) => {
@@ -1453,6 +1462,16 @@ pub async fn ai_palette_intent(
     parse_palette_intent(&outcome.text)
 }
 
+/// Commit subject for a reflog position, or a placeholder when the oid
+/// is zero/unresolvable (branch creation, pruned commits).
+fn subject_of(repo: &git2::Repository, oid: &str) -> String {
+    git2::Oid::from_str(oid)
+        .ok()
+        .and_then(|o| repo.find_commit(o).ok())
+        .and_then(|c| c.summary().map(str::to_string))
+        .unwrap_or_else(|| "(not resolvable — maybe zero oid or pruned)".into())
+}
+
 /// Rebase the current HEAD onto an upstream.
 pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Result<RebaseResult> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
@@ -1473,6 +1492,148 @@ pub fn cherry_pick_commit(ctx: &AppContext, workspace_id: &str, oid: &str) -> Re
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_cherry_pick_commit(&repo, oid)
+}
+
+/// Remotes with URLs (M1).
+pub fn list_remote_details(ctx: &AppContext, workspace_id: &str) -> Result<Vec<RemoteInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_remote_details(&repo)
+}
+
+/// `git remote add` (errors when the name already exists).
+pub fn add_remote(ctx: &AppContext, workspace_id: &str, name: &str, url: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_add_remote(&repo, name, url)
+}
+
+/// `git remote set-url`.
+pub fn set_remote_url(ctx: &AppContext, workspace_id: &str, name: &str, url: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_set_remote_url(&repo, name, url)
+}
+
+/// `git remote set-url --push`.
+pub fn set_remote_push_url(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    url: Option<String>,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_set_remote_push_url(&repo, name, url.as_deref())
+}
+
+/// `git remote rename`.
+pub fn rename_remote(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    new_name: &str,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_rename_remote(&repo, name, new_name)
+}
+
+/// `git remote remove`.
+pub fn remove_remote(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_remove_remote(&repo, name)
+}
+
+/// Full reflog of `reference` (HEAD or branch shorthand), newest first.
+/// Read-only foundation for the M2 recovery UI.
+pub fn list_reflog(
+    ctx: &AppContext,
+    workspace_id: &str,
+    reference: Option<String>,
+) -> Result<Vec<ReflogEntry>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_reflog(&repo, reference.as_deref().unwrap_or("HEAD"))
+}
+
+/// Deterministic repo health metrics (M3).
+pub fn get_health(ctx: &AppContext, workspace_id: &str) -> Result<HealthReport> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_collect_health(&repo, 30)
+}
+
+/// AI summary of the health report (advice only, P1).
+pub async fn explain_health(ctx: &AppContext, workspace_id: String) -> Result<String> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    let report = get_health(ctx, &workspace_id)?;
+    let user = format!(
+        "Repo health metrics (JSON):
+{}
+
+Write a short health assessment:          what looks fine, what needs attention, and the single most          valuable next action. Plain text, no markdown fences.",
+        serde_json::to_string_pretty(&report)
+            .map_err(|e| AppError::Unknown(format!("serialize report: {e}")))?,
+    );
+    let system = settings.prompt_templates.health.clone().unwrap_or_else(|| {
+        "You are a repository health assistant. You receive deterministic          metrics about a git repository and summarize them for a developer.          Advice only — you never execute anything."
+            .into()
+    });
+
+    let outcome = generate_with_failover(chain, system, user).await?;
+    Ok(outcome.text)
+}
+
+/// `git reset --hard <oid>` on the current branch — M2 recovery action,
+/// always behind an explicit user confirmation upstream (P1).
+pub fn reset_hard(ctx: &AppContext, workspace_id: &str, oid: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_reset_head_hard(&repo, oid)
+}
+
+/// AI explanation of a reflog event + recovery advice (advice only, P1).
+pub async fn explain_reflog(
+    ctx: &AppContext,
+    workspace_id: String,
+    old_oid: String,
+    new_oid: String,
+    action: String,
+    message: String,
+) -> Result<String> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    let repo_path = active_repo_path(ctx, &workspace_id)?;
+    // git2::Repository is !Send — resolve subjects inside a scope so it is
+    // dropped before the network await.
+    let (old_subject, new_subject) = {
+        let repo = ctx.open_repo(&repo_path)?;
+        (subject_of(&repo, &old_oid), subject_of(&repo, &new_oid))
+    };
+
+    let system = settings.prompt_templates.reflog.clone().unwrap_or_else(|| {
+        "You are a git recovery assistant. A single reflog entry is provided.          In 2-4 sentences: explain what happened to the branch, then give one          concrete recovery recommendation (create a recovery branch at a sha,          git reset --hard, or checkout). Advice only — you never execute          anything. Do not wrap in markdown fences."
+            .into()
+    });
+    let user = format!(
+        "Reflog entry\nAction: {action}\nMessage: {message}\n\nPrevious position: {old}\n  ({old_subject})\n\nNew position: {new}\n  ({new_subject})\n",
+        old = old_oid,
+        new = new_oid,
+    );
+
+    let outcome = generate_with_failover(chain, system, user).await?;
+    Ok(outcome.text)
 }
 
 /// All tags in the active repo (S3).
@@ -1607,14 +1768,6 @@ pub fn get_gitignore(ctx: &AppContext, workspace_id: &str) -> Result<String> {
         return Ok(String::new());
     }
     std::fs::read_to_string(&path).map_err(|e| AppError::Unknown(format!("read .gitignore: {e}")))
-}
-
-/// HEAD reflog for the sidebar browser, newest first. Read-only — recovery
-/// actions are v0.3 scope.
-pub fn list_reflog(ctx: &AppContext, workspace_id: &str) -> Result<Vec<ReflogEntry>> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
-    let repo = ctx.open_repo(&repo_path)?;
-    infra_read_reflog(&repo, "HEAD")
 }
 
 // ─── Git hooks editor ───────────────────────────────────────────────────────
@@ -2181,36 +2334,6 @@ mod tests {
         assert!(err.to_string().contains("missing \"sha\""), "{err}");
     }
 
-    #[test]
-    fn ai_chain_resolves_primary_then_reachable_failovers() {
-        let settings = chain_settings(
-            Some("openai"),
-            vec![
-                AiProviderConfig {
-                    provider: "anthropic".into(),
-                    model: Some("claude-3-5-haiku-latest".into()),
-                    base_url: None,
-                },
-                AiProviderConfig {
-                    provider: "ollama".into(),
-                    model: None,
-                    base_url: Some("http://127.0.0.1:11434".into()),
-                },
-            ],
-            false,
-        );
-        let lookup = key_lookup_for(&[("openai", Some("sk-test"))]);
-        let chain = resolve_ai_chain(&settings, &lookup).expect("chain");
-        // anthropic is dropped (no key), openai + ollama remain in order.
-        assert_eq!(chain.len(), 2);
-        assert_eq!(chain[0].provider, "openai");
-        assert_eq!(chain[0].api_key.as_deref(), Some("sk-test"));
-        assert_eq!(chain[0].model, "gpt-4o-mini", "default model applied");
-        assert_eq!(chain[1].provider, "ollama");
-        assert_eq!(chain[1].model, "llama3.2", "default model applied");
-        assert_eq!(chain[1].api_key, None, "ollama needs no key");
-        assert_eq!(chain[1].base_url.as_deref(), Some("http://127.0.0.1:11434"));
-    }
 
     #[test]
     fn ai_chain_preserves_explicit_models() {

@@ -62,6 +62,8 @@ export function useWorkingCopy(): UseWorkingCopyResult {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["working-copy", workspaceId, repoId] });
+    // Health metrics (dirty/unpushed/stale) change with every mutation.
+    void queryClient.invalidateQueries({ queryKey: ["health", workspaceId] });
   };
 
   const stageMut = useMutation({

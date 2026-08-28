@@ -9,31 +9,34 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-mod application;
-mod domain;
-mod infrastructure;
+pub mod application;
+pub mod domain;
+pub mod infrastructure;
 
 use std::sync::{Arc, Mutex};
 
 use application::{
-    abort_interactive_rebase_pause, abort_merge, add_local_repo, add_ssh_key, add_submodule,
-    add_worktree, ai_palette_intent, apply_stash, checkout_branch, cherry_pick_commit,
-    clear_ai_api_key, clone_repo, commit, continue_interactive_rebase, create_branch, create_tag,
-    create_workspace, deinit_submodule, delete_branch, delete_remote_branch, delete_ssh_key,
-    delete_tag, delete_workspace, discard_changes, drop_stash, execute_interactive_rebase,
-    explain_commit, explain_conflict, export_workspace, fetch, generate_commit_message,
-    generate_pr_description, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
-    get_commit_details, get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff,
-    get_gitignore, get_hook, get_repo_ai_rules, get_stash_diff, get_workdir_diff, get_working_copy,
+    abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
+    add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch,
+    cherry_pick_commit, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
+    create_branch, create_tag, create_workspace, deinit_submodule, delete_branch,
+    delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
+    drop_stash, execute_interactive_rebase, explain_commit, explain_conflict, explain_health,
+    explain_reflog, export_workspace, fetch, generate_commit_message, generate_pr_description,
+    get_ahead_behind, get_ai_key_status, get_blame, get_branches, get_commit_details,
+    get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff, get_gitignore, get_health,
+    get_hook, get_repo_ai_rules, get_stash_diff, get_workdir_diff, get_working_copy,
     get_workspace, ignore_path, import_workspace, init_repo, init_submodule,
     interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack, list_conflicts,
-    list_hooks, list_reflog, list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags,
-    list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
-    plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
-    remove_repo, remove_worktree, rename_workspace, resolve_conflict, revert_commit, save_hook,
-    save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection,
-    unstage_files, update_submodule, update_workspace_settings, write_gitignore, AheadBehind,
-    AiGenerateOutcome, AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
+    list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys, list_stashes,
+    list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
+    merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch,
+    relink_repo, remove_remote, remove_repo, remove_worktree, rename_remote, rename_workspace,
+    reset_hard, resolve_conflict, revert_commit, save_hook, save_stash, set_active_repo,
+    set_ai_api_key, set_remote_push_url, set_remote_url, stage_all, stage_files,
+    test_ssh_connection, unstage_files, update_submodule, update_workspace_settings,
+    write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus, AppContext, PaletteIntent,
+    PrDescriptionOutcome,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -632,19 +635,114 @@ async fn cmd_lfs_untrack(
 }
 
 #[tauri::command]
-async fn cmd_get_gitignore(
+async fn cmd_get_health(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<infrastructure::git::health::HealthReport, AppError> {
+    get_health(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_explain_health(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
 ) -> Result<String, AppError> {
-    get_gitignore(&ctx, &workspace_id)
+    explain_health(&ctx, workspace_id).await
+}
+
+#[tauri::command]
+async fn cmd_reset_hard(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    oid: String,
+) -> Result<(), AppError> {
+    reset_hard(&ctx, &workspace_id, &oid)
+}
+
+#[tauri::command]
+async fn cmd_explain_reflog(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    old_oid: String,
+    new_oid: String,
+    action: String,
+    message: String,
+) -> Result<String, AppError> {
+    explain_reflog(&ctx, workspace_id, old_oid, new_oid, action, message).await
+}
+
+#[tauri::command]
+async fn cmd_list_remote_details(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<infrastructure::git::remote::RemoteInfo>, AppError> {
+    list_remote_details(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_add_remote(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    url: String,
+) -> Result<(), AppError> {
+    add_remote(&ctx, &workspace_id, &name, &url)
+}
+
+#[tauri::command]
+async fn cmd_set_remote_url(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    url: String,
+) -> Result<(), AppError> {
+    set_remote_url(&ctx, &workspace_id, &name, &url)
+}
+
+#[tauri::command]
+async fn cmd_set_remote_push_url(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    url: Option<String>,
+) -> Result<(), AppError> {
+    set_remote_push_url(&ctx, &workspace_id, &name, url)
+}
+
+#[tauri::command]
+async fn cmd_rename_remote(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    new_name: String,
+) -> Result<(), AppError> {
+    rename_remote(&ctx, &workspace_id, &name, &new_name)
+}
+
+#[tauri::command]
+async fn cmd_remove_remote(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    remove_remote(&ctx, &workspace_id, &name)
 }
 
 #[tauri::command]
 async fn cmd_list_reflog(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
-) -> Result<Vec<ReflogEntry>, AppError> {
-    list_reflog(&ctx, &workspace_id)
+    reference: Option<String>,
+) -> Result<Vec<infrastructure::git::reflog::ReflogEntry>, AppError> {
+    list_reflog(&ctx, &workspace_id, reference)
+}
+
+#[tauri::command]
+async fn cmd_get_gitignore(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<String, AppError> {
+    get_gitignore(&ctx, &workspace_id)
 }
 
 #[tauri::command]
@@ -1172,6 +1270,16 @@ pub fn run() {
             cmd_fetch,
             cmd_pull,
             cmd_list_remotes,
+            cmd_reset_hard,
+            cmd_explain_reflog,
+            cmd_get_health,
+            cmd_explain_health,
+            cmd_list_remote_details,
+            cmd_add_remote,
+            cmd_set_remote_url,
+            cmd_set_remote_push_url,
+            cmd_rename_remote,
+            cmd_remove_remote,
             cmd_push,
             cmd_list_stashes,
             cmd_save_stash,

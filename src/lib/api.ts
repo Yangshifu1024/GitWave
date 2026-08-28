@@ -13,6 +13,10 @@ export interface PromptTemplates {
   commit: string | null;
   conflict: string | null;
   pr: string | null;
+  /** M2 recovery assistant (reflog explanation). */
+  reflog?: string | null;
+  /** M3 health report summarizer. */
+  health?: string | null;
 }
 
 /** One fallback entry in the workspace AI provider chain. */
@@ -555,6 +559,100 @@ export interface SubmoduleInfo {
   in_sync: boolean;
 }
 
+// --- Reflog (M0 foundation for M2 recovery) ---------------------------------
+
+export interface ReflogEntry {
+  old_oid: string;
+  new_oid: string;
+  /** Semantic action class from the backend (commit/reset/checkout/...). */
+  action: string;
+  message: string;
+  committer: string;
+  time: number;
+}
+
+// --- Repo health (M3) -------------------------------------------------------
+
+export interface LargeFile {
+  path: string;
+  size_bytes: number;
+}
+
+export interface HealthReport {
+  unpushed: number | null;
+  conflict_residue: string[];
+  dirty_files: number;
+  stale_branches: string[];
+  large_files: LargeFile[];
+  branch_count: number;
+  tag_count: number;
+}
+
+export function getHealth(workspaceId: string): Promise<HealthReport> {
+  return invoke<HealthReport>("cmd_get_health", { workspaceId });
+}
+
+export function explainHealth(workspaceId: string): Promise<string> {
+  return invoke<string>("cmd_explain_health", { workspaceId });
+}
+
+export function listReflog(workspaceId: string, reference?: string): Promise<ReflogEntry[]> {
+  return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId, reference: reference ?? null });
+}
+
+export function resetHeadHard(workspaceId: string, oid: string): Promise<void> {
+  return invoke<void>("cmd_reset_hard", { workspaceId, oid });
+}
+
+export function explainReflog(
+  workspaceId: string,
+  entry: Pick<ReflogEntry, "old_oid" | "new_oid" | "action" | "message">,
+): Promise<string> {
+  return invoke<string>("cmd_explain_reflog", {
+    workspaceId,
+    oldOid: entry.old_oid,
+    newOid: entry.new_oid,
+    action: entry.action,
+    message: entry.message,
+  });
+}
+
+// --- Remotes (M1) -----------------------------------------------------------
+
+export interface RemoteInfo {
+  name: string;
+  fetch_url: string | null;
+  push_url: string | null;
+}
+
+export function listRemoteDetails(workspaceId: string): Promise<RemoteInfo[]> {
+  return invoke<RemoteInfo[]>("cmd_list_remote_details", { workspaceId });
+}
+
+export function addRemote(workspaceId: string, name: string, url: string): Promise<void> {
+  return invoke<void>("cmd_add_remote", { workspaceId, name, url });
+}
+
+export function setRemoteUrl(workspaceId: string, name: string, url: string): Promise<void> {
+  return invoke<void>("cmd_set_remote_url", { workspaceId, name, url });
+}
+
+export function setRemotePushUrl(
+  workspaceId: string,
+  name: string,
+  url: string | null,
+): Promise<void> {
+  return invoke<void>("cmd_set_remote_push_url", { workspaceId, name, url });
+}
+
+export function renameRemote(workspaceId: string, name: string, newName: string): Promise<void> {
+  return invoke<void>("cmd_rename_remote", { workspaceId, name, newName });
+}
+
+export function removeRemote(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_remove_remote", { workspaceId, name });
+}
+
 export function listSubmodules(workspaceId: string): Promise<SubmoduleInfo[]> {
   return invoke<SubmoduleInfo[]>("cmd_list_submodules", { workspaceId });
 }
@@ -579,22 +677,6 @@ export function addSubmodule(workspaceId: string, url: string, path: string): Pr
 /** `git submodule deinit` — unregisters; the worktree is left untouched. */
 export function deinitSubmodule(workspaceId: string, name: string): Promise<void> {
   return invoke<void>("cmd_deinit_submodule", { workspaceId, name });
-}
-
-// ─── Reflog (v0.2 browser) ─────────────────────────────────────────────────
-
-/** One HEAD reflog entry (movement of the reference). */
-export interface ReflogEntry {
-  old_sha: string | null;
-  new_sha: string;
-  message: string | null;
-  committer: string;
-  time: number;
-}
-
-/** HEAD reflog, newest first. */
-export function listReflog(workspaceId: string): Promise<ReflogEntry[]> {
-  return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId });
 }
 
 // ─── Git hooks editor (v0.2) ────────────────────────────────────────────────

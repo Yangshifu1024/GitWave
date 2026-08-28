@@ -72,6 +72,8 @@ export function AiProviderSettings({
   const [tplCommit, setTplCommit] = useState("");
   const [tplConflict, setTplConflict] = useState("");
   const [tplPr, setTplPr] = useState("");
+  const [tplReflog, setTplReflog] = useState("");
+  const [tplHealth, setTplHealth] = useState("");
 
   const { data: workspace } = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -104,6 +106,8 @@ export function AiProviderSettings({
     setTplCommit(s.prompt_templates.commit ?? "");
     setTplConflict(s.prompt_templates.conflict ?? "");
     setTplPr(s.prompt_templates.pr ?? "");
+    setTplReflog(s.prompt_templates.reflog ?? "");
+    setTplHealth(s.prompt_templates.health ?? "");
   }, [workspace]);
 
   const updateFallback = (index: number, patch: Partial<AiProviderConfig>) => {
@@ -153,6 +157,8 @@ export function AiProviderSettings({
           commit: tplCommit.trim() || null,
           conflict: tplConflict.trim() || null,
           pr: tplPr.trim() || null,
+          reflog: tplReflog.trim() || null,
+          health: tplHealth.trim() || null,
         },
       };
       await updateWorkspaceSettings(workspaceId, settings);
@@ -370,6 +376,18 @@ export function AiProviderSettings({
               value={tplPr}
               onChange={setTplPr}
               placeholder="System prompt for AI PR description generation"
+            />
+            <PromptTemplateField
+              label="Recovery assistant (reflog)"
+              value={tplReflog}
+              onChange={setTplReflog}
+              placeholder="Override the recovery-assistant system prompt"
+            />
+            <PromptTemplateField
+              label="Health summarizer"
+              value={tplHealth}
+              onChange={setTplHealth}
+              placeholder="Override the health-report system prompt"
             />
           </div>
         ) : null}

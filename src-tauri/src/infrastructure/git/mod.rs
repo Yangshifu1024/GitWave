@@ -10,6 +10,7 @@ pub mod conflict;
 pub mod credentials;
 pub mod diff;
 pub mod git2_adapter;
+pub mod health;
 pub mod history;
 pub mod hooks;
 pub mod interactive_rebase;

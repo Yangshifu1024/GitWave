@@ -59,6 +59,13 @@ pub struct PromptTemplates {
     pub commit: Option<String>,
     pub conflict: Option<String>,
     pub pr: Option<String>,
+    /// M2 recovery assistant (reflog explanation). Serde default keeps old
+    /// rows loadable.
+    #[serde(default)]
+    pub reflog: Option<String>,
+    /// M3 health report summarizer.
+    #[serde(default)]
+    pub health: Option<String>,
 }
 
 /// Lifecycle status of a repo reference. `Missing` indicates the repo's

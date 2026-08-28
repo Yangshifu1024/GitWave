@@ -503,3 +503,116 @@ mod tests {
         assert_eq!(err.category(), "Protocol");
     }
 }
+
+/// Force-move the current branch to `oid` and refresh index + worktree
+/// (`git reset --hard <oid>`). Recovery operation for the M2 undo panel —
+/// user-confirmed upstream; detached HEAD is refused because there is no
+/// branch to move.
+pub fn reset_head_hard(repo: &Repository, oid_str: &str) -> Result<()> {
+    let oid = git2::Oid::from_str(oid_str)
+        .map_err(|e| AppError::Protocol(format!("invalid oid: {e}")))?;
+    let target = repo
+        .find_commit(oid)
+        .map_err(|_| AppError::Protocol(format!("commit not found: {oid_str}")))?;
+
+    let head = repo.head().map_err(map_git_err)?;
+    if !head.is_branch() {
+        return Err(AppError::Protocol(
+            "detached HEAD — checkout a branch before resetting".into(),
+        ));
+    }
+    repo.reset(&target.into_object(), git2::ResetType::Hard, None)
+        .map_err(map_git_err)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod reset_tests {
+    use super::*;
+    use crate::infrastructure::git::test_helpers::build_linear_repo;
+    use std::fs;
+
+    fn cleanup(path: &std::path::Path) {
+        let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn reset_hard_moves_branch_and_worktree() {
+        let (path, repo) = build_linear_repo(3);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap();
+        let older = tip.parent(0).unwrap();
+
+        reset_head_hard(&repo, &older.id().to_string()).unwrap();
+
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        assert_eq!(head.id(), older.id(), "branch ref must move back");
+        assert!(
+            !repo.workdir().unwrap().join("file2.txt").exists(),
+            "worktree must match the older tree"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn reset_hard_appends_reflog_entry() {
+        let (path, repo) = build_linear_repo(3);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap();
+        let older = tip.parent(0).unwrap();
+
+        reset_head_hard(&repo, &older.id().to_string()).unwrap();
+
+        // The M2 panel refresh depends on the reset showing up in the reflog.
+        let log = crate::infrastructure::git::reflog::list_reflog(&repo, "HEAD").unwrap();
+        assert_eq!(log[0].action, "reset");
+        assert_eq!(log[0].new_oid, older.id().to_string());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn reset_hard_discards_dirty_worktree() {
+        let (path, repo) = build_linear_repo(2);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap();
+        let older = tip.parent(0).unwrap();
+        fs::write(
+            repo.workdir().unwrap().join("file1.txt"),
+            "dirty edit
+",
+        )
+        .unwrap();
+        fs::write(
+            repo.workdir().unwrap().join("stray.txt"),
+            "stray
+",
+        )
+        .unwrap();
+
+        reset_head_hard(&repo, &older.id().to_string()).unwrap();
+
+        // file1.txt was added by the reverted commit — it must be gone.
+        assert!(
+            !repo.workdir().unwrap().join("file1.txt").exists(),
+            "file added by the reset-away commit must disappear"
+        );
+        // git semantics: reset --hard reverts tracked files but leaves
+        // untracked files alone (that is `git clean`'s job).
+        assert!(
+            repo.workdir().unwrap().join("stray.txt").exists(),
+            "untracked files survive a hard reset"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn reset_hard_refuses_detached_head() {
+        let (path, repo) = build_linear_repo(2);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap();
+        let older = tip.parent(0).unwrap();
+        repo.set_head_detached(older.id()).unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+
+        let err = reset_head_hard(&repo, &tip.id().to_string()).unwrap_err();
+        assert_eq!(err.category(), "Protocol");
+        cleanup(&path);
+    }
+}
