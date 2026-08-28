@@ -154,13 +154,17 @@ async fn anthropic_chat(
 ) -> Result<String> {
     let url = anthropic_endpoint(base_url);
     let client = reqwest::Client::new();
+    // Hybrid-reasoning models (GLM 5.x, Claude extended thinking) always
+    // emit a thinking block first; max_tokens must leave ample room for it
+    // or the response is truncated mid-thought with no text block at all
+    // (stop_reason: max_tokens — the Aug 2026 AI-generate error dialog).
     let resp = client
         .post(&url)
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .json(&json!({
             "model": model,
-            "max_tokens": 1024,
+            "max_tokens": 32768,
             "system": system,
             "messages": [
                 {"role": "user", "content": user}
@@ -185,14 +189,26 @@ async fn anthropic_chat(
     if let Some(text) = anthropic_content_text(&body) {
         return Ok(text);
     }
-    // No text block found — include the response shape in the error so
-    // provider-side changes stay debuggable without a proxy.
+    Err(anthropic_no_text_error(&body))
+}
+
+/// Error for a response that carried no text block, with a dedicated hint
+/// for the `max_tokens` case (budget spent on reasoning before any text).
+fn anthropic_no_text_error(body: &Value) -> AppError {
+    let stop_reason = body["stop_reason"].as_str().unwrap_or("none");
+    if stop_reason == "max_tokens" {
+        return AppError::Unknown(
+            "anthropic: the model hit max_tokens while still reasoning, so no commit \
+             message was produced — try again or switch to a non-reasoning model"
+                .into(),
+        );
+    }
+    // Include the response shape in the error so provider-side changes stay
+    // debuggable without a proxy.
     let content_json: String = body["content"].to_string().chars().take(200).collect();
-    Err(AppError::Unknown(format!(
-        "anthropic returned no text content (stop_reason: {}, content: {})",
-        body["stop_reason"].as_str().unwrap_or("none"),
-        content_json
-    )))
+    AppError::Unknown(format!(
+        "anthropic returned no text content (stop_reason: {stop_reason}, content: {content_json})"
+    ))
 }
 
 /// Join the `text` of every content block, skipping non-text blocks such
@@ -275,5 +291,35 @@ mod tests {
         let body = json!({"content": [{"type": "thinking", "thinking": "hmm"}]});
         assert_eq!(anthropic_content_text(&body), None);
         assert_eq!(anthropic_content_text(&json!({})), None);
+    }
+
+    #[test]
+    fn no_text_error_hints_at_max_tokens_reasoning() {
+        let body = json!({
+            "stop_reason": "max_tokens",
+            "content": [{"type": "thinking", "thinking": "truncated thought"}]
+        });
+        let err = anthropic_no_text_error(&body).to_string();
+        assert!(
+            err.contains("max_tokens"),
+            "error should mention the budget: {err}"
+        );
+        assert!(
+            !err.contains("truncated thought"),
+            "raw content dump is noise for this case: {err}"
+        );
+    }
+
+    #[test]
+    fn no_text_error_keeps_diagnostic_for_other_reasons() {
+        let body = json!({
+            "stop_reason": "end_turn",
+            "content": [{"type": "tool_use", "id": "t1"}]
+        });
+        let err = anthropic_no_text_error(&body).to_string();
+        assert!(
+            err.contains("stop_reason: end_turn") && err.contains("tool_use"),
+            "diagnostic shape expected: {err}"
+        );
     }
 }
