@@ -14,6 +14,7 @@ import { useTheme } from "@/hooks/useTheme";
 import type { BranchInfo } from "@/lib/api";
 import type { LocateRequest } from "@/lib/commitLocate";
 import { CommitGraph } from "@/components/CommitGraph";
+import { CommitInfoHeader } from "@/components/CommitInfoHeader";
 import { DiffViewer } from "@/components/DiffViewer";
 import { BranchList } from "@/components/BranchList";
 import { StashPanel } from "@/components/StashPanel";
@@ -163,7 +164,12 @@ function MainContent({
   return (
     <main className="flex flex-col h-full min-h-0 bg-bg-panel pane-edge-left overflow-hidden">
       {selectedCommitOid ? (
-        <DiffViewer key={activeRepoId} commitOid={selectedCommitOid} />
+        <div key={activeRepoId} className="flex h-full min-h-0 flex-col">
+          <CommitInfoHeader workspaceId={activeWorkspaceId} sha={selectedCommitOid} />
+          <div className="min-h-0 flex-1">
+            <DiffViewer commitOid={selectedCommitOid} />
+          </div>
+        </div>
       ) : (
         <EmptyState
           icon={<GitCommitHorizontal size={28} />}

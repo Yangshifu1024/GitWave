@@ -9,7 +9,7 @@ use crate::domain::blame::BlameLine;
 use crate::domain::branch::BranchInfo;
 use crate::domain::diff::FileDiff;
 use crate::domain::error::{AppError, Result};
-use crate::domain::history::CommitSummary;
+use crate::domain::history::{CommitDetails, CommitSummary};
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
@@ -32,8 +32,9 @@ use crate::infrastructure::git::diff::{
     diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
 };
 use crate::infrastructure::git::history::{
-    ahead_behind as infra_ahead_behind, commit_log as infra_commit_log,
-    commit_recent_messages as infra_commit_recent_messages, list_branches as infra_list_branches,
+    ahead_behind as infra_ahead_behind, commit_details as infra_commit_details,
+    commit_log as infra_commit_log, commit_recent_messages as infra_commit_recent_messages,
+    list_branches as infra_list_branches,
 };
 use crate::infrastructure::git::interactive_rebase::{
     abort_interactive_rebase_pause as infra_abort_irebase_pause,
@@ -505,6 +506,17 @@ pub fn get_commit_diff(
     let oid = git2::Oid::from_str(commit_oid)
         .map_err(|e| AppError::Protocol(format!("invalid commit OID: {e}")))?;
     infra_diff_commit_vs_parent(&repo, oid)
+}
+
+/// Full details for one commit (inspector header): message, author, files.
+pub fn get_commit_details(
+    ctx: &AppContext,
+    workspace_id: &str,
+    commit_oid: &str,
+) -> Result<CommitDetails> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_commit_details(&repo, commit_oid)
 }
 
 /// Get diff between two commits for a specific file path.

@@ -8,7 +8,102 @@ use git2::Repository;
 
 use crate::domain::branch::{BranchInfo, BranchKind};
 use crate::domain::error::{AppError, Result};
-use crate::domain::history::{CommitRef, CommitRefKind, CommitSummary};
+use crate::domain::history::{
+    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary,
+};
+
+/// Full details for a single commit (inspector header): identity, full
+/// message, parents, and the changed-file list vs its first parent with
+/// rename tracking. `sha` accepts any revspec git can resolve.
+pub fn commit_details(repo: &Repository, sha: &str) -> Result<CommitDetails> {
+    let commit = repo
+        .revparse_single(sha)
+        .map_err(map_git_err)?
+        .peel_to_commit()
+        .map_err(map_git_err)?;
+    let author = commit.author();
+    let parents: Vec<String> = commit.parent_ids().map(|p| p.to_string()).collect();
+
+    let tree_new = commit.tree().map_err(map_git_err)?;
+    let tree_old = if commit.parent_count() > 0 {
+        Some(
+            commit
+                .parent(0)
+                .map_err(map_git_err)?
+                .tree()
+                .map_err(map_git_err)?,
+        )
+    } else {
+        None
+    };
+    let mut diff = repo
+        .diff_tree_to_tree(tree_old.as_ref(), Some(&tree_new), None)
+        .map_err(map_git_err)?;
+    // Enable rename/copy detection so deltas carry Renamed + old_path.
+    diff.find_similar(None).map_err(map_git_err)?;
+
+    // RefCell accumulator — same pattern as `diff_to_files` in diff.rs.
+    use std::cell::RefCell;
+    let files: RefCell<Vec<FileSummary>> = RefCell::new(Vec::new());
+    diff.foreach(
+        &mut |delta, _| {
+            let kind = match delta.status() {
+                git2::Delta::Added => FileStatus::Added,
+                git2::Delta::Deleted => FileStatus::Deleted,
+                git2::Delta::Renamed => FileStatus::Renamed,
+                git2::Delta::Copied => FileStatus::Copied,
+                git2::Delta::Untracked => FileStatus::Untracked,
+                _ => FileStatus::Modified,
+            };
+            let old_path = delta
+                .old_file()
+                .path()
+                .map(|p| p.to_string_lossy().into_owned());
+            let old_path = if matches!(kind, FileStatus::Renamed | FileStatus::Copied) {
+                old_path
+            } else {
+                None
+            };
+            let path = delta
+                .new_file()
+                .path()
+                .or_else(|| delta.old_file().path())
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            files.borrow_mut().push(FileSummary {
+                path,
+                old_path,
+                kind,
+                additions: 0,
+                deletions: 0,
+            });
+            true
+        },
+        None,
+        None,
+        Some(&mut |_delta, _hunk, line| {
+            if let Some(file) = files.borrow_mut().last_mut() {
+                match line.origin() {
+                    '+' => file.additions += 1,
+                    '-' => file.deletions += 1,
+                    _ => {}
+                }
+            }
+            true
+        }),
+    )
+    .map_err(map_git_err)?;
+
+    Ok(CommitDetails {
+        sha: commit.id().to_string(),
+        author: author.name().unwrap_or("").to_string(),
+        author_email: author.email().unwrap_or("").to_string(),
+        time: commit.time().seconds(),
+        message_full: commit.message().unwrap_or("").trim().to_string(),
+        parents,
+        files: files.into_inner(),
+    })
+}
 
 /// Full commit messages of the latest `n` commits on the current branch,
 /// newest first, walking the first-parent chain from HEAD.
@@ -538,6 +633,33 @@ mod tests {
         cleanup(&path);
 
         assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn commit_details_reads_identity_message_and_files() {
+        let (path, repo) = build_linear_repo(3);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+
+        let d = commit_details(&repo, &head.id().to_string()).unwrap();
+        assert_eq!(d.message_full, "commit 2");
+        assert_eq!(d.author, "Test");
+        assert_eq!(d.author_email, "test@local");
+        assert_eq!(d.parents, vec![head.parent(0).unwrap().id().to_string()]);
+        assert_eq!(d.files.len(), 1);
+        assert_eq!(d.files[0].path, "file2.txt");
+        assert_eq!(d.files[0].kind, FileStatus::Added);
+        assert_eq!(d.files[0].additions, 1);
+        assert_eq!(d.files[0].deletions, 0);
+
+        // Walk down to the root commit: no parents, diff vs empty tree.
+        let mid = commit_details(&repo, &d.parents[0]).unwrap();
+        assert_eq!(mid.parents.len(), 1);
+        let root = commit_details(&repo, &mid.parents[0]).unwrap();
+        assert!(root.parents.is_empty());
+        assert_eq!(root.files.len(), 1);
+        assert_eq!(root.files[0].path, "file0.txt");
+        assert_eq!(root.message_full, "commit 0");
+        cleanup(&path);
     }
 
     #[test]

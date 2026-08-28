@@ -21,20 +21,20 @@ use application::{
     continue_interactive_rebase, create_branch, create_workspace, delete_branch,
     delete_remote_branch, delete_ssh_key, delete_workspace, discard_changes, drop_stash,
     execute_interactive_rebase, explain_conflict, fetch, generate_commit_message, get_ahead_behind,
-    get_ai_key_status, get_blame, get_branches, get_commit_diff, get_commit_log,
-    get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff, get_working_copy,
-    get_workspace, ignore_path, init_repo, interactive_rebase_paused, list_conflicts, list_repos,
-    list_ssh_keys, list_stashes, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
-    plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
-    remove_repo, remove_worktree, rename_workspace, resolve_conflict, save_stash, set_active_repo,
-    set_ai_api_key, stage_all, stage_files, test_ssh_connection, unstage_files,
-    update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
+    get_ai_key_status, get_blame, get_branches, get_commit_details, get_commit_diff,
+    get_commit_log, get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff,
+    get_working_copy, get_workspace, ignore_path, init_repo, interactive_rebase_paused,
+    list_conflicts, list_repos, list_ssh_keys, list_stashes, list_workspaces, list_worktrees,
+    merge_branch, merge_in_progress, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
+    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, resolve_conflict,
+    save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection,
+    unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
 use domain::diff::FileDiff;
 use domain::error::AppError;
-use domain::history::CommitSummary;
+use domain::history::{CommitDetails, CommitSummary};
 use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
@@ -284,6 +284,15 @@ async fn cmd_get_workdir_diff(
     workspace_id: String,
 ) -> Result<DiffSummary, AppError> {
     get_workdir_diff(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_get_commit_details(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    commit_oid: String,
+) -> Result<CommitDetails, AppError> {
+    get_commit_details(&ctx, &workspace_id, &commit_oid)
 }
 
 #[tauri::command]
@@ -852,6 +861,7 @@ pub fn run() {
             cmd_delete_ssh_key,
             cmd_test_ssh_connection,
             cmd_get_commit_log,
+            cmd_get_commit_details,
             cmd_get_workdir_diff,
             cmd_get_commit_diff,
             cmd_get_file_diff,

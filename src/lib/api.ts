@@ -350,6 +350,10 @@ export function getCommitDiff(workspaceId: string, commitOid: string): Promise<D
   return invoke<DiffSummary>("cmd_get_commit_diff", { workspaceId, commitOid });
 }
 
+export function getCommitDetails(workspaceId: string, commitOid: string): Promise<CommitDetails> {
+  return invoke<CommitDetails>("cmd_get_commit_details", { workspaceId, commitOid });
+}
+
 export function getFileDiff(
   workspaceId: string,
   fromOid: string,
