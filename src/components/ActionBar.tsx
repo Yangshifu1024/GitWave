@@ -24,6 +24,7 @@ import {
   Pencil,
   Sparkles,
   Trash2,
+  Webhook,
 } from "lucide-react";
 
 import {
@@ -60,6 +61,7 @@ import { Label } from "@/components/ui/Label";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { PrDescriptionModal } from "@/components/PrDescriptionModal";
 import { LfsPanel } from "@/components/LfsPanel";
+import { HooksPanel } from "@/components/HooksPanel";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 
 interface PullDialogState {
@@ -371,6 +373,7 @@ export function ActionBar(): React.JSX.Element {
   const [pushDialog, setPushDialog] = useState<{ tags: boolean; force: boolean } | null>(null);
   const [prOpen, setPrOpen] = useState(false);
   const [lfsOpen, setLfsOpen] = useState(false);
+  const [hooksOpen, setHooksOpen] = useState(false);
 
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
@@ -556,6 +559,13 @@ export function ActionBar(): React.JSX.Element {
             title="Git LFS — track large files"
             disabled={noRepo}
             onClick={() => setLfsOpen(true)}
+          />
+          <ActionBarButton
+            icon={<Webhook size={14} />}
+            label="Hooks"
+            title="Git hooks editor"
+            disabled={noRepo}
+            onClick={() => setHooksOpen(true)}
           />
         </ActionBarGroup>
         <GroupDivider />
@@ -749,6 +759,10 @@ export function ActionBar(): React.JSX.Element {
 
       {lfsOpen && activeWorkspaceId ? (
         <LfsPanel workspaceId={activeWorkspaceId} open onClose={() => setLfsOpen(false)} />
+      ) : null}
+
+      {hooksOpen && activeWorkspaceId ? (
+        <HooksPanel workspaceId={activeWorkspaceId} open onClose={() => setHooksOpen(false)} />
       ) : null}
 
       {/* Repository: init */}

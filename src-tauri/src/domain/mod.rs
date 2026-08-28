@@ -8,6 +8,7 @@ pub mod branch;
 pub mod diff;
 pub mod error;
 pub mod history;
+pub mod hooks;
 pub mod lfs;
 pub mod reflog;
 pub mod stash;
@@ -22,6 +23,7 @@ pub use error::{AppError, Result};
 pub use history::{
     CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary, PrCommit,
 };
+pub use hooks::HookInfo;
 pub use lfs::LfsStatus;
 pub use reflog::ReflogEntry;
 pub use stash::StashEntry;

@@ -10,6 +10,7 @@ use crate::domain::branch::BranchInfo;
 use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
+use crate::domain::hooks::HookInfo;
 use crate::domain::lfs::LfsStatus;
 use crate::domain::reflog::ReflogEntry;
 use crate::domain::stash::StashEntry;
@@ -41,6 +42,9 @@ use crate::infrastructure::git::history::{
     commit_log as infra_commit_log, commit_recent_messages as infra_commit_recent_messages,
     commits_ahead_of as infra_commits_ahead_of, list_branches as infra_list_branches,
     resolve_ref_oid as infra_resolve_ref_oid,
+};
+use crate::infrastructure::git::hooks::{
+    list_hooks as infra_list_hooks, read_hook as infra_read_hook, write_hook as infra_write_hook,
 };
 use crate::infrastructure::git::interactive_rebase::{
     abort_interactive_rebase_pause as infra_abort_irebase_pause,
@@ -1579,6 +1583,30 @@ pub fn list_reflog(ctx: &AppContext, workspace_id: &str) -> Result<Vec<ReflogEnt
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_read_reflog(&repo, "HEAD")
+}
+
+// ─── Git hooks editor ───────────────────────────────────────────────────────
+
+/// The known client-side hooks with presence markers. GitWave edits hooks;
+/// it never executes them (P1).
+pub fn list_hooks(ctx: &AppContext, workspace_id: &str) -> Result<Vec<HookInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_hooks(&repo)
+}
+
+/// Read a hook's script (empty when the hook does not exist yet).
+pub fn get_hook(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_read_hook(&repo, name)
+}
+
+/// Write a hook script (on unix it is made executable).
+pub fn save_hook(ctx: &AppContext, workspace_id: &str, name: &str, content: String) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_write_hook(&repo, name, &content)
 }
 
 /// Overwrite the repo-root `.gitignore` (S2 editor). Trailing newline is

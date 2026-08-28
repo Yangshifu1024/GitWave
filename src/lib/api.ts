@@ -597,6 +597,29 @@ export function listReflog(workspaceId: string): Promise<ReflogEntry[]> {
   return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId });
 }
 
+// ─── Git hooks editor (v0.2) ────────────────────────────────────────────────
+
+/** One known git hook and whether it is present in `.git/hooks`. */
+export interface HookInfo {
+  name: string;
+  exists: boolean;
+  executable: boolean;
+}
+
+export function listHooks(workspaceId: string): Promise<HookInfo[]> {
+  return invoke<HookInfo[]>("cmd_list_hooks", { workspaceId });
+}
+
+/** Read a hook's script (empty when the hook does not exist yet). */
+export function getHook(workspaceId: string, name: string): Promise<string> {
+  return invoke<string>("cmd_get_hook", { workspaceId, name });
+}
+
+/** Write a hook script (on unix it is made executable). */
+export function saveHook(workspaceId: string, name: string, content: string): Promise<void> {
+  return invoke<void>("cmd_save_hook", { workspaceId, name, content });
+}
+
 // --- .gitignore editor (S2) -------------------------------------------------
 
 export function getGitignore(workspaceId: string): Promise<string> {
