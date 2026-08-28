@@ -189,7 +189,7 @@ mod tests {
                 .unwrap();
         }
 
-        let res = merge_branch(&repo, "feature").unwrap();
+        let res = merge_branch(&repo, "feature", false).unwrap();
         assert_eq!(
             res.kind,
             crate::infrastructure::git::merge::MergeKind::ThreeWay

@@ -390,8 +390,22 @@ export function getAheadBehind(workspaceId: string, branchName: string): Promise
   return invoke<AheadBehind>("cmd_get_ahead_behind", { workspaceId, branchName });
 }
 
-export function mergeBranch(workspaceId: string, branchName: string): Promise<MergeResult> {
-  return invoke<MergeResult>("cmd_merge_branch", { workspaceId, branchName });
+export function mergeBranch(
+  workspaceId: string,
+  branchName: string,
+  noFf = false,
+): Promise<MergeResult> {
+  return invoke<MergeResult>("cmd_merge_branch", { workspaceId, branchName, noFf });
+}
+
+export interface MergePreview {
+  up_to_date: boolean;
+  fast_forward: boolean;
+  conflicts: string[];
+}
+
+export function mergePreview(workspaceId: string, branchName: string): Promise<MergePreview> {
+  return invoke<MergePreview>("cmd_merge_preview", { workspaceId, branchName });
 }
 
 export function rebaseBranch(workspaceId: string, upstream: string): Promise<RebaseResult> {

@@ -25,10 +25,11 @@ use application::{
     get_commit_log, get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff,
     get_working_copy, get_workspace, ignore_path, init_repo, interactive_rebase_paused,
     list_conflicts, list_repos, list_ssh_keys, list_stashes, list_workspaces, list_worktrees,
-    merge_branch, merge_in_progress, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
-    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, resolve_conflict,
-    save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection,
-    unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
+    merge_branch, merge_in_progress, merge_preview, plan_interactive_rebase, pop_stash,
+    probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
+    rename_workspace, resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all,
+    stage_files, test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind,
+    AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -42,7 +43,7 @@ use domain::worktree::WorktreeInfo;
 use infrastructure::git::conflict::{ConflictFile, ConflictSides};
 use infrastructure::git::diff::DiffSummary;
 use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, InteractiveRebaseTodo};
-use infrastructure::git::merge::MergeResult;
+use infrastructure::git::merge::{MergePreview, MergeResult};
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
 use infrastructure::persistence::{migrations, open as open_state, state_dir, SqliteWorkspaceRepo};
@@ -386,8 +387,18 @@ async fn cmd_merge_branch(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     branch_name: String,
+    no_ff: bool,
 ) -> Result<MergeResult, AppError> {
-    merge_branch(&ctx, &workspace_id, &branch_name)
+    merge_branch(&ctx, &workspace_id, &branch_name, no_ff)
+}
+
+#[tauri::command]
+async fn cmd_merge_preview(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    branch_name: String,
+) -> Result<MergePreview, AppError> {
+    merge_preview(&ctx, &workspace_id, &branch_name)
 }
 
 #[tauri::command]
@@ -873,6 +884,7 @@ pub fn run() {
             cmd_checkout_branch,
             cmd_get_ahead_behind,
             cmd_merge_branch,
+            cmd_merge_preview,
             cmd_list_conflicts,
             cmd_get_conflict_sides,
             cmd_resolve_conflict,

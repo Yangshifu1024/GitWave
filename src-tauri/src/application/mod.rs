@@ -14,8 +14,9 @@ pub use use_cases::{
     get_commit_log, get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff,
     get_working_copy, get_workspace, ignore_path, init_repo, interactive_rebase_paused,
     list_conflicts, list_repos, list_ssh_keys, list_stashes, list_workspaces, list_worktrees,
-    merge_branch, merge_in_progress, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
-    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, resolve_conflict,
-    save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection,
-    unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
+    merge_branch, merge_in_progress, merge_preview, plan_interactive_rebase, pop_stash,
+    probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
+    rename_workspace, resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all,
+    stage_files, test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind,
+    AiKeyStatus, AppContext,
 };

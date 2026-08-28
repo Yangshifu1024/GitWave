@@ -54,7 +54,7 @@ fn force_default_branch_main(repo: &Repository) {
 
 /// Write a single file in the repo, stage it, and return the resulting
 /// tree Oid.
-fn write_and_stage(repo: &Repository, rel_path: &str, content: &str) -> Oid {
+pub fn write_and_stage(repo: &Repository, rel_path: &str, content: &str) -> Oid {
     let path = repo.workdir().unwrap().join(rel_path);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(&path, content).unwrap();
@@ -66,7 +66,7 @@ fn write_and_stage(repo: &Repository, rel_path: &str, content: &str) -> Oid {
 /// Create one commit with the given tree + parents. Returns the commit
 /// Oid. Encapsulates the `find_tree + commit` pattern so the `&Tree`
 /// borrow ends at function return.
-fn make_commit(
+pub fn make_commit(
     repo: &Repository,
     sig: &Signature,
     message: &str,

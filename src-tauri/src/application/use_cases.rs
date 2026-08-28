@@ -43,7 +43,10 @@ use crate::infrastructure::git::interactive_rebase::{
     interactive_rebase_paused as infra_irebase_paused,
     plan_interactive_rebase as infra_plan_irebase, InteractiveRebaseResult, InteractiveRebaseTodo,
 };
-use crate::infrastructure::git::merge::{merge_branch as infra_merge_branch, MergeResult};
+use crate::infrastructure::git::merge::{
+    merge_branch as infra_merge_branch, merge_preview as infra_merge_preview, MergePreview,
+    MergeResult,
+};
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
@@ -624,10 +627,22 @@ pub fn merge_branch(
     ctx: &AppContext,
     workspace_id: &str,
     branch_name: &str,
+    no_ff: bool,
 ) -> Result<MergeResult> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_merge_branch(&repo, branch_name)
+    infra_merge_branch(&repo, branch_name, no_ff)
+}
+
+/// Dry-run a merge for the confirmation dialog (no side effects).
+pub fn merge_preview(
+    ctx: &AppContext,
+    workspace_id: &str,
+    branch_name: &str,
+) -> Result<MergePreview> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_merge_preview(&repo, branch_name)
 }
 
 pub fn list_conflicts(ctx: &AppContext, workspace_id: &str) -> Result<Vec<ConflictFile>> {
