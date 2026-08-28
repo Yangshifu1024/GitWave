@@ -481,6 +481,42 @@ export function listReflog(workspaceId: string, reference?: string): Promise<Ref
   return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId, reference: reference ?? null });
 }
 
+// --- Remotes (M1) -----------------------------------------------------------
+
+export interface RemoteInfo {
+  name: string;
+  fetch_url: string | null;
+  push_url: string | null;
+}
+
+export function listRemoteDetails(workspaceId: string): Promise<RemoteInfo[]> {
+  return invoke<RemoteInfo[]>("cmd_list_remote_details", { workspaceId });
+}
+
+export function addRemote(workspaceId: string, name: string, url: string): Promise<void> {
+  return invoke<void>("cmd_add_remote", { workspaceId, name, url });
+}
+
+export function setRemoteUrl(workspaceId: string, name: string, url: string): Promise<void> {
+  return invoke<void>("cmd_set_remote_url", { workspaceId, name, url });
+}
+
+export function setRemotePushUrl(
+  workspaceId: string,
+  name: string,
+  url: string | null,
+): Promise<void> {
+  return invoke<void>("cmd_set_remote_push_url", { workspaceId, name, url });
+}
+
+export function renameRemote(workspaceId: string, name: string, newName: string): Promise<void> {
+  return invoke<void>("cmd_rename_remote", { workspaceId, name, newName });
+}
+
+export function removeRemote(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_remove_remote", { workspaceId, name });
+}
+
 export function listSubmodules(workspaceId: string): Promise<SubmoduleInfo[]> {
   return invoke<SubmoduleInfo[]>("cmd_list_submodules", { workspaceId });
 }

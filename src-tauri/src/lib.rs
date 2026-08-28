@@ -16,22 +16,22 @@ mod infrastructure;
 use std::sync::{Arc, Mutex};
 
 use application::{
-    abort_interactive_rebase_pause, abort_merge, add_local_repo, add_ssh_key, add_worktree,
-    apply_stash, checkout_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit,
-    continue_interactive_rebase, create_branch, create_tag, create_workspace, delete_branch,
-    delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
-    drop_stash, execute_interactive_rebase, explain_conflict, export_workspace, fetch,
-    generate_commit_message, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
+    abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
+    add_worktree, apply_stash, checkout_branch, cherry_pick_commit, clear_ai_api_key, clone_repo,
+    commit, continue_interactive_rebase, create_branch, create_tag, create_workspace,
+    delete_branch, delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace,
+    discard_changes, drop_stash, execute_interactive_rebase, explain_conflict, export_workspace,
+    fetch, generate_commit_message, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
     get_commit_details, get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff,
     get_gitignore, get_stash_diff, get_workdir_diff, get_working_copy, get_workspace, ignore_path,
     import_workspace, init_repo, init_submodule, interactive_rebase_paused, list_conflicts,
-    list_reflog, list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags,
-    list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
+    list_reflog, list_remote_details, list_repos, list_ssh_keys, list_stashes, list_submodules,
+    list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
     plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
-    remove_repo, remove_worktree, rename_workspace, resolve_conflict, revert_commit, save_stash,
-    set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection, unstage_files,
-    update_submodule, update_workspace_settings, write_gitignore, AheadBehind, AiKeyStatus,
-    AppContext,
+    remove_remote, remove_repo, remove_worktree, rename_remote, rename_workspace, resolve_conflict,
+    revert_commit, save_stash, set_active_repo, set_ai_api_key, set_remote_push_url,
+    set_remote_url, stage_all, stage_files, test_ssh_connection, unstage_files, update_submodule,
+    update_workspace_settings, write_gitignore, AheadBehind, AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -538,6 +538,63 @@ async fn cmd_update_submodule(
 }
 
 #[tauri::command]
+async fn cmd_list_remote_details(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<infrastructure::git::remote::RemoteInfo>, AppError> {
+    list_remote_details(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_add_remote(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    url: String,
+) -> Result<(), AppError> {
+    add_remote(&ctx, &workspace_id, &name, &url)
+}
+
+#[tauri::command]
+async fn cmd_set_remote_url(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    url: String,
+) -> Result<(), AppError> {
+    set_remote_url(&ctx, &workspace_id, &name, &url)
+}
+
+#[tauri::command]
+async fn cmd_set_remote_push_url(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    url: Option<String>,
+) -> Result<(), AppError> {
+    set_remote_push_url(&ctx, &workspace_id, &name, url)
+}
+
+#[tauri::command]
+async fn cmd_rename_remote(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    new_name: String,
+) -> Result<(), AppError> {
+    rename_remote(&ctx, &workspace_id, &name, &new_name)
+}
+
+#[tauri::command]
+async fn cmd_remove_remote(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    remove_remote(&ctx, &workspace_id, &name)
+}
+
+#[tauri::command]
 async fn cmd_list_reflog(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -1039,6 +1096,12 @@ pub fn run() {
             cmd_pull,
             cmd_list_remotes,
             cmd_list_reflog,
+            cmd_list_remote_details,
+            cmd_add_remote,
+            cmd_set_remote_url,
+            cmd_set_remote_push_url,
+            cmd_rename_remote,
+            cmd_remove_remote,
             cmd_push,
             cmd_list_stashes,
             cmd_save_stash,

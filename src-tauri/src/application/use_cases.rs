@@ -52,6 +52,12 @@ use crate::infrastructure::git::merge::{
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
 use crate::infrastructure::git::reflog::{list_reflog as infra_list_reflog, ReflogEntry};
 use crate::infrastructure::git::remote::{
+    add_remote as infra_add_remote, list_remote_details as infra_list_remote_details,
+    remove_remote as infra_remove_remote, rename_remote as infra_rename_remote,
+    set_remote_push_url as infra_set_remote_push_url, set_remote_url as infra_set_remote_url,
+    RemoteInfo,
+};
+use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
     push_with_options as infra_push_with_options, PullOptions, PushRequest, SyncProgress,
@@ -885,6 +891,58 @@ pub fn cherry_pick_commit(ctx: &AppContext, workspace_id: &str, oid: &str) -> Re
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_cherry_pick_commit(&repo, oid)
+}
+
+/// Remotes with URLs (M1).
+pub fn list_remote_details(ctx: &AppContext, workspace_id: &str) -> Result<Vec<RemoteInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_remote_details(&repo)
+}
+
+/// `git remote add` (errors when the name already exists).
+pub fn add_remote(ctx: &AppContext, workspace_id: &str, name: &str, url: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_add_remote(&repo, name, url)
+}
+
+/// `git remote set-url`.
+pub fn set_remote_url(ctx: &AppContext, workspace_id: &str, name: &str, url: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_set_remote_url(&repo, name, url)
+}
+
+/// `git remote set-url --push`.
+pub fn set_remote_push_url(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    url: Option<String>,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_set_remote_push_url(&repo, name, url.as_deref())
+}
+
+/// `git remote rename`.
+pub fn rename_remote(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    new_name: &str,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_rename_remote(&repo, name, new_name)
+}
+
+/// `git remote remove`.
+pub fn remove_remote(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_remove_remote(&repo, name)
 }
 
 /// Full reflog of `reference` (HEAD or branch shorthand), newest first.

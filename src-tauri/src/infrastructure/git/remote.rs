@@ -3,6 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use git2::{AutotagOption, BranchType, FetchOptions, PushOptions, Repository, StatusOptions};
+use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
 use crate::infrastructure::git::credentials::{
@@ -149,6 +150,99 @@ pub fn push_with_options(
 pub fn list_remotes(repo: &Repository) -> Result<Vec<String>> {
     let remotes = repo.remotes().map_err(map_git_err)?;
     Ok(remotes.iter().flatten().map(str::to_string).collect())
+}
+
+/// One configured remote with its URLs (`git remote -v` equivalent).
+#[derive(Debug, Clone, Serialize)]
+pub struct RemoteInfo {
+    pub name: String,
+    pub fetch_url: Option<String>,
+    pub push_url: Option<String>,
+}
+
+/// Configured remotes with URLs, in config order.
+pub fn list_remote_details(repo: &Repository) -> Result<Vec<RemoteInfo>> {
+    let names = repo.remotes().map_err(map_git_err)?;
+    let mut out = Vec::new();
+    for name in names.iter().flatten() {
+        let remote = repo.find_remote(name).map_err(map_git_err)?;
+        out.push(RemoteInfo {
+            name: name.to_string(),
+            fetch_url: remote.url().map(str::to_string),
+            push_url: remote.pushurl().map(str::to_string),
+        });
+    }
+    Ok(out)
+}
+
+fn validate_remote_name(name: &str) -> Result<()> {
+    if name.trim().is_empty() {
+        return Err(AppError::Protocol("remote name cannot be empty".into()));
+    }
+    Ok(())
+}
+
+fn validate_remote_url(url: &str) -> Result<()> {
+    if url.trim().is_empty() {
+        return Err(AppError::Protocol("remote URL cannot be empty".into()));
+    }
+    Ok(())
+}
+
+fn remote_op_err(e: git2::Error) -> AppError {
+    match e.code() {
+        git2::ErrorCode::NotFound => AppError::Protocol(format!("remote not found: {e}")),
+        git2::ErrorCode::Exists => AppError::Protocol(format!("remote already exists: {e}")),
+        _ => AppError::Unknown(format!("git remote: {e}")),
+    }
+}
+
+/// Add a remote with a fetch URL (`git remote add`).
+pub fn add_remote(repo: &Repository, name: &str, url: &str) -> Result<()> {
+    validate_remote_name(name)?;
+    validate_remote_url(url)?;
+    if repo.find_remote(name.trim()).is_ok() {
+        return Err(AppError::Protocol(format!(
+            "remote '{name}' already exists"
+        )));
+    }
+    repo.remote(name.trim(), url.trim())
+        .map_err(remote_op_err)?;
+    Ok(())
+}
+
+/// Update a remote's fetch URL (`git remote set-url`).
+pub fn set_remote_url(repo: &Repository, name: &str, url: &str) -> Result<()> {
+    validate_remote_name(name)?;
+    validate_remote_url(url)?;
+    repo.remote_set_url(name.trim(), url.trim())
+        .map_err(remote_op_err)?;
+    Ok(())
+}
+
+/// Update a remote's push URL (`git remote set-url --push`).
+/// The push URL defaults to the fetch URL when unset.
+pub fn set_remote_push_url(repo: &Repository, name: &str, url: Option<&str>) -> Result<()> {
+    validate_remote_name(name)?;
+    repo.remote_set_pushurl(name.trim(), url)
+        .map_err(remote_op_err)?;
+    Ok(())
+}
+
+/// Rename a remote (`git remote rename`).
+pub fn rename_remote(repo: &Repository, name: &str, new_name: &str) -> Result<()> {
+    validate_remote_name(name)?;
+    validate_remote_name(new_name)?;
+    repo.remote_rename(name.trim(), new_name.trim())
+        .map_err(remote_op_err)?;
+    Ok(())
+}
+
+/// Delete a remote (`git remote remove`).
+pub fn remove_remote(repo: &Repository, name: &str) -> Result<()> {
+    validate_remote_name(name)?;
+    repo.remote_delete(name.trim()).map_err(remote_op_err)?;
+    Ok(())
 }
 
 /// Delete `branch_name` on `remote_name` by pushing a bare refspec, then
@@ -317,8 +411,71 @@ fn pull_integrate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cleanup(path: &std::path::Path) {
+        let _ = fs::remove_dir_all(path);
+    }
     use crate::infrastructure::git::test_helpers::build_linear_repo;
     use std::fs;
+
+    #[test]
+    fn remote_crud_roundtrip() {
+        let (path, repo) = crate::infrastructure::git::test_helpers::build_linear_repo(1);
+        add_remote(&repo, "origin", "https://example.com/r.git").unwrap();
+        assert_eq!(
+            add_remote(&repo, "origin", "git@example.com:r2.git")
+                .unwrap_err()
+                .category(),
+            "Protocol",
+            "duplicate remote must be Protocol"
+        );
+
+        let details = list_remote_details(&repo).unwrap();
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0].name, "origin");
+        assert_eq!(
+            details[0].fetch_url.as_deref(),
+            Some("https://example.com/r.git")
+        );
+        assert!(details[0].push_url.is_none());
+
+        set_remote_url(&repo, "origin", "https://example.com/new.git").unwrap();
+        set_remote_push_url(&repo, "origin", Some("git@example.com/push.git")).unwrap();
+        let d = &list_remote_details(&repo).unwrap()[0];
+        assert_eq!(d.fetch_url.as_deref(), Some("https://example.com/new.git"));
+        assert_eq!(d.push_url.as_deref(), Some("git@example.com/push.git"));
+
+        rename_remote(&repo, "origin", "origin2").unwrap();
+        assert!(list_remote_details(&repo).unwrap()[0].name == "origin2");
+
+        remove_remote(&repo, "origin2").unwrap();
+        assert!(list_remote_details(&repo).unwrap().is_empty());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn remote_ops_validate_and_error_protocol() {
+        let (path, repo) = crate::infrastructure::git::test_helpers::build_linear_repo(1);
+        assert_eq!(
+            add_remote(&repo, " ", "https://x.git")
+                .unwrap_err()
+                .category(),
+            "Protocol"
+        );
+        assert_eq!(
+            add_remote(&repo, "r", " ").unwrap_err().category(),
+            "Protocol"
+        );
+        assert_eq!(
+            remove_remote(&repo, "nope").unwrap_err().category(),
+            "Protocol"
+        );
+        assert_eq!(
+            rename_remote(&repo, "nope", "x").unwrap_err().category(),
+            "Protocol"
+        );
+        cleanup(&path);
+    }
 
     #[test]
     fn fetch_missing_remote_errors() {
