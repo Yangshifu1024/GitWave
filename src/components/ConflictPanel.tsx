@@ -1,71 +1,65 @@
-import { useCallback, useEffect, useState } from "react";
-import type { ConflictFile, ConflictSides } from "@/lib/api";
-import {
-  abortMerge,
-  explainConflict,
-  formatAppError,
-  getConflictSides,
-  listConflicts,
-  mergeInProgress,
-  resolveConflict,
-} from "@/lib/api";
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import type { ConflictSides } from "@/lib/api";
+import { explainConflict, formatAppError, getConflictSides, resolveConflict } from "@/lib/api";
+import { classifyConflictLine, findConflictRegions, lineStartOffset } from "@/lib/conflictMarkers";
+import type { MergeConflictsState } from "@/hooks/useMergeConflicts";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
-import { ListItem } from "@/components/ui/ListItem";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { InputGroup, TextField } from "@heroui/react";
-import { AlertTriangle, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Sparkles, X, XCircle } from "lucide-react";
 
-export function ConflictPanel(): React.JSX.Element | null {
+/** text-xs + leading-5 — editor and backdrop must agree for hunk jumps. */
+const LINE_HEIGHT_PX = 20;
+/** py-2 on the editor — hunk scroll aims one padding above the target line. */
+const EDITOR_PAD_Y = 8;
+
+interface ConflictPanelProps {
+  /** Controlled by App (Merge banner's Resolve button). */
+  open: boolean;
+  onClose: () => void;
+  merge: MergeConflictsState;
+}
+
+export function ConflictPanel({
+  open,
+  onClose,
+  merge,
+}: ConflictPanelProps): React.JSX.Element | null {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
+  const { active, files, refresh, abort } = merge;
 
-  const [active, setActive] = useState(false);
-  const [files, setFiles] = useState<ConflictFile[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sides, setSides] = useState<ConflictSides | null>(null);
   const [editor, setEditor] = useState("");
   const [explain, setExplain] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** User closed the zero-conflict banner; re-shown if real conflicts appear. */
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [hunkIndex, setHunkIndex] = useState(0);
+  const [discardPrompt, setDiscardPrompt] = useState(false);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const backdropRef = useRef<HTMLPreElement>(null);
+  /** Editor content the current buffer was seeded from — dirty check on close. */
+  const seedRef = useRef("");
+  const openRef = useRef(open);
   const { toast } = useToast();
 
-  const refresh = useCallback(async () => {
-    if (!workspaceId) return;
-    const inProgress = await mergeInProgress(workspaceId);
-    setActive(inProgress);
-    if (!inProgress) {
-      setFiles([]);
-      setSelected(null);
-      setSides(null);
-      return;
-    }
-    const list = await listConflicts(workspaceId);
-    setFiles(list);
-  }, [workspaceId]);
+  // The highlight backdrop derives from a deferred copy of the editor so a
+  // keystroke never blocks on re-highlighting a large file (lockfile-sized
+  // conflicts). The conflict count follows one beat behind while typing.
+  const resolved = useDeferredValue(editor);
+  const regions = useMemo(() => findConflictRegions(resolved), [resolved]);
+  const lines = useMemo(() => resolved.split("\n"), [resolved]);
+
+  const currentHunk = Math.min(hunkIndex, Math.max(0, regions.length - 1));
 
   useEffect(() => {
-    if (!workspaceId || !repoId) {
-      setActive(false);
-      setFiles([]);
-      return;
-    }
-    refresh().catch((e) => setError(formatAppError(e)));
-    const t = window.setInterval(() => {
-      void refresh().catch(() => undefined);
-    }, 3000);
-    return () => window.clearInterval(t);
-  }, [workspaceId, repoId, refresh]);
-
-  // A dismissal only hides the zero-conflict banner; real conflicts always
-  // take over again.
-  useEffect(() => {
-    if (files.length > 0) setBannerDismissed(false);
-  }, [files.length]);
+    openRef.current = open;
+  }, [open]);
 
   const openFile = async (path: string) => {
     if (!workspaceId) return;
@@ -74,65 +68,122 @@ export function ConflictPanel(): React.JSX.Element | null {
     setError(null);
     try {
       const s = await getConflictSides(workspaceId, path);
+      if (!openRef.current) return; // panel closed while loading
       setSides(s);
-      setEditor(s.working ?? s.ours ?? s.theirs ?? "");
+      const seed = s.working ?? s.ours ?? s.theirs ?? "";
+      seedRef.current = seed;
+      setEditor(seed);
     } catch (e) {
-      setError(formatAppError(e));
+      if (openRef.current) setError(formatAppError(e));
     }
   };
 
-  if (!workspaceId || !repoId || !active) return null;
+  // Reset hunk navigation when switching files.
+  useEffect(() => {
+    setHunkIndex(0);
+  }, [selected]);
 
-  // All conflicts already resolved/staged (typical after resolving outside
-  // the app): a full-screen takeover would dead-end the user — they need to
-  // reach Working Copy to commit the merge. Degrade to a slim dismissible
-  // banner instead; it comes back if real conflicts re-appear.
-  if (files.length === 0) {
-    if (bannerDismissed) return null;
-    return (
-      <div className="fixed top-0 inset-x-0 z-modal flex items-center justify-between gap-3 bg-bg-elevated border-b border-border-subtle px-4 py-2 shadow-modal">
-        <p className="flex items-center gap-2 text-xs text-text-secondary">
-          <AlertTriangle size={14} className="text-warning shrink-0" />
-          Merge in progress — all conflicts resolved. Commit the merge from Working Copy to finish
-          it.
-        </p>
-        <span className="flex items-center gap-2">
-          <Button
-            variant="danger"
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              void (async () => {
-                setBusy(true);
-                try {
-                  await abortMerge(workspaceId);
-                  bumpHistory();
-                  await refresh();
-                } catch (e) {
-                  setError(formatAppError(e));
-                } finally {
-                  setBusy(false);
-                }
-              })();
-            }}
-          >
-            <XCircle size={14} />
-            Abort merge
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1"
-            aria-label="Dismiss"
-            title="Dismiss"
-            onClick={() => setBannerDismissed(true)}
-          >
-            ✕
-          </Button>
-        </span>
-      </div>
-    );
-  }
+  // Clear in-progress state while hidden so reopening starts fresh.
+  useEffect(() => {
+    if (!open) {
+      setSelected(null);
+      setSides(null);
+      setExplain(null);
+      setEditor("");
+      setError(null);
+      setDiscardPrompt(false);
+    }
+  }, [open]);
+
+  // Resolving the last conflict returns to the main window; a merge that
+  // ends underneath us (e.g. committed in a terminal) does the same, so a
+  // stale editor can never be carried into the next merge.
+  useEffect(() => {
+    if (open && active && files.length === 0) onClose();
+    if (open && !active) onClose();
+  }, [open, active, files.length, onClose]);
+
+  const requestClose = () => {
+    if (editor !== seedRef.current) setDiscardPrompt(true);
+    else onClose();
+  };
+  // Keep the Escape listener free of per-render re-subscription.
+  const requestCloseRef = useRef(requestClose);
+  requestCloseRef.current = requestClose;
+
+  // Escape closes back to the main window (with a dirty check).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") requestCloseRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Per-line highlight classes for the backdrop: markers stand out, region
+  // bodies get a light tint. Regions are sorted, so one forward pointer
+  // classifies every line in O(n).
+  const highlighted = useMemo(() => {
+    let ri = 0;
+    return lines.map((line, i) => {
+      while (ri < regions.length && i > (regions[ri]?.end ?? -1)) ri += 1;
+      const region = regions[ri];
+      const inRegion = region !== undefined && i >= region.start;
+      const kind = classifyConflictLine(line);
+      if (kind === "ours" || kind === "theirs") {
+        return { cls: "bg-conflict-marker-bg font-semibold text-danger" };
+      }
+      if (kind) {
+        return { cls: "bg-conflict-marker-bg font-semibold text-text-secondary" };
+      }
+      return { cls: inRegion ? "bg-conflict-region-bg" : "" };
+    });
+  }, [lines, regions]);
+
+  if (!open || !active || !workspaceId || !repoId) return null;
+
+  const gotoHunk = (index: number) => {
+    if (regions.length === 0) return;
+    const target = Math.max(0, Math.min(index, regions.length - 1));
+    setHunkIndex(target);
+    const ta = editorRef.current;
+    const region = regions[target];
+    if (!ta || !region) return;
+    const startOffset = lineStartOffset(resolved, region.start);
+    const endOffset = region.closed
+      ? lineStartOffset(resolved, region.end) + (lines[region.end]?.length ?? 0)
+      : startOffset;
+    // Selection first, scroll last: focusing a selection scrolls its active
+    // end into view, and our explicit top-alignment must win.
+    ta.focus();
+    ta.setSelectionRange(startOffset, endOffset);
+    // wrap="off" keeps logical lines == visual lines, so line × height is exact.
+    ta.scrollTop = Math.max(0, region.start * LINE_HEIGHT_PX - EDITOR_PAD_Y);
+  };
+
+  const syncScroll = () => {
+    const ta = editorRef.current;
+    const pre = backdropRef.current;
+    if (ta && pre) {
+      pre.scrollTop = ta.scrollTop;
+      pre.scrollLeft = ta.scrollLeft;
+    }
+  };
+
+  const handleAbort = () => {
+    void (async () => {
+      setBusy(true);
+      try {
+        await abort();
+        bumpHistory();
+      } catch (e) {
+        if (openRef.current) setError(formatAppError(e));
+      } finally {
+        setBusy(false);
+      }
+    })();
+  };
 
   return (
     <div className="fixed inset-0 z-modal flex items-center justify-center">
@@ -146,27 +197,19 @@ export function ConflictPanel(): React.JSX.Element | null {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                void (async () => {
-                  setBusy(true);
-                  try {
-                    await abortMerge(workspaceId);
-                    bumpHistory();
-                    await refresh();
-                  } catch (e) {
-                    setError(formatAppError(e));
-                  } finally {
-                    setBusy(false);
-                  }
-                })();
-              }}
-            >
+            <Button variant="danger" size="sm" disabled={busy} onClick={handleAbort}>
               <XCircle size={14} />
               Abort merge
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1"
+              aria-label="Close"
+              title="Close"
+              onClick={requestClose}
+            >
+              <X size={14} />
             </Button>
           </div>
         </div>
@@ -174,21 +217,43 @@ export function ConflictPanel(): React.JSX.Element | null {
         {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          <div className="w-64 shrink-0 border-r border-border-subtle overflow-auto">
+          <div
+            role="listbox"
+            aria-label="Conflicted files"
+            className="w-64 shrink-0 border-r border-border-subtle overflow-auto select-none px-1 py-1"
+          >
             {files.length === 0 ? (
+              // Transient only — the auto-close effect hides the panel right
+              // after the list empties; kept as a defensive empty state.
               <p className="p-3 text-xs text-text-muted">
                 No conflicted paths left. Commit the merge from Working Copy when ready.
               </p>
             ) : (
-              files.map((f) => (
-                <ListItem
-                  key={f.path}
-                  selected={selected === f.path}
-                  onClick={() => void openFile(f.path)}
-                >
-                  <span className="text-sm font-mono truncate">{f.path}</span>
-                </ListItem>
-              ))
+              files.map((f) => {
+                // Row style mirrors the commit modal's unstaged list
+                // (ui/FileListItem): the name is a label, not code.
+                const name = f.path.split("/").pop() ?? f.path;
+                return (
+                  <div
+                    key={f.path}
+                    role="option"
+                    aria-selected={selected === f.path}
+                    tabIndex={0}
+                    title={f.path}
+                    onClick={() => void openFile(f.path)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void openFile(f.path);
+                    }}
+                    className={cn(
+                      "flex items-center px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors duration-fast",
+                      "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
+                      selected === f.path ? "bg-accent/10" : "hover:bg-bg-secondary",
+                    )}
+                  >
+                    <span className="flex-1 min-w-0 truncate text-text-primary">{name}</span>
+                  </div>
+                );
+              })
             )}
           </div>
 
@@ -199,15 +264,58 @@ export function ConflictPanel(): React.JSX.Element | null {
               </div>
             ) : (
               <>
+                {/* Row 1: path + conflict-hunk navigation (count is live). */}
                 <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
-                  <span className="text-xs font-mono text-text-secondary truncate flex-1">
+                  <span
+                    className="text-xs font-mono text-text-secondary truncate flex-1"
+                    title={sides.path}
+                  >
                     {sides.path}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
+                    className="p-1"
+                    aria-label="Previous conflict"
+                    title="Previous conflict"
+                    disabled={regions.length === 0 || currentHunk <= 0}
+                    onClick={() => gotoHunk(currentHunk - 1)}
+                  >
+                    <ChevronUp size={14} />
+                  </Button>
+                  <span
+                    className={cn(
+                      "shrink-0 text-xs tabular-nums",
+                      regions.length === 0 ? "text-text-muted" : "text-text-secondary",
+                    )}
+                  >
+                    {regions.length === 0
+                      ? "No conflicts"
+                      : `${regions.length} conflict${regions.length === 1 ? "" : "s"}`}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="p-1"
+                    aria-label="Next conflict"
+                    title="Next conflict"
+                    disabled={regions.length === 0 || currentHunk >= regions.length - 1}
+                    onClick={() => gotoHunk(currentHunk + 1)}
+                  >
+                    <ChevronDown size={14} />
+                  </Button>
+                </div>
+
+                {/* Row 2: per-file actions. */}
+                <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle">
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     disabled={busy}
-                    onClick={() => setEditor(sides.ours ?? "")}
+                    onClick={() => {
+                      seedRef.current = sides.ours ?? "";
+                      setEditor(sides.ours ?? "");
+                    }}
                   >
                     Use ours
                   </Button>
@@ -215,7 +323,10 @@ export function ConflictPanel(): React.JSX.Element | null {
                     variant="ghost"
                     size="sm"
                     disabled={busy}
-                    onClick={() => setEditor(sides.theirs ?? "")}
+                    onClick={() => {
+                      seedRef.current = sides.theirs ?? "";
+                      setEditor(sides.theirs ?? "");
+                    }}
                   >
                     Use theirs
                   </Button>
@@ -229,6 +340,7 @@ export function ConflictPanel(): React.JSX.Element | null {
                         setExplain(null);
                         try {
                           const res = await explainConflict(workspaceId, sides.path);
+                          if (!openRef.current) return;
                           setExplain(res.text);
                           if (res.used_fallback) {
                             toast({
@@ -237,7 +349,7 @@ export function ConflictPanel(): React.JSX.Element | null {
                             });
                           }
                         } catch (e) {
-                          setError(formatAppError(e));
+                          if (openRef.current) setError(formatAppError(e));
                         } finally {
                           setBusy(false);
                         }
@@ -259,10 +371,11 @@ export function ConflictPanel(): React.JSX.Element | null {
                           await resolveConflict(workspaceId, sides.path, editor);
                           bumpHistory();
                           await refresh();
+                          if (!openRef.current) return;
                           setSelected(null);
                           setSides(null);
                         } catch (e) {
-                          setError(formatAppError(e));
+                          if (openRef.current) setError(formatAppError(e));
                         } finally {
                           setBusy(false);
                         }
@@ -276,8 +389,8 @@ export function ConflictPanel(): React.JSX.Element | null {
                 <div className="grid grid-cols-3 gap-px bg-border-subtle shrink-0 max-h-36 overflow-hidden border-b border-border-subtle">
                   {(
                     [
-                      ["Base", sides.base],
                       ["Ours", sides.ours],
+                      ["Base", sides.base],
                       ["Theirs", sides.theirs],
                     ] as const
                   ).map(([label, text]) => (
@@ -293,22 +406,32 @@ export function ConflictPanel(): React.JSX.Element | null {
                 </div>
 
                 <div className="flex flex-1 min-h-0 overflow-hidden">
-                  <TextField
-                    value={editor}
-                    onChange={setEditor}
-                    className="flex-1 min-w-0 flex flex-col"
-                    aria-label="Resolved file content"
-                  >
-                    <InputGroup
-                      fullWidth
-                      className="flex-1 min-h-0 border-0 shadow-none bg-transparent"
+                  {/* Highlight-within-textarea: a transparent-text textarea on
+                      top of an identically styled <pre>, scroll-synced. */}
+                  <div className="relative flex-1 min-w-0 bg-bg-primary">
+                    <pre
+                      ref={backdropRef}
+                      aria-hidden
+                      className="absolute inset-0 overflow-hidden px-3 py-2 font-mono text-xs leading-5 text-text-primary whitespace-pre select-none pointer-events-none"
                     >
-                      <InputGroup.TextArea
-                        className="flex-1 min-w-0 h-full p-3 font-mono text-xs bg-bg-primary text-text-primary border-0 shadow-none resize-none"
-                        spellCheck={false}
-                      />
-                    </InputGroup>
-                  </TextField>
+                      {highlighted.map((h, i) => (
+                        <Fragment key={i}>
+                          <span className={h.cls}>{lines[i]}</span>
+                          {"\n"}
+                        </Fragment>
+                      ))}
+                    </pre>
+                    <textarea
+                      ref={editorRef}
+                      value={editor}
+                      onChange={(e) => setEditor(e.target.value)}
+                      onScroll={syncScroll}
+                      wrap="off"
+                      spellCheck={false}
+                      aria-label="Resolved file content"
+                      className="absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-3 py-2 font-mono text-xs leading-5 text-transparent caret-text-primary outline-none border-0"
+                    />
+                  </div>
                   {explain ? (
                     <div className="w-80 shrink-0 border-l border-border-subtle overflow-auto p-3 bg-bg-secondary">
                       <p className="text-xs font-medium text-text-secondary mb-2">
@@ -323,6 +446,30 @@ export function ConflictPanel(): React.JSX.Element | null {
           </div>
         </div>
       </div>
+
+      <Modal
+        open={discardPrompt}
+        onOpenChange={(o) => !o && setDiscardPrompt(false)}
+        title="Discard unresolved edits?"
+        description="The editor content differs from the version it was seeded with. Closing now discards manual edits — use Mark resolved to keep them."
+        size="sm"
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setDiscardPrompt(false)}>
+            Keep editing
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setDiscardPrompt(false);
+              onClose();
+            }}
+          >
+            Discard edits
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
