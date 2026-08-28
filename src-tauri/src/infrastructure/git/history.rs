@@ -475,6 +475,7 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
     let mut out: Vec<BranchInfo> = Vec::new();
 
     // Local branches
+    let mut local_names: Vec<String> = Vec::new();
     for branch_result in repo.branches(Some(git2::BranchType::Local))? {
         // `branches()` yields `Result<(Branch<'_>, BranchType), _>`, so we
         // destructure the tuple.
@@ -483,6 +484,7 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
         if name.is_empty() {
             continue;
         }
+        local_names.push(name.clone());
         let is_current = branch.is_head();
         let upstream_name = branch
             .upstream()
@@ -509,6 +511,29 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
             last_commit_sha,
             last_commit_time,
         });
+    }
+
+    // Empty repository: HEAD points at the (unborn) default branch but
+    // `branches()` lists no refs yet. Surface the branch the user will
+    // commit onto instead of an empty list ("No branches found").
+    if let Ok(head_ref) = repo.find_reference("HEAD") {
+        if let Some(name) = head_ref
+            .symbolic_target()
+            .and_then(|t| t.strip_prefix("refs/heads/"))
+        {
+            if !name.is_empty() && !local_names.contains(&name.to_string()) {
+                out.push(BranchInfo {
+                    name: name.to_string(),
+                    kind: BranchKind::Local,
+                    is_current: true,
+                    upstream: None,
+                    ahead: 0,
+                    behind: 0,
+                    last_commit_sha: String::new(),
+                    last_commit_time: 0,
+                });
+            }
+        }
     }
 
     // Remote branches
@@ -819,5 +844,18 @@ mod tests {
         let main = main.unwrap();
         assert_eq!(main.kind, BranchKind::Local);
         assert!(main.is_current);
+    }
+
+    #[test]
+    fn list_branches_shows_unborn_default_branch() {
+        let (path, repo) = init_empty_repo();
+        let branches = list_branches(&repo).unwrap();
+        cleanup(&path);
+
+        assert_eq!(branches.len(), 1, "empty repo must list its default branch");
+        assert_eq!(branches[0].name, "main");
+        assert_eq!(branches[0].kind, BranchKind::Local);
+        assert!(branches[0].is_current, "the unborn branch is HEAD's target");
+        assert!(branches[0].last_commit_sha.is_empty());
     }
 }
