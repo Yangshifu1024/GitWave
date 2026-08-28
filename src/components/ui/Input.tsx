@@ -47,7 +47,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         isInvalid={Boolean(error)}
         className="flex min-w-0 flex-col gap-1"
       >
-        <InputGroup fullWidth className={cn("h-8 min-h-8 rounded-md", className)}>
+        <InputGroup fullWidth className={cn("h-8 min-h-8 w-full min-w-0 rounded-md", className)}>
           {isSearch ? (
             <InputGroup.Prefix className="pl-2 text-text-muted" aria-hidden="true">
               <Search size={16} />

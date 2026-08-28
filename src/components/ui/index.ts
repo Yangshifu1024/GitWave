@@ -1,6 +1,7 @@
 // Core primitives
 export { Button, buttonVariants, type ButtonProps } from "./Button";
 export { Input, type InputProps } from "./Input";
+export { Textarea, type TextareaProps } from "./Textarea";
 export { Modal, type ModalProps } from "./Modal";
 export { ErrorAlert, type ErrorAlertProps } from "./ErrorAlert";
 export { Tooltip, type TooltipProps } from "./Tooltip";
