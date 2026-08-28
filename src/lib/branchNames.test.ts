@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterRemoteBranches, remoteShortName } from "./branchNames";
+import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "./branchNames";
 
 describe("remoteShortName", () => {
   it("strips the remote prefix from a remote-tracking name", () => {
@@ -56,5 +56,25 @@ describe("filterRemoteBranches", () => {
       remote("origin/main"),
       remote("origin/next"),
     ]);
+  });
+});
+
+describe("splitBranchPrefix", () => {
+  it("splits the first path segment as the prefix", () => {
+    expect(splitBranchPrefix("feat/login-flow")).toEqual({
+      prefix: "feat",
+      rest: "login-flow",
+    });
+  });
+
+  it("keeps deeper segments in the remainder", () => {
+    expect(splitBranchPrefix("feat/auth/login")).toEqual({
+      prefix: "feat",
+      rest: "auth/login",
+    });
+  });
+
+  it("returns no prefix for names without a slash", () => {
+    expect(splitBranchPrefix("main")).toEqual({ prefix: null, rest: "main" });
   });
 });

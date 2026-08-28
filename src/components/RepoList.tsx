@@ -148,8 +148,8 @@ export function RepoList({ workspaceId }: { workspaceId: string }): React.JSX.El
                         <span
                           className={
                             r.id === activeRepoId
-                              ? "truncate font-mono text-xs text-text-primary font-medium"
-                              : "truncate font-mono text-xs text-text-secondary"
+                              ? "truncate text-[13px] text-text-primary font-semibold"
+                              : "truncate text-[13px] text-text-primary"
                           }
                           title={r.path}
                         >

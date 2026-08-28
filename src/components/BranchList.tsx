@@ -25,7 +25,7 @@ import {
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { gateCheckout } from "@/lib/checkoutGate";
-import { filterRemoteBranches, remoteShortName } from "@/lib/branchNames";
+import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -43,6 +43,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
+  Folder,
   GitBranch,
   GitMerge,
   GitPullRequestArrow,
@@ -78,6 +79,10 @@ function BranchIcon({ kind }: { kind: "local" | "remote" }): React.JSX.Element {
 
 interface BranchRowProps {
   branch: BranchInfo;
+  /** Text shown in the row (prefix stripped when nested in a folder). */
+  displayName?: string;
+  /** Extra left padding when the row sits inside a prefix folder. */
+  indented?: boolean;
   selected: boolean;
   busy: boolean;
   onSelect: (name: string) => void;
@@ -90,6 +95,8 @@ interface BranchRowProps {
 
 function BranchRow({
   branch,
+  displayName,
+  indented,
   selected,
   busy,
   onSelect,
@@ -104,6 +111,7 @@ function BranchRow({
   const row = (
     <ListItem
       selected={selected}
+      className={indented ? "pl-8" : undefined}
       onClick={() => {
         if (busy) return;
         onSelect(branch.name);
@@ -124,15 +132,19 @@ function BranchRow({
       <div className="flex flex-col min-w-0">
         <span
           className={cn(
-            "truncate text-sm",
-            branch.is_current ? "font-medium text-text-primary" : "text-text-secondary",
+            "truncate text-[13px]",
+            selected
+              ? "font-semibold text-text-primary"
+              : branch.is_current
+                ? "font-medium text-text-primary"
+                : "text-text-secondary",
           )}
           title={branch.name}
         >
-          {branch.name}
+          {displayName ?? branch.name}
         </span>
         <span
-          className="flex items-center gap-1 min-w-0 h-4 text-xs text-text-muted"
+          className="flex items-center gap-1 min-w-0 h-4 text-[11px] text-text-muted"
           title={
             branch.upstream
               ? branch.upstream
@@ -449,8 +461,11 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   })();
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const toggleGroup = (key: string): void =>
-    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  // Flip the *effective* collapsed state (raw value falls back to the
+  // group's default), otherwise a default-collapsed group needs two clicks
+  // — the first write (`!undefined` = true) is a visual no-op.
+  const toggleGroup = (key: string, defaultCollapsed: boolean): void =>
+    setCollapsedGroups((prev) => ({ ...prev, [key]: !(prev[key] ?? defaultCollapsed) }));
 
   const renderGroup = (
     label: string,
@@ -460,33 +475,84 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (groupBranches.length === 0) return null;
     // Local defaults expanded; remote groups default collapsed.
     const collapsed = collapsedGroups[groupKey] ?? groupKey !== "local";
+    // Fork-style sub-grouping: branches sharing the first display-name
+    // segment (after the remote prefix for remote-tracking branches)
+    // collapse into a folder; unprefixed branches stay at the top level.
+    const display = (b: BranchInfo): string =>
+      b.kind === "remote" ? remoteShortName(b.name) : b.name;
+    const roots: BranchInfo[] = [];
+    const folders = new Map<string, BranchInfo[]>();
+    for (const b of groupBranches) {
+      const { prefix } = splitBranchPrefix(display(b));
+      if (prefix === null) {
+        roots.push(b);
+      } else {
+        const list = folders.get(prefix) ?? [];
+        if (list.length === 0) folders.set(prefix, list);
+        list.push(b);
+      }
+    }
+    const folderList = [...folders.entries()].sort(([a], [b]) => a.localeCompare(b));
+    const renderRows = (list: BranchInfo[], nameOf: (b: BranchInfo) => string, indented: boolean) =>
+      list.map((branch) => (
+        <BranchRow
+          key={branch.name}
+          branch={branch}
+          displayName={nameOf(branch)}
+          indented={indented}
+          selected={branch.name === selectedName}
+          busy={busy}
+          onSelect={handleSelect}
+          onCheckout={handleCheckout}
+          onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
+          onMerge={handleMerge}
+          onRebaseOnto={handleRebaseOnto}
+          onInteractiveRebase={(name) => setIrebaseOnto(name)}
+        />
+      ));
     return (
       <div className={groupKey === "local" ? undefined : "mt-2"}>
         <button
           type="button"
           aria-expanded={!collapsed}
-          onClick={() => toggleGroup(groupKey)}
-          className="flex w-full items-center gap-1.5 px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary"
+          onClick={() => toggleGroup(groupKey, groupKey !== "local")}
+          className="flex w-full items-center gap-1.5 pl-6 pr-3 py-1 text-[11px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary"
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
           {label}
           <span className="font-normal normal-case">({groupBranches.length})</span>
         </button>
-        {!collapsed &&
-          groupBranches.map((branch) => (
-            <BranchRow
-              key={branch.name}
-              branch={branch}
-              selected={branch.name === selectedName}
-              busy={busy}
-              onSelect={handleSelect}
-              onCheckout={handleCheckout}
-              onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
-              onMerge={handleMerge}
-              onRebaseOnto={handleRebaseOnto}
-              onInteractiveRebase={(name) => setIrebaseOnto(name)}
-            />
-          ))}
+        {!collapsed && (
+          <>
+            {folderList.map(([prefix, list]) => {
+              const folderKey = `${groupKey}:${prefix}`;
+              // Default collapsed, except the folder holding the selected
+              // branch; an explicit toggle always wins over the default.
+              const folderCollapsed =
+                collapsedGroups[folderKey] ?? !list.some((b) => b.name === selectedName);
+              return (
+                <div key={folderKey}>
+                  <button
+                    type="button"
+                    aria-expanded={!folderCollapsed}
+                    onClick={() =>
+                      toggleGroup(folderKey, !list.some((b) => b.name === selectedName))
+                    }
+                    className="flex w-full items-center gap-1.5 pl-9 pr-3 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary"
+                  >
+                    {folderCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                    <Folder size={11} className="shrink-0 text-text-muted" />
+                    <span className="truncate">{prefix}</span>
+                    <span className="font-normal text-text-muted">({list.length})</span>
+                  </button>
+                  {!folderCollapsed &&
+                    renderRows(list, (b) => splitBranchPrefix(display(b)).rest, true)}
+                </div>
+              );
+            })}
+            {renderRows(roots, display, false)}
+          </>
+        )}
       </div>
     );
   };
@@ -530,7 +596,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   return (
     <>
-      <SidebarSection title="Branches" className="border-b-0">
+      <SidebarSection title="Branches">
         {irebasePaused ? (
           <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
             <Button variant="primary" size="sm" disabled={busy} onClick={handleContinueIrebase}>

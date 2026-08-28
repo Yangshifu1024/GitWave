@@ -24,7 +24,7 @@ export function SidebarSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className={cn("flex flex-col shrink-0", className)}>
+    <section className={cn("flex flex-col shrink-0 border-b border-border-subtle", className)}>
       <div className="shrink-0 flex items-center gap-1">
         <button
           type="button"
@@ -33,15 +33,17 @@ export function SidebarSection({
           onClick={() => setOpen((value) => !value)}
           className={cn(
             "flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
-            "text-xs font-semibold text-text-muted uppercase tracking-wide",
+            // Section label: macOS source-list convention — 11px bold gray
+            // caps; items (13px, dark) carry the visual weight instead.
+            "text-[11px] font-semibold text-text-muted uppercase tracking-wider",
             "hover:bg-bg-primary/60 hover:text-text-secondary",
             "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
           )}
         >
           {open ? (
-            <ChevronDown size={14} className="shrink-0" />
+            <ChevronDown size={12} className="shrink-0" />
           ) : (
-            <ChevronRight size={14} className="shrink-0" />
+            <ChevronRight size={12} className="shrink-0" />
           )}
           {title}
         </button>

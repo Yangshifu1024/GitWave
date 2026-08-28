@@ -12,6 +12,18 @@ export function remoteShortName(name: string): string {
   return idx === -1 ? name : name.slice(idx + 1);
 }
 
+/**
+ * Split a display branch name into its first path segment (the prefix
+ * folder in the sidebar) and the remainder
+ * (`feat/login-flow` -> `feat` + `login-flow`, `main` -> `null` + `main`).
+ */
+export function splitBranchPrefix(displayName: string): { prefix: string | null; rest: string } {
+  const idx = displayName.indexOf("/");
+  return idx === -1
+    ? { prefix: null, rest: displayName }
+    : { prefix: displayName.slice(0, idx), rest: displayName.slice(idx + 1) };
+}
+
 interface BranchLike {
   name: string;
   kind: "local" | "remote";
