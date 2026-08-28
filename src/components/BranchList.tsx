@@ -3,7 +3,7 @@
 // branch ops (new branch / pull / push) live in the ActionBar.
 
 import { useCallback, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BranchInfo } from "@/lib/api";
 import {
   abortInteractiveRebasePause,
@@ -18,6 +18,7 @@ import {
   listWorktrees,
   mergeBranch,
   mergeInProgress,
+  mergePreview,
   popStash,
   rebaseBranch,
   saveStash,
@@ -43,6 +44,8 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
+  CircleCheck,
+  CircleX,
   Folder,
   GitBranch,
   GitMerge,
@@ -225,6 +228,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const [deleteDialog, setDeleteDialog] = useState<{ name: string; deleteRemote: boolean } | null>(
     null,
   );
+  /** Fork-style confirmation before "Merge into current" executes. */
+  const [mergeDialog, setMergeDialog] = useState<{ name: string } | null>(null);
   const [switchDialog, setSwitchDialog] = useState<
     | { kind: "dirty"; name: string; fileCount: number }
     | { kind: "blocked"; name: string; message: string }
@@ -397,9 +402,11 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       );
     });
 
-  const handleMerge = (name: string) =>
+  const handleMerge = (name: string) => setMergeDialog({ name });
+
+  const handleMergeConfirmed = (name: string, noFf: boolean) =>
     void run(async () => {
-      const result = await mergeBranch(activeWorkspaceId!, name);
+      const result = await mergeBranch(activeWorkspaceId!, name, noFf);
       if (result.conflicts.length > 0) {
         showNotice(
           `Merged ${name} with ${result.conflicts.length} conflict(s): ${result.conflicts.join(", ")}`,
@@ -732,6 +739,19 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         </Modal>
       ) : null}
 
+      {mergeDialog && activeWorkspaceId ? (
+        <MergeConfirmDialog
+          workspaceId={activeWorkspaceId}
+          name={mergeDialog.name}
+          currentBranch={branches.find((b) => b.is_current)?.name ?? "—"}
+          onClose={() => setMergeDialog(null)}
+          onConfirm={(noFf) => {
+            setMergeDialog(null);
+            handleMergeConfirmed(mergeDialog.name, noFf);
+          }}
+        />
+      ) : null}
+
       {irebaseOnto && activeWorkspaceId ? (
         <InteractiveRebaseDialog
           open={true}
@@ -746,5 +766,108 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * Fork-style confirmation before "Merge into current" runs: shows the
+ * source/target pair, a fast-forward option, and a conflict pre-check
+ * computed server-side without touching the working tree.
+ */
+function MergeConfirmDialog({
+  workspaceId,
+  name,
+  currentBranch,
+  onClose,
+  onConfirm,
+}: {
+  workspaceId: string;
+  name: string;
+  currentBranch: string;
+  onClose: () => void;
+  onConfirm: (noFf: boolean) => void;
+}): React.JSX.Element {
+  const [noFf, setNoFf] = useState(false);
+  const { data: preview, isLoading } = useQuery({
+    queryKey: ["merge-preview", workspaceId, name],
+    queryFn: () => mergePreview(workspaceId, name),
+  });
+
+  const upToDate = preview?.up_to_date ?? false;
+  const conflictCount = preview?.conflicts.length ?? 0;
+
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Merge branch"
+      description={`Merge ${name} into ${currentBranch}.`}
+      size="sm"
+    >
+      <div className="flex flex-col gap-1.5 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Merge</span>
+          <GitBranch size={13} className="shrink-0 text-text-muted" />
+          <span className="min-w-0 truncate font-mono text-xs text-text-primary" title={name}>
+            {name}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Into</span>
+          <GitBranch size={13} className="shrink-0 text-text-muted" />
+          <span className="min-w-0 truncate font-mono text-xs text-text-primary">
+            {currentBranch}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label
+            className="w-16 shrink-0 text-right text-xs text-text-secondary"
+            htmlFor="merge-option"
+          >
+            Option
+          </label>
+          <select
+            id="merge-option"
+            value={noFf ? "no_ff" : "auto"}
+            onChange={(e) => setNoFf(e.target.value === "no_ff")}
+            className="h-8 min-w-0 flex-1 rounded-md border border-border-default bg-bg-elevated px-2 text-sm"
+          >
+            <option value="auto">Auto — fast-forward when possible</option>
+            <option value="no_ff">No fast-forward — always create a merge commit</option>
+          </select>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        {isLoading ? (
+          <span className="text-xs text-text-muted">Checking merge…</span>
+        ) : upToDate ? (
+          <span className="flex items-center gap-1.5 text-xs text-text-muted">
+            <CircleX size={14} className="shrink-0" />
+            Already up to date
+          </span>
+        ) : conflictCount > 0 ? (
+          <span className="flex items-center gap-1.5 text-xs text-danger">
+            <CircleX size={14} className="shrink-0" />
+            May conflict in {conflictCount} file{conflictCount === 1 ? "" : "s"} (resolve after
+            merge)
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-xs text-success">
+            <CircleCheck size={14} className="shrink-0" />
+            Merge can be done without conflicts
+          </span>
+        )}
+        <span className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" disabled={upToDate} onClick={() => onConfirm(noFf)}>
+            Merge
+          </Button>
+        </span>
+      </div>
+    </Modal>
   );
 }
