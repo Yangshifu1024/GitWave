@@ -94,14 +94,11 @@ pub fn read_hook(repo: &Repository, name: &str) -> Result<String> {
     }
 }
 
-/// Write a hook script. Empty content removes the hook (disabling it) —
-/// writing actual scripts is the editor's purpose; on unix the file is
-/// made executable, mirroring what `git init` ships for samples.
+/// Write a hook script, creating the file if needed and marking it
+/// executable on unix (mirroring what `git init` ships for samples).
+/// To disable a hook, edit its content to a no-op — an empty or
+/// non-executable hook file is skipped by git.
 pub fn write_hook(repo: &Repository, name: &str, content: &str) -> Result<()> {
-    if content.trim().is_empty() {
-        // Disabling by emptying the content — keep the file, git skips
-        // non-executable/empty hooks. Simpler for the editor's roundtrip.
-    }
     let path = hook_path(repo, name)?;
     std::fs::write(&path, content).map_err(|e| AppError::Unknown(format!("write hook: {e}")))?;
     #[cfg(unix)]

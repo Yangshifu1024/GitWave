@@ -656,6 +656,49 @@ mod tests {
     }
 
     #[test]
+    fn resolve_ref_oid_prefers_local_over_remote_and_falls_back_to_revparse() {
+        let (path, repo) = build_linear_repo(2);
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+
+        // "main" resolves to HEAD via the local branch.
+        assert_eq!(resolve_ref_oid(&repo, "main").unwrap(), head);
+        // A short sha resolves through revparse.
+        let short = head.to_string()[..7].to_string();
+        assert_eq!(resolve_ref_oid(&repo, &short).unwrap(), head);
+        // Unknown names error cleanly.
+        assert!(resolve_ref_oid(&repo, "no/such/ref").is_err());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commits_ahead_of_matches_git_log_base_head() {
+        let (path, repo) = build_linear_repo(3);
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let root = repo
+            .revparse_single(&head.to_string())
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        let mut first = root;
+        for _ in 0..2 {
+            first = first.parent(0).unwrap();
+        }
+        let base = first.id();
+
+        // 3 commits total; ahead of the root commit are the 2 descendants.
+        let ahead = commits_ahead_of(&repo, base, head, 10).unwrap();
+        assert_eq!(ahead.len(), 2);
+
+        // Newest first: top entry's message matches HEAD's.
+        assert_eq!(ahead[0].subject, "commit 2");
+        // Limit truncates.
+        assert_eq!(commits_ahead_of(&repo, base, head, 1).unwrap().len(), 1);
+        // Base == head → nothing ahead.
+        assert!(commits_ahead_of(&repo, head, head, 10).unwrap().is_empty());
+        cleanup(&path);
+    }
+
+    #[test]
     fn commit_log_linear_returns_all_in_lane_zero() {
         let (path, repo) = build_linear_repo(5);
         let log = commit_log(&repo, 100, None).unwrap();

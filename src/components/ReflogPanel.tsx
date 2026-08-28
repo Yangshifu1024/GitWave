@@ -24,13 +24,16 @@ export function ReflogPanel({ onSelect }: { onSelect?: (sha: string) => void }):
     setBusy(true);
     try {
       setEntries(await listReflog(workspaceId));
+      setError(null);
+    } catch (e) {
+      setError(formatAppError(e));
     } finally {
       setBusy(false);
     }
   }, [workspaceId, repoId]);
 
   useEffect(() => {
-    refresh().catch((e) => setError(formatAppError(e)));
+    void refresh();
   }, [refresh]);
 
   const select = (sha: string): void => {

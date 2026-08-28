@@ -19,6 +19,19 @@ fn trim_base(base: &str) -> String {
     base.trim().trim_end_matches('/').to_string()
 }
 
+/// Map an HTTP error response to an AppError. Auth failures (401/403)
+/// become `Credential` so the failover chain STOPS and surfaces the root
+/// cause instead of masking it behind later network errors; every other
+/// HTTP failure stays `Network` (the chain may retry elsewhere).
+fn http_error(provider: &str, status: reqwest::StatusCode, detail: &str) -> AppError {
+    let message = format!("{provider} HTTP {status}: {detail}");
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        AppError::Credential(message)
+    } else {
+        AppError::Network(message)
+    }
+}
+
 fn openai_endpoint(base: Option<String>) -> String {
     let base = trim_base(base.as_deref().unwrap_or("https://api.openai.com"));
     if base.ends_with("/chat/completions") {
@@ -131,12 +144,13 @@ async fn openai_chat(
         .await
         .map_err(|e| AppError::Unknown(format!("openai json: {e}")))?;
     if !status.is_success() {
-        return Err(AppError::Network(format!(
-            "openai HTTP {status}: {}",
+        return Err(http_error(
+            "openai",
+            status,
             body["error"]["message"]
                 .as_str()
-                .unwrap_or("request failed")
-        )));
+                .unwrap_or("request failed"),
+        ));
     }
     body["choices"][0]["message"]["content"]
         .as_str()
@@ -179,12 +193,13 @@ async fn anthropic_chat(
         .await
         .map_err(|e| AppError::Unknown(format!("anthropic json: {e}")))?;
     if !status.is_success() {
-        return Err(AppError::Network(format!(
-            "anthropic HTTP {status}: {}",
+        return Err(http_error(
+            "anthropic",
+            status,
             body["error"]["message"]
                 .as_str()
-                .unwrap_or("request failed")
-        )));
+                .unwrap_or("request failed"),
+        ));
     }
     if let Some(text) = anthropic_content_text(&body) {
         return Ok(text);
@@ -252,7 +267,7 @@ async fn ollama_chat(base: &str, model: &str, system: &str, user: &str) -> Resul
         .await
         .map_err(|e| AppError::Unknown(format!("ollama json: {e}")))?;
     if !status.is_success() {
-        return Err(AppError::Network(format!("ollama HTTP {status}")));
+        return Err(http_error("ollama", status, "request failed"));
     }
     body["message"]["content"]
         .as_str()

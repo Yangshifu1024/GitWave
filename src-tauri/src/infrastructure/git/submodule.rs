@@ -125,8 +125,18 @@ pub fn add_submodule(repo: &Repository, url: &str, path: &str) -> Result<()> {
     let mut checkout = git2::build::CheckoutBuilder::new();
     checkout.allow_conflicts(true);
     opts.checkout(checkout);
-    sm.clone(Some(&mut opts))
-        .map_err(|e| AppError::Unknown(format!("submodule clone: {e}")))?;
+    if let Err(e) = sm.clone(Some(&mut opts)) {
+        // Best-effort rollback of the half-cloned worktree directory;
+        // `git_submodule_add_setup` has already touched .gitmodules, which
+        // cannot be rolled back safely from here — say so explicitly.
+        if let Some(workdir) = repo.workdir() {
+            let _ = std::fs::remove_dir_all(workdir.join(path));
+        }
+        return Err(AppError::Unknown(format!(
+            "submodule clone failed: {e} — the half-cloned directory was removed, \
+             but .gitmodules may have been modified (discard it to revert)"
+        )));
+    }
     sm.add_to_index(true).map_err(map_git_err)?;
     sm.add_finalize().map_err(map_git_err)?;
     Ok(())

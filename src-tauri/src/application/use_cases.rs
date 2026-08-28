@@ -487,8 +487,8 @@ fn should_failover(err: &AppError) -> bool {
 /// Resolve the primary + failover entries into concrete attempts. Cloud
 /// entries whose API key cannot be resolved are skipped (they can never
 /// succeed); a missing key on the *primary* is a hard error, matching the
-/// pre-failover behavior. In offline mode (PM 1.6) the chain keeps only
-/// local Ollama entries.
+/// pre-failover behavior. Offline mode (PM 1.6) is checked FIRST so a
+/// disabled cloud primary cannot shadow a reachable Ollama fallback.
 fn resolve_ai_chain(
     settings: &WorkspaceSettings,
     key_lookup: &AiKeyLookup,
@@ -519,6 +519,32 @@ fn resolve_ai_chain(
         .ok_or_else(|| {
             AppError::Protocol("AI provider not configured for this Workspace".into())
         })?;
+
+    // Offline mode: keep only Ollama entries, before any cloud key checks —
+    // demanding a key for a provider the user just disabled is misleading.
+    if settings.ai_offline {
+        let mut chain = Vec::new();
+        if primary == "ollama" {
+            chain.push(resolve(
+                &primary,
+                &settings.ai_model,
+                &settings.ai_base_url,
+            )?);
+        }
+        for fb in &settings.ai_failover {
+            if fb.provider.trim() == "ollama" {
+                chain.push(resolve("ollama", &fb.model, &fb.base_url)?);
+            }
+        }
+        if chain.is_empty() {
+            return Err(AppError::Protocol(
+                "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
+                    .into(),
+            ));
+        }
+        return Ok(chain);
+    }
+
     let head = resolve(&primary, &settings.ai_model, &settings.ai_base_url)?;
     if head.provider != "ollama" && head.api_key.is_none() {
         return Err(AppError::Credential(format!(
@@ -543,28 +569,19 @@ fn resolve_ai_chain(
             Err(_) => continue,
         }
     }
-
-    if settings.ai_offline {
-        chain.retain(|p| p.provider == "ollama");
-        if chain.is_empty() {
-            return Err(AppError::Protocol(
-                "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
-                    .into(),
-            ));
-        }
-    }
     Ok(chain)
 }
 
 /// Run the chain in order; the first non-network outcome wins. Network
 /// failures walk to the next entry; when the chain is exhausted the last
-/// error is raised.
+/// error is raised, with a per-provider summary when several failed.
 async fn generate_with_failover(
     chain: Vec<ResolvedAiProvider>,
     system: String,
     user: String,
 ) -> Result<AiGenerateOutcome> {
     let total = chain.len();
+    let mut failures: Vec<String> = Vec::new();
     let mut last_err: Option<AppError> = None;
     for (i, entry) in chain.into_iter().enumerate() {
         tracing::info!(
@@ -592,12 +609,24 @@ async fn generate_with_failover(
             }
             Err(e) if should_failover(&e) => {
                 tracing::warn!(provider = %entry.provider, error = %e, "ai provider failed, trying next");
+                failures.push(format!("{}: {e}", entry.provider));
                 last_err = Some(e);
             }
+            // Non-network errors (auth, config, content) stop the chain so
+            // the root cause surfaces instead of being masked by later
+            // providers' failures.
             Err(e) => return Err(e),
         }
     }
-    Err(last_err.expect("resolve_ai_chain never returns an empty chain"))
+    let last = last_err.expect("resolve_ai_chain never returns an empty chain");
+    if failures.len() > 1 {
+        Err(AppError::Unknown(format!(
+            "all providers failed — {}",
+            failures.join("; ")
+        )))
+    } else {
+        Err(last)
+    }
 }
 
 /// Generate a commit message suggestion from staged/workdir diff + recent commits.
@@ -1517,8 +1546,9 @@ pub fn add_submodule(
     infra_submodule_add(&repo, &url, &path)
 }
 
-/// `git submodule deinit <name>` — unregisters from `.git/config`; the
-/// submodule worktree is emptied.
+/// `git submodule deinit <name>` — unregisters from `.git/config`. Milder
+/// than git's version: the submodule worktree is left untouched (nothing
+/// is deleted); the entry stays in `.gitmodules` and the index.
 pub fn deinit_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -2231,6 +2261,25 @@ mod tests {
         let cloud_only = chain_settings(Some("openai"), vec![], true);
         let err = resolve_ai_chain(&cloud_only, &lookup).expect_err("offline");
         assert!(err.to_string().contains("offline mode"), "got: {err}");
+    }
+
+    #[test]
+    fn ai_chain_offline_does_not_demand_cloud_key() {
+        // Offline + cloud primary without a stored key must still reach the
+        // Ollama fallback — the user disabled cloud calls on purpose.
+        let settings = chain_settings(
+            Some("openai"),
+            vec![AiProviderConfig {
+                provider: "ollama".into(),
+                model: None,
+                base_url: None,
+            }],
+            true,
+        );
+        let lookup = key_lookup_for(&[("openai", None)]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain reaches ollama");
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].provider, "ollama");
     }
 
     fn fresh_ctx() -> AppContext {
