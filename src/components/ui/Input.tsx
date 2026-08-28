@@ -54,7 +54,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                 "bg-bg-elevated border text-text-primary text-sm",
                 "px-3 py-1",
                 "placeholder:text-text-muted",
-                "transition-colors duration-200",
+                "transition-colors duration-base",
                 "focus:outline-none focus:ring-2 focus:ring-accent",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               ].join(" "),

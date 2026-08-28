@@ -23,7 +23,7 @@ export function SyncProgressBar(): React.JSX.Element | null {
     <div
       className={cn(
         "absolute bottom-0 inset-x-0 z-30 h-0.5 overflow-hidden bg-accent/15",
-        "transition-opacity duration-150",
+        "transition-opacity duration-fast",
         fading && "opacity-0",
       )}
       role="progressbar"
@@ -34,7 +34,7 @@ export function SyncProgressBar(): React.JSX.Element | null {
     >
       <div
         className={cn(
-          "relative h-full bg-accent transition-[width] duration-120 ease-out",
+          "relative h-full bg-accent transition-[width] duration-fast ease-out",
           !determinate && "w-full sync-progress-indeterminate",
         )}
         style={determinate ? { width: `${percent}%` } : undefined}

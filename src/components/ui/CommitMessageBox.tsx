@@ -98,7 +98,7 @@ export function CommitMessageBox({
           "w-full resize-none",
           "rounded-md border border-border-default bg-bg-elevated",
           "px-3 py-2 text-sm text-text-primary placeholder:text-text-muted",
-          "transition-colors duration-200",
+          "transition-colors duration-base",
           "focus:outline-none focus:ring-2 focus:ring-accent",
           "disabled:opacity-50 disabled:cursor-not-allowed",
           amendMessage != null && "border-warning/50",

@@ -66,7 +66,7 @@ export function ToastProvider({ children }: ToastProviderProps): React.JSX.Eleme
             className={cn(
               "group pointer-events-auto relative flex w-80 items-start gap-3",
               "rounded-lg border border-border-default bg-bg-elevated p-4 shadow-modal",
-              "transition-all duration-200",
+              "transition-all duration-base",
               "data-[state=open]:animate-in data-[state=closed]:animate-out",
               "data-[state=closed]:fade-out-80 data-[state=open]:fade-in-0",
               "data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full",

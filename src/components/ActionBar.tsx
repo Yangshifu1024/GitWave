@@ -708,7 +708,7 @@ export function ActionBar(): React.JSX.Element {
               <div className="flex flex-col gap-1">
                 <div className="h-1.5 rounded bg-bg-secondary overflow-hidden">
                   <div
-                    className="h-full bg-accent transition-[width] duration-200"
+                    className="h-full bg-accent transition-[width] duration-base"
                     style={{
                       width: `${
                         cloneProgress && cloneProgress.totalObjects > 0

@@ -160,7 +160,7 @@ export function Pane({
       data-pane-grow={grow ? "true" : undefined}
       data-pane-collapsed={collapsed ? "true" : undefined}
       className={cn(
-        "overflow-hidden min-w-0 min-h-0 h-full transition-[box-shadow,opacity] duration-200 ease-out",
+        "overflow-hidden min-w-0 min-h-0 h-full transition-[box-shadow,opacity] duration-base ease-out",
         collapsed && "opacity-0 pointer-events-none !min-w-0 !max-w-0",
         className,
       )}

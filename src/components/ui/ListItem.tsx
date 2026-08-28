@@ -43,7 +43,7 @@ export function ListItem({
       }
       className={cn(
         "group flex items-center gap-2 px-3 py-1.5 select-none",
-        "transition-colors duration-150",
+        "transition-colors duration-fast",
         "text-sm text-text-primary",
         "border-l-[3px]",
         selected && "bg-accent/10 border-l-accent hover:bg-accent/15",

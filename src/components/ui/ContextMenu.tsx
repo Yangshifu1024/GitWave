@@ -18,7 +18,6 @@ export const ContextMenuContent = forwardRef<
         "p-1",
         "animate-in fade-in-0 zoom-in-95",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className,
       )}
       {...props}
@@ -55,7 +54,7 @@ export const ContextMenuItem = forwardRef<
     onSelect={onSelect}
     className={cn(
       "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-      "outline-none transition-colors duration-150",
+      "outline-none transition-colors duration-fast",
       "focus:bg-bg-secondary",
       destructive ? "text-danger" : "text-text-primary",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
