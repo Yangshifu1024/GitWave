@@ -49,6 +49,9 @@ pub struct PromptTemplates {
     /// rows loadable.
     #[serde(default)]
     pub reflog: Option<String>,
+    /// M3 health report summarizer.
+    #[serde(default)]
+    pub health: Option<String>,
 }
 
 /// Lifecycle status of a repo reference. `Missing` indicates the repo's

@@ -15,6 +15,8 @@ export interface PromptTemplates {
   pr: string | null;
   /** M2 recovery assistant (reflog explanation). */
   reflog?: string | null;
+  /** M3 health report summarizer. */
+  health?: string | null;
 }
 
 export interface WorkspaceSettings {
@@ -479,6 +481,31 @@ export interface ReflogEntry {
   message: string;
   committer: string;
   time: number;
+}
+
+// --- Repo health (M3) -------------------------------------------------------
+
+export interface LargeFile {
+  path: string;
+  size_bytes: number;
+}
+
+export interface HealthReport {
+  unpushed: number | null;
+  conflict_residue: string[];
+  dirty_files: number;
+  stale_branches: string[];
+  large_files: LargeFile[];
+  branch_count: number;
+  tag_count: number;
+}
+
+export function getHealth(workspaceId: string): Promise<HealthReport> {
+  return invoke<HealthReport>("cmd_get_health", { workspaceId });
+}
+
+export function explainHealth(workspaceId: string): Promise<string> {
+  return invoke<string>("cmd_explain_health", { workspaceId });
 }
 
 export function listReflog(workspaceId: string, reference?: string): Promise<ReflogEntry[]> {

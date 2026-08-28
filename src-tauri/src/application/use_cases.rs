@@ -33,6 +33,7 @@ use crate::infrastructure::git::diff::{
     diff_index_to_head_files as infra_diff_index_to_head_files, diff_paths as infra_diff_paths,
     diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
 };
+use crate::infrastructure::git::health::{collect_health as infra_collect_health, HealthReport};
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_details as infra_commit_details,
     commit_log as infra_commit_log, commit_recent_messages as infra_commit_recent_messages,
@@ -965,6 +966,55 @@ pub fn list_reflog(
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_list_reflog(&repo, reference.as_deref().unwrap_or("HEAD"))
+}
+
+/// Deterministic repo health metrics (M3).
+pub fn get_health(ctx: &AppContext, workspace_id: &str) -> Result<HealthReport> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_collect_health(&repo)
+}
+
+/// AI summary of the health report (advice only, P1).
+pub async fn explain_health(ctx: &AppContext, workspace_id: String) -> Result<String> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    ensure_ai_online(&settings)?;
+    let chain = ai_chain(&settings, &workspace_id)?;
+    let primary = &chain[0];
+    let model = settings
+        .ai_model
+        .clone()
+        .unwrap_or_else(|| match primary.provider.as_str() {
+            "anthropic" => "claude-3-5-haiku-latest".into(),
+            "ollama" => "llama3.2".into(),
+            _ => "gpt-4o-mini".into(),
+        });
+
+    let report = get_health(ctx, &workspace_id)?;
+    let user = format!(
+        "Repo health metrics (JSON):
+{}
+
+Write a short health assessment:          what looks fine, what needs attention, and the single most          valuable next action. Plain text, no markdown fences.",
+        serde_json::to_string_pretty(&report)
+            .map_err(|e| AppError::Unknown(format!("serialize report: {e}")))?,
+    );
+    let system = settings.prompt_templates.health.clone().unwrap_or_else(|| {
+        "You are a repository health assistant. You receive deterministic          metrics about a git repository and summarize them for a developer.          Advice only — you never execute anything."
+            .into()
+    });
+
+    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
+        provider: primary.provider.clone(),
+        model,
+        base_url: primary.base_url.clone(),
+        api_key: primary.api_key.clone(),
+        system,
+        user,
+        fallbacks: chain[1..].to_vec(),
+    })
+    .await
 }
 
 /// `git reset --hard <oid>` on the current branch — M2 recovery action,
