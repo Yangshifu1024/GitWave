@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use git2::{Oid, Repository, ResetType};
 
 use crate::domain::error::{AppError, Result};
+use crate::infrastructure::git::git2_adapter::commit_signature;
 
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::Unknown(format!("git: {e}"))
@@ -143,7 +144,7 @@ fn commit_index(repo: &Repository, parents: &[&git2::Commit], message: &str) -> 
     let mut index = repo.index().map_err(map_git_err)?;
     let tree_oid = index.write_tree().map_err(map_git_err)?;
     let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
-    let sig = git2::Signature::now("GitWave", "noreply@gitwave.local").map_err(map_git_err)?;
+    let sig = commit_signature(repo)?;
     let oid = repo
         .commit(Some("HEAD"), &sig, &sig, message, &tree, parents)
         .map_err(map_git_err)?;
@@ -273,8 +274,7 @@ fn replay_todos(
                 let mut index = repo.index().map_err(map_git_err)?;
                 let tree_oid = index.write_tree().map_err(map_git_err)?;
                 let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
-                let sig = git2::Signature::now("GitWave", "noreply@gitwave.local")
-                    .map_err(map_git_err)?;
+                let sig = commit_signature(repo)?;
                 let msg = if todo.action == InteractiveRebaseAction::Fixup {
                     head.message().unwrap_or("").to_string()
                 } else if let Some(ref m) = todo.message {

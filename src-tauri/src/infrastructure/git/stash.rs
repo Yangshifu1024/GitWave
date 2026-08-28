@@ -5,6 +5,7 @@ use git2::{Repository, StashFlags};
 use crate::domain::error::{AppError, Result};
 use crate::domain::stash::StashEntry;
 use crate::infrastructure::git::diff::{diff_commit_vs_parent, DiffSummary};
+use crate::infrastructure::git::git2_adapter::commit_signature;
 
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::Unknown(format!("git: {e}"))
@@ -25,10 +26,7 @@ pub fn list_stashes(repo: &mut Repository) -> Result<Vec<StashEntry>> {
 }
 
 pub fn save_stash(repo: &mut Repository, message: Option<&str>) -> Result<String> {
-    let sig = repo
-        .signature()
-        .or_else(|_| git2::Signature::now("GitWave", "gitwave@local"))
-        .map_err(map_git_err)?;
+    let sig = commit_signature(repo)?;
     let oid = repo
         .stash_save(
             &sig,

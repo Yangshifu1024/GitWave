@@ -6,6 +6,7 @@
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::infrastructure::git::git2_adapter::commit_signature;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -71,7 +72,7 @@ pub fn rebase_branch(repo: &Repository, upstream: &str) -> Result<RebaseResult> 
         });
     }
 
-    let sig = git2::Signature::now("GitWave", "noreply@gitwave.local").map_err(map_git_err)?;
+    let sig = commit_signature(repo)?;
     let mut opts = git2::RebaseOptions::new();
     opts.inmemory(true); // Don't touch the workdir; let caller decide
                          // `Rebase::rebase` takes `Option<AnnotatedCommit>` not `Option<Oid>`.
