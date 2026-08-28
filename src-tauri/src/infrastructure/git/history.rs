@@ -656,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_ref_oid_prefers_local_over_remote_and_falls_back_to_revparse() {
+    fn resolve_ref_oid_resolves_local_branch_and_revspec_fallback() {
         let (path, repo) = build_linear_repo(2);
         let head = repo.head().unwrap().peel_to_commit().unwrap().id();
 
@@ -667,6 +667,26 @@ mod tests {
         assert_eq!(resolve_ref_oid(&repo, &short).unwrap(), head);
         // Unknown names error cleanly.
         assert!(resolve_ref_oid(&repo, "no/such/ref").is_err());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn resolve_ref_oid_prefers_local_branch_over_same_short_remote_name() {
+        let (path, repo) = build_linear_repo(2);
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        // Remote-tracking `origin/main` points at the ROOT commit while the
+        // local `main` sits one ahead — the local branch must win on "main".
+        let root = repo.find_commit(head).unwrap().parent(0).unwrap().id();
+        repo.reference(
+            "refs/remotes/origin/main",
+            root,
+            true,
+            "test: seed remote-tracking ref",
+        )
+        .unwrap();
+
+        assert_eq!(resolve_ref_oid(&repo, "main").unwrap(), head);
+        assert_eq!(resolve_ref_oid(&repo, "origin/main").unwrap(), root);
         cleanup(&path);
     }
 

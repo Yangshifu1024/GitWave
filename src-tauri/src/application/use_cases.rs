@@ -477,9 +477,11 @@ pub fn default_ai_model(provider: &str) -> &'static str {
 }
 
 /// Failover policy: only network-level failures (unreachable host, HTTP
-/// status, rate limits) move to the next provider. Content and
-/// configuration errors stop the chain — the next provider would make the
-/// same mistake on the same prompt.
+/// 4xx/5xx other than auth, rate limits) move to the next provider. Auth
+/// failures (401/403, mapped to `Credential` in `provider::http_error`)
+/// stop the chain so the root cause surfaces; content and configuration
+/// errors stop too — the next provider would make the same mistake on the
+/// same prompt.
 fn should_failover(err: &AppError) -> bool {
     matches!(err, AppError::Network(_))
 }
