@@ -242,6 +242,8 @@
 
 落地细节见 [`01-tokens.md`](./01-tokens.md) §1。
 
+> 2026-08-28 dark 材质分层（见 [`07-theme.md`](./07-theme.md) §3.1）：dark 下 `bg-panel` 提至窗口与 elevated 之间——K `#2A2A2D`、A `#191F25`；light 不变。diff 语义色 token（`diff-add/del/hunk`）同日新增。
+
 ## 选定后
 
 1. 将选中方案的 Light/Dark 值写入 `01-tokens.md` §1
