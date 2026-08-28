@@ -581,6 +581,22 @@ export function deinitSubmodule(workspaceId: string, name: string): Promise<void
   return invoke<void>("cmd_deinit_submodule", { workspaceId, name });
 }
 
+// ─── Reflog (v0.2 browser) ─────────────────────────────────────────────────
+
+/** One HEAD reflog entry (movement of the reference). */
+export interface ReflogEntry {
+  old_sha: string | null;
+  new_sha: string;
+  message: string | null;
+  committer: string;
+  time: number;
+}
+
+/** HEAD reflog, newest first. */
+export function listReflog(workspaceId: string): Promise<ReflogEntry[]> {
+  return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId });
+}
+
 // --- .gitignore editor (S2) -------------------------------------------------
 
 export function getGitignore(workspaceId: string): Promise<string> {

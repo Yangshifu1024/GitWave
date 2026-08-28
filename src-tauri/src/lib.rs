@@ -27,13 +27,13 @@ use application::{
     get_gitignore, get_repo_ai_rules, get_stash_diff, get_workdir_diff, get_working_copy,
     get_workspace, ignore_path, import_workspace, init_repo, init_submodule,
     interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack, list_conflicts,
-    list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags, list_workspaces,
-    list_worktrees, merge_branch, merge_in_progress, merge_preview, plan_interactive_rebase,
-    pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
-    rename_workspace, resolve_conflict, revert_commit, save_stash, set_active_repo, set_ai_api_key,
-    stage_all, stage_files, test_ssh_connection, unstage_files, update_submodule,
-    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
-    AppContext, PaletteIntent, PrDescriptionOutcome,
+    list_reflog, list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags,
+    list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
+    plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
+    remove_repo, remove_worktree, rename_workspace, resolve_conflict, revert_commit, save_stash,
+    set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection, unstage_files,
+    update_submodule, update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome,
+    AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -41,6 +41,7 @@ use domain::diff::FileDiff;
 use domain::error::AppError;
 use domain::history::{CommitDetails, CommitSummary};
 use domain::lfs::LfsStatus;
+use domain::reflog::ReflogEntry;
 use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
@@ -638,6 +639,14 @@ async fn cmd_get_gitignore(
 }
 
 #[tauri::command]
+async fn cmd_list_reflog(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<ReflogEntry>, AppError> {
+    list_reflog(&ctx, &workspace_id)
+}
+
+#[tauri::command]
 async fn cmd_write_gitignore(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -1113,6 +1122,7 @@ pub fn run() {
             cmd_lfs_track,
             cmd_lfs_untrack,
             cmd_get_gitignore,
+            cmd_list_reflog,
             cmd_write_gitignore,
             cmd_export_workspace,
             cmd_import_workspace,

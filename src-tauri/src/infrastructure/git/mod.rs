@@ -15,6 +15,7 @@ pub mod interactive_rebase;
 pub mod lfs;
 pub mod merge;
 pub mod rebase;
+pub mod reflog;
 pub mod remote;
 pub mod repo_adapter;
 pub mod revert;

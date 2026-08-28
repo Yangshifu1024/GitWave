@@ -23,6 +23,7 @@ import { StashPanel } from "@/components/StashPanel";
 import { WorktreePanel } from "@/components/WorktreePanel";
 import { SubmodulesPanel } from "@/components/SubmodulesPanel";
 import { TagsPanel } from "@/components/TagsPanel";
+import { ReflogPanel } from "@/components/ReflogPanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
@@ -143,6 +144,9 @@ function App(): React.JSX.Element {
                     </SidebarSection>
                     <SidebarSection title="Submodules" defaultOpen={false}>
                       <SubmodulesPanel />
+                    </SidebarSection>
+                    <SidebarSection title="Reflog" defaultOpen={false}>
+                      <ReflogPanel onSelect={handleTagSelect} />
                     </SidebarSection>
                   </>
                 ) : (

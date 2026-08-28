@@ -11,6 +11,7 @@ use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
 use crate::domain::lfs::LfsStatus;
+use crate::domain::reflog::ReflogEntry;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
@@ -58,6 +59,7 @@ use crate::infrastructure::git::merge::{
     MergeResult,
 };
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
+use crate::infrastructure::git::reflog::read_reflog as infra_read_reflog;
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
@@ -1569,6 +1571,14 @@ pub fn get_gitignore(ctx: &AppContext, workspace_id: &str) -> Result<String> {
         return Ok(String::new());
     }
     std::fs::read_to_string(&path).map_err(|e| AppError::Unknown(format!("read .gitignore: {e}")))
+}
+
+/// HEAD reflog for the sidebar browser, newest first. Read-only — recovery
+/// actions are v0.3 scope.
+pub fn list_reflog(ctx: &AppContext, workspace_id: &str) -> Result<Vec<ReflogEntry>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_read_reflog(&repo, "HEAD")
 }
 
 /// Overwrite the repo-root `.gitignore` (S2 editor). Trailing newline is
