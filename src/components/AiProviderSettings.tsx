@@ -347,6 +347,12 @@ export function AiProviderSettings({
         </Button>
         {templatesOpen ? (
           <div className="flex flex-col gap-2 rounded-md border border-border-subtle p-2">
+            <p className="text-[11px] text-text-muted">
+              Each field replaces the built-in system prompt for that task — the diff, conflict
+              sides, and repo context are appended automatically. Leave empty to use the built-in
+              default. Per-repo rules (<code>.gitwave/AI.md</code>) are added on top of whichever
+              prompt runs.
+            </p>
             <PromptTemplateField
               label="Commit message"
               value={tplCommit}
@@ -363,7 +369,7 @@ export function AiProviderSettings({
               label="PR description"
               value={tplPr}
               onChange={setTplPr}
-              placeholder="Reserved for PR description generation (v0.2)"
+              placeholder="System prompt for AI PR description generation"
             />
           </div>
         ) : null}

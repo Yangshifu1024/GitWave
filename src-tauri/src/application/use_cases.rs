@@ -194,7 +194,7 @@ pub fn get_workspace(ctx: &AppContext, id: String) -> Result<Workspace> {
 pub fn update_workspace_settings(
     ctx: &AppContext,
     id: String,
-    settings: WorkspaceSettings,
+    mut settings: WorkspaceSettings,
 ) -> Result<()> {
     let provider = settings.ai_provider.as_deref().unwrap_or("");
     if !provider.is_empty() && !matches!(provider, "openai" | "anthropic" | "ollama") {
@@ -208,6 +208,18 @@ pub fn update_workspace_settings(
                 "unsupported ai_failover provider: {}",
                 fb.provider
             )));
+        }
+    }
+    // A blank template means "use the built-in default", not "empty system
+    // prompt" — normalize on save so consumers can unwrap directly.
+    let templates = &mut settings.prompt_templates;
+    for template in [
+        &mut templates.commit,
+        &mut templates.conflict,
+        &mut templates.pr,
+    ] {
+        if template.as_deref().map(str::trim) == Some("") {
+            *template = None;
         }
     }
     ctx.workspaces
@@ -1601,6 +1613,22 @@ mod tests {
         let list = list_workspaces(&ctx).expect("list");
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, ws.id);
+    }
+
+    #[test]
+    fn update_settings_normalizes_blank_templates_to_default() {
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Ws".into()).expect("create");
+        let mut settings = WorkspaceSettings::default();
+        settings.prompt_templates.commit = Some("   ".into());
+        settings.prompt_templates.pr = Some("Custom PR prompt.".into());
+        update_workspace_settings(&ctx, ws.id.clone(), settings).expect("update");
+        let stored = get_workspace(&ctx, ws.id).expect("get").settings;
+        assert_eq!(stored.prompt_templates.commit, None, "blank means default");
+        assert_eq!(
+            stored.prompt_templates.pr.as_deref(),
+            Some("Custom PR prompt.")
+        );
     }
 
     #[test]
