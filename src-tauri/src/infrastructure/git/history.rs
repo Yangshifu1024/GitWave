@@ -10,6 +10,29 @@ use crate::domain::branch::{BranchInfo, BranchKind};
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::{CommitRef, CommitRefKind, CommitSummary};
 
+/// Full commit messages of the latest `n` commits on the current branch,
+/// newest first, walking the first-parent chain from HEAD.
+///
+/// Merge commits on the branch line are included; commits merged in from
+/// side branches are not — that matches "当前分支最近 n 次提交". Unlike
+/// [`commit_log`] this keeps the whole message (subject + body), e.g. for
+/// AI prompt style reference. Empty repo (unborn HEAD) yields an empty vec.
+pub fn commit_recent_messages(repo: &Repository, n: u32) -> Result<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    let Some(mut oid) = repo.head().ok().and_then(|head| head.target()) else {
+        return Ok(out);
+    };
+    while out.len() < n as usize {
+        let commit = repo.find_commit(oid).map_err(map_git_err)?;
+        out.push(commit.message().unwrap_or("").trim().to_string());
+        if commit.parent_count() == 0 {
+            break;
+        }
+        oid = commit.parent_id(0).map_err(map_git_err)?;
+    }
+    Ok(out)
+}
+
 /// Walk commits across **all local and remote branch tips** (like
 /// `git log --all`), up to `max` entries, **newest first**, and assign
 /// each a lane index for graph rendering.
@@ -484,6 +507,37 @@ mod tests {
         cleanup(&path);
 
         assert_eq!(log.len(), 3);
+    }
+
+    #[test]
+    fn commit_recent_messages_returns_full_messages_newest_first() {
+        let (path, repo) = build_linear_repo(5);
+        let msgs = commit_recent_messages(&repo, 3).unwrap();
+        cleanup(&path);
+
+        assert_eq!(msgs, vec!["commit 4", "commit 3", "commit 2"]);
+    }
+
+    #[test]
+    fn commit_recent_messages_keeps_body_and_walks_first_parent() {
+        // build_merge_repo leaves HEAD on main's 2-parent merge commit; the
+        // first-parent chain must include the merge (full message) but skip
+        // the feature branch's commits.
+        let (path, repo) = build_merge_repo();
+        let msgs = commit_recent_messages(&repo, 10).unwrap();
+        cleanup(&path);
+
+        assert_eq!(msgs.len(), 3);
+        assert!(msgs[0].contains("merge"), "top should be the merge commit");
+    }
+
+    #[test]
+    fn commit_recent_messages_empty_repo() {
+        let (path, repo) = init_empty_repo();
+        let msgs = commit_recent_messages(&repo, 3).unwrap();
+        cleanup(&path);
+
+        assert!(msgs.is_empty());
     }
 
     #[test]

@@ -33,7 +33,7 @@ use crate::infrastructure::git::diff::{
 };
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_log as infra_commit_log,
-    list_branches as infra_list_branches,
+    commit_recent_messages as infra_commit_recent_messages, list_branches as infra_list_branches,
 };
 use crate::infrastructure::git::interactive_rebase::{
     abort_interactive_rebase_pause as infra_abort_irebase_pause,
@@ -417,7 +417,11 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
     let repo_path = active_repo_path(ctx, &workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     let staged = infra_diff_index_to_head(&repo)?;
-    let workdir = infra_diff_workdir_to_index(&repo)?;
+    if staged.files.is_empty() {
+        return Err(AppError::Protocol(
+            "no staged changes — stage files before generating a commit message".into(),
+        ));
+    }
     let recent = infra_commit_log(&repo, 8)?;
 
     let mut user = String::new();
@@ -425,10 +429,16 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
     for c in &recent {
         user.push_str(&format!("- {}\n", c.message_summary));
     }
+    // Full messages of the branch's last 3 commits so the model can mirror
+    // the repo's actual style (language, body formatting).
+    user.push_str("\nLast 3 commit messages on this branch (style reference):\n");
+    for msg in infra_commit_recent_messages(&repo, 3)? {
+        user.push_str("---\n");
+        user.push_str(&msg);
+        user.push_str("\n---\n");
+    }
     user.push_str("\nStaged changes:\n");
     append_diff_summary(&mut user, &staged);
-    user.push_str("\nUnstaged changes:\n");
-    append_diff_summary(&mut user, &workdir);
 
     let system = settings.prompt_templates.commit.unwrap_or_else(|| {
         "You write concise git commit messages. Output ONLY the message text. \

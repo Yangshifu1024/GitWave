@@ -182,11 +182,36 @@ async fn anthropic_chat(
                 .unwrap_or("request failed")
         )));
     }
-    body["content"][0]["text"]
-        .as_str()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| AppError::Unknown("anthropic returned empty content".into()))
+    if let Some(text) = anthropic_content_text(&body) {
+        return Ok(text);
+    }
+    // No text block found — include the response shape in the error so
+    // provider-side changes stay debuggable without a proxy.
+    let content_json: String = body["content"].to_string().chars().take(200).collect();
+    Err(AppError::Unknown(format!(
+        "anthropic returned no text content (stop_reason: {}, content: {})",
+        body["stop_reason"].as_str().unwrap_or("none"),
+        content_json
+    )))
+}
+
+/// Join the `text` of every content block, skipping non-text blocks such
+/// as the `thinking` blocks emitted by hybrid-reasoning models (GLM,
+/// Claude extended thinking): those carry their payload in `thinking`,
+/// not `text`, and must not shadow the answer that follows them.
+fn anthropic_content_text(body: &Value) -> Option<String> {
+    let text = body["content"]
+        .as_array()?
+        .iter()
+        .filter_map(|block| block["text"].as_str())
+        .collect::<Vec<_>>()
+        .join("");
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
 }
 
 async fn ollama_chat(base: &str, model: &str, system: &str, user: &str) -> Result<String> {
@@ -218,4 +243,37 @@ async fn ollama_chat(base: &str, model: &str, system: &str, user: &str) -> Resul
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .ok_or_else(|| AppError::Unknown("ollama returned empty content".into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_plain_text_block() {
+        let body = json!({"content": [{"type": "text", "text": "  hello  "}]});
+        assert_eq!(anthropic_content_text(&body).as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn skips_thinking_block_and_joins_text_blocks() {
+        // Hybrid-reasoning models (GLM 5.x, Claude extended thinking)
+        // prepend a thinking block whose payload lives in `thinking`.
+        let body = json!({"content": [
+            {"type": "thinking", "thinking": "let me think"},
+            {"type": "text", "text": "feat(ai): "},
+            {"type": "text", "text": "parse response"}
+        ]});
+        assert_eq!(
+            anthropic_content_text(&body).as_deref(),
+            Some("feat(ai): parse response")
+        );
+    }
+
+    #[test]
+    fn none_when_only_thinking_blocks() {
+        let body = json!({"content": [{"type": "thinking", "thinking": "hmm"}]});
+        assert_eq!(anthropic_content_text(&body), None);
+        assert_eq!(anthropic_content_text(&json!({})), None);
+    }
 }
