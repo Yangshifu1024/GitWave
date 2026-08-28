@@ -64,6 +64,9 @@ export function CommitMessageBox({
   };
 
   const canSubmit = value.trim().length > 0 && !disabled;
+  // Git convention caps the subject line (~50 soft / 72 hard); the body may
+  // be any length, so the warning must look at the first line only.
+  const firstLineLength = (value.split("\n", 1)[0] ?? "").length;
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
@@ -92,7 +95,7 @@ export function CommitMessageBox({
         onKeyDown={handleKeyDown}
         placeholder="feat: your commit message here…"
         disabled={disabled}
-        rows={2}
+        rows={6}
         maxLength={500}
         className={cn(
           "w-full resize-none",
@@ -105,46 +108,44 @@ export function CommitMessageBox({
         )}
         aria-label="Commit message"
       />
-      {(value.length > 0 && value.length < 10) || value.length >= 72 ? (
+      {value.length > 0 && (value.length < 10 || firstLineLength > 72) ? (
         <p className="text-xs text-text-muted text-right -mt-1">
-          {value.length < 10 ? `${value.length} chars` : `${value.length} chars (first line > 72)`}
+          {value.length < 10
+            ? `${value.length} chars`
+            : `${value.length} chars (first line > 72: ${firstLineLength})`}
         </p>
       ) : null}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-end gap-2">
+        {amendMessage != null && (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={disabled}
+            onClick={() => {
+              onChange(amendMessage);
+              textareaRef.current?.focus();
+            }}
+            title="Prefill with last commit message"
+          >
+            Amend
+          </Button>
+        )}
         {onAiGenerate ? (
           <Button
             variant="ghost"
             size="sm"
+            className="p-1"
             disabled={disabled}
             onClick={onAiGenerate}
             title="Generate commit message with AI"
             aria-label="Generate commit message with AI"
           >
             <Sparkles size={14} />
-            AI Generate
           </Button>
-        ) : (
-          <span />
-        )}
-        <span className="flex items-center gap-2">
-          {amendMessage != null && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={disabled}
-              onClick={() => {
-                onChange(amendMessage);
-                textareaRef.current?.focus();
-              }}
-              title="Prefill with last commit message"
-            >
-              Amend
-            </Button>
-          )}
-          <Button variant="primary" size="sm" disabled={!canSubmit} onClick={onSubmit}>
-            {amendMessage != null ? "Amend commit" : "Commit"}
-          </Button>
-        </span>
+        ) : null}
+        <Button variant="primary" size="sm" disabled={!canSubmit} onClick={onSubmit}>
+          {amendMessage != null ? "Amend commit" : "Commit"}
+        </Button>
       </div>
     </div>
   );
