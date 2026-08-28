@@ -100,4 +100,3 @@ Tauri event 推送 → 前端流式渲染
 
 - 跨 Workspace 全局搜索的索引策略
 - 大仓库（monorepo）的 lazy load 策略
-- v0.3 MCP server 内置的进程内暴露方式

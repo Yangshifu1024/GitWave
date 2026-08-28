@@ -42,12 +42,11 @@ docs/tech/
 | 分类 | 文档 | 内容 |
 |---|---|---|
 | tech-selection | [tech-selection/00-overview.md](./tech-selection/00-overview.md) | 桌面框架 / 前端栈 / Git 后端 / 存储 / AI 集成的选型与理由 |
-| tech-selection | [tech-selection/01-mcp-stdio.md](./tech-selection/01-mcp-stdio.md) | gitwave-mcp 的协议实现选型（手写 stdio JSON-RPC vs SDK）、只读范围与接入配置 |
 | architecture | [architecture/00-overview.md](./architecture/00-overview.md) | 进程拓扑、DDD 分层、IPC 边界、性能热点、多 Workspace 并行 |
 | decisions | [decisions/00-overview.md](./decisions/00-overview.md) | ADR 汇总（框架 / Workspace / 凭证 / AI 双轨） |
 | engineering | [engineering/00-overview.md](./engineering/00-overview.md) | 代码风格 / 测试策略 / 错误与日志 / CI/CD / 安全 |
 | planning | [planning/roadmap-v0.2.md](./planning/roadmap-v0.2.md) | v0.2 开发计划：里程碑 M0–M3、依赖、验收、风险 |
-| planning | [planning/roadmap-v0.3.md](./planning/roadmap-v0.3.md) | v0.3 开发计划：里程碑 M0–M5、依赖、验收、风险 |
+| planning | [planning/roadmap-v0.3.md](./planning/roadmap-v0.3.md) | v0.3 开发计划：里程碑 M0–M4、依赖、验收、风险 |
 
 ## 关联
 

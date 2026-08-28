@@ -106,7 +106,6 @@
 - AI 误操作恢复（reflog 语义化 + 恢复建议）
 - 协作（remote / PR / lightweight review）
 - Linux 稳定版
-- MCP server 内置
 
 **完成定义**：
 

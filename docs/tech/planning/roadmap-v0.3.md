@@ -7,24 +7,20 @@
 
 ## 1. 范围决策
 
-以下三项为本计划的边界性决策,实施中不得 silently 扩大范围:
+以下两项为本计划的边界性决策,实施中不得 silently 扩大范围:
 
 1. **v0.2 依赖项前置(M0)**:v0.3 直系依赖的 v0.2 未完成项(reflog 浏览器、provider
    failover)作为 M0 前置阶段一并排期。与 v0.3 无依赖关系的 v0.2 尾巴——Git LFS、
    hooks 编辑器、AI command palette、per-repo AI rules(`.gitwave/`)、AI history 解释、
    AI PR 描述——**不入本计划**,维持独立排期;其中 AI PR 描述因协作范围缩减为
-   仅 remote 管理(见决策 3)而暂失消费方,随 PR/MR 功能回归时再做。
-2. **MCP server = 只读查询**:stdio 传输的 MCP server,向 Claude / Cursor 等外部 AI
-   客户端暴露**只读**仓库查询工具(status / diff / history / branches / file / blame)。
-   不暴露任何写操作——与 P1(AI 永不自动变更仓库)对齐,也把首版工作量控制在
-   可验收的规模。
-3. **协作首批 = 仅 remote 管理**:remote 增删改 + URL / 状态可视化。PR/MR 创建、
+   仅 remote 管理(见决策 2)而暂失消费方,随 PR/MR 功能回归时再做。
+2. **协作首批 = 仅 remote 管理**:remote 增删改 + URL / 状态可视化。PR/MR 创建、
    code review、Issue 链接留后续版本(届时再引入平台 API 与 OAuth)。
 
 ## 2. 里程碑
 
-依赖关系:`M0 → M2`;`M3` 弱依赖 `M0` 的 failover(可选);`M1`、`M4`、`M5` 独立,
-可并行。建议顺序:M0 → M1 → M2 → M3 → M4/M5(并行收尾)。
+依赖关系:`M0 → M2`;`M3` 弱依赖 `M0` 的 failover(可选);`M1`、`M4` 独立,
+可并行。建议顺序:M0 → M1 → M2 → M3 → M4(并行收尾)。
 
 ### M0 · v0.2 前置依赖(工作量:M)
 
@@ -75,19 +71,7 @@
 
 依赖:M0 failover(可选,提升可靠性)。
 
-### M4 · MCP server(只读)(工作量:M)
-
-现状:全仓无任何 MCP 设施,从零引入。
-
-| 项 | 范围 | 验收标准 |
-|---|---|---|
-| server 骨架 | 独立 CLI 入口(如 `gitwave mcp --repo <path>` 或 `gitwave-mcp` 二进制),stdio 传输;SDK 选型(rmcp / 官方 rust-sdk)实施时定并记录到 tech-selection | Claude / 任一 MCP 客户端可发现并列出工具 |
-| 只读工具集 | `repo_status` / `get_diff` / `get_history` / `list_branches` / `read_file` / `blame`,直接复用 `infrastructure/git/*`(不依赖 Tauri runtime 与 AppContext) | 每个工具在 MCP 客户端实测返回;无任何写工具 |
-| 文档 | README 说明如何在 Claude/Cursor 配置;安全说明(只读承诺) | 用户按文档 5 分钟内接入 |
-
-依赖:无(与 M0-M3 并行)。风险见 §4。
-
-### M5 · Linux 稳定版(工作量:S)
+### M4 · Linux 稳定版(工作量:S)
 
 现状:CI 已出 deb/rpm/appimage 三产物;但仅 tag 触发、artifact `if-no-files-found: warn`
 (打包静默失败 CI 仍绿)、无 desktop 元数据定制、无 release 发布步骤。
@@ -104,16 +88,15 @@
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
-| MCP Rust SDK 生态年轻 | M4 选型反复 | 实施首日做 30 分钟 spike 再定;工具层与 SDK 解耦(纯函数 → MCP 适配薄层) |
 | keyring 命名空间迁移 | 误伤既有 AI key | M1 只加参数不动 AI 路径 + 回归测试 |
 | failover 改 settings 结构 | 旧数据兼容 | `ai_provider` 保留为链首;新字段 serde default |
-| Linux 回归发现滞后 | M5 验收延期 | CI 加固提前到 M5 首项;可选分支构建 |
+| Linux 回归发现滞后 | M4 验收延期 | CI 加固提前到 M4 首项;可选分支构建 |
 | 范围蔓延(协作想提前做 PR) | 版本失焦 | 决策 3 已锁;PR 随 v0.4 评估 |
 
 ## 4. 完成定义对照(02-scope §2.3)
 
 | 完成定义 | 落点 |
 |---|---|
-| 三平台可用 | M5(macOS/Win 已可用,Linux 补验收) |
+| 三平台可用 | M4(macOS/Win 已可用,Linux 补验收) |
 | AI 智能能力端到端可用 | M2 + M3(M0 保障可靠性) |
 | 协作能力走通 | M1(本轮决策:协作验收 = remote 管理闭环;PR/MR 顺延) |
