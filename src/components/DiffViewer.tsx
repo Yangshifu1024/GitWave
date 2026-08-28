@@ -5,7 +5,7 @@ import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { Button } from "@/components/ui/Button";
-import { Chip, Radio, RadioGroup } from "@heroui/react";
+import { Chip } from "@heroui/react";
 import { BlameView } from "@/components/BlameView";
 import { filterDiffSummary } from "@/lib/diff";
 import { cn } from "@/lib/utils";
@@ -224,44 +224,6 @@ function fileChangeKey(f: { path: string; staged?: boolean | null }): string {
   return `${f.staged ? "s" : "u"}:${f.path}`;
 }
 
-/** Compact iOS-style segmented control. */
-function SegmentedControl({
-  segments,
-  active,
-  onSelect,
-  "aria-label": ariaLabel,
-}: {
-  segments: { key: string; label: string }[];
-  active: string | null;
-  onSelect: (key: string) => void;
-  "aria-label": string;
-}): React.JSX.Element {
-  return (
-    <RadioGroup
-      value={active ?? ""}
-      onChange={onSelect}
-      orientation="horizontal"
-      aria-label={ariaLabel}
-      className="flex items-center gap-0 rounded-md border border-border-subtle bg-bg-primary p-0.5 [&_[data-slot=radio]]:mt-0"
-    >
-      {segments.map((s) => (
-        <Radio key={s.key} value={s.key}>
-          <Radio.Content
-            className={cn(
-              "h-auto rounded-sm border-0 px-2 py-0.5 text-xs shadow-none transition-colors duration-fast",
-              active === s.key
-                ? "bg-accent font-medium text-text-inverse"
-                : "bg-transparent text-text-secondary hover:text-text-primary",
-            )}
-          >
-            {s.label}
-          </Radio.Content>
-        </Radio>
-      ))}
-    </RadioGroup>
-  );
-}
-
 function FileDiffView({
   fileDiff,
   mode,
@@ -430,7 +392,6 @@ export function DiffViewer({
 
   const visible = diff ? filterDiffSummary(diff, path, staged) : null;
   const fileKeys = visible ? visible.files.map(fileChangeKey) : [];
-  const allCollapsed = fileKeys.length > 0 && fileKeys.every((k) => collapsedFiles.has(k));
   const anyCollapsed = fileKeys.some((k) => collapsedFiles.has(k));
 
   if (!activeWorkspaceId) {
@@ -530,28 +491,32 @@ export function DiffViewer({
         <span className="text-success text-sm">+{visible.total_additions}</span>
         <span className="text-danger text-sm">-{visible.total_deletions}</span>
         <div className="ml-auto flex items-center gap-1.5">
-          <SegmentedControl
-            aria-label="File fold"
-            segments={[
-              { key: "expand", label: "Expand" },
-              { key: "collapse", label: "Collapse" },
-            ]}
-            active={allCollapsed ? "collapse" : anyCollapsed ? null : "expand"}
-            onSelect={(key) =>
+          {/* Action-labeled toggles: the label names what clicking does. */}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            aria-label={anyCollapsed ? "Expand all files" : "Collapse all files"}
+            title={anyCollapsed ? "Expand all files" : "Collapse all files"}
+            disabled={visible.files.length === 0}
+            onClick={() =>
               setCollapsedFiles(
-                key === "collapse" ? new Set(visible.files.map(fileChangeKey)) : new Set(),
+                anyCollapsed ? new Set() : new Set(visible.files.map(fileChangeKey)),
               )
             }
-          />
-          <SegmentedControl
-            aria-label="Diff view"
-            segments={[
-              { key: "unified", label: "Unified" },
-              { key: "split", label: "Split" },
-            ]}
-            active={mode}
-            onSelect={(key) => setMode(key as DiffViewMode)}
-          />
+          >
+            {anyCollapsed ? "Expand" : "Collapse"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            aria-label={mode === "unified" ? "Switch to split view" : "Switch to unified view"}
+            title={mode === "unified" ? "Switch to split view" : "Switch to unified view"}
+            onClick={() => setMode(mode === "unified" ? "split" : "unified")}
+          >
+            {mode === "unified" ? "Split" : "Unified"}
+          </Button>
           {!hideMaximize ? (
             <Button
               type="button"
