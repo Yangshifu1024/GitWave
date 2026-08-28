@@ -4,15 +4,26 @@ use keyring::Entry;
 
 use crate::domain::error::{AppError, Result};
 
-const SERVICE: &str = "gitwave.ai";
+/// AI keys keep the historical service name — existing installs must keep
+/// resolving their stored keys.
+pub const SERVICE_AI: &str = "gitwave.ai";
+
+/// Namespace reserved for remote credentials (M1+). Not used yet: remote
+/// auth still goes through the system `git credential fill` helper.
+pub const SERVICE_REMOTE: &str = "gitwave.remote";
 
 fn account(workspace_id: &str, provider: &str) -> String {
     format!("{workspace_id}:{provider}")
 }
 
 fn entry(workspace_id: &str, provider: &str) -> Result<Entry> {
-    Entry::new(SERVICE, &account(workspace_id, provider))
-        .map_err(|e| AppError::Unknown(format!("keychain: {e}")))
+    entry_in_service(SERVICE_AI, &account(workspace_id, provider))
+}
+
+/// Keychain entry under an explicit service namespace, so other features
+/// can share the keyring without colliding with AI keys.
+pub(crate) fn entry_in_service(service: &str, account: &str) -> Result<Entry> {
+    Entry::new(service, account).map_err(|e| AppError::Unknown(format!("keychain: {e}")))
 }
 
 pub fn set_api_key(workspace_id: &str, provider: &str, key: &str) -> Result<()> {
@@ -42,5 +53,16 @@ pub fn clear_api_key(workspace_id: &str, provider: &str) -> Result<()> {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(AppError::Unknown(format!("keychain delete: {e}"))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ai_service_namespace_is_stable() {
+        assert_eq!(SERVICE_AI, "gitwave.ai");
+        assert_ne!(SERVICE_REMOTE, SERVICE_AI);
     }
 }
