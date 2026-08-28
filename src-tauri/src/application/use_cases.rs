@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::domain::blame::BlameLine;
 use crate::domain::branch::BranchInfo;
-use crate::domain::diff::FileDiff;
+use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::{CommitDetails, CommitSummary};
 use crate::domain::stash::StashEntry;
@@ -28,7 +28,8 @@ use crate::infrastructure::git::conflict::{
 };
 use crate::infrastructure::git::diff::{
     diff_commit_vs_parent as infra_diff_commit_vs_parent,
-    diff_index_to_head as infra_diff_index_to_head, diff_paths as infra_diff_paths,
+    diff_index_to_head as infra_diff_index_to_head,
+    diff_index_to_head_files as infra_diff_index_to_head_files, diff_paths as infra_diff_paths,
     diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
 };
 use crate::infrastructure::git::history::{
@@ -444,9 +445,19 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
     user.push_str("\nStaged changes:\n");
     append_diff_summary(&mut user, &staged);
 
+    // The model must see WHAT changed, not just which files — file names
+    // alone make it hallucinate plausible-sounding but wrong subjects (the
+    // Aug 2026 "word wrap toggle" incident). Capped so huge diffs cannot
+    // blow the context.
+    let staged_files = infra_diff_index_to_head_files(&repo)?;
+    user.push_str("\nStaged diff (unified format, may be truncated):\n");
+    append_diff_patch(&mut user, &staged_files, 12_000);
+
     let system = settings.prompt_templates.commit.unwrap_or_else(|| {
         "You write concise git commit messages. Output ONLY the message text. \
              Prefer conventional commits (type: summary). First line <= 72 chars. \
+             Base the message strictly on the provided staged diff — do not invent \
+             changes that are not visible in it. \
              Do not wrap in markdown fences."
             .into()
     });
@@ -472,6 +483,55 @@ fn append_diff_summary(buf: &mut String, diff: &DiffSummary) {
             "- {} (+{} -{})\n",
             f.path, f.additions, f.deletions
         ));
+    }
+}
+
+/// Render the staged files as unified-diff text, stopping at `budget`
+/// characters. Files without hunks (binary / mode-only) are skipped — the
+/// summary section already lists them.
+fn append_diff_patch(buf: &mut String, files: &[FileDiff], budget: usize) {
+    let mut written = 0usize;
+    let mut truncated = false;
+    'outer: for file in files {
+        if file.hunks.is_empty() {
+            continue;
+        }
+        if written + file.path.len() * 2 + 16 > budget {
+            truncated = true;
+            break;
+        }
+        buf.push_str(&format!("\n--- a/{}\n+++ b/{}\n", file.path, file.path));
+        written += file.path.len() * 2 + 16;
+        for hunk in &file.hunks {
+            let header = format!(
+                "@@ -{},{} +{},{} @@\n",
+                hunk.old_start, hunk.old_lines, hunk.new_start, hunk.new_lines
+            );
+            if written + header.len() > budget {
+                truncated = true;
+                break 'outer;
+            }
+            buf.push_str(&header);
+            written += header.len();
+            for line in &hunk.lines {
+                let sign = match line.kind {
+                    DiffLineKind::Added => '+',
+                    DiffLineKind::Removed => '-',
+                    DiffLineKind::Context => ' ',
+                };
+                if written + line.content.len() + 1 > budget {
+                    truncated = true;
+                    break 'outer;
+                }
+                buf.push(sign);
+                buf.push_str(&line.content);
+                buf.push('\n');
+                written += line.content.len() + 1;
+            }
+        }
+    }
+    if truncated {
+        buf.push_str("\n[diff truncated due to size]\n");
     }
 }
 
@@ -1003,9 +1063,66 @@ fn active_repo_path(ctx: &AppContext, workspace_id: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::diff::{DiffHunk, DiffLine};
     use crate::infrastructure::persistence::migrations;
     use rusqlite::Connection;
     use std::fs;
+
+    fn patch_fixture(long_content: Option<String>) -> Vec<FileDiff> {
+        let content = long_content.unwrap_or_else(|| "new".into());
+        vec![FileDiff {
+            path: "a.txt".into(),
+            old_sha: None,
+            new_sha: None,
+            additions: 1,
+            deletions: 1,
+            hunks: vec![DiffHunk {
+                old_start: 1,
+                old_lines: 2,
+                new_start: 1,
+                new_lines: 2,
+                lines: vec![
+                    DiffLine {
+                        kind: DiffLineKind::Context,
+                        content: "keep".into(),
+                        old_line_no: Some(1),
+                        new_line_no: Some(1),
+                    },
+                    DiffLine {
+                        kind: DiffLineKind::Removed,
+                        content: "old".into(),
+                        old_line_no: Some(2),
+                        new_line_no: None,
+                    },
+                    DiffLine {
+                        kind: DiffLineKind::Added,
+                        content,
+                        old_line_no: None,
+                        new_line_no: Some(2),
+                    },
+                ],
+            }],
+            staged: None,
+        }]
+    }
+
+    #[test]
+    fn diff_patch_renders_unified_lines() {
+        let mut buf = String::new();
+        append_diff_patch(&mut buf, &patch_fixture(None), 10_000);
+        assert!(buf.contains("--- a/a.txt\n+++ b/a.txt\n"));
+        assert!(buf.contains("@@ -1,2 +1,2 @@\n"));
+        assert!(buf.contains("\n keep\n") && buf.contains("\n-old\n") && buf.contains("\n+new\n"));
+        assert!(!buf.contains("truncated"));
+    }
+
+    #[test]
+    fn diff_patch_truncates_at_budget() {
+        let mut buf = String::new();
+        append_diff_patch(&mut buf, &patch_fixture(Some("x".repeat(500))), 40);
+        assert!(buf.contains("[diff truncated due to size]"));
+        assert!(buf.len() < 500, "budget must bound output: {}", buf.len());
+    }
 
     fn fresh_ctx() -> AppContext {
         let conn = Connection::open_in_memory().expect("in-memory sqlite");

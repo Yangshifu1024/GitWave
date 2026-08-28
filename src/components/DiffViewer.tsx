@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, PanelRightClose, PanelRightOpen } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Columns2,
+  FoldVertical,
+  PanelRightClose,
+  PanelRightOpen,
+  Square,
+  UnfoldVertical,
+} from "lucide-react";
 import type { DiffSummary, FileDiff, DiffHunk, DiffLine } from "@/lib/api";
 import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -491,31 +500,36 @@ export function DiffViewer({
         <span className="text-success text-sm">+{visible.total_additions}</span>
         <span className="text-danger text-sm">-{visible.total_deletions}</span>
         <div className="ml-auto flex items-center gap-1.5">
-          {/* Action-labeled toggles: the label names what clicking does. */}
+          {/* Icon toggles styled like the panel button: the icon shows the
+              state clicking switches to (action semantics). */}
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
             size="sm"
+            className="p-1.5 text-text-muted hover:text-accent"
+            disabled={visible.files.length === 0}
+            aria-pressed={anyCollapsed}
             aria-label={anyCollapsed ? "Expand all files" : "Collapse all files"}
             title={anyCollapsed ? "Expand all files" : "Collapse all files"}
-            disabled={visible.files.length === 0}
             onClick={() =>
               setCollapsedFiles(
                 anyCollapsed ? new Set() : new Set(visible.files.map(fileChangeKey)),
               )
             }
           >
-            {anyCollapsed ? "Expand" : "Collapse"}
+            {anyCollapsed ? <UnfoldVertical size={14} /> : <FoldVertical size={14} />}
           </Button>
           <Button
             type="button"
-            variant="secondary"
+            variant="ghost"
             size="sm"
+            className="p-1.5 text-text-muted hover:text-accent"
+            aria-pressed={mode === "split"}
             aria-label={mode === "unified" ? "Switch to split view" : "Switch to unified view"}
             title={mode === "unified" ? "Switch to split view" : "Switch to unified view"}
             onClick={() => setMode(mode === "unified" ? "split" : "unified")}
           >
-            {mode === "unified" ? "Split" : "Unified"}
+            {mode === "unified" ? <Columns2 size={14} /> : <Square size={14} />}
           </Button>
           {!hideMaximize ? (
             <Button
