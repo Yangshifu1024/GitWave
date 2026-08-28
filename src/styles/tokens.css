@@ -59,13 +59,14 @@
   --color-diff-del-word: #efc6c4;
   --color-diff-hunk-bg: #f0f0f3;
 
-  /* fonts — platform-native first (SF Pro / Segoe UI), bundled Roboto as the
-   * Linux / fallback tier, CJK fallbacks always present. See 07-theme.md §3.2 */
+  /* fonts — sans stays platform-native (SF Pro / Segoe UI); mono leads with
+   * bundled Roboto Mono for a consistent code face across platforms. CJK
+   * fallbacks always present. See 07-theme.md §3.2 */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto,
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
     "Helvetica Neue", Arial, "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   --font-mono:
-    "Cascadia Mono", "SF Mono", "Roboto Mono", Menlo, Consolas, "Microsoft YaHei", "PingFang SC",
+    "Roboto Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas, "Microsoft YaHei", "PingFang SC",
     "Noto Sans CJK SC", monospace;
 
   /* radius */

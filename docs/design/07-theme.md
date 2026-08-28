@@ -85,21 +85,22 @@ light：全部不变（层次已成立）
 
 ### 3.2 字体
 
-平台优先 + 中文回退（必含）+ 打包 Roboto 兜底（Linux / 缺字体平台）：
+sans 平台优先 + 中文回退（必含）；mono 以打包的 Roboto Mono 首选（跨平台一致）：
 
 ```
 font-sans:
   -apple-system, BlinkMacSystemFont, "SF Pro Text",
   "Segoe UI Variable Text", "Segoe UI",
-  Roboto, "Helvetica Neue", Arial,
+  "Helvetica Neue", Arial,
   "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif
 
 font-mono:
-  "Cascadia Mono", "SF Mono", "Roboto Mono", Menlo, Consolas,
+  "Roboto Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas,
   "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", monospace
 ```
 
-- `@fontsource/roboto` 打包保留（Linux 兜底 + 保证 mono 一致性）
+- `@fontsource/roboto` 已移除（Roboto 不再进任何字体栈）
+- `@fontsource/roboto-mono` 打包保留（mono 首选，保证跨平台一致）
 - 全局 `font-variant-numeric: tabular-nums`（ahead / behind 计数、行号对齐）
 
 ### 3.3 动效
