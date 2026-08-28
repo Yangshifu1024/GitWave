@@ -17,19 +17,20 @@ use std::sync::{Arc, Mutex};
 
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_ssh_key, add_worktree,
-    apply_stash, checkout_branch, clear_ai_api_key, clone_repo, commit,
-    continue_interactive_rebase, create_branch, create_workspace, delete_branch,
-    delete_remote_branch, delete_ssh_key, delete_workspace, discard_changes, drop_stash,
-    execute_interactive_rebase, explain_conflict, fetch, generate_commit_message, get_ahead_behind,
-    get_ai_key_status, get_blame, get_branches, get_commit_details, get_commit_diff,
-    get_commit_log, get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff,
-    get_working_copy, get_workspace, ignore_path, init_repo, interactive_rebase_paused,
-    list_conflicts, list_repos, list_ssh_keys, list_stashes, list_workspaces, list_worktrees,
-    merge_branch, merge_in_progress, merge_preview, plan_interactive_rebase, pop_stash,
-    probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
-    rename_workspace, resolve_conflict, save_stash, set_active_repo, set_ai_api_key, stage_all,
-    stage_files, test_ssh_connection, unstage_files, update_workspace_settings, AheadBehind,
-    AiKeyStatus, AppContext,
+    apply_stash, checkout_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit,
+    continue_interactive_rebase, create_branch, create_tag, create_workspace, delete_branch,
+    delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
+    drop_stash, execute_interactive_rebase, explain_conflict, export_workspace, fetch,
+    generate_commit_message, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
+    get_commit_details, get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff,
+    get_gitignore, get_stash_diff, get_workdir_diff, get_working_copy, get_workspace, ignore_path,
+    import_workspace, init_repo, init_submodule, interactive_rebase_paused, list_conflicts,
+    list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags, list_workspaces,
+    list_worktrees, merge_branch, merge_in_progress, merge_preview, plan_interactive_rebase,
+    pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
+    rename_workspace, resolve_conflict, revert_commit, save_stash, set_active_repo, set_ai_api_key,
+    stage_all, stage_files, test_ssh_connection, unstage_files, update_submodule,
+    update_workspace_settings, write_gitignore, AheadBehind, AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -275,8 +276,9 @@ async fn cmd_get_commit_log(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     max: u32,
+    filter: Option<String>,
 ) -> Result<Vec<CommitSummary>, AppError> {
-    get_commit_log(&ctx, &workspace_id, max)
+    get_commit_log(&ctx, &workspace_id, max, filter)
 }
 
 #[tauri::command]
@@ -460,6 +462,113 @@ async fn cmd_rebase_branch(
     upstream: String,
 ) -> Result<RebaseResult, AppError> {
     rebase_branch(&ctx, &workspace_id, &upstream)
+}
+
+#[tauri::command]
+async fn cmd_revert_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    commit_oid: String,
+) -> Result<String, AppError> {
+    revert_commit(&ctx, &workspace_id, &commit_oid)
+}
+
+#[tauri::command]
+async fn cmd_cherry_pick_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    commit_oid: String,
+) -> Result<String, AppError> {
+    cherry_pick_commit(&ctx, &workspace_id, &commit_oid)
+}
+
+#[tauri::command]
+async fn cmd_list_tags(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<infrastructure::git::tag::TagInfo>, AppError> {
+    list_tags(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_create_tag(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    target_oid: Option<String>,
+    message: Option<String>,
+) -> Result<String, AppError> {
+    create_tag(&ctx, &workspace_id, &name, target_oid, message)
+}
+
+#[tauri::command]
+async fn cmd_delete_tag(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    delete_tag(&ctx, &workspace_id, &name)
+}
+
+#[tauri::command]
+async fn cmd_list_submodules(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<infrastructure::git::submodule::SubmoduleInfo>, AppError> {
+    list_submodules(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_init_submodule(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    init_submodule(&ctx, &workspace_id, &name)
+}
+
+#[tauri::command]
+async fn cmd_update_submodule(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    update_submodule(&ctx, &workspace_id, &name)
+}
+
+#[tauri::command]
+async fn cmd_get_gitignore(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<String, AppError> {
+    get_gitignore(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_write_gitignore(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    content: String,
+) -> Result<(), AppError> {
+    write_gitignore(&ctx, &workspace_id, &content)
+}
+
+#[tauri::command]
+async fn cmd_export_workspace(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    dest_path: String,
+) -> Result<String, AppError> {
+    export_workspace(&ctx, &workspace_id, &dest_path)
+}
+
+#[tauri::command]
+async fn cmd_import_workspace(
+    ctx: tauri::State<'_, AppContext>,
+    src_path: String,
+    new_name: Option<String>,
+) -> Result<WorkspaceSummary, AppError> {
+    import_workspace(&ctx, &src_path, new_name)
 }
 
 #[tauri::command]
@@ -892,6 +1001,18 @@ pub fn run() {
             cmd_merge_in_progress,
             cmd_explain_conflict,
             cmd_rebase_branch,
+            cmd_revert_commit,
+            cmd_cherry_pick_commit,
+            cmd_list_tags,
+            cmd_create_tag,
+            cmd_delete_tag,
+            cmd_list_submodules,
+            cmd_init_submodule,
+            cmd_update_submodule,
+            cmd_get_gitignore,
+            cmd_write_gitignore,
+            cmd_export_workspace,
+            cmd_import_workspace,
             cmd_plan_interactive_rebase,
             cmd_execute_interactive_rebase,
             cmd_continue_interactive_rebase,

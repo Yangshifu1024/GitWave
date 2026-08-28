@@ -8,6 +8,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Chip, Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
 import { Circle, FolderOpen, GitBranch, Tag } from "lucide-react";
 
 const ROW_H = 28;
@@ -387,6 +388,17 @@ export function CommitGraph({
   const [localSelected, setLocalSelected] = useState<string | null>(null);
   const [limit, setLimit] = useState(INITIAL_LIMIT);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [filter, setFilter] = useState<string | null>(null);
+
+  // Debounce keystrokes so each character doesn't trigger a backend walk.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const needle = searchInput.trim();
+      setFilter(needle ? needle : null);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const selectedSha = selectedShaProp !== undefined ? selectedShaProp : localSelected;
 
@@ -403,7 +415,7 @@ export function CommitGraph({
 
   // Pagination key: context (workspace/repo/epoch) switch resets the window;
   // growing `limit` refetches a larger prefix of the same deterministic walk.
-  const fetchKey = `${activeWorkspaceId ?? ""}|${activeRepoId ?? ""}|${historyEpoch}`;
+  const fetchKey = `${activeWorkspaceId ?? ""}|${activeRepoId ?? ""}|${historyEpoch}|${filter ?? ""}`;
   const prevFetchKeyRef = React.useRef<string | null>(null);
 
   useEffect(() => {
@@ -423,7 +435,7 @@ export function CommitGraph({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getCommitLog(activeWorkspaceId, limit)
+    getCommitLog(activeWorkspaceId, limit, filter)
       .then(setCommits)
       .catch((e) => {
         if (!cancelled) {
@@ -437,7 +449,7 @@ export function CommitGraph({
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspaceId, activeRepoId, historyEpoch, limit, fetchKey]);
+  }, [activeWorkspaceId, activeRepoId, historyEpoch, limit, fetchKey, filter]);
 
   const virtualizer = useVirtualizer({
     count: commits.length,
@@ -529,49 +541,60 @@ export function CommitGraph({
   }
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto" onScroll={handleScroll}>
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const commit = commits[virtualRow.index];
-          if (!commit) return null;
-          return (
-            <div
-              key={commit.sha}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <CommitRow
-                commit={commit}
-                art={rowArtByIndex[virtualRow.index] ?? EMPTY_ROW_ART}
-                maxLane={maxLane}
-                onSelect={handleSelect}
-                isSelected={selectedSha === commit.sha}
-                isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
-              />
-            </div>
-          );
-        })}
+    <div className="h-full flex flex-col min-h-0">
+      <div className="shrink-0 border-b border-border-subtle bg-bg-elevated px-3 py-1.5">
+        <Input
+          variant="search"
+          value={searchInput}
+          onChange={setSearchInput}
+          placeholder="Search commits (message or author)"
+          className="h-7"
+        />
       </div>
-
-      {loading && commits.length > 0 ? (
-        <div className="py-2 text-center text-[10px] text-text-muted">Loading older commits…</div>
-      ) : !hasMore && commits.length > 0 ? (
-        <div className="py-2 text-center text-[10px] text-text-muted">
-          End of history · {commits.length} commits
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const commit = commits[virtualRow.index];
+            if (!commit) return null;
+            return (
+              <div
+                key={commit.sha}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <CommitRow
+                  commit={commit}
+                  art={rowArtByIndex[virtualRow.index] ?? EMPTY_ROW_ART}
+                  maxLane={maxLane}
+                  onSelect={handleSelect}
+                  isSelected={selectedSha === commit.sha}
+                  isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
+                />
+              </div>
+            );
+          })}
         </div>
-      ) : null}
+
+        {loading && commits.length > 0 ? (
+          <div className="py-2 text-center text-[10px] text-text-muted">Loading older commits…</div>
+        ) : !hasMore && commits.length > 0 ? (
+          <div className="py-2 text-center text-[10px] text-text-muted">
+            End of history · {commits.length} commits
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

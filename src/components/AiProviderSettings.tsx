@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Label } from "@/components/ui/Label";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Textarea } from "@/components/ui/Textarea";
 
 const PROVIDERS = [
   { id: "openai", label: "OpenAI" },
@@ -61,6 +63,11 @@ export function AiProviderSettings({
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [tplCommit, setTplCommit] = useState("");
+  const [tplConflict, setTplConflict] = useState("");
+  const [tplPr, setTplPr] = useState("");
 
   const { data: workspace } = useQuery({
     queryKey: ["workspace", workspaceId],
@@ -82,6 +89,10 @@ export function AiProviderSettings({
     setProvider(resolved);
     setModel(s.ai_model ?? defaultModel(resolved));
     setBaseUrl(s.ai_base_url ?? defaultBaseUrl(resolved));
+    setOffline(Boolean(s.ai_offline));
+    setTplCommit(s.prompt_templates.commit ?? "");
+    setTplConflict(s.prompt_templates.conflict ?? "");
+    setTplPr(s.prompt_templates.pr ?? "");
   }, [workspace]);
 
   const saveMut = useMutation({
@@ -96,6 +107,12 @@ export function AiProviderSettings({
           trimmedBase && trimmedBase !== defaultBaseUrl(provider)
             ? trimmedBase
             : trimmedBase || null,
+        ai_offline: offline,
+        prompt_templates: {
+          commit: tplCommit.trim() || null,
+          conflict: tplConflict.trim() || null,
+          pr: tplPr.trim() || null,
+        },
       };
       await updateWorkspaceSettings(workspaceId, settings);
       if (provider !== "ollama" && apiKey.trim()) {
@@ -127,7 +144,7 @@ export function AiProviderSettings({
       }}
       title={workspaceName ? `AI provider · ${workspaceName}` : "AI provider"}
       description="Workspace-scoped. Cloud keys use OS keychain (BYOK). AI never auto-commits."
-      size="sm"
+      size="md"
     >
       <div className="flex flex-col gap-3">
         <Label className="text-xs text-text-secondary">
@@ -210,6 +227,41 @@ export function AiProviderSettings({
           </>
         )}
 
+        <Checkbox checked={offline} onChange={setOffline} className="text-xs">
+          Offline mode — disable all cloud AI calls (Ollama still allowed)
+        </Checkbox>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          className="self-start"
+          onClick={() => setTemplatesOpen((v) => !v)}
+        >
+          {templatesOpen ? "Hide prompt templates" : "Prompt templates (commit / conflict / PR)"}
+        </Button>
+        {templatesOpen ? (
+          <div className="flex flex-col gap-2 rounded-md border border-border-subtle p-2">
+            <PromptTemplateField
+              label="Commit message"
+              value={tplCommit}
+              onChange={setTplCommit}
+              placeholder="Override the built-in commit-message system prompt"
+            />
+            <PromptTemplateField
+              label="Conflict explanation"
+              value={tplConflict}
+              onChange={setTplConflict}
+              placeholder="Override the built-in conflict-explanation system prompt"
+            />
+            <PromptTemplateField
+              label="PR description"
+              value={tplPr}
+              onChange={setTplPr}
+              placeholder="Reserved for PR description generation (v0.2)"
+            />
+          </div>
+        ) : null}
+
         {error ? <p className="text-xs text-danger">{error}</p> : null}
         {notice ? <p className="text-xs text-text-secondary">{notice}</p> : null}
 
@@ -228,5 +280,31 @@ export function AiProviderSettings({
         </div>
       </div>
     </Modal>
+  );
+}
+
+function PromptTemplateField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}): React.JSX.Element {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-text-secondary">
+      {label}
+      <Textarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={3}
+        spellCheck={false}
+        className="rounded-md px-2 py-1.5 font-mono text-[11px] leading-5"
+      />
+    </label>
   );
 }

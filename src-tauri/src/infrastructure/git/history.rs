@@ -140,7 +140,11 @@ pub fn commit_recent_messages(repo: &Repository, n: u32) -> Result<Vec<String>> 
 /// 2. Place each commit into the column that reserved it (or allocate a free column).
 /// 3. First parent continues on the same lane; additional parents open new lanes.
 /// 4. That produces forks on side lanes and merge curves back to the main lane.
-pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
+pub fn commit_log(repo: &Repository, max: u32, filter: Option<&str>) -> Result<Vec<CommitSummary>> {
+    let filter = filter.map(str::trim).filter(|f| !f.is_empty());
+    // Filtering has to scan deeper than the returned page size.
+    let scan_cap = if filter.is_some() { 10_000 } else { max };
+    let filter_lower = filter.map(str::to_lowercase);
     let mut walk = repo.revwalk().map_err(map_git_err)?;
     // Newest-first topological order: children before parents. Required for
     // correct fork/merge lane allocation.
@@ -189,17 +193,26 @@ pub fn commit_log(repo: &Repository, max: u32) -> Result<Vec<CommitSummary>> {
     }
 
     let mut raw: Vec<Raw> = Vec::with_capacity(max as usize);
-    for oid in walk.take(max as usize) {
+    for oid in walk.take(scan_cap as usize) {
         let oid = oid.map_err(map_git_err)?;
         let commit = repo.find_commit(oid).map_err(map_git_err)?;
         let author = commit.author();
         let message = commit.message().unwrap_or("").to_string();
+        let summary = message.lines().next().unwrap_or("").to_string();
+        if let Some(needle) = &filter_lower {
+            let matches = summary.to_lowercase().contains(needle)
+                || author.name().unwrap_or("").to_lowercase().contains(needle)
+                || message.to_lowercase().contains(needle);
+            if !matches {
+                continue;
+            }
+        }
         raw.push(Raw {
             sha: commit.id().to_string(),
             author: author.name().unwrap_or("").to_string(),
             author_email: author.email().unwrap_or("").to_string(),
             time: commit.time().seconds(),
-            message_summary: message.lines().next().unwrap_or("").to_string(),
+            message_summary: summary,
             parents: commit.parent_ids().map(|p| p.to_string()).collect(),
         });
     }
@@ -594,7 +607,7 @@ mod tests {
     #[test]
     fn commit_log_linear_returns_all_in_lane_zero() {
         let (path, repo) = build_linear_repo(5);
-        let log = commit_log(&repo, 100).unwrap();
+        let log = commit_log(&repo, 100, None).unwrap();
         cleanup(&path);
 
         assert_eq!(log.len(), 5);
@@ -623,7 +636,7 @@ mod tests {
     #[test]
     fn commit_log_respects_max() {
         let (path, repo) = build_linear_repo(10);
-        let log = commit_log(&repo, 3).unwrap();
+        let log = commit_log(&repo, 3, None).unwrap();
         cleanup(&path);
 
         assert_eq!(log.len(), 3);
@@ -695,7 +708,7 @@ mod tests {
           Unignore after the underlying init/walk flow is fixed."]
     fn commit_log_empty_repo() {
         let (path, repo) = init_empty_repo();
-        let log = commit_log(&repo, 100).unwrap();
+        let log = commit_log(&repo, 100, None).unwrap();
         cleanup(&path);
 
         assert_eq!(log.len(), 0);
@@ -705,7 +718,7 @@ mod tests {
     fn commit_log_includes_all_branch_tips() {
         let (path, repo) = build_merge_repo();
         // HEAD is on main after build_merge_repo; feature commits must still appear.
-        let log = commit_log(&repo, 100).unwrap();
+        let log = commit_log(&repo, 100, None).unwrap();
         cleanup(&path);
 
         let messages: Vec<&str> = log.iter().map(|c| c.message_summary.as_str()).collect();
@@ -722,7 +735,7 @@ mod tests {
     #[test]
     fn commit_log_merge_uses_extra_lanes() {
         let (path, repo) = build_merge_repo();
-        let log = commit_log(&repo, 100).unwrap();
+        let log = commit_log(&repo, 100, None).unwrap();
         cleanup(&path);
 
         // Newest-first: find merge by parent count, not by position.
@@ -772,7 +785,7 @@ mod tests {
             .unwrap();
         repo.branch("b0", v0.as_commit().unwrap(), false).unwrap();
 
-        let log = commit_log(&repo, 100).unwrap();
+        let log = commit_log(&repo, 100, None).unwrap();
         cleanup(&path);
 
         let lanes: Vec<u32> = log.iter().map(|c| c.lane).collect();
@@ -808,7 +821,7 @@ mod tests {
             .unwrap();
         }
 
-        let log = commit_log(&repo, 100).unwrap();
+        let log = commit_log(&repo, 100, None).unwrap();
         cleanup(&path);
 
         let lane_of = |msg: &str| {

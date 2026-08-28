@@ -9,8 +9,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import {
   ArrowDown,
+  ArrowDownToLine,
   ArrowDownUp,
   ArrowUp,
+  ArrowUpFromLine,
   Download,
   FileDiff,
   FolderGit2,
@@ -28,7 +30,9 @@ import {
   createBranch,
   createWorkspace,
   deleteWorkspace,
+  exportWorkspace,
   formatAppError,
+  importWorkspace,
   getBranches,
   initRepo,
   listRemotes,
@@ -38,6 +42,7 @@ import {
   type CloneProgress,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useToast } from "@/components/ui/Toast";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { cn } from "@/lib/utils";
 import { Separator } from "@heroui/react";
@@ -148,6 +153,7 @@ function deriveDestName(url: string): string {
 
 export function ActionBar(): React.JSX.Element {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
@@ -164,6 +170,9 @@ export function ActionBar(): React.JSX.Element {
   const [renameError, setRenameError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState<"export" | "import" | null>(null);
+  const [transferPath, setTransferPath] = useState("");
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   const { data: workspaces = [] } = useQuery({
     queryKey: ["workspaces"],
@@ -224,6 +233,30 @@ export function ActionBar(): React.JSX.Element {
     if (!name) return;
     setRenameError(null);
     renameMut.mutate({ id: activeWorkspace.id, newName: name });
+  }
+
+  function submitTransfer(): void {
+    const mode = transferOpen;
+    if (!mode || !transferPath.trim()) return;
+    const path = transferPath.trim();
+    const done = (message: string): void => {
+      toast({ title: message });
+      setTransferOpen(null);
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    };
+    if (mode === "export") {
+      if (!activeWorkspaceId) return;
+      exportWorkspace(activeWorkspaceId, path)
+        .then(() => done(`Workspace exported to ${path}`))
+        .catch((e) => setTransferError(formatAppError(e)));
+    } else {
+      importWorkspace(path, null)
+        .then((ws) => {
+          done(`Workspace "${ws.name}" imported`);
+          selectWorkspace(ws.id, ws.last_active_repo_id);
+        })
+        .catch((e) => setTransferError(formatAppError(e)));
+    }
   }
 
   // ── Repository state ───────────────────────────────────────────────────
@@ -453,6 +486,27 @@ export function ActionBar(): React.JSX.Element {
             onClick={() => setAiOpen(true)}
           />
           <ActionBarButton
+            icon={<ArrowUpFromLine size={14} />}
+            label="Export"
+            title="Export workspace to a .gitwave-workspace.json file"
+            disabled={noWorkspace}
+            onClick={() => {
+              setTransferPath(`${activeWorkspace?.name ?? "workspace"}.gitwave-workspace.json`);
+              setTransferError(null);
+              setTransferOpen("export");
+            }}
+          />
+          <ActionBarButton
+            icon={<ArrowDownToLine size={14} />}
+            label="Import"
+            title="Import a workspace from a .gitwave-workspace.json file"
+            onClick={() => {
+              setTransferPath("");
+              setTransferError(null);
+              setTransferOpen("import");
+            }}
+          />
+          <ActionBarButton
             icon={<Trash2 size={14} />}
             label="Delete"
             title="Delete workspace"
@@ -557,6 +611,49 @@ export function ActionBar(): React.JSX.Element {
             disabled={!createName.trim() || createMut.isPending}
           >
             Create
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Workspace: export / import transfer file */}
+      <Modal
+        open={transferOpen !== null}
+        onOpenChange={(open) => {
+          if (!open) setTransferOpen(null);
+        }}
+        title={transferOpen === "export" ? "Export workspace" : "Import workspace"}
+        description={
+          transferOpen === "export"
+            ? "Writes a .gitwave-workspace.json with the workspace name and repo paths. API keys are never included."
+            : "Reads a .gitwave-workspace.json, creates a new workspace and re-adds repos that exist on disk."
+        }
+        size="sm"
+      >
+        <Input
+          autoFocus
+          value={transferPath}
+          onChange={setTransferPath}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submitTransfer();
+          }}
+          placeholder={
+            transferOpen === "export"
+              ? "destination .json path"
+              : "source .gitwave-workspace.json path"
+          }
+          error={transferError}
+        />
+        <div className="mt-3 flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setTransferOpen(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!transferPath.trim()}
+            onClick={submitTransfer}
+          >
+            {transferOpen === "export" ? "Export" : "Import"}
           </Button>
         </div>
       </Modal>

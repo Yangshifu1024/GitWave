@@ -26,6 +26,10 @@ pub struct WorkspaceSettings {
     /// API base URL override (provider-specific default when unset).
     #[serde(default)]
     pub ai_base_url: Option<String>,
+    /// PM 1.6 offline mode: when true, cloud AI calls are refused; local
+    /// Ollama keeps working.
+    #[serde(default)]
+    pub ai_offline: bool,
     pub prompt_templates: PromptTemplates,
     pub commit_convention: Option<String>,
     pub theme_override: Option<String>,

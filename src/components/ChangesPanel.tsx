@@ -17,6 +17,7 @@ import { Modal } from "@/components/ui/Modal";
 import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
+import { GitignoreEditor } from "@/components/GitignoreEditor";
 import { Radio, RadioGroup } from "@heroui/react";
 import { formatAppError, generateCommitMessage, getWorkspace, type FileChange } from "@/lib/api";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
@@ -324,6 +325,7 @@ export function ChangesPanel({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPromptOpen, setAiPromptOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [gitignoreOpen, setGitignoreOpen] = useState(false);
   /** Context-menu / bulk action awaiting confirmation (destructive ops only). */
   const [pendingAction, setPendingAction] = useState<
     { type: "discard"; files: FileChange[] } | { type: "ignore"; file: FileChange } | null
@@ -392,6 +394,7 @@ export function ChangesPanel({
           </Button>
         </div>
       </Modal>
+      <GitignoreEditor open={gitignoreOpen} onClose={() => setGitignoreOpen(false)} />
       <AiProviderSettings
         workspaceId={workspaceId}
         workspaceName={workspace?.name}
@@ -415,6 +418,20 @@ export function ChangesPanel({
   const wcAlert =
     actionError ??
     (isError ? (error ? formatAppError(error) : "Failed to load working copy") : null);
+
+  const gitignoreEntry = !bar ? (
+    <div className="flex justify-end px-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-auto px-1 py-0.5 text-[11px] text-text-muted"
+        onClick={() => setGitignoreOpen(true)}
+      >
+        Edit .gitignore
+      </Button>
+    </div>
+  ) : null;
 
   const commitBox = (
     <div
@@ -461,6 +478,7 @@ export function ChangesPanel({
         >
           <span className="text-xs text-text-muted italic">Loading…</span>
         </div>
+        {gitignoreEntry}
         {commitBox}
         {aiDialogs}
         <ErrorAlert message={wcAlert} onDismiss={() => setActionError(null)} />
@@ -542,6 +560,7 @@ export function ChangesPanel({
     <div className={cn("flex flex-col h-full min-h-0", bar && "grid grid-cols-[1fr_1fr_280px]")}>
       {unstagedSection}
       {stagedSection}
+      {gitignoreEntry}
       {commitBox}
       {aiDialogs}
       {confirmDialogs}

@@ -19,6 +19,8 @@ export interface WorkspaceSettings {
   ai_provider: string | null;
   ai_model?: string | null;
   ai_base_url?: string | null;
+  /** PM 1.6 offline mode: refuse cloud AI calls (Ollama keeps working). */
+  ai_offline?: boolean;
   prompt_templates: PromptTemplates;
   commit_convention: string | null;
   theme_override: string | null;
@@ -338,8 +340,16 @@ export interface RebaseResult {
 
 // ─── API wrappers ──────────────────────────────────────────────────────────
 
-export function getCommitLog(workspaceId: string, max: number): Promise<CommitSummary[]> {
-  return invoke<CommitSummary[]>("cmd_get_commit_log", { workspaceId, max });
+export function getCommitLog(
+  workspaceId: string,
+  max: number,
+  filter?: string | null,
+): Promise<CommitSummary[]> {
+  return invoke<CommitSummary[]>("cmd_get_commit_log", {
+    workspaceId,
+    max,
+    filter: filter || null,
+  });
 }
 
 export function getWorkdirDiff(workspaceId: string): Promise<DiffSummary> {
@@ -410,6 +420,84 @@ export function mergePreview(workspaceId: string, branchName: string): Promise<M
 
 export function rebaseBranch(workspaceId: string, upstream: string): Promise<RebaseResult> {
   return invoke<RebaseResult>("cmd_rebase_branch", { workspaceId, upstream });
+}
+
+export function revertCommit(workspaceId: string, commitOid: string): Promise<string> {
+  return invoke<string>("cmd_revert_commit", { workspaceId, commitOid });
+}
+
+export function cherryPickCommit(workspaceId: string, commitOid: string): Promise<string> {
+  return invoke<string>("cmd_cherry_pick_commit", { workspaceId, commitOid });
+}
+
+// ─── Tags (S3) ───────────────────────────────────────────────────────────────
+
+export interface TagInfo {
+  name: string;
+  sha: string;
+  annotation: string | null;
+}
+
+export function listTags(workspaceId: string): Promise<TagInfo[]> {
+  return invoke<TagInfo[]>("cmd_list_tags", { workspaceId });
+}
+
+export function createTag(
+  workspaceId: string,
+  name: string,
+  targetOid: string | null,
+  message: string | null,
+): Promise<string> {
+  return invoke<string>("cmd_create_tag", { workspaceId, name, targetOid, message });
+}
+
+export function deleteTag(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_delete_tag", { workspaceId, name });
+}
+
+// ─── Submodules (S1) ─────────────────────────────────────────────────────────
+
+export interface SubmoduleInfo {
+  name: string;
+  path: string;
+  url: string | null;
+  initialized: boolean;
+  head_sha: string | null;
+}
+
+export function listSubmodules(workspaceId: string): Promise<SubmoduleInfo[]> {
+  return invoke<SubmoduleInfo[]>("cmd_list_submodules", { workspaceId });
+}
+
+export function initSubmodule(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_init_submodule", { workspaceId, name });
+}
+
+export function updateSubmodule(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_update_submodule", { workspaceId, name });
+}
+
+// --- .gitignore editor (S2) -------------------------------------------------
+
+export function getGitignore(workspaceId: string): Promise<string> {
+  return invoke<string>("cmd_get_gitignore", { workspaceId });
+}
+
+export function writeGitignore(workspaceId: string, content: string): Promise<void> {
+  return invoke<void>("cmd_write_gitignore", { workspaceId, content });
+}
+
+// --- Workspace transfer (S6, .gitwave-workspace.json) ------------------------
+
+export function exportWorkspace(workspaceId: string, destPath: string): Promise<string> {
+  return invoke<string>("cmd_export_workspace", { workspaceId, destPath });
+}
+
+export function importWorkspace(
+  srcPath: string,
+  newName: string | null,
+): Promise<WorkspaceSummary> {
+  return invoke<WorkspaceSummary>("cmd_import_workspace", { srcPath, newName });
 }
 
 // ─── Interactive rebase ──────────────────────────────────────────────────────

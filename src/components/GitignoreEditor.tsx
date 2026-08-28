@@ -1,0 +1,76 @@
+import { useEffect, useState } from "react";
+
+import { formatAppError, getGitignore, writeGitignore } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { Textarea } from "@/components/ui/Textarea";
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+
+export interface GitignoreEditorProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+/**
+ * Modal editor for the repo-root `.gitignore` (S2): load on open, edit as
+ * plain text (mono font), save back. The backend normalizes the trailing
+ * newline so the per-file "Add to .gitignore" append keeps working.
+ */
+export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.JSX.Element | null {
+  const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const { toast } = useToast();
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open || !workspaceId) return;
+    setLoading(true);
+    getGitignore(workspaceId)
+      .then(setContent)
+      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .finally(() => setLoading(false));
+  }, [open, workspaceId, toast]);
+
+  if (!open) return null;
+
+  const save = (): void => {
+    if (!workspaceId || saving) return;
+    setSaving(true);
+    writeGitignore(workspaceId, content)
+      .then(() => {
+        toast({ title: ".gitignore saved" });
+        onClose();
+      })
+      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <Modal
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title="Edit .gitignore"
+      description="One pattern per line, relative to the repository root."
+      size="md"
+    >
+      <Textarea
+        value={loading ? "Loading…" : content}
+        disabled={loading}
+        onChange={setContent}
+        rows={14}
+        spellCheck={false}
+        className="rounded-md px-2.5 py-2 font-mono leading-5"
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" size="sm" disabled={saving || loading} onClick={save}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </Modal>
+  );
+}

@@ -5,7 +5,7 @@ import { Toolbar } from "@/components/Toolbar";
 import { ActionBar } from "@/components/ActionBar";
 import { WorkspaceList } from "@/components/WorkspaceList";
 import { RepoList } from "@/components/RepoList";
-import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useWorkspaceUiStore, readLastActive } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SidebarSection } from "@/components/ui/SidebarSection";
@@ -13,6 +13,7 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { FolderOpen, GitCommitHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import type { BranchInfo } from "@/lib/api";
+import { listWorkspaces } from "@/lib/api";
 import type { LocateRequest } from "@/lib/commitLocate";
 import { CommitGraph } from "@/components/CommitGraph";
 import { CommitInfoHeader } from "@/components/CommitInfoHeader";
@@ -20,6 +21,8 @@ import { DiffViewer } from "@/components/DiffViewer";
 import { BranchList } from "@/components/BranchList";
 import { StashPanel } from "@/components/StashPanel";
 import { WorktreePanel } from "@/components/WorktreePanel";
+import { SubmodulesPanel } from "@/components/SubmodulesPanel";
+import { TagsPanel } from "@/components/TagsPanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
 import { cn } from "@/lib/utils";
@@ -45,6 +48,26 @@ function App(): React.JSX.Element {
     setInspectorMaximized(false);
   }, [activeWorkspaceId, activeRepoId, setInspectorMaximized]);
 
+  // PM 1.4 restart restore: land on the last active workspace/repo once the
+  // persisted workspace list is in. Skips stale ids (deleted workspace/repo).
+  const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const { workspaceId, repoId } = readLastActive();
+    if (!workspaceId) return;
+    listWorkspaces()
+      .then((workspaces) => {
+        const ws = workspaces.find((w) => w.id === workspaceId);
+        if (!ws) return;
+        selectWorkspace(ws.id, repoId ?? ws.last_active_repo_id);
+      })
+      .catch(() => {
+        // First run with no persisted workspaces — nothing to restore.
+      });
+  }, [selectWorkspace]);
+
   const selectedCommitOid =
     commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;
 
@@ -62,6 +85,13 @@ function App(): React.JSX.Element {
       sha: branch.last_commit_sha,
       seq: locateSeq.current,
     });
+  };
+
+  const handleTagSelect = (sha: string): void => {
+    if (!activeRepoId) return;
+    handleCommitSelect(sha);
+    locateSeq.current += 1;
+    setLocateRequest({ repoId: activeRepoId, sha, seq: locateSeq.current });
   };
 
   return (
@@ -92,7 +122,7 @@ function App(): React.JSX.Element {
                       <StashPanel compact />
                     </SidebarSection>
                     <SidebarSection title="Tags" defaultOpen={false}>
-                      <p className="px-3 py-1.5 text-xs text-text-muted">No tags yet</p>
+                      <TagsPanel onSelect={handleTagSelect} />
                     </SidebarSection>
                     <SidebarSection title="Remotes" defaultOpen={false}>
                       <p className="px-3 py-1.5 text-xs text-text-muted">
@@ -101,6 +131,9 @@ function App(): React.JSX.Element {
                     </SidebarSection>
                     <SidebarSection title="Worktrees" defaultOpen={false}>
                       <WorktreePanel compact />
+                    </SidebarSection>
+                    <SidebarSection title="Submodules" defaultOpen={false}>
+                      <SubmodulesPanel />
                     </SidebarSection>
                   </>
                 ) : (

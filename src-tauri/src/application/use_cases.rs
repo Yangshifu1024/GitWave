@@ -54,10 +54,20 @@ use crate::infrastructure::git::remote::{
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
     push_with_options as infra_push_with_options, PullOptions, PushRequest, SyncProgress,
 };
+use crate::infrastructure::git::revert::{
+    cherry_pick_commit as infra_cherry_pick_commit, revert_commit as infra_revert_commit,
+};
 use crate::infrastructure::git::stash::{
     apply_stash as infra_apply_stash, drop_stash as infra_drop_stash,
     list_stashes as infra_list_stashes, pop_stash as infra_pop_stash,
     save_stash as infra_save_stash, stash_diff as infra_stash_diff,
+};
+use crate::infrastructure::git::submodule::{
+    init_submodule as infra_submodule_init, list_submodules as infra_list_submodules,
+    update_submodule as infra_submodule_update,
+};
+use crate::infrastructure::git::tag::{
+    create_tag as infra_create_tag, delete_tag as infra_delete_tag, list_tags as infra_list_tags,
 };
 use crate::infrastructure::git::working_copy::{
     commit as infra_commit, discard_worktree_changes as infra_discard_worktree_changes,
@@ -405,6 +415,7 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
     let provider = settings.ai_provider.clone().ok_or_else(|| {
         AppError::Protocol("AI provider not configured for this Workspace".into())
     })?;
+    ensure_ai_online(&settings)?;
     let model = settings
         .ai_model
         .clone()
@@ -427,7 +438,7 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
             "no staged changes — stage files before generating a commit message".into(),
         ));
     }
-    let recent = infra_commit_log(&repo, 8)?;
+    let recent = infra_commit_log(&repo, 8, None)?;
 
     let mut user = String::new();
     user.push_str("Recent commits (newest first):\n");
@@ -471,6 +482,17 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
         user,
     })
     .await
+}
+
+/// PM 1.6 offline mode: cloud providers are refused, local Ollama keeps working.
+fn ensure_ai_online(settings: &WorkspaceSettings) -> Result<()> {
+    if settings.ai_offline && settings.ai_provider.as_deref() != Some("ollama") {
+        return Err(AppError::Protocol(
+            "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 fn append_diff_summary(buf: &mut String, diff: &DiffSummary) {
@@ -542,10 +564,11 @@ pub fn get_commit_log(
     ctx: &AppContext,
     workspace_id: &str,
     max: u32,
+    filter: Option<String>,
 ) -> Result<Vec<CommitSummary>> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_commit_log(&repo, max)
+    infra_commit_log(&repo, max, filter.as_deref())
 }
 
 /// Get the working-copy diff. Staged files are tagged `staged: true` (index vs HEAD);
@@ -752,6 +775,7 @@ pub async fn explain_conflict(
 ) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
+    ensure_ai_online(&settings)?;
     let provider = settings
         .ai_provider
         .clone()
@@ -799,6 +823,166 @@ pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Re
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_rebase_branch(&repo, upstream)
+}
+
+/// Revert a single commit on the current branch (user-initiated; creates a
+/// `Revert "…"` commit — this is the operation's git semantics, not auto-commit).
+pub fn revert_commit(ctx: &AppContext, workspace_id: &str, oid: &str) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_revert_commit(&repo, oid)
+}
+
+/// Cherry-pick a single commit onto the current branch.
+pub fn cherry_pick_commit(ctx: &AppContext, workspace_id: &str, oid: &str) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_cherry_pick_commit(&repo, oid)
+}
+
+/// All tags in the active repo (S3).
+pub fn list_tags(
+    ctx: &AppContext,
+    workspace_id: &str,
+) -> Result<Vec<crate::infrastructure::git::tag::TagInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_tags(&repo)
+}
+
+/// Create a tag on `target_oid` (None = HEAD); `message` makes it annotated.
+pub fn create_tag(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    target_oid: Option<String>,
+    message: Option<String>,
+) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_create_tag(&repo, name, target_oid.as_deref(), message.as_deref())
+}
+
+/// Delete a tag by short name.
+pub fn delete_tag(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_delete_tag(&repo, name)
+}
+
+/// List submodules of the active repo (S1).
+pub fn list_submodules(
+    ctx: &AppContext,
+    workspace_id: &str,
+) -> Result<Vec<crate::infrastructure::git::submodule::SubmoduleInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_submodules(&repo)
+}
+
+/// `git submodule init <name>`.
+pub fn init_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_submodule_init(&repo, name)
+}
+
+/// `git submodule update --init <name>` (clone + checkout the worktree).
+pub fn update_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_submodule_update(&repo, name)
+}
+
+/// Read the repo-root `.gitignore` (empty string when absent) — S2 editor.
+pub fn get_gitignore(ctx: &AppContext, workspace_id: &str) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let path = std::path::Path::new(&repo_path).join(".gitignore");
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    std::fs::read_to_string(&path).map_err(|e| AppError::Unknown(format!("read .gitignore: {e}")))
+}
+
+/// Overwrite the repo-root `.gitignore` (S2 editor). Trailing newline is
+/// normalized on so appended ignore patterns from the UI keep working.
+pub fn write_gitignore(ctx: &AppContext, workspace_id: &str, content: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let path = std::path::Path::new(&repo_path).join(".gitignore");
+    let normalized = if content.ends_with('\n') || content.is_empty() {
+        content.to_string()
+    } else {
+        format!("{content}\n")
+    };
+    std::fs::write(&path, normalized)
+        .map_err(|e| AppError::Unknown(format!("write .gitignore: {e}")))
+}
+
+/// Payload shape of a `.gitwave-workspace.json` transfer file (S6).
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct WorkspaceTransfer {
+    pub version: u32,
+    pub name: String,
+    /// Repo filesystem paths. Keys/API keys are intentionally excluded —
+    /// secrets never leave the machine through import/export.
+    pub repos: Vec<String>,
+}
+
+/// Export a workspace (name + repo paths) as a transfer JSON file (S6).
+pub fn export_workspace(ctx: &AppContext, workspace_id: &str, dest_path: &str) -> Result<String> {
+    let ws = get_workspace(ctx, workspace_id.to_string())?;
+    let transfer = WorkspaceTransfer {
+        version: 1,
+        name: ws.name.clone(),
+        repos: ws.repos.iter().map(|r| r.path.clone()).collect(),
+    };
+    let json = serde_json::to_string_pretty(&transfer)
+        .map_err(|e| AppError::Unknown(format!("serialize workspace: {e}")))?;
+    std::fs::write(dest_path, json)
+        .map_err(|e| AppError::Unknown(format!("write transfer file: {e}")))?;
+    Ok(dest_path.to_string())
+}
+
+/// Import a transfer JSON file: creates a new workspace and re-adds every
+/// repo path that currently exists on disk. Missing paths are skipped and
+/// reported so the user can relink them later (W3 relink covers that).
+pub fn import_workspace(
+    ctx: &AppContext,
+    src_path: &str,
+    new_name: Option<String>,
+) -> Result<WorkspaceSummary> {
+    let raw = std::fs::read_to_string(src_path)
+        .map_err(|e| AppError::Unknown(format!("read transfer file: {e}")))?;
+    let transfer: WorkspaceTransfer = serde_json::from_str(&raw)
+        .map_err(|e| AppError::Protocol(format!("invalid transfer file: {e}")))?;
+    if transfer.version != 1 {
+        return Err(AppError::Protocol(format!(
+            "unsupported transfer file version: {}",
+            transfer.version
+        )));
+    }
+    let name = new_name
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or(transfer.name.clone());
+    let ws = create_workspace(ctx, name)?;
+
+    let mut missing = 0usize;
+    for path in &transfer.repos {
+        if std::path::Path::new(path).join(".git").exists()
+            && add_local_repo(ctx, ws.id.clone(), path.clone()).is_ok()
+        {
+            continue;
+        }
+        missing += 1;
+    }
+    if missing > 0 {
+        eprintln!("workspace import skipped {missing} missing repo path(s)");
+    }
+    list_workspaces(ctx)?
+        .into_iter()
+        .find(|sum| sum.id == ws.id)
+        .ok_or_else(|| AppError::Unknown("imported workspace vanished".into()))
 }
 
 pub fn plan_interactive_rebase(
@@ -1331,7 +1515,7 @@ mod tests {
                 .unwrap();
         }
 
-        let log = get_commit_log(&ctx, &ws.id, 10).expect("get_commit_log");
+        let log = get_commit_log(&ctx, &ws.id, 10, None).expect("get_commit_log");
         cleanup(&tmp);
 
         assert_eq!(log.len(), 3, "expected 3 commits");
