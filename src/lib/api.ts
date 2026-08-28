@@ -465,6 +465,20 @@ export interface SubmoduleInfo {
   head_sha: string | null;
 }
 
+// --- Reflog (M0 foundation for M2 recovery) ---------------------------------
+
+export interface ReflogEntry {
+  old_oid: string;
+  new_oid: string;
+  message: string;
+  committer: string;
+  time: number;
+}
+
+export function listReflog(workspaceId: string, reference?: string): Promise<ReflogEntry[]> {
+  return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId, reference: reference ?? null });
+}
+
 export function listSubmodules(workspaceId: string): Promise<SubmoduleInfo[]> {
   return invoke<SubmoduleInfo[]>("cmd_list_submodules", { workspaceId });
 }

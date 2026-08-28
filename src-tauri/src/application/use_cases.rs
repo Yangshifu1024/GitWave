@@ -49,6 +49,7 @@ use crate::infrastructure::git::merge::{
     MergeResult,
 };
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
+use crate::infrastructure::git::reflog::{list_reflog as infra_list_reflog, ReflogEntry};
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
@@ -838,6 +839,18 @@ pub fn cherry_pick_commit(ctx: &AppContext, workspace_id: &str, oid: &str) -> Re
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_cherry_pick_commit(&repo, oid)
+}
+
+/// Full reflog of `reference` (HEAD or branch shorthand), newest first.
+/// Read-only foundation for the M2 recovery UI.
+pub fn list_reflog(
+    ctx: &AppContext,
+    workspace_id: &str,
+    reference: Option<String>,
+) -> Result<Vec<ReflogEntry>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_reflog(&repo, reference.as_deref().unwrap_or("HEAD"))
 }
 
 /// All tags in the active repo (S3).

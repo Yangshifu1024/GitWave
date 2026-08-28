@@ -25,12 +25,13 @@ use application::{
     get_commit_details, get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff,
     get_gitignore, get_stash_diff, get_workdir_diff, get_working_copy, get_workspace, ignore_path,
     import_workspace, init_repo, init_submodule, interactive_rebase_paused, list_conflicts,
-    list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags, list_workspaces,
-    list_worktrees, merge_branch, merge_in_progress, merge_preview, plan_interactive_rebase,
-    pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
-    rename_workspace, resolve_conflict, revert_commit, save_stash, set_active_repo, set_ai_api_key,
-    stage_all, stage_files, test_ssh_connection, unstage_files, update_submodule,
-    update_workspace_settings, write_gitignore, AheadBehind, AiKeyStatus, AppContext,
+    list_reflog, list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags,
+    list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
+    plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
+    remove_repo, remove_worktree, rename_workspace, resolve_conflict, revert_commit, save_stash,
+    set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection, unstage_files,
+    update_submodule, update_workspace_settings, write_gitignore, AheadBehind, AiKeyStatus,
+    AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -537,6 +538,15 @@ async fn cmd_update_submodule(
 }
 
 #[tauri::command]
+async fn cmd_list_reflog(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    reference: Option<String>,
+) -> Result<Vec<infrastructure::git::reflog::ReflogEntry>, AppError> {
+    list_reflog(&ctx, &workspace_id, reference)
+}
+
+#[tauri::command]
 async fn cmd_get_gitignore(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -1028,6 +1038,7 @@ pub fn run() {
             cmd_fetch,
             cmd_pull,
             cmd_list_remotes,
+            cmd_list_reflog,
             cmd_push,
             cmd_list_stashes,
             cmd_save_stash,
