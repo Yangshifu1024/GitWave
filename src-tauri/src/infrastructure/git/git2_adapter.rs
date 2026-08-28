@@ -41,6 +41,16 @@ pub fn default_signature() -> Result<Signature<'static>> {
     Signature::now("GitWave", "noreply@gitwave.local").map_err(map_git_err)
 }
 
+/// Signature for commits created by the app, using the user's configured
+/// identity (repo config, then global) with a stable placeholder fallback
+/// so the GUI never fails to create commits on a machine without git config.
+pub fn commit_signature(repo: &Repository) -> Result<Signature<'static>> {
+    match repo.signature() {
+        Ok(sig) => Ok(sig),
+        Err(_) => default_signature(),
+    }
+}
+
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::Unknown(format!("git: {e}"))
 }

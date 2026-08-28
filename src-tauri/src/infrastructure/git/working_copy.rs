@@ -7,6 +7,7 @@ use git2::{Repository, Status, StatusOptions};
 
 use crate::domain::error::{AppError, Result};
 use crate::domain::working_copy::{FileChange, FileStatusKind, WorkingCopy};
+use crate::infrastructure::git::git2_adapter::commit_signature;
 use crate::infrastructure::git::history::ahead_behind;
 
 fn map_git_err(e: git2::Error) -> AppError {
@@ -205,10 +206,7 @@ pub fn commit(repo: &Repository, message: &str) -> Result<String> {
     let mut index = repo.index().map_err(map_git_err)?;
     let tree_oid = index.write_tree().map_err(map_git_err)?;
     let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
-    let sig = repo
-        .signature()
-        .or_else(|_| git2::Signature::now("GitWave", "gitwave@local"))
-        .map_err(map_git_err)?;
+    let sig = commit_signature(repo)?;
 
     let parent_commit = match repo.head() {
         Ok(h) => Some(h.peel_to_commit().map_err(map_git_err)?),

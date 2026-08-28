@@ -4,6 +4,7 @@
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::infrastructure::git::git2_adapter::commit_signature;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -153,8 +154,11 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
             });
         }
         // --no-ff on a fast-forwardable merge: record a real merge commit.
-        // The target adds nothing to the trees, so the result tree is ours.
-        let sig = git2::Signature::now("GitWave", "noreply@gitwave.local").map_err(map_git_err)?;
+        // HEAD is an ancestor of the target tip, so the merged result IS
+        // the target tree — taking OUR tree here would drop the whole
+        // branch (Aug 2026: merging a hot branch produced an empty merge
+        // commit and lost 42 files). Refresh the checkout to match.
+        let sig = commit_signature(repo)?;
         let our_commit = repo.find_commit(our_oid).map_err(map_git_err)?;
         let their_commit = repo.find_commit(their_oid).map_err(map_git_err)?;
         let new_head_oid = repo
@@ -163,9 +167,11 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
                 &sig,
                 &sig,
                 &format!("merge {branch_name}"),
-                &our_commit.tree().map_err(map_git_err)?,
+                &their_commit.tree().map_err(map_git_err)?,
                 &[&our_commit, &their_commit],
             )
+            .map_err(map_git_err)?;
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
             .map_err(map_git_err)?;
         return Ok(MergeResult {
             kind: MergeKind::ThreeWay,
@@ -207,7 +213,7 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
     }
 
     let merged_tree_oid = index.write_tree().map_err(map_git_err)?;
-    let sig = git2::Signature::now("GitWave", "noreply@gitwave.local").map_err(map_git_err)?;
+    let sig = commit_signature(repo)?;
     let our_commit = repo.find_commit(our_oid).map_err(map_git_err)?;
     let their_commit = repo.find_commit(their_oid).map_err(map_git_err)?;
     let new_head_oid = repo
@@ -282,6 +288,14 @@ mod tests {
     #[test]
     fn merge_no_ff_creates_merge_commit_when_ff_possible() {
         let (path, repo) = build_linear_repo(3);
+        repo.config()
+            .unwrap()
+            .set_str("user.name", "Merge Tester")
+            .unwrap();
+        repo.config()
+            .unwrap()
+            .set_str("user.email", "merge@example.com")
+            .unwrap();
         let main_tip = repo.head().unwrap().peel_to_commit().unwrap().id();
         let i1 = repo.find_commit(main_tip).unwrap().parent(0).unwrap().id();
         repo.branch("old", &repo.find_commit(i1).unwrap(), false)
@@ -296,11 +310,40 @@ mod tests {
         assert_eq!(res.kind, MergeKind::ThreeWay);
         assert_eq!(head.parent_count(), 2, "no-ff must create a merge commit");
         assert_eq!(head.parent(1).unwrap().id(), main_tip);
+        // Regression for the Aug 2026 empty-merge data loss: merging a
+        // fast-forwardable branch with --no-ff must bring the target's
+        // tree into HEAD (HEAD is the target's ancestor).
         assert_eq!(
             head.tree_id(),
-            repo.find_commit(i1).unwrap().tree_id(),
-            "no-ff over a ff-able merge keeps our tree"
+            repo.find_commit(main_tip).unwrap().tree_id(),
+            "no-ff over a ff-able merge must carry the target tip's tree"
         );
+        assert!(
+            repo.workdir().unwrap().join("file2.txt").exists(),
+            "checkout must be refreshed to the merged tree"
+        );
+        assert_eq!(
+            head.author().name().unwrap(),
+            "Merge Tester",
+            "merge commit must use the user's configured identity"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commit_signature_prefers_repo_config() {
+        let (path, repo) = build_linear_repo(3);
+        repo.config()
+            .unwrap()
+            .set_str("user.name", "Alice")
+            .unwrap();
+        repo.config()
+            .unwrap()
+            .set_str("user.email", "alice@example.com")
+            .unwrap();
+        let sig = commit_signature(&repo).unwrap();
+        assert_eq!(sig.name().unwrap(), "Alice");
+        assert_eq!(sig.email().unwrap(), "alice@example.com");
         cleanup(&path);
     }
 
