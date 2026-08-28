@@ -19,5 +19,6 @@ pub use use_cases::{
     pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
     rename_workspace, resolve_conflict, revert_commit, save_stash, set_active_repo, set_ai_api_key,
     stage_all, stage_files, test_ssh_connection, unstage_files, update_submodule,
-    update_workspace_settings, write_gitignore, AheadBehind, AiKeyStatus, AppContext,
+    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
+    AppContext,
 };

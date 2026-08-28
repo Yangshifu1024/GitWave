@@ -15,16 +15,32 @@ export interface PromptTemplates {
   pr: string | null;
 }
 
+/** One fallback entry in the workspace AI provider chain. */
+export interface AiProviderConfig {
+  provider: string;
+  model?: string | null;
+  base_url?: string | null;
+}
+
 export interface WorkspaceSettings {
   ai_provider: string | null;
   ai_model?: string | null;
   ai_base_url?: string | null;
   /** PM 1.6 offline mode: refuse cloud AI calls (Ollama keeps working). */
   ai_offline?: boolean;
+  /** Ordered fallback providers tried on network-level failures. */
+  ai_failover?: AiProviderConfig[];
   prompt_templates: PromptTemplates;
   commit_convention: string | null;
   theme_override: string | null;
   key_binding_profile: string | null;
+}
+
+/** AI generation result plus which provider served it (failover chain). */
+export interface AiGenerateOutcome {
+  text: string;
+  provider_used: string;
+  used_fallback: boolean;
 }
 
 export interface RepoRef {
@@ -144,8 +160,8 @@ export function probeOllama(baseUrl?: string): Promise<string[]> {
   return invoke<string[]>("cmd_probe_ollama", { baseUrl: baseUrl ?? null });
 }
 
-export function generateCommitMessage(workspaceId: string): Promise<string> {
-  return invoke<string>("cmd_generate_commit_message", { workspaceId });
+export function generateCommitMessage(workspaceId: string): Promise<AiGenerateOutcome> {
+  return invoke<AiGenerateOutcome>("cmd_generate_commit_message", { workspaceId });
 }
 
 // ─── Repo commands ───────────────────────────────────────────────────────
@@ -591,8 +607,8 @@ export function mergeInProgress(workspaceId: string): Promise<boolean> {
   return invoke<boolean>("cmd_merge_in_progress", { workspaceId });
 }
 
-export function explainConflict(workspaceId: string, path: string): Promise<string> {
-  return invoke<string>("cmd_explain_conflict", { workspaceId, path });
+export function explainConflict(workspaceId: string, path: string): Promise<AiGenerateOutcome> {
+  return invoke<AiGenerateOutcome>("cmd_explain_conflict", { workspaceId, path });
 }
 
 // ─── Working copy ────────────────────────────────────────────────────────────

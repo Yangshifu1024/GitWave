@@ -201,6 +201,14 @@ pub fn update_workspace_settings(
             "unsupported ai_provider: {provider}"
         )));
     }
+    for fb in &settings.ai_failover {
+        if !matches!(fb.provider.as_str(), "openai" | "anthropic" | "ollama") {
+            return Err(AppError::Protocol(format!(
+                "unsupported ai_failover provider: {}",
+                fb.provider
+            )));
+        }
+    }
     ctx.workspaces
         .lock()
         .expect("workspace repo mutex poisoned")
@@ -407,28 +415,174 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
     crate::infrastructure::ai::probe_ollama(base_url).await
 }
 
+// ─── AI provider chain (failover) ───────────────────────────────────────────
+
+/// One resolved attempt in the AI provider chain: the workspace primary
+/// first, then its configured failover entries in order.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ResolvedAiProvider {
+    pub provider: String,
+    pub model: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+}
+
+/// Result of a chain run — the text plus which provider produced it, so
+/// the UI can tell the user when a fallback served the request.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AiGenerateOutcome {
+    pub text: String,
+    pub provider_used: String,
+    pub used_fallback: bool,
+}
+
+/// Key lookup abstraction so chain resolution is testable without touching
+/// the OS keychain; production passes `ai::get_api_key` partially applied.
+pub type AiKeyLookup<'a> = dyn Fn(&str) -> Result<Option<String>> + 'a;
+
+pub fn default_ai_model(provider: &str) -> &'static str {
+    match provider {
+        "anthropic" => "claude-3-5-haiku-latest",
+        "ollama" => "llama3.2",
+        _ => "gpt-4o-mini",
+    }
+}
+
+/// Failover policy: only network-level failures (unreachable host, HTTP
+/// status, rate limits) move to the next provider. Content and
+/// configuration errors stop the chain — the next provider would make the
+/// same mistake on the same prompt.
+fn should_failover(err: &AppError) -> bool {
+    matches!(err, AppError::Network(_))
+}
+
+/// Resolve the primary + failover entries into concrete attempts. Cloud
+/// entries whose API key cannot be resolved are skipped (they can never
+/// succeed); a missing key on the *primary* is a hard error, matching the
+/// pre-failover behavior. In offline mode (PM 1.6) the chain keeps only
+/// local Ollama entries.
+fn resolve_ai_chain(
+    settings: &WorkspaceSettings,
+    key_lookup: &AiKeyLookup,
+) -> Result<Vec<ResolvedAiProvider>> {
+    let resolve = |provider: &str,
+                   model: &Option<String>,
+                   base_url: &Option<String>|
+     -> Result<ResolvedAiProvider> {
+        Ok(ResolvedAiProvider {
+            provider: provider.to_string(),
+            model: model
+                .clone()
+                .filter(|m| !m.trim().is_empty())
+                .unwrap_or_else(|| default_ai_model(provider).into()),
+            base_url: base_url.clone(),
+            api_key: if provider == "ollama" {
+                None
+            } else {
+                key_lookup(provider)?
+            },
+        })
+    };
+
+    let primary = settings
+        .ai_provider
+        .clone()
+        .filter(|p| !p.trim().is_empty())
+        .ok_or_else(|| {
+            AppError::Protocol("AI provider not configured for this Workspace".into())
+        })?;
+    let head = resolve(&primary, &settings.ai_model, &settings.ai_base_url)?;
+    if head.provider != "ollama" && head.api_key.is_none() {
+        return Err(AppError::Credential(format!(
+            "{primary} API key not configured"
+        )));
+    }
+
+    let mut chain = vec![head];
+    for fb in &settings.ai_failover {
+        if fb.provider.trim().is_empty() {
+            continue;
+        }
+        match resolve(&fb.provider, &fb.model, &fb.base_url) {
+            Ok(entry) => {
+                if entry.provider != "ollama" && entry.api_key.is_none() {
+                    continue;
+                }
+                chain.push(entry);
+            }
+            // A keychain failure on an optional fallback just drops that
+            // entry; the chain still serves the request if it can.
+            Err(_) => continue,
+        }
+    }
+
+    if settings.ai_offline {
+        chain.retain(|p| p.provider == "ollama");
+        if chain.is_empty() {
+            return Err(AppError::Protocol(
+                "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
+                    .into(),
+            ));
+        }
+    }
+    Ok(chain)
+}
+
+/// Run the chain in order; the first non-network outcome wins. Network
+/// failures walk to the next entry; when the chain is exhausted the last
+/// error is raised.
+async fn generate_with_failover(
+    chain: Vec<ResolvedAiProvider>,
+    system: String,
+    user: String,
+) -> Result<AiGenerateOutcome> {
+    let total = chain.len();
+    let mut last_err: Option<AppError> = None;
+    for (i, entry) in chain.into_iter().enumerate() {
+        tracing::info!(
+            provider = %entry.provider,
+            model = %entry.model,
+            attempt = i + 1,
+            total,
+            "ai generate"
+        );
+        let req = crate::infrastructure::ai::AiGenerateRequest {
+            provider: entry.provider.clone(),
+            model: entry.model,
+            base_url: entry.base_url,
+            api_key: entry.api_key,
+            system: system.clone(),
+            user: user.clone(),
+        };
+        match crate::infrastructure::ai::generate_text(req).await {
+            Ok(text) => {
+                return Ok(AiGenerateOutcome {
+                    text,
+                    provider_used: entry.provider,
+                    used_fallback: i > 0,
+                });
+            }
+            Err(e) if should_failover(&e) => {
+                tracing::warn!(provider = %entry.provider, error = %e, "ai provider failed, trying next");
+                last_err = Some(e);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last_err.expect("resolve_ai_chain never returns an empty chain"))
+}
+
 /// Generate a commit message suggestion from staged/workdir diff + recent commits.
 /// Result is always returned for the user to edit — never auto-commits (P1).
-pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> Result<String> {
+pub async fn generate_commit_message(
+    ctx: &AppContext,
+    workspace_id: String,
+) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    let provider = settings.ai_provider.clone().ok_or_else(|| {
-        AppError::Protocol("AI provider not configured for this Workspace".into())
-    })?;
-    ensure_ai_online(&settings)?;
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
-    let api_key = if provider == "ollama" {
-        None
-    } else {
-        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
-    };
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
 
     let repo_path = active_repo_path(ctx, &workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -473,26 +627,7 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
             .into()
     });
 
-    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
-        provider,
-        model,
-        base_url: settings.ai_base_url,
-        api_key,
-        system,
-        user,
-    })
-    .await
-}
-
-/// PM 1.6 offline mode: cloud providers are refused, local Ollama keeps working.
-fn ensure_ai_online(settings: &WorkspaceSettings) -> Result<()> {
-    if settings.ai_offline && settings.ai_provider.as_deref() != Some("ollama") {
-        return Err(AppError::Protocol(
-            "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
-                .into(),
-        ));
-    }
-    Ok(())
+    generate_with_failover(chain, system, user).await
 }
 
 fn append_diff_summary(buf: &mut String, diff: &DiffSummary) {
@@ -772,27 +907,12 @@ pub async fn explain_conflict(
     ctx: &AppContext,
     workspace_id: String,
     path: String,
-) -> Result<String> {
+) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    ensure_ai_online(&settings)?;
-    let provider = settings
-        .ai_provider
-        .clone()
-        .ok_or_else(|| AppError::Protocol("AI provider not configured".into()))?;
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
-    let api_key = if provider == "ollama" {
-        None
-    } else {
-        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
-    };
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
     let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
     let system = settings.prompt_templates.conflict.unwrap_or_else(|| {
         "You explain git merge conflicts for a human developer. \
@@ -807,15 +927,7 @@ pub async fn explain_conflict(
         sides.ours.as_deref().unwrap_or("(missing)"),
         sides.theirs.as_deref().unwrap_or("(missing)"),
     );
-    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
-        provider,
-        model,
-        base_url: settings.ai_base_url,
-        api_key,
-        system,
-        user,
-    })
-    .await
+    generate_with_failover(chain, system, user).await
 }
 
 /// Rebase the current HEAD onto an upstream.
@@ -1306,6 +1418,127 @@ mod tests {
         append_diff_patch(&mut buf, &patch_fixture(Some("x".repeat(500))), 40);
         assert!(buf.contains("[diff truncated due to size]"));
         assert!(buf.len() < 500, "budget must bound output: {}", buf.len());
+    }
+
+    // ── AI provider chain ──
+
+    use crate::domain::workspace::AiProviderConfig;
+
+    fn chain_settings(
+        primary: Option<&str>,
+        failover: Vec<AiProviderConfig>,
+        offline: bool,
+    ) -> WorkspaceSettings {
+        WorkspaceSettings {
+            ai_provider: primary.map(str::to_string),
+            ai_failover: failover,
+            ai_offline: offline,
+            ..WorkspaceSettings::default()
+        }
+    }
+
+    fn key_lookup_for(keys: &[(&str, Option<&str>)]) -> impl Fn(&str) -> Result<Option<String>> {
+        let keys: std::collections::HashMap<String, Option<String>> = keys
+            .iter()
+            .map(|(p, k)| (p.to_string(), k.map(str::to_string)))
+            .collect();
+        move |provider: &str| {
+            keys.get(provider)
+                .cloned()
+                .ok_or_else(|| AppError::Unknown("keychain unavailable".into()))
+        }
+    }
+
+    #[test]
+    fn failover_policy_only_walks_network_errors() {
+        assert!(should_failover(&AppError::Network("timeout".into())));
+        assert!(!should_failover(&AppError::Protocol("bad prompt".into())));
+        assert!(!should_failover(&AppError::Credential("no key".into())));
+        assert!(!should_failover(&AppError::Unknown("empty content".into())));
+    }
+
+    #[test]
+    fn ai_chain_resolves_primary_then_reachable_failovers() {
+        let settings = chain_settings(
+            Some("openai"),
+            vec![
+                AiProviderConfig {
+                    provider: "anthropic".into(),
+                    model: Some("claude-3-5-haiku-latest".into()),
+                    base_url: None,
+                },
+                AiProviderConfig {
+                    provider: "ollama".into(),
+                    model: None,
+                    base_url: Some("http://127.0.0.1:11434".into()),
+                },
+            ],
+            false,
+        );
+        let lookup = key_lookup_for(&[("openai", Some("sk-test"))]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain");
+        // anthropic is dropped (no key), openai + ollama remain in order.
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].provider, "openai");
+        assert_eq!(chain[0].api_key.as_deref(), Some("sk-test"));
+        assert_eq!(chain[0].model, "gpt-4o-mini", "default model applied");
+        assert_eq!(chain[1].provider, "ollama");
+        assert_eq!(chain[1].model, "llama3.2", "default model applied");
+        assert_eq!(chain[1].api_key, None, "ollama needs no key");
+        assert_eq!(chain[1].base_url.as_deref(), Some("http://127.0.0.1:11434"));
+    }
+
+    #[test]
+    fn ai_chain_preserves_explicit_models() {
+        let settings = WorkspaceSettings {
+            ai_provider: Some("anthropic".into()),
+            ai_model: Some("claude-custom".into()),
+            ..chain_settings(None, vec![], false)
+        };
+        let lookup = key_lookup_for(&[("anthropic", Some("k"))]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain");
+        assert_eq!(chain[0].model, "claude-custom");
+    }
+
+    #[test]
+    fn ai_chain_primary_without_key_is_a_hard_error() {
+        let settings = chain_settings(Some("openai"), vec![], false);
+        // openai is known to the keychain but has no stored key.
+        let lookup = key_lookup_for(&[("openai", None)]);
+        let err = resolve_ai_chain(&settings, &lookup).expect_err("no key");
+        assert!(matches!(err, AppError::Credential(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn ai_chain_requires_primary_provider() {
+        let settings = chain_settings(None, vec![], false);
+        let lookup = key_lookup_for(&[]);
+        let err = resolve_ai_chain(&settings, &lookup).expect_err("no provider");
+        assert!(
+            err.to_string().contains("AI provider not configured"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn ai_chain_offline_keeps_only_ollama() {
+        let settings = chain_settings(
+            Some("openai"),
+            vec![AiProviderConfig {
+                provider: "ollama".into(),
+                model: None,
+                base_url: None,
+            }],
+            true,
+        );
+        let lookup = key_lookup_for(&[("openai", Some("sk-test"))]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain");
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].provider, "ollama");
+
+        let cloud_only = chain_settings(Some("openai"), vec![], true);
+        let err = resolve_ai_chain(&cloud_only, &lookup).expect_err("offline");
+        assert!(err.to_string().contains("offline mode"), "got: {err}");
     }
 
     fn fresh_ctx() -> AppContext {

@@ -30,7 +30,8 @@ use application::{
     pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo, remove_repo, remove_worktree,
     rename_workspace, resolve_conflict, revert_commit, save_stash, set_active_repo, set_ai_api_key,
     stage_all, stage_files, test_ssh_connection, unstage_files, update_submodule,
-    update_workspace_settings, write_gitignore, AheadBehind, AiKeyStatus, AppContext,
+    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
+    AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -159,7 +160,7 @@ async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppEr
 async fn cmd_generate_commit_message(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
-) -> Result<String, AppError> {
+) -> Result<AiGenerateOutcome, AppError> {
     generate_commit_message(&ctx, workspace_id).await
 }
 
@@ -451,7 +452,7 @@ async fn cmd_explain_conflict(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     path: String,
-) -> Result<String, AppError> {
+) -> Result<AiGenerateOutcome, AppError> {
     explain_conflict(&ctx, workspace_id, path).await
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowDown, ArrowUp, X } from "lucide-react";
 import {
   clearAiApiKey,
   formatAppError,
@@ -8,6 +9,7 @@ import {
   probeOllama,
   setAiApiKey,
   updateWorkspaceSettings,
+  type AiProviderConfig,
   type WorkspaceSettings,
 } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -64,6 +66,7 @@ export function AiProviderSettings({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  const [failover, setFailover] = useState<AiProviderConfig[]>([]);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [tplCommit, setTplCommit] = useState("");
   const [tplConflict, setTplConflict] = useState("");
@@ -90,10 +93,36 @@ export function AiProviderSettings({
     setModel(s.ai_model ?? defaultModel(resolved));
     setBaseUrl(s.ai_base_url ?? defaultBaseUrl(resolved));
     setOffline(Boolean(s.ai_offline));
+    setFailover(s.ai_failover ? s.ai_failover.map((fb) => ({ ...fb })) : []);
     setTplCommit(s.prompt_templates.commit ?? "");
     setTplConflict(s.prompt_templates.conflict ?? "");
     setTplPr(s.prompt_templates.pr ?? "");
   }, [workspace]);
+
+  const updateFallback = (index: number, patch: Partial<AiProviderConfig>) => {
+    setFailover((list) => list.map((fb, i) => (i === index ? { ...fb, ...patch } : fb)));
+  };
+
+  const moveFallback = (index: number, dir: -1 | 1) => {
+    setFailover((list) => {
+      const target = index + dir;
+      const current = list[index];
+      const swap = list[target];
+      if (!current || !swap) return list;
+      const next = [...list];
+      next[index] = swap;
+      next[target] = current;
+      return next;
+    });
+  };
+
+  const removeFallback = (index: number) => {
+    setFailover((list) => list.filter((_, i) => i !== index));
+  };
+
+  const addFallback = () => {
+    setFailover((list) => [...list, { provider: "ollama", model: null, base_url: null }]);
+  };
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -108,6 +137,11 @@ export function AiProviderSettings({
             ? trimmedBase
             : trimmedBase || null,
         ai_offline: offline,
+        ai_failover: failover.map((fb) => ({
+          provider: fb.provider,
+          model: (fb.model ?? "").trim() || null,
+          base_url: (fb.base_url ?? "").trim() || null,
+        })),
         prompt_templates: {
           commit: tplCommit.trim() || null,
           conflict: tplConflict.trim() || null,
@@ -230,6 +264,65 @@ export function AiProviderSettings({
         <Checkbox checked={offline} onChange={setOffline} className="text-xs">
           Offline mode — disable all cloud AI calls (Ollama still allowed)
         </Checkbox>
+
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs text-text-secondary">Fallback providers</Label>
+          <p className="text-[11px] text-text-muted">
+            Tried in order when the provider above fails with a network error. Cloud entries need
+            their own API key (stored per provider in the OS keychain).
+          </p>
+          {failover.map((fb, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <Select
+                aria-label={`Fallback provider ${i + 1}`}
+                className="w-36 shrink-0"
+                value={
+                  (PROVIDERS.some((p) => p.id === fb.provider)
+                    ? fb.provider
+                    : "openai") as ProviderId
+                }
+                onChange={(next) => updateFallback(i, { provider: next })}
+                options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
+              />
+              <Input
+                placeholder="Model (default)"
+                value={fb.model ?? ""}
+                onChange={(v) => updateFallback(i, { model: v })}
+                className="flex-1"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={i === 0}
+                onClick={() => moveFallback(i, -1)}
+                title="Move up"
+              >
+                <ArrowUp size={14} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={i === failover.length - 1}
+                onClick={() => moveFallback(i, 1)}
+                title="Move down"
+              >
+                <ArrowDown size={14} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-danger"
+                onClick={() => removeFallback(i)}
+                title="Remove"
+              >
+                <X size={14} />
+              </Button>
+            </div>
+          ))}
+          <Button variant="ghost" size="sm" className="self-start" onClick={addFallback}>
+            Add fallback
+          </Button>
+        </div>
 
         <Button
           variant="secondary"
