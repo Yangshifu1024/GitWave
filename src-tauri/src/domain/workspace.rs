@@ -30,10 +30,28 @@ pub struct WorkspaceSettings {
     /// Ollama keeps working.
     #[serde(default)]
     pub ai_offline: bool,
+    /// Ordered fallback providers tried after `ai_provider` when a request
+    /// fails with a network-level error. The primary stays the chain head
+    /// so pre-v0.2 settings keep working unchanged.
+    #[serde(default)]
+    pub ai_failover: Vec<AiProviderConfig>,
     pub prompt_templates: PromptTemplates,
     pub commit_convention: Option<String>,
     pub theme_override: Option<String>,
     pub key_binding_profile: Option<String>,
+}
+
+/// One fallback entry in the AI provider chain.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct AiProviderConfig {
+    /// `openai` | `anthropic` | `ollama`
+    pub provider: String,
+    /// Model id; provider-specific default when unset.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// API base URL override (provider-specific default when unset).
+    #[serde(default)]
+    pub base_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -117,6 +135,40 @@ mod tests {
         assert!(s.commit_convention.is_none());
         assert!(s.theme_override.is_none());
         assert!(s.key_binding_profile.is_none());
+        assert!(s.ai_failover.is_empty());
+    }
+
+    #[test]
+    fn settings_without_failover_field_still_deserializes() {
+        // Pre-v0.2 settings_json has no ai_failover — smooth upgrade.
+        let s: WorkspaceSettings =
+            serde_json::from_str(r#"{"ai_provider":"openai","prompt_templates":{}}"#)
+                .expect("deserialize legacy settings");
+        assert_eq!(s.ai_provider.as_deref(), Some("openai"));
+        assert!(s.ai_failover.is_empty());
+    }
+
+    #[test]
+    fn failover_chain_roundtrips() {
+        let s = WorkspaceSettings {
+            ai_provider: Some("openai".into()),
+            ai_failover: vec![
+                AiProviderConfig {
+                    provider: "anthropic".into(),
+                    model: Some("claude-3-5-haiku-latest".into()),
+                    base_url: None,
+                },
+                AiProviderConfig {
+                    provider: "ollama".into(),
+                    model: None,
+                    base_url: Some("http://127.0.0.1:11434".into()),
+                },
+            ],
+            ..WorkspaceSettings::default()
+        };
+        let json = serde_json::to_string(&s).expect("serialize");
+        let back: WorkspaceSettings = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(s, back);
     }
 
     #[test]

@@ -23,7 +23,9 @@ import { StashPanel } from "@/components/StashPanel";
 import { WorktreePanel } from "@/components/WorktreePanel";
 import { SubmodulesPanel } from "@/components/SubmodulesPanel";
 import { TagsPanel } from "@/components/TagsPanel";
+import { ReflogPanel } from "@/components/ReflogPanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
+import { CommandPalette } from "@/components/CommandPalette";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +96,14 @@ function App(): React.JSX.Element {
     setLocateRequest({ repoId: activeRepoId, sha, seq: locateSeq.current });
   };
 
+  /** Command palette "locate_commit": same one-shot locate flow as the sidebar. */
+  const handlePaletteLocate = (sha: string): void => {
+    if (!activeRepoId || !sha) return;
+    handleCommitSelect(sha);
+    locateSeq.current += 1;
+    setLocateRequest({ repoId: activeRepoId, sha, seq: locateSeq.current });
+  };
+
   return (
     <ToastProvider>
       <div
@@ -135,6 +145,9 @@ function App(): React.JSX.Element {
                     <SidebarSection title="Submodules" defaultOpen={false}>
                       <SubmodulesPanel />
                     </SidebarSection>
+                    <SidebarSection title="Reflog" defaultOpen={false}>
+                      <ReflogPanel onSelect={handleTagSelect} />
+                    </SidebarSection>
                   </>
                 ) : (
                   <EmptyState
@@ -160,6 +173,8 @@ function App(): React.JSX.Element {
         </div>
 
         <ConflictPanel />
+
+        <CommandPalette requestLocate={handlePaletteLocate} />
       </div>
     </ToastProvider>
   );

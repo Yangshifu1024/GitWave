@@ -108,6 +108,28 @@ pub fn diff_commit_vs_parent(repo: &Repository, oid: Oid) -> Result<DiffSummary>
     diff_to_summary(&diff)
 }
 
+/// Same diff as [`diff_commit_vs_parent`] but with per-file hunks, for
+/// consumers that need the actual patch text (AI explain prompts).
+pub fn diff_commit_vs_parent_files(repo: &Repository, oid: Oid) -> Result<Vec<FileDiff>> {
+    let commit = repo.find_commit(oid).map_err(map_git_err)?;
+    let tree_new = commit.tree().map_err(map_git_err)?;
+
+    let tree_old = if commit.parent_count() > 0 {
+        let parent = commit.parent(0).map_err(map_git_err)?;
+        Some(parent.tree().map_err(map_git_err)?)
+    } else {
+        None
+    };
+
+    let mut opts = DiffOptions::new();
+    opts.context_lines(3);
+    let diff = repo
+        .diff_tree_to_tree(tree_old.as_ref(), Some(&tree_new), Some(&mut opts))
+        .map_err(map_git_err)?;
+
+    diff_to_files(&diff)
+}
+
 /// Diff two arbitrary commits (from_oid = old, to_oid = new).
 pub fn diff_paths(repo: &Repository, from_oid: Oid, to_oid: Oid) -> Result<Vec<FileDiff>> {
     let from_commit = repo.find_commit(from_oid).map_err(map_git_err)?;

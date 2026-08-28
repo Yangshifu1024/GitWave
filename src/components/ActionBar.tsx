@@ -19,9 +19,12 @@ import {
   FolderOpen,
   FolderPlus,
   GitBranch,
+  GitPullRequest,
+  Package,
   Pencil,
   Sparkles,
   Trash2,
+  Webhook,
 } from "lucide-react";
 
 import {
@@ -56,6 +59,9 @@ import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Label } from "@/components/ui/Label";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
+import { PrDescriptionModal } from "@/components/PrDescriptionModal";
+import { LfsPanel } from "@/components/LfsPanel";
+import { HooksPanel } from "@/components/HooksPanel";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 
 interface PullDialogState {
@@ -365,6 +371,9 @@ export function ActionBar(): React.JSX.Element {
   const [branchError, setBranchError] = useState<string | null>(null);
   const [pullDialog, setPullDialog] = useState<PullDialogState | null>(null);
   const [pushDialog, setPushDialog] = useState<{ tags: boolean; force: boolean } | null>(null);
+  const [prOpen, setPrOpen] = useState(false);
+  const [lfsOpen, setLfsOpen] = useState(false);
+  const [hooksOpen, setHooksOpen] = useState(false);
 
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
@@ -544,6 +553,20 @@ export function ActionBar(): React.JSX.Element {
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
           />
+          <ActionBarButton
+            icon={<Package size={14} />}
+            label="LFS"
+            title="Git LFS — track large files"
+            disabled={noRepo}
+            onClick={() => setLfsOpen(true)}
+          />
+          <ActionBarButton
+            icon={<Webhook size={14} />}
+            label="Hooks"
+            title="Git hooks editor"
+            disabled={noRepo}
+            onClick={() => setHooksOpen(true)}
+          />
         </ActionBarGroup>
         <GroupDivider />
         <ActionBarGroup label="Branch">
@@ -569,6 +592,13 @@ export function ActionBar(): React.JSX.Element {
             label="Push"
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={() => setPushDialog({ tags: false, force: false })}
+          />
+          <ActionBarButton
+            icon={<GitPullRequest size={14} />}
+            label="PR"
+            title="AI PR description for the current branch"
+            disabled={noRepo || detached}
+            onClick={() => setPrOpen(true)}
           />
         </ActionBarGroup>
 
@@ -722,6 +752,18 @@ export function ActionBar(): React.JSX.Element {
         open={aiOpen}
         onOpenChange={setAiOpen}
       />
+
+      {prOpen && activeWorkspaceId ? (
+        <PrDescriptionModal workspaceId={activeWorkspaceId} open onClose={() => setPrOpen(false)} />
+      ) : null}
+
+      {lfsOpen && activeWorkspaceId ? (
+        <LfsPanel workspaceId={activeWorkspaceId} open onClose={() => setLfsOpen(false)} />
+      ) : null}
+
+      {hooksOpen && activeWorkspaceId ? (
+        <HooksPanel workspaceId={activeWorkspaceId} open onClose={() => setHooksOpen(false)} />
+      ) : null}
 
       {/* Repository: init */}
       {adding === "init" && (

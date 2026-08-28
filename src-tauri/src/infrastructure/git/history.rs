@@ -9,7 +9,7 @@ use git2::Repository;
 use crate::domain::branch::{BranchInfo, BranchKind};
 use crate::domain::error::{AppError, Result};
 use crate::domain::history::{
-    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary,
+    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary, PrCommit,
 };
 
 /// Full details for a single commit (inspector header): identity, full
@@ -124,6 +124,57 @@ pub fn commit_recent_messages(repo: &Repository, n: u32) -> Result<Vec<String>> 
             break;
         }
         oid = commit.parent_id(0).map_err(map_git_err)?;
+    }
+    Ok(out)
+}
+
+/// Resolve a branch-like reference ("main", "origin/main", or any revspec
+/// git understands) to its tip commit oid. Local branches win over remote
+/// ones with the same short name.
+pub fn resolve_ref_oid(repo: &Repository, name: &str) -> Result<git2::Oid> {
+    let trimmed = name.trim();
+    if let Ok(branch) = repo.find_branch(trimmed, git2::BranchType::Local) {
+        if let Some(oid) = branch.get().target() {
+            return Ok(oid);
+        }
+    }
+    if let Ok(branch) = repo.find_branch(trimmed, git2::BranchType::Remote) {
+        if let Some(oid) = branch.get().target() {
+            return Ok(oid);
+        }
+    }
+    repo.revparse_single(trimmed)
+        .map_err(map_git_err)?
+        .peel_to_commit()
+        .map(|commit| commit.id())
+        .map_err(map_git_err)
+}
+
+/// Commits reachable from `head` but not from `base` (newest first, capped
+/// at `limit`) — the branch segment a PR description describes. Ancestors
+/// of `base` are excluded, matching `git log base..head`.
+pub fn commits_ahead_of(
+    repo: &Repository,
+    base: git2::Oid,
+    head: git2::Oid,
+    limit: usize,
+) -> Result<Vec<PrCommit>> {
+    let mut walk = repo.revwalk().map_err(map_git_err)?;
+    walk.set_sorting(git2::Sort::TIME).map_err(map_git_err)?;
+    walk.push(head).map_err(map_git_err)?;
+    walk.hide(base).map_err(map_git_err)?;
+    let mut out = Vec::new();
+    for oid in walk.take(limit) {
+        let commit = repo
+            .find_commit(oid.map_err(map_git_err)?)
+            .map_err(map_git_err)?;
+        let message = commit.message().unwrap_or("").trim().to_string();
+        let subject = message.lines().next().unwrap_or("").to_string();
+        out.push(PrCommit {
+            sha: commit.id().to_string(),
+            subject,
+            message_full: message,
+        });
     }
     Ok(out)
 }
@@ -602,6 +653,69 @@ mod tests {
 
     fn cleanup(path: &std::path::Path) {
         let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn resolve_ref_oid_resolves_local_branch_and_revspec_fallback() {
+        let (path, repo) = build_linear_repo(2);
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+
+        // "main" resolves to HEAD via the local branch.
+        assert_eq!(resolve_ref_oid(&repo, "main").unwrap(), head);
+        // A short sha resolves through revparse.
+        let short = head.to_string()[..7].to_string();
+        assert_eq!(resolve_ref_oid(&repo, &short).unwrap(), head);
+        // Unknown names error cleanly.
+        assert!(resolve_ref_oid(&repo, "no/such/ref").is_err());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn resolve_ref_oid_prefers_local_branch_over_same_short_remote_name() {
+        let (path, repo) = build_linear_repo(2);
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        // Remote-tracking `origin/main` points at the ROOT commit while the
+        // local `main` sits one ahead — the local branch must win on "main".
+        let root = repo.find_commit(head).unwrap().parent(0).unwrap().id();
+        repo.reference(
+            "refs/remotes/origin/main",
+            root,
+            true,
+            "test: seed remote-tracking ref",
+        )
+        .unwrap();
+
+        assert_eq!(resolve_ref_oid(&repo, "main").unwrap(), head);
+        assert_eq!(resolve_ref_oid(&repo, "origin/main").unwrap(), root);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commits_ahead_of_matches_git_log_base_head() {
+        let (path, repo) = build_linear_repo(3);
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let root = repo
+            .revparse_single(&head.to_string())
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        let mut first = root;
+        for _ in 0..2 {
+            first = first.parent(0).unwrap();
+        }
+        let base = first.id();
+
+        // 3 commits total; ahead of the root commit are the 2 descendants.
+        let ahead = commits_ahead_of(&repo, base, head, 10).unwrap();
+        assert_eq!(ahead.len(), 2);
+
+        // Newest first: top entry's message matches HEAD's.
+        assert_eq!(ahead[0].subject, "commit 2");
+        // Limit truncates.
+        assert_eq!(commits_ahead_of(&repo, base, head, 1).unwrap().len(), 1);
+        // Base == head → nothing ahead.
+        assert!(commits_ahead_of(&repo, head, head, 10).unwrap().is_empty());
+        cleanup(&path);
     }
 
     #[test]

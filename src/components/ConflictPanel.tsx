@@ -13,6 +13,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { ListItem } from "@/components/ui/ListItem";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
+import { useToast } from "@/components/ui/Toast";
 import { InputGroup, TextField } from "@heroui/react";
 import { AlertTriangle, Sparkles, XCircle } from "lucide-react";
 
@@ -29,6 +30,7 @@ export function ConflictPanel(): React.JSX.Element | null {
   const [explain, setExplain] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const refresh = useCallback(async () => {
     if (!workspaceId) return;
@@ -167,7 +169,14 @@ export function ConflictPanel(): React.JSX.Element | null {
                         setBusy(true);
                         setExplain(null);
                         try {
-                          setExplain(await explainConflict(workspaceId, sides.path));
+                          const res = await explainConflict(workspaceId, sides.path);
+                          setExplain(res.text);
+                          if (res.used_fallback) {
+                            toast({
+                              title: `Primary AI provider failed — response served by ${res.provider_used}`,
+                              variant: "info",
+                            });
+                          }
                         } catch (e) {
                           setError(formatAppError(e));
                         } finally {

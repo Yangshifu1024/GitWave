@@ -64,23 +64,51 @@ pub fn list_loaded() -> Result<Vec<SshKey>> {
     Ok(keys)
 }
 
-/// Add a key to the ssh-agent. The user may be prompted for a passphrase
-/// via the controlling tty (or `SSH_ASKPASS` in non-interactive contexts).
+/// Add a key to the ssh-agent. Passphrase-protected keys cannot be added
+/// from the GUI — `ssh-add` needs an interactive prompt and this spawn has
+/// no controlling tty; that case gets an explicit, actionable error.
 pub fn add(path: &Path) -> Result<()> {
-    let status = hidden_command("ssh-add")
+    let output = hidden_command("ssh-add")
         .arg(path)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .status()
+        .output()
         .map_err(|e| AppError::Unknown(format!("ssh-add: {e}")))?;
-    if !status.success() {
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
+        if stderr.contains("incorrect passphrase")
+            || stderr.contains("passphrase")
+            || stderr.contains("permission denied")
+        {
+            return Err(AppError::Protocol(
+                "this key is protected by a passphrase, which cannot be entered here. \
+                 Load it once from a terminal (ssh-add <key>) so the agent caches it \
+                 decrypted, or use a key without a passphrase"
+                    .into(),
+            ));
+        }
+        if stderr.contains("could not open a connection") || stderr.contains("no agent") {
+            return Err(AppError::Protocol(
+                "ssh-agent is not running — start it (on Windows: the \"OpenSSH Agent\" \
+                 service; on macOS/Linux: eval $(ssh-agent)) and try again"
+                    .into(),
+            ));
+        }
         return Err(AppError::Unknown(format!(
-            "ssh-add failed (exit {})",
-            status.code().unwrap_or(-1)
+            "ssh-add failed (exit {}): {}",
+            status_code_text(&output.status),
+            String::from_utf8_lossy(&output.stderr).trim()
         )));
     }
     Ok(())
+}
+
+fn status_code_text(status: &std::process::ExitStatus) -> String {
+    status
+        .code()
+        .map(|c| c.to_string())
+        .unwrap_or_else(|| "signal".to_string())
 }
 
 /// Remove a key from the agent (`ssh-add -d`). The key file itself is

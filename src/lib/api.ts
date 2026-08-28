@@ -15,16 +15,40 @@ export interface PromptTemplates {
   pr: string | null;
 }
 
+/** One fallback entry in the workspace AI provider chain. */
+export interface AiProviderConfig {
+  provider: string;
+  model?: string | null;
+  base_url?: string | null;
+}
+
 export interface WorkspaceSettings {
   ai_provider: string | null;
   ai_model?: string | null;
   ai_base_url?: string | null;
   /** PM 1.6 offline mode: refuse cloud AI calls (Ollama keeps working). */
   ai_offline?: boolean;
+  /** Ordered fallback providers tried on network-level failures. */
+  ai_failover?: AiProviderConfig[];
   prompt_templates: PromptTemplates;
   commit_convention: string | null;
   theme_override: string | null;
   key_binding_profile: string | null;
+}
+
+/** AI generation result plus which provider served it (failover chain). */
+export interface AiGenerateOutcome {
+  text: string;
+  provider_used: string;
+  used_fallback: boolean;
+}
+
+/** AI-generated PR description (title + markdown body). Never creates a PR. */
+export interface PrDescriptionOutcome {
+  title: string;
+  body: string;
+  provider_used: string;
+  used_fallback: boolean;
 }
 
 export interface RepoRef {
@@ -144,8 +168,72 @@ export function probeOllama(baseUrl?: string): Promise<string[]> {
   return invoke<string[]>("cmd_probe_ollama", { baseUrl: baseUrl ?? null });
 }
 
-export function generateCommitMessage(workspaceId: string): Promise<string> {
-  return invoke<string>("cmd_generate_commit_message", { workspaceId });
+export function generateCommitMessage(workspaceId: string): Promise<AiGenerateOutcome> {
+  return invoke<AiGenerateOutcome>("cmd_generate_commit_message", { workspaceId });
+}
+
+/** Active repo's `.gitwave/AI.md` content, or null when absent. */
+export function getRepoAiRules(workspaceId: string): Promise<string | null> {
+  return invoke<string | null>("cmd_get_repo_ai_rules", { workspaceId });
+}
+
+/**
+ * AI PR description for the active branch vs `base` (default: first of
+ * origin/main, origin/master, main, master). Copy-ready output only.
+ */
+export function generatePrDescription(
+  workspaceId: string,
+  base?: string,
+): Promise<PrDescriptionOutcome> {
+  return invoke<PrDescriptionOutcome>("cmd_generate_pr_description", {
+    workspaceId,
+    base: base ?? null,
+  });
+}
+
+/** AI explanation of a single commit (read-only advice). */
+export function explainCommit(workspaceId: string, sha: string): Promise<AiGenerateOutcome> {
+  return invoke<AiGenerateOutcome>("cmd_explain_commit", { workspaceId, sha });
+}
+
+/**
+ * One AI-proposed palette action. `requires_confirm` marks mutating
+ * actions — the UI must not execute those without explicit confirmation.
+ */
+export interface PaletteIntent {
+  action: string;
+  params: Record<string, unknown>;
+  explanation: string;
+  requires_confirm: boolean;
+}
+
+/** Natural-language request → whitelisted palette action proposal. */
+export function aiPaletteIntent(workspaceId: string, query: string): Promise<PaletteIntent> {
+  return invoke<PaletteIntent>("cmd_ai_palette_intent", { workspaceId, query });
+}
+
+/** Git LFS state of the active repository. */
+export interface LfsStatus {
+  available: boolean;
+  installed: boolean;
+  patterns: string[];
+}
+
+export function lfsStatus(workspaceId: string): Promise<LfsStatus> {
+  return invoke<LfsStatus>("cmd_lfs_status", { workspaceId });
+}
+
+/** Wire LFS filters into the active repo (`git lfs install --local`). */
+export function lfsInstall(workspaceId: string): Promise<string> {
+  return invoke<string>("cmd_lfs_install", { workspaceId });
+}
+
+export function lfsTrack(workspaceId: string, pattern: string): Promise<void> {
+  return invoke<void>("cmd_lfs_track", { workspaceId, pattern });
+}
+
+export function lfsUntrack(workspaceId: string, pattern: string): Promise<void> {
+  return invoke<void>("cmd_lfs_untrack", { workspaceId, pattern });
 }
 
 // ─── Repo commands ───────────────────────────────────────────────────────
@@ -463,6 +551,8 @@ export interface SubmoduleInfo {
   url: string | null;
   initialized: boolean;
   head_sha: string | null;
+  /** Checked-out HEAD matches the sha recorded in the parent index. */
+  in_sync: boolean;
 }
 
 export function listSubmodules(workspaceId: string): Promise<SubmoduleInfo[]> {
@@ -473,8 +563,61 @@ export function initSubmodule(workspaceId: string, name: string): Promise<void> 
   return invoke<void>("cmd_init_submodule", { workspaceId, name });
 }
 
-export function updateSubmodule(workspaceId: string, name: string): Promise<void> {
-  return invoke<void>("cmd_update_submodule", { workspaceId, name });
+export function updateSubmodule(
+  workspaceId: string,
+  name: string,
+  recursive = false,
+): Promise<void> {
+  return invoke<void>("cmd_update_submodule", { workspaceId, name, recursive });
+}
+
+/** `git submodule add` — clones and stages gitlink + .gitmodules. */
+export function addSubmodule(workspaceId: string, url: string, path: string): Promise<void> {
+  return invoke<void>("cmd_add_submodule", { workspaceId, url, path });
+}
+
+/** `git submodule deinit` — unregisters; the worktree is left untouched. */
+export function deinitSubmodule(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_deinit_submodule", { workspaceId, name });
+}
+
+// ─── Reflog (v0.2 browser) ─────────────────────────────────────────────────
+
+/** One HEAD reflog entry (movement of the reference). */
+export interface ReflogEntry {
+  old_sha: string | null;
+  new_sha: string;
+  message: string | null;
+  committer: string;
+  time: number;
+}
+
+/** HEAD reflog, newest first. */
+export function listReflog(workspaceId: string): Promise<ReflogEntry[]> {
+  return invoke<ReflogEntry[]>("cmd_list_reflog", { workspaceId });
+}
+
+// ─── Git hooks editor (v0.2) ────────────────────────────────────────────────
+
+/** One known git hook and whether it is present in `.git/hooks`. */
+export interface HookInfo {
+  name: string;
+  exists: boolean;
+  executable: boolean;
+}
+
+export function listHooks(workspaceId: string): Promise<HookInfo[]> {
+  return invoke<HookInfo[]>("cmd_list_hooks", { workspaceId });
+}
+
+/** Read a hook's script (empty when the hook does not exist yet). */
+export function getHook(workspaceId: string, name: string): Promise<string> {
+  return invoke<string>("cmd_get_hook", { workspaceId, name });
+}
+
+/** Write a hook script (on unix it is made executable). */
+export function saveHook(workspaceId: string, name: string, content: string): Promise<void> {
+  return invoke<void>("cmd_save_hook", { workspaceId, name, content });
 }
 
 // --- .gitignore editor (S2) -------------------------------------------------
@@ -591,8 +734,8 @@ export function mergeInProgress(workspaceId: string): Promise<boolean> {
   return invoke<boolean>("cmd_merge_in_progress", { workspaceId });
 }
 
-export function explainConflict(workspaceId: string, path: string): Promise<string> {
-  return invoke<string>("cmd_explain_conflict", { workspaceId, path });
+export function explainConflict(workspaceId: string, path: string): Promise<AiGenerateOutcome> {
+  return invoke<AiGenerateOutcome>("cmd_explain_conflict", { workspaceId, path });
 }
 
 // ─── Working copy ────────────────────────────────────────────────────────────

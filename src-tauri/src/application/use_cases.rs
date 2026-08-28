@@ -9,13 +9,17 @@ use crate::domain::blame::BlameLine;
 use crate::domain::branch::BranchInfo;
 use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
-use crate::domain::history::{CommitDetails, CommitSummary};
+use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
+use crate::domain::hooks::HookInfo;
+use crate::domain::lfs::LfsStatus;
+use crate::domain::reflog::ReflogEntry;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
     RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
 };
 use crate::domain::worktree::WorktreeInfo;
+use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
@@ -28,6 +32,7 @@ use crate::infrastructure::git::conflict::{
 };
 use crate::infrastructure::git::diff::{
     diff_commit_vs_parent as infra_diff_commit_vs_parent,
+    diff_commit_vs_parent_files as infra_diff_commit_vs_parent_files,
     diff_index_to_head as infra_diff_index_to_head,
     diff_index_to_head_files as infra_diff_index_to_head_files, diff_paths as infra_diff_paths,
     diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
@@ -35,7 +40,11 @@ use crate::infrastructure::git::diff::{
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_details as infra_commit_details,
     commit_log as infra_commit_log, commit_recent_messages as infra_commit_recent_messages,
-    list_branches as infra_list_branches,
+    commits_ahead_of as infra_commits_ahead_of, list_branches as infra_list_branches,
+    resolve_ref_oid as infra_resolve_ref_oid,
+};
+use crate::infrastructure::git::hooks::{
+    list_hooks as infra_list_hooks, read_hook as infra_read_hook, write_hook as infra_write_hook,
 };
 use crate::infrastructure::git::interactive_rebase::{
     abort_interactive_rebase_pause as infra_abort_irebase_pause,
@@ -44,11 +53,17 @@ use crate::infrastructure::git::interactive_rebase::{
     interactive_rebase_paused as infra_irebase_paused,
     plan_interactive_rebase as infra_plan_irebase, InteractiveRebaseResult, InteractiveRebaseTodo,
 };
+use crate::infrastructure::git::lfs::{
+    lfs_available as infra_lfs_available, lfs_install as infra_lfs_install,
+    lfs_installed as infra_lfs_installed, list_tracked_patterns as infra_lfs_list_patterns,
+    track_pattern as infra_lfs_track, untrack_pattern as infra_lfs_untrack,
+};
 use crate::infrastructure::git::merge::{
     merge_branch as infra_merge_branch, merge_preview as infra_merge_preview, MergePreview,
     MergeResult,
 };
 use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
+use crate::infrastructure::git::reflog::read_reflog as infra_read_reflog;
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
@@ -63,6 +78,7 @@ use crate::infrastructure::git::stash::{
     save_stash as infra_save_stash, stash_diff as infra_stash_diff,
 };
 use crate::infrastructure::git::submodule::{
+    add_submodule as infra_submodule_add, deinit_submodule as infra_submodule_deinit,
     init_submodule as infra_submodule_init, list_submodules as infra_list_submodules,
     update_submodule as infra_submodule_update,
 };
@@ -193,13 +209,33 @@ pub fn get_workspace(ctx: &AppContext, id: String) -> Result<Workspace> {
 pub fn update_workspace_settings(
     ctx: &AppContext,
     id: String,
-    settings: WorkspaceSettings,
+    mut settings: WorkspaceSettings,
 ) -> Result<()> {
     let provider = settings.ai_provider.as_deref().unwrap_or("");
     if !provider.is_empty() && !matches!(provider, "openai" | "anthropic" | "ollama") {
         return Err(AppError::Protocol(format!(
             "unsupported ai_provider: {provider}"
         )));
+    }
+    for fb in &settings.ai_failover {
+        if !matches!(fb.provider.as_str(), "openai" | "anthropic" | "ollama") {
+            return Err(AppError::Protocol(format!(
+                "unsupported ai_failover provider: {}",
+                fb.provider
+            )));
+        }
+    }
+    // A blank template means "use the built-in default", not "empty system
+    // prompt" — normalize on save so consumers can unwrap directly.
+    let templates = &mut settings.prompt_templates;
+    for template in [
+        &mut templates.commit,
+        &mut templates.conflict,
+        &mut templates.pr,
+    ] {
+        if template.as_deref().map(str::trim) == Some("") {
+            *template = None;
+        }
     }
     ctx.workspaces
         .lock()
@@ -407,28 +443,205 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
     crate::infrastructure::ai::probe_ollama(base_url).await
 }
 
+// ─── AI provider chain (failover) ───────────────────────────────────────────
+
+/// One resolved attempt in the AI provider chain: the workspace primary
+/// first, then its configured failover entries in order.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ResolvedAiProvider {
+    pub provider: String,
+    pub model: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+}
+
+/// Result of a chain run — the text plus which provider produced it, so
+/// the UI can tell the user when a fallback served the request.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AiGenerateOutcome {
+    pub text: String,
+    pub provider_used: String,
+    pub used_fallback: bool,
+}
+
+/// Key lookup abstraction so chain resolution is testable without touching
+/// the OS keychain; production passes `ai::get_api_key` partially applied.
+pub type AiKeyLookup<'a> = dyn Fn(&str) -> Result<Option<String>> + 'a;
+
+pub fn default_ai_model(provider: &str) -> &'static str {
+    match provider {
+        "anthropic" => "claude-3-5-haiku-latest",
+        "ollama" => "llama3.2",
+        _ => "gpt-4o-mini",
+    }
+}
+
+/// Failover policy: only network-level failures (unreachable host, HTTP
+/// 4xx/5xx other than auth, rate limits) move to the next provider. Auth
+/// failures (401/403, mapped to `Credential` in `provider::http_error`)
+/// stop the chain so the root cause surfaces; content and configuration
+/// errors stop too — the next provider would make the same mistake on the
+/// same prompt.
+fn should_failover(err: &AppError) -> bool {
+    matches!(err, AppError::Network(_))
+}
+
+/// Resolve the primary + failover entries into concrete attempts. Cloud
+/// entries whose API key cannot be resolved are skipped (they can never
+/// succeed); a missing key on the *primary* is a hard error, matching the
+/// pre-failover behavior. Offline mode (PM 1.6) is checked FIRST so a
+/// disabled cloud primary cannot shadow a reachable Ollama fallback.
+fn resolve_ai_chain(
+    settings: &WorkspaceSettings,
+    key_lookup: &AiKeyLookup,
+) -> Result<Vec<ResolvedAiProvider>> {
+    let resolve = |provider: &str,
+                   model: &Option<String>,
+                   base_url: &Option<String>|
+     -> Result<ResolvedAiProvider> {
+        Ok(ResolvedAiProvider {
+            provider: provider.to_string(),
+            model: model
+                .clone()
+                .filter(|m| !m.trim().is_empty())
+                .unwrap_or_else(|| default_ai_model(provider).into()),
+            base_url: base_url.clone(),
+            api_key: if provider == "ollama" {
+                None
+            } else {
+                key_lookup(provider)?
+            },
+        })
+    };
+
+    let primary = settings
+        .ai_provider
+        .clone()
+        .filter(|p| !p.trim().is_empty())
+        .ok_or_else(|| {
+            AppError::Protocol("AI provider not configured for this Workspace".into())
+        })?;
+
+    // Offline mode: keep only Ollama entries, before any cloud key checks —
+    // demanding a key for a provider the user just disabled is misleading.
+    if settings.ai_offline {
+        let mut chain = Vec::new();
+        if primary == "ollama" {
+            chain.push(resolve(
+                &primary,
+                &settings.ai_model,
+                &settings.ai_base_url,
+            )?);
+        }
+        for fb in &settings.ai_failover {
+            if fb.provider.trim() == "ollama" {
+                chain.push(resolve("ollama", &fb.model, &fb.base_url)?);
+            }
+        }
+        if chain.is_empty() {
+            return Err(AppError::Protocol(
+                "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
+                    .into(),
+            ));
+        }
+        return Ok(chain);
+    }
+
+    let head = resolve(&primary, &settings.ai_model, &settings.ai_base_url)?;
+    if head.provider != "ollama" && head.api_key.is_none() {
+        return Err(AppError::Credential(format!(
+            "{primary} API key not configured"
+        )));
+    }
+
+    let mut chain = vec![head];
+    for fb in &settings.ai_failover {
+        if fb.provider.trim().is_empty() {
+            continue;
+        }
+        match resolve(&fb.provider, &fb.model, &fb.base_url) {
+            Ok(entry) => {
+                if entry.provider != "ollama" && entry.api_key.is_none() {
+                    continue;
+                }
+                chain.push(entry);
+            }
+            // A keychain failure on an optional fallback just drops that
+            // entry; the chain still serves the request if it can.
+            Err(_) => continue,
+        }
+    }
+    Ok(chain)
+}
+
+/// Run the chain in order; the first non-network outcome wins. Network
+/// failures walk to the next entry; when the chain is exhausted the last
+/// error is raised, with a per-provider summary when several failed.
+async fn generate_with_failover(
+    chain: Vec<ResolvedAiProvider>,
+    system: String,
+    user: String,
+) -> Result<AiGenerateOutcome> {
+    let total = chain.len();
+    let mut failures: Vec<String> = Vec::new();
+    let mut last_err: Option<AppError> = None;
+    for (i, entry) in chain.into_iter().enumerate() {
+        tracing::info!(
+            provider = %entry.provider,
+            model = %entry.model,
+            attempt = i + 1,
+            total,
+            "ai generate"
+        );
+        let req = crate::infrastructure::ai::AiGenerateRequest {
+            provider: entry.provider.clone(),
+            model: entry.model,
+            base_url: entry.base_url,
+            api_key: entry.api_key,
+            system: system.clone(),
+            user: user.clone(),
+        };
+        match crate::infrastructure::ai::generate_text(req).await {
+            Ok(text) => {
+                return Ok(AiGenerateOutcome {
+                    text,
+                    provider_used: entry.provider,
+                    used_fallback: i > 0,
+                });
+            }
+            Err(e) if should_failover(&e) => {
+                tracing::warn!(provider = %entry.provider, error = %e, "ai provider failed, trying next");
+                failures.push(format!("{}: {e}", entry.provider));
+                last_err = Some(e);
+            }
+            // Non-network errors (auth, config, content) stop the chain so
+            // the root cause surfaces instead of being masked by later
+            // providers' failures.
+            Err(e) => return Err(e),
+        }
+    }
+    let last = last_err.expect("resolve_ai_chain never returns an empty chain");
+    if failures.len() > 1 {
+        Err(AppError::Unknown(format!(
+            "all providers failed — {}",
+            failures.join("; ")
+        )))
+    } else {
+        Err(last)
+    }
+}
+
 /// Generate a commit message suggestion from staged/workdir diff + recent commits.
 /// Result is always returned for the user to edit — never auto-commits (P1).
-pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> Result<String> {
+pub async fn generate_commit_message(
+    ctx: &AppContext,
+    workspace_id: String,
+) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    let provider = settings.ai_provider.clone().ok_or_else(|| {
-        AppError::Protocol("AI provider not configured for this Workspace".into())
-    })?;
-    ensure_ai_online(&settings)?;
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
-    let api_key = if provider == "ollama" {
-        None
-    } else {
-        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
-    };
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
 
     let repo_path = active_repo_path(ctx, &workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -464,35 +677,39 @@ pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> 
     user.push_str("\nStaged diff (unified format, may be truncated):\n");
     append_diff_patch(&mut user, &staged_files, 12_000);
 
-    let system = settings.prompt_templates.commit.unwrap_or_else(|| {
-        "You write concise git commit messages. Output ONLY the message text. \
+    let system = with_repo_rules(
+        settings.prompt_templates.commit.unwrap_or_else(|| {
+            "You write concise git commit messages. Output ONLY the message text. \
              Prefer conventional commits (type: summary). First line <= 72 chars. \
              Base the message strictly on the provided staged diff — do not invent \
              changes that are not visible in it. \
              Do not wrap in markdown fences."
-            .into()
-    });
+                .into()
+        }),
+        repo.workdir().and_then(infra_read_ai_rules),
+    );
 
-    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
-        provider,
-        model,
-        base_url: settings.ai_base_url,
-        api_key,
-        system,
-        user,
-    })
-    .await
+    generate_with_failover(chain, system, user).await
 }
 
-/// PM 1.6 offline mode: cloud providers are refused, local Ollama keeps working.
-fn ensure_ai_online(settings: &WorkspaceSettings) -> Result<()> {
-    if settings.ai_offline && settings.ai_provider.as_deref() != Some("ollama") {
-        return Err(AppError::Protocol(
-            "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
-                .into(),
-        ));
+/// Append the repo's `.gitwave/AI.md` (when present) to a system prompt so
+/// per-repo conventions ride along with every AI request.
+fn with_repo_rules(system: String, rules: Option<String>) -> String {
+    match rules {
+        Some(rules) if !rules.trim().is_empty() => format!(
+            "{system}\n\nRepository AI rules (from .gitwave/AI.md — they refine the \
+             guidance above for this repository):\n{rules}"
+        ),
+        _ => system,
     }
-    Ok(())
+}
+
+/// Report the active repo's per-repo AI rules content so the settings UI
+/// can show whether rules are in effect. `None` when absent.
+pub fn get_repo_ai_rules(ctx: &AppContext, workspace_id: &str) -> Result<Option<String>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    Ok(repo.workdir().and_then(infra_read_ai_rules))
 }
 
 fn append_diff_summary(buf: &mut String, diff: &DiffSummary) {
@@ -772,50 +989,468 @@ pub async fn explain_conflict(
     ctx: &AppContext,
     workspace_id: String,
     path: String,
-) -> Result<String> {
+) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    ensure_ai_online(&settings)?;
-    let provider = settings
-        .ai_provider
-        .clone()
-        .ok_or_else(|| AppError::Protocol("AI provider not configured".into()))?;
-    let model = settings
-        .ai_model
-        .clone()
-        .unwrap_or_else(|| match provider.as_str() {
-            "anthropic" => "claude-3-5-haiku-latest".into(),
-            "ollama" => "llama3.2".into(),
-            _ => "gpt-4o-mini".into(),
-        });
-    let api_key = if provider == "ollama" {
-        None
-    } else {
-        crate::infrastructure::ai::get_api_key(&workspace_id, &provider)?
-    };
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
     let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
-    let system = settings.prompt_templates.conflict.unwrap_or_else(|| {
-        "You explain git merge conflicts for a human developer. \
+    let repo_path = active_repo_path(ctx, &workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    let rules = repo.workdir().and_then(infra_read_ai_rules);
+    let system = with_repo_rules(
+        settings.prompt_templates.conflict.unwrap_or_else(|| {
+            "You explain git merge conflicts for a human developer. \
          Describe what each side intends and suggest a resolution approach. \
          Do NOT output a full rewritten file unless asked. \
          Clearly state this is advice only — the user must apply changes."
-            .into()
-    });
+                .into()
+        }),
+        rules,
+    );
     let user = format!(
         "Conflict in `{path}`\n\n=== BASE ===\n{}\n\n=== OURS ===\n{}\n\n=== THEIRS ===\n{}\n",
         sides.base.as_deref().unwrap_or("(missing)"),
         sides.ours.as_deref().unwrap_or("(missing)"),
         sides.theirs.as_deref().unwrap_or("(missing)"),
     );
-    crate::infrastructure::ai::generate_text(crate::infrastructure::ai::AiGenerateRequest {
-        provider,
-        model,
-        base_url: settings.ai_base_url,
-        api_key,
-        system,
-        user,
+    generate_with_failover(chain, system, user).await
+}
+
+// ─── AI PR description ──────────────────────────────────────────────────────
+
+/// Generated PR title + markdown body, plus which provider served it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PrDescriptionOutcome {
+    pub title: String,
+    pub body: String,
+    pub provider_used: String,
+    pub used_fallback: bool,
+}
+
+pub const DEFAULT_PR_SYSTEM: &str =
+    "You write pull request titles and descriptions for a human reviewer. \
+The FIRST line of your output is the PR title: plain text, at most 72 characters, no prefix. \
+After the title leave one blank line, then write the description in markdown: a short summary \
+paragraph, bullet points for the notable changes, and a short 'Testing' section. \
+Base everything strictly on the provided commits and diff — do not invent changes. \
+Do not wrap the output in markdown fences.";
+
+/// Default base candidates for PR description generation, in order.
+const PR_BASE_CANDIDATES: [&str; 4] = ["origin/main", "origin/master", "main", "master"];
+
+fn default_pr_base(repo: &git2::Repository) -> Result<String> {
+    for candidate in PR_BASE_CANDIDATES {
+        if infra_resolve_ref_oid(repo, candidate).is_ok() {
+            return Ok(candidate.to_string());
+        }
+    }
+    Err(AppError::Protocol(
+        "no base branch found (tried origin/main, origin/master, main, master) — \
+         pick a base branch explicitly"
+            .into(),
+    ))
+}
+
+/// Split raw model output into title (first line) + markdown body.
+fn split_pr_text(text: &str) -> (String, String) {
+    let text = text.trim();
+    match text.split_once('\n') {
+        Some((title, rest)) => (title.trim().to_string(), rest.trim().to_string()),
+        None => (text.to_string(), String::new()),
+    }
+}
+
+/// Assemble the user prompt: branch segment commits + combined diff.
+fn build_pr_user_prompt(
+    branch: &str,
+    base: &str,
+    commits: &[PrCommit],
+    files: &[FileDiff],
+) -> String {
+    let mut user = format!(
+        "Branch: {branch}\nBase: {base}\n\nCommits ({}):\n",
+        commits.len()
+    );
+    for c in commits {
+        let short = &c.sha[..c.sha.len().min(7)];
+        user.push_str(&format!("- {short} {}\n", c.subject));
+    }
+    user.push_str("\nFull commit messages of the branch (style reference):\n");
+    for c in commits.iter().take(5) {
+        user.push_str("---\n");
+        user.push_str(&c.message_full);
+        user.push_str("\n---\n");
+    }
+    user.push_str("\nCombined diff of the branch (unified format, may be truncated):\n");
+    append_diff_patch(&mut user, files, 12_000);
+    user
+}
+
+/// AI-generated PR description for the active branch vs `base` (default:
+/// first existing of origin/main, origin/master, main, master). Never
+/// creates a PR (P1) — output is copy-ready text for the user.
+pub async fn generate_pr_description(
+    ctx: &AppContext,
+    workspace_id: String,
+    base: Option<String>,
+) -> Result<PrDescriptionOutcome> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    // Scoped so the !Send git2 handles (Repository / Commit) drop before
+    // the await — the command future must stay Send.
+    let (user, system) = {
+        let repo_path = active_repo_path(ctx, &workspace_id)?;
+        let repo = ctx.open_repo(&repo_path)?;
+        let head = match repo.head() {
+            Ok(head) => head.peel_to_commit().map_err(AppError::from)?,
+            Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
+                return Err(AppError::Protocol(
+                    "repository has no commits yet — nothing to describe".into(),
+                ));
+            }
+            Err(e) => return Err(AppError::from(e)),
+        };
+        let branch = repo
+            .head()
+            .ok()
+            .and_then(|h| h.shorthand().map(str::to_string))
+            .unwrap_or_else(|| "HEAD (detached)".to_string());
+
+        let base_name = match base.filter(|b| !b.trim().is_empty()) {
+            Some(b) => b,
+            None => default_pr_base(&repo)?,
+        };
+        let base_oid = infra_resolve_ref_oid(&repo, &base_name)?;
+        let merge_base = repo.merge_base(base_oid, head.id()).map_err(|_| {
+            AppError::Protocol(format!("no common ancestor between HEAD and {base_name}"))
+        })?;
+        let commits = infra_commits_ahead_of(&repo, merge_base, head.id(), 30)?;
+        if commits.is_empty() {
+            return Err(AppError::Protocol(format!(
+                "no commits ahead of {base_name} — nothing to describe"
+            )));
+        }
+        let files = infra_diff_paths(&repo, merge_base, head.id())?;
+
+        let user = build_pr_user_prompt(&branch, &base_name, &commits, &files);
+        let system = with_repo_rules(
+            settings
+                .prompt_templates
+                .pr
+                .clone()
+                .filter(|t| !t.trim().is_empty())
+                .unwrap_or_else(|| DEFAULT_PR_SYSTEM.to_string()),
+            repo.workdir().and_then(infra_read_ai_rules),
+        );
+        (user, system)
+    };
+
+    let outcome = generate_with_failover(chain, system, user).await?;
+    let (title, body) = split_pr_text(&outcome.text);
+    Ok(PrDescriptionOutcome {
+        title,
+        body,
+        provider_used: outcome.provider_used,
+        used_fallback: outcome.used_fallback,
     })
-    .await
+}
+
+// ─── AI history explain ─────────────────────────────────────────────────────
+
+pub const DEFAULT_EXPLAIN_SYSTEM: &str = "You explain git commits for a human developer. \
+Describe what changed and why it likely matters: start from the commit message, then the diff. \
+Keep it under 200 words, plain prose or short bullets. If the diff contradicts the message, \
+say so. Base everything strictly on the provided data.";
+
+/// Assemble the explain prompt: full message + changed-file summary + patch.
+fn build_explain_user_prompt(
+    message_full: &str,
+    summary: &DiffSummary,
+    files: &[FileDiff],
+) -> String {
+    let mut user = format!("Commit message:\n{message_full}\n\nChanged files:\n");
+    append_diff_summary(&mut user, summary);
+    user.push_str("\nDiff (unified format, may be truncated):\n");
+    append_diff_patch(&mut user, files, 12_000);
+    user
+}
+
+/// AI explanation of a single commit — read-only advice, nothing is
+/// applied to the repository (P1).
+pub async fn explain_commit(
+    ctx: &AppContext,
+    workspace_id: String,
+    sha: String,
+) -> Result<AiGenerateOutcome> {
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    // Scoped so the !Send git2 handle drops before the await.
+    let (user, system) = {
+        let repo_path = active_repo_path(ctx, &workspace_id)?;
+        let repo = ctx.open_repo(&repo_path)?;
+        let oid = infra_resolve_ref_oid(&repo, &sha)?;
+        let details = infra_commit_details(&repo, &sha)?;
+        let summary = infra_diff_commit_vs_parent(&repo, oid)?;
+        let files = infra_diff_commit_vs_parent_files(&repo, oid)?;
+        let user = build_explain_user_prompt(&details.message_full, &summary, &files);
+        let system = with_repo_rules(
+            DEFAULT_EXPLAIN_SYSTEM.to_string(),
+            repo.workdir().and_then(infra_read_ai_rules),
+        );
+        (user, system)
+    };
+    generate_with_failover(chain, system, user).await
+}
+
+// ─── AI command palette (Cmd+K) ─────────────────────────────────────────────
+
+/// One AI-proposed palette action. Mutating actions carry
+/// `requires_confirm = true` and the UI must not execute them without an
+/// explicit user confirmation (P1). commit / push / merge / rebase are not
+/// in the whitelist at all and are rejected server-side.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PaletteIntent {
+    pub action: String,
+    pub params: serde_json::Value,
+    pub explanation: String,
+    pub requires_confirm: bool,
+}
+
+/// Actions the palette may execute without further confirmation (read-only
+/// navigation or dialogs).
+pub const PALETTE_ACTIONS_IMMEDIATE: [&str; 3] = ["explain_commit", "locate_commit", "none"];
+/// Actions that only run after the user confirms the intent card.
+pub const PALETTE_ACTIONS_CONFIRM: [&str; 5] = [
+    "create_branch",
+    "checkout_branch",
+    "create_tag",
+    "stash_changes",
+    "fetch_remotes",
+];
+
+pub const PALETTE_SYSTEM: &str = "You convert a user request into exactly ONE GitWave UI action. \
+Respond with ONLY a JSON object, no prose, no markdown fences: \
+{\"action\": \"...\", \"params\": {...}, \"explanation\": \"one short sentence\"}. \
+Allowed actions and their params:
+- explain_commit {\"sha\": string} — AI explains what a commit changed
+- locate_commit {\"sha\": string} — scroll the history graph to a commit
+- create_branch {\"name\": string, \"from\": string (optional sha or branch)}
+- checkout_branch {\"name\": string}
+- create_tag {\"name\": string, \"sha\": string (optional, defaults to current tip)}
+- stash_changes {\"message\": string (optional)}
+- fetch_remotes {}
+- none {} — when nothing matches
+Pick shas from the provided recent commits when possible. Mutating actions are shown to the \
+user for confirmation first, so prefer the closest matching action over refusing. \
+Never invent actions outside this list.";
+
+fn strip_json_fences(raw: &str) -> &str {
+    let trimmed = raw.trim();
+    let Some(without_open) = trimmed.strip_prefix("```") else {
+        return trimmed;
+    };
+    // Drop an optional language tag on the opening fence line.
+    let body = without_open
+        .split_once('\n')
+        .map(|(_, rest)| rest)
+        .unwrap_or(without_open);
+    body.trim()
+        .strip_suffix("```")
+        .map(str::trim)
+        .unwrap_or(body.trim())
+}
+
+/// Tolerant parse + whitelist validation of the model's JSON output.
+/// Invalid shapes and non-whitelisted actions are hard errors — the palette
+/// shows them as AI errors instead of executing anything.
+fn parse_palette_intent(raw: &str) -> Result<PaletteIntent> {
+    let text = strip_json_fences(raw);
+    let (start, end) = match (text.find('{'), text.rfind('}')) {
+        (Some(s), Some(e)) if e > s => (s, e),
+        _ => {
+            return Err(AppError::Protocol(
+                "AI did not return a JSON action — try rephrasing the request".into(),
+            ));
+        }
+    };
+    let value: serde_json::Value = serde_json::from_str(&text[start..=end])
+        .map_err(|_| AppError::Protocol("AI returned malformed JSON — try again".into()))?;
+
+    let action = value["action"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let explanation = value["explanation"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let params = if value["params"].is_object() {
+        value["params"].clone()
+    } else {
+        serde_json::json!({})
+    };
+
+    let whitelisted = PALETTE_ACTIONS_IMMEDIATE.contains(&action.as_str())
+        || PALETTE_ACTIONS_CONFIRM.contains(&action.as_str());
+    if !whitelisted {
+        let hinted = if action.is_empty() {
+            "empty action".to_string()
+        } else {
+            format!("unsupported action: {action}")
+        };
+        return Err(AppError::Protocol(format!(
+            "{hinted} — commit, push, merge and rebase are never palette-driven (P1)"
+        )));
+    }
+
+    let require_str = |key: &str| -> Result<String> {
+        params[key]
+            .as_str()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| {
+                AppError::Protocol(format!("AI action \"{action}\" is missing \"{key}\""))
+            })
+    };
+    match action.as_str() {
+        "explain_commit" | "locate_commit" => {
+            require_str("sha")?;
+        }
+        "create_branch" | "checkout_branch" | "create_tag" => {
+            require_str("name")?;
+        }
+        _ => {}
+    }
+
+    Ok(PaletteIntent {
+        requires_confirm: PALETTE_ACTIONS_CONFIRM.contains(&action.as_str()),
+        action,
+        params,
+        explanation,
+    })
+}
+
+/// Repository context snapshot fed to the palette prompt: enough for the
+/// model to resolve branch / tag / sha references, small enough to stay
+/// cheap. Read-only assembly — no working-tree access.
+#[derive(serde::Serialize)]
+struct PaletteContext {
+    current_branch: String,
+    local_branches: Vec<String>,
+    remote_branches: Vec<String>,
+    tags: Vec<String>,
+    repos: Vec<PaletteRepo>,
+    recent_commits: Vec<PaletteCommit>,
+}
+
+#[derive(serde::Serialize)]
+struct PaletteRepo {
+    id: String,
+    name: String,
+}
+
+#[derive(serde::Serialize)]
+struct PaletteCommit {
+    sha: String,
+    subject: String,
+}
+
+/// Interpret a natural-language request as a whitelisted palette action.
+/// The AI only *proposes* — execution (with confirmation for mutating
+/// actions) stays in the frontend.
+pub async fn ai_palette_intent(
+    ctx: &AppContext,
+    workspace_id: String,
+    query: String,
+) -> Result<PaletteIntent> {
+    if query.trim().is_empty() {
+        return Err(AppError::Protocol("empty palette request".into()));
+    }
+    let ws = get_workspace(ctx, workspace_id.clone())?;
+    let settings = ws.settings;
+    let key_lookup =
+        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
+    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+
+    let repos = list_repos(ctx, workspace_id.clone())?
+        .into_iter()
+        .map(|r| PaletteRepo {
+            id: r.id,
+            name: r.nickname.unwrap_or(r.path),
+        })
+        .collect();
+    let tags = list_tags(ctx, &workspace_id)?
+        .into_iter()
+        .take(20)
+        .map(|t| t.name)
+        .collect();
+
+    // Scoped so the !Send git2 handle drops before the await.
+    let (current_branch, local_branches, remote_branches, recent_commits, rules) = {
+        let repo_path = active_repo_path(ctx, &workspace_id)?;
+        let repo = ctx.open_repo(&repo_path)?;
+        let current_branch = repo
+            .head()
+            .ok()
+            .and_then(|h| h.shorthand().map(str::to_string))
+            .unwrap_or_else(|| "HEAD (detached)".to_string());
+        let mut local = Vec::new();
+        let mut remote = Vec::new();
+        if let Ok(branches) = repo.branches(None) {
+            for item in branches.flatten() {
+                let (branch, kind) = item;
+                let Some(name) = branch.name().ok().flatten() else {
+                    continue;
+                };
+                match kind {
+                    git2::BranchType::Local if local.len() < 20 => local.push(name.to_string()),
+                    git2::BranchType::Remote if remote.len() < 15 => remote.push(name.to_string()),
+                    _ => {}
+                }
+            }
+        }
+        let recent_commits = infra_commit_log(&repo, 15, None)?
+            .into_iter()
+            .map(|c| PaletteCommit {
+                sha: c.sha,
+                subject: c.message_summary,
+            })
+            .collect();
+        let rules = repo.workdir().and_then(infra_read_ai_rules);
+        (current_branch, local, remote, recent_commits, rules)
+    };
+
+    let snapshot = PaletteContext {
+        current_branch,
+        local_branches,
+        remote_branches,
+        tags,
+        repos,
+        recent_commits,
+    };
+    let user = format!(
+        "Repository context:\n{}\n\nUser request: {}",
+        serde_json::to_string_pretty(&snapshot)
+            .map_err(|e| AppError::Unknown(format!("palette context: {e}")))?,
+        query.trim()
+    );
+    let system = with_repo_rules(PALETTE_SYSTEM.to_string(), rules);
+
+    let outcome = generate_with_failover(chain, system, user).await?;
+    parse_palette_intent(&outcome.text)
 }
 
 /// Rebase the current HEAD onto an upstream.
@@ -887,11 +1522,81 @@ pub fn init_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Resul
     infra_submodule_init(&repo, name)
 }
 
-/// `git submodule update --init <name>` (clone + checkout the worktree).
-pub fn update_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+/// `git submodule update --init <name>` (clone + checkout the worktree);
+/// with `recursive`, also update nested submodules of its worktree.
+pub fn update_submodule(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    recursive: bool,
+) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_submodule_update(&repo, name)
+    infra_submodule_update(&repo, name, recursive)
+}
+
+/// `git submodule add <url> <path>` — clones and stages the gitlink +
+/// `.gitmodules` entry. Staged only; the user commits via the normal flow.
+pub fn add_submodule(
+    ctx: &AppContext,
+    workspace_id: &str,
+    url: String,
+    path: String,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_submodule_add(&repo, &url, &path)
+}
+
+/// `git submodule deinit <name>` — unregisters from `.git/config`. Milder
+/// than git's version: the submodule worktree is left untouched (nothing
+/// is deleted); the entry stays in `.gitmodules` and the index.
+pub fn deinit_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_submodule_deinit(&repo, name)
+}
+
+// ─── Git LFS use cases ──────────────────────────────────────────────────────
+
+/// Snapshot of the active repo's LFS state (binary available, local filters
+/// wired, tracked patterns).
+pub fn lfs_status(ctx: &AppContext, workspace_id: &str) -> Result<LfsStatus> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    Ok(LfsStatus {
+        available: infra_lfs_available(),
+        installed: infra_lfs_installed(&repo)?,
+        patterns: infra_lfs_list_patterns(&repo)?,
+    })
+}
+
+/// Wire LFS filters into the active repository (`git lfs install --local`).
+/// Requires a `git lfs` binary on PATH.
+pub fn lfs_install(ctx: &AppContext, workspace_id: &str) -> Result<String> {
+    if !infra_lfs_available() {
+        return Err(AppError::Protocol(
+            "git lfs is not installed — install Git LFS (https://git-lfs.com) and restart GitWave"
+                .into(),
+        ));
+    }
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_lfs_install(&repo)
+}
+
+/// Track a path pattern with LFS (appends to `.gitattributes`).
+pub fn lfs_track(ctx: &AppContext, workspace_id: &str, pattern: String) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_lfs_track(&repo, &pattern)
+}
+
+/// Stop tracking a pattern with LFS (removes the `.gitattributes` line).
+pub fn lfs_untrack(ctx: &AppContext, workspace_id: &str, pattern: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_lfs_untrack(&repo, pattern)
 }
 
 /// Read the repo-root `.gitignore` (empty string when absent) — S2 editor.
@@ -902,6 +1607,38 @@ pub fn get_gitignore(ctx: &AppContext, workspace_id: &str) -> Result<String> {
         return Ok(String::new());
     }
     std::fs::read_to_string(&path).map_err(|e| AppError::Unknown(format!("read .gitignore: {e}")))
+}
+
+/// HEAD reflog for the sidebar browser, newest first. Read-only — recovery
+/// actions are v0.3 scope.
+pub fn list_reflog(ctx: &AppContext, workspace_id: &str) -> Result<Vec<ReflogEntry>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_read_reflog(&repo, "HEAD")
+}
+
+// ─── Git hooks editor ───────────────────────────────────────────────────────
+
+/// The known client-side hooks with presence markers. GitWave edits hooks;
+/// it never executes them (P1).
+pub fn list_hooks(ctx: &AppContext, workspace_id: &str) -> Result<Vec<HookInfo>> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_list_hooks(&repo)
+}
+
+/// Read a hook's script (empty when the hook does not exist yet).
+pub fn get_hook(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<String> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_read_hook(&repo, name)
+}
+
+/// Write a hook script (on unix it is made executable).
+pub fn save_hook(ctx: &AppContext, workspace_id: &str, name: &str, content: String) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_write_hook(&repo, name, &content)
 }
 
 /// Overwrite the repo-root `.gitignore` (S2 editor). Trailing newline is
@@ -1308,6 +2045,245 @@ mod tests {
         assert!(buf.len() < 500, "budget must bound output: {}", buf.len());
     }
 
+    // ── AI provider chain ──
+
+    use crate::domain::workspace::AiProviderConfig;
+
+    fn chain_settings(
+        primary: Option<&str>,
+        failover: Vec<AiProviderConfig>,
+        offline: bool,
+    ) -> WorkspaceSettings {
+        WorkspaceSettings {
+            ai_provider: primary.map(str::to_string),
+            ai_failover: failover,
+            ai_offline: offline,
+            ..WorkspaceSettings::default()
+        }
+    }
+
+    fn key_lookup_for(keys: &[(&str, Option<&str>)]) -> impl Fn(&str) -> Result<Option<String>> {
+        let keys: std::collections::HashMap<String, Option<String>> = keys
+            .iter()
+            .map(|(p, k)| (p.to_string(), k.map(str::to_string)))
+            .collect();
+        move |provider: &str| {
+            keys.get(provider)
+                .cloned()
+                .ok_or_else(|| AppError::Unknown("keychain unavailable".into()))
+        }
+    }
+
+    #[test]
+    fn failover_policy_only_walks_network_errors() {
+        assert!(should_failover(&AppError::Network("timeout".into())));
+        assert!(!should_failover(&AppError::Protocol("bad prompt".into())));
+        assert!(!should_failover(&AppError::Credential("no key".into())));
+        assert!(!should_failover(&AppError::Unknown("empty content".into())));
+    }
+
+    #[test]
+    fn repo_rules_are_appended_only_when_present() {
+        let base = "Base prompt.".to_string();
+        assert_eq!(with_repo_rules(base.clone(), None), base);
+        assert_eq!(with_repo_rules(base.clone(), Some("   ".into())), base);
+        let with = with_repo_rules(base, Some("Keep subjects short.".into()));
+        assert!(with.starts_with("Base prompt."));
+        assert!(with.contains(".gitwave/AI.md"));
+        assert!(with.contains("Keep subjects short."));
+    }
+
+    #[test]
+    fn split_pr_text_separates_title_and_body() {
+        let (title, body) = split_pr_text("feat: add LFS support\n\nSummary.\n- item");
+        assert_eq!(title, "feat: add LFS support");
+        assert_eq!(body, "Summary.\n- item");
+        let (title, body) = split_pr_text("  title only  ");
+        assert_eq!(title, "title only");
+        assert_eq!(body, "");
+        let (title, body) = split_pr_text("\n\ntitle\n");
+        assert_eq!(title, "title");
+        assert_eq!(body, "");
+    }
+
+    #[test]
+    fn pr_user_prompt_lists_commits_and_diff() {
+        let commits = vec![PrCommit {
+            sha: "1234567890abcdef".into(),
+            subject: "feat: a".into(),
+            message_full: "feat: a\n\nbody".into(),
+        }];
+        let prompt =
+            build_pr_user_prompt("feature/x", "origin/main", &commits, &patch_fixture(None));
+        assert!(prompt.contains("Branch: feature/x"));
+        assert!(prompt.contains("Base: origin/main"));
+        assert!(prompt.contains("Commits (1):"));
+        assert!(prompt.contains("- 1234567 feat: a"));
+        assert!(
+            prompt.contains("feat: a\n\nbody"),
+            "style reference included"
+        );
+        assert!(prompt.contains("--- a/a.txt"), "diff patch included");
+    }
+
+    #[test]
+    fn explain_prompt_carries_message_files_and_patch() {
+        let summary = DiffSummary {
+            files: vec![],
+            total_additions: 0,
+            total_deletions: 0,
+        };
+        let prompt = build_explain_user_prompt("feat: a\n\nbody", &summary, &patch_fixture(None));
+        assert!(prompt.starts_with("Commit message:\nfeat: a\n\nbody\n"));
+        assert!(prompt.contains("Changed files:"));
+        assert!(prompt.contains("(none)"));
+        assert!(prompt.contains("--- a/a.txt"));
+    }
+
+    #[test]
+    fn palette_intent_parses_tolerantly() {
+        let intent = parse_palette_intent(
+            "```json\n{\"action\": \"create_branch\", \"params\": {\"name\": \"fix/auth\"}, \
+             \"explanation\": \"create a branch\"}\n```",
+        )
+        .expect("fenced json");
+        assert_eq!(intent.action, "create_branch");
+        assert!(intent.requires_confirm);
+        assert_eq!(intent.params["name"], "fix/auth");
+
+        let intent =
+            parse_palette_intent("Sure! {\"action\":\"locate_commit\",\"params\":{\"sha\":\"abc1234\"},\"explanation\":\"jump\"}")
+                .expect("prose-wrapped json");
+        assert!(!intent.requires_confirm);
+        assert_eq!(intent.params["sha"], "abc1234");
+
+        // Missing params object defaults to {} for param-less actions.
+        let intent =
+            parse_palette_intent("{\"action\":\"fetch_remotes\",\"explanation\":\"fetch\"}")
+                .expect("no params");
+        assert_eq!(intent.action, "fetch_remotes");
+    }
+
+    #[test]
+    fn palette_intent_rejects_non_whitelisted_and_malformed() {
+        // P1: commit / push / merge / rebase are never palette-driven.
+        for action in ["commit", "push", "merge", "rebase", "force_push"] {
+            let raw = format!("{{\"action\":\"{action}\",\"params\":{{}},\"explanation\":\"x\"}}");
+            let err = parse_palette_intent(&raw).expect_err(action);
+            assert!(err.to_string().contains("unsupported action"), "{err}");
+        }
+        assert!(parse_palette_intent("no json here").is_err());
+        assert!(parse_palette_intent("{\"action\":\"locate_commit\"}").is_err());
+        let err = parse_palette_intent(
+            "{\"action\":\"explain_commit\",\"params\":{},\"explanation\":\"x\"}",
+        )
+        .expect_err("missing sha");
+        assert!(err.to_string().contains("missing \"sha\""), "{err}");
+    }
+
+    #[test]
+    fn ai_chain_resolves_primary_then_reachable_failovers() {
+        let settings = chain_settings(
+            Some("openai"),
+            vec![
+                AiProviderConfig {
+                    provider: "anthropic".into(),
+                    model: Some("claude-3-5-haiku-latest".into()),
+                    base_url: None,
+                },
+                AiProviderConfig {
+                    provider: "ollama".into(),
+                    model: None,
+                    base_url: Some("http://127.0.0.1:11434".into()),
+                },
+            ],
+            false,
+        );
+        let lookup = key_lookup_for(&[("openai", Some("sk-test"))]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain");
+        // anthropic is dropped (no key), openai + ollama remain in order.
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].provider, "openai");
+        assert_eq!(chain[0].api_key.as_deref(), Some("sk-test"));
+        assert_eq!(chain[0].model, "gpt-4o-mini", "default model applied");
+        assert_eq!(chain[1].provider, "ollama");
+        assert_eq!(chain[1].model, "llama3.2", "default model applied");
+        assert_eq!(chain[1].api_key, None, "ollama needs no key");
+        assert_eq!(chain[1].base_url.as_deref(), Some("http://127.0.0.1:11434"));
+    }
+
+    #[test]
+    fn ai_chain_preserves_explicit_models() {
+        let settings = WorkspaceSettings {
+            ai_provider: Some("anthropic".into()),
+            ai_model: Some("claude-custom".into()),
+            ..chain_settings(None, vec![], false)
+        };
+        let lookup = key_lookup_for(&[("anthropic", Some("k"))]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain");
+        assert_eq!(chain[0].model, "claude-custom");
+    }
+
+    #[test]
+    fn ai_chain_primary_without_key_is_a_hard_error() {
+        let settings = chain_settings(Some("openai"), vec![], false);
+        // openai is known to the keychain but has no stored key.
+        let lookup = key_lookup_for(&[("openai", None)]);
+        let err = resolve_ai_chain(&settings, &lookup).expect_err("no key");
+        assert!(matches!(err, AppError::Credential(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn ai_chain_requires_primary_provider() {
+        let settings = chain_settings(None, vec![], false);
+        let lookup = key_lookup_for(&[]);
+        let err = resolve_ai_chain(&settings, &lookup).expect_err("no provider");
+        assert!(
+            err.to_string().contains("AI provider not configured"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn ai_chain_offline_keeps_only_ollama() {
+        let settings = chain_settings(
+            Some("openai"),
+            vec![AiProviderConfig {
+                provider: "ollama".into(),
+                model: None,
+                base_url: None,
+            }],
+            true,
+        );
+        let lookup = key_lookup_for(&[("openai", Some("sk-test"))]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain");
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].provider, "ollama");
+
+        let cloud_only = chain_settings(Some("openai"), vec![], true);
+        let err = resolve_ai_chain(&cloud_only, &lookup).expect_err("offline");
+        assert!(err.to_string().contains("offline mode"), "got: {err}");
+    }
+
+    #[test]
+    fn ai_chain_offline_does_not_demand_cloud_key() {
+        // Offline + cloud primary without a stored key must still reach the
+        // Ollama fallback — the user disabled cloud calls on purpose.
+        let settings = chain_settings(
+            Some("openai"),
+            vec![AiProviderConfig {
+                provider: "ollama".into(),
+                model: None,
+                base_url: None,
+            }],
+            true,
+        );
+        let lookup = key_lookup_for(&[("openai", None)]);
+        let chain = resolve_ai_chain(&settings, &lookup).expect("chain reaches ollama");
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].provider, "ollama");
+    }
+
     fn fresh_ctx() -> AppContext {
         let conn = Connection::open_in_memory().expect("in-memory sqlite");
         migrations::apply(&conn).expect("migrations");
@@ -1327,6 +2303,22 @@ mod tests {
         let list = list_workspaces(&ctx).expect("list");
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].id, ws.id);
+    }
+
+    #[test]
+    fn update_settings_normalizes_blank_templates_to_default() {
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Ws".into()).expect("create");
+        let mut settings = WorkspaceSettings::default();
+        settings.prompt_templates.commit = Some("   ".into());
+        settings.prompt_templates.pr = Some("Custom PR prompt.".into());
+        update_workspace_settings(&ctx, ws.id.clone(), settings).expect("update");
+        let stored = get_workspace(&ctx, ws.id).expect("get").settings;
+        assert_eq!(stored.prompt_templates.commit, None, "blank means default");
+        assert_eq!(
+            stored.prompt_templates.pr.as_deref(),
+            Some("Custom PR prompt.")
+        );
     }
 
     #[test]

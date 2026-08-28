@@ -1,6 +1,6 @@
 [package]
 name = "gitwave"
-version = "0.1.0"
+version = "0.2.0"
 description = "GitWave — local-first Git client with AI collaboration"
 authors = ["Yangzhenbiao <yangshifu1024@qq.com>"]
 edition = "2021"
@@ -33,7 +33,11 @@ anyhow = "1"
 # Sprint 2 step 6: persistence + git backend
 dirs = "5"
 rusqlite = { version = "0.32", features = ["bundled"] }
-git2 = { version = "0.20", features = ["vendored-libgit2"] }
+# `ssh` compiles the libssh2 transport into vendored libgit2 — without it
+# SSH remotes fail on every platform. libssh2 speaks to ssh-agent via
+# SSH_AUTH_SOCK on unix and the OpenSSH Agent named pipe on Windows, so
+# `Cred::ssh_key_from_agent` works on both once the feature is on.
+git2 = { version = "0.20", features = ["vendored-libgit2", "ssh"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tauri-plugin-decoration = "3"
