@@ -47,6 +47,8 @@ pub fn classify(message: &str) -> &'static str {
         "rebase"
     } else if lower.starts_with("pull") {
         "pull"
+    } else if lower.starts_with("fetch") {
+        "fetch"
     } else if lower.starts_with("push") {
         "push"
     } else if lower.starts_with("branch") {
@@ -64,8 +66,9 @@ pub fn classify(message: &str) -> &'static str {
     }
 }
 
-/// Accept `HEAD` or a branch shorthand; anything containing `refs/` passes
-/// through unchanged.
+/// Accept `HEAD` or a local branch shorthand; anything containing `refs/`
+/// passes through unchanged. Remote-tracking (`origin/main`) and tag names
+/// are intentionally not accepted — the recovery UI targets HEAD/branches.
 fn normalize_ref(reference: &str) -> String {
     let r = reference.trim();
     if r == "HEAD" || r.starts_with("refs/") {

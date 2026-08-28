@@ -47,6 +47,7 @@ export function RemotesPanel(): React.JSX.Element {
       return;
     }
     setItems(await listRemoteDetails(workspaceId));
+    setError(null);
   }, [workspaceId, repoId]);
 
   useEffect(() => {

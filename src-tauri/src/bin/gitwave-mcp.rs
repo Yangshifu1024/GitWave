@@ -148,6 +148,17 @@ fn read_file(repo_path: &Path, rel: &str) -> Result<String, String> {
     std::fs::read_to_string(&canonical).map_err(|e| format!("read {rel}: {e}"))
 }
 
+/// Error payload for JSON-RPC error responses.
+enum HandleError {
+    /// Unknown method — JSON-RPC -32601.
+    MethodNotFound(String),
+    /// Anything else — JSON-RPC -32603. Reserved: tool-level failures are
+    /// reported as isError results per the MCP spec, so this variant is
+    /// currently never produced.
+    #[allow(dead_code)]
+    Internal(String),
+}
+
 /// Handle one JSON-RPC message. Returns the response for requests; `None`
 /// for notifications.
 fn handle(msg: &Value, repo_path: &Path) -> Option<Value> {
@@ -157,7 +168,7 @@ fn handle(msg: &Value, repo_path: &Path) -> Option<Value> {
     // Notifications have no id — acknowledge nothing.
     id.as_ref()?;
 
-    let result: Result<Value, String> = match method.as_str() {
+    let result: Result<Value, HandleError> = match method.as_str() {
         "initialize" => Ok(json!({
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": { "tools": {} },
@@ -180,13 +191,18 @@ fn handle(msg: &Value, repo_path: &Path) -> Option<Value> {
                 })),
             }
         }
-        other => Err(format!("method not found: {other}")),
+        other => Err(HandleError::MethodNotFound(format!(
+            "method not found: {other}"
+        ))),
     };
 
     Some(match result {
         Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-        Err(error) => {
-            json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32603, "message": error } })
+        Err(HandleError::MethodNotFound(message)) => {
+            json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": message } })
+        }
+        Err(HandleError::Internal(message)) => {
+            json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32603, "message": message } })
         }
     })
 }
@@ -322,6 +338,20 @@ mod tests {
             resp["result"]["isError"], true,
             "git internals must be refused"
         );
+
+        // Absolute paths (windows- and unix-style) are rejected.
+        for evil in ["C:\\Windows\\system.ini", "/etc/passwd"] {
+            let msg = json!({ "jsonrpc": "2.0", "id": 8, "method": "tools/call",
+                "params": { "name": "read_file", "arguments": { "path": evil } } });
+            let resp = handle(&msg, &dir).unwrap();
+            assert_eq!(resp["result"]["isError"], true, "absolute path: {evil}");
+        }
+
+        // Missing required argument is an error, not a panic.
+        let msg = json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+            "params": { "name": "read_file", "arguments": {} } });
+        let resp = handle(&msg, &dir).unwrap();
+        assert_eq!(resp["result"]["isError"], true);
 
         // Symlink escape (unix only — creating symlinks on Windows needs
         // privileges; the canonicalize guard is platform-independent).

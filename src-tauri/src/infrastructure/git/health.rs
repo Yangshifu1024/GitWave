@@ -16,6 +16,32 @@ fn map_git_err(e: git2::Error) -> AppError {
 const STALE_DAYS: i64 = 30;
 const LARGE_FILE_BYTES: u64 = 1024 * 1024;
 
+/// Directories never walked for large-file detection (build/vendor output
+/// dwarfs real sources and would blow the visit budget).
+const SKIPPED_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "vendor",
+    ".venv",
+    "__pycache__",
+];
+const MAX_VISITED_ENTRIES: usize = 50_000;
+
+/// Leftover operation state: aborted merge / revert / cherry-pick / rebase /
+/// bisect. Each name (file or directory under `.git`) is reported as-is.
+const RESIDUE_STATE: &[&str] = &[
+    "MERGE_HEAD",
+    "REVERT_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REBASE_HEAD",
+    "rebase-merge",
+    "rebase-apply",
+    "BISECT_LOG",
+];
+
 #[derive(Debug, Clone, Serialize)]
 pub struct LargeFile {
     pub path: String,
@@ -55,20 +81,27 @@ fn large_files(repo: &Repository, limit: usize) -> Vec<LargeFile> {
     };
     let mut found: Vec<LargeFile> = Vec::new();
     let mut stack = vec![workdir.to_path_buf()];
+    let mut visited = 0usize;
     while let Some(dir) = stack.pop() {
         let Ok(entries) = fs::read_dir(&dir) else {
             continue;
         };
         for entry in entries.flatten() {
+            visited += 1;
+            if visited > MAX_VISITED_ENTRIES {
+                return found;
+            }
             let path = entry.path();
             let Ok(meta) = entry.metadata() else {
                 continue;
             };
             if meta.is_dir() {
-                if path.file_name().is_some_and(|n| n == ".git") {
-                    continue;
+                let skipped = path
+                    .file_name()
+                    .is_some_and(|n| SKIPPED_DIRS.iter().any(|s| n.eq_ignore_ascii_case(s)));
+                if !skipped {
+                    stack.push(path);
                 }
-                stack.push(path);
             } else if meta.is_file() && meta.len() >= LARGE_FILE_BYTES {
                 found.push(LargeFile {
                     path: path
@@ -87,15 +120,16 @@ fn large_files(repo: &Repository, limit: usize) -> Vec<LargeFile> {
 }
 
 /// Collect the full health report for the active repository.
-pub fn collect_health(repo: &Repository) -> Result<HealthReport> {
+/// `stale_days`: branches whose tip is older than this are flagged.
+pub fn collect_health(repo: &Repository, stale_days: i64) -> Result<HealthReport> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    let stale_cutoff = now - STALE_DAYS * 24 * 3600;
+    let stale_cutoff = now - stale_days * 24 * 3600;
 
     // Conflict residue: operation state files in .git.
-    let conflict_residue: Vec<String> = ["MERGE_HEAD", "REVERT_HEAD", "CHERRY_PICK_HEAD"]
+    let conflict_residue: Vec<String> = RESIDUE_STATE
         .iter()
         .filter_map(|f| state_file_exists(repo, f))
         .collect();
@@ -174,7 +208,7 @@ mod tests {
     #[test]
     fn fresh_repo_is_healthy() {
         let (path, repo) = build_linear_repo(2);
-        let report = collect_health(&repo).unwrap();
+        let report = collect_health(&repo, 30).unwrap();
         assert!(report.conflict_residue.is_empty());
         assert_eq!(report.dirty_files, 0);
         assert!(report.stale_branches.is_empty());
@@ -189,7 +223,7 @@ mod tests {
         let big = vec![b'a'; (1024 * 1024 * 2) as usize];
         fs::write(repo.workdir().unwrap().join("big.bin"), &big).unwrap();
 
-        let report = collect_health(&repo).unwrap();
+        let report = collect_health(&repo, 30).unwrap();
         assert!(report.dirty_files >= 2, "untracked + big file");
         assert_eq!(report.large_files.len(), 1);
         assert_eq!(report.large_files[0].path, "big.bin");
@@ -227,12 +261,19 @@ mod tests {
         let base = parent.id();
         fs::write(repo.path().join("MERGE_HEAD"), format!("{base}\n")).unwrap();
 
-        let report = collect_health(&repo).unwrap();
+        let report = collect_health(&repo, 30).unwrap();
         assert_eq!(report.conflict_residue, vec!["MERGE_HEAD".to_string()]);
         assert!(
             report.stale_branches.contains(&"old-stuff".to_string()),
             "stale branch should be flagged: {:?}",
             report.stale_branches
+        );
+        assert!(
+            !collect_health(&repo, 90)
+                .unwrap()
+                .stale_branches
+                .contains(&"old-stuff".to_string()),
+            "60-day-old branch must not be flagged with a 90-day threshold"
         );
         cleanup(&path);
     }

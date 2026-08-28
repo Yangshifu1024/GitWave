@@ -421,7 +421,6 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
 pub async fn generate_commit_message(ctx: &AppContext, workspace_id: String) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
 
@@ -517,8 +516,24 @@ fn provider_chain_ids(settings: &WorkspaceSettings) -> Vec<String> {
 /// provider's default endpoint.
 fn ai_chain(settings: &WorkspaceSettings, workspace_id: &str) -> Result<Vec<ProviderAttempt>> {
     let ids = provider_chain_ids(settings);
+    if ids.is_empty() && settings.ai_offline {
+        return Err(AppError::Protocol(
+            "offline mode is enabled — configure local Ollama to use AI features".into(),
+        ));
+    }
+    if ids.is_empty() {
+        return Err(AppError::Protocol(
+            "no usable AI provider configured (check provider, key and offline settings)".into(),
+        ));
+    }
+
     let mut out = Vec::new();
-    for (idx, provider) in ids.into_iter().enumerate() {
+    for provider in ids {
+        let is_primary = settings
+            .ai_provider
+            .as_deref()
+            .map(|p| p.eq_ignore_ascii_case(&provider))
+            .unwrap_or(false);
         let api_key = if provider == "ollama" {
             None
         } else {
@@ -527,10 +542,15 @@ fn ai_chain(settings: &WorkspaceSettings, workspace_id: &str) -> Result<Vec<Prov
                 _ => continue,
             }
         };
-        // Model namespaces do not mix across vendors: the user's configured
-        // model applies to the primary attempt only; fallbacks use each
-        // provider's default model.
-        let model = if idx == 0 {
+        // The user's base-url override and configured model belong to the
+        // provider they were set for; fallback attempts use their own
+        // defaults (model namespaces do not mix across vendors).
+        let base_url = if is_primary {
+            settings.ai_base_url.clone()
+        } else {
+            None
+        };
+        let model = if is_primary {
             settings
                 .ai_model
                 .clone()
@@ -540,11 +560,7 @@ fn ai_chain(settings: &WorkspaceSettings, workspace_id: &str) -> Result<Vec<Prov
         };
         out.push(ProviderAttempt {
             provider,
-            base_url: if idx == 0 {
-                settings.ai_base_url.clone()
-            } else {
-                None
-            },
+            base_url,
             api_key,
             model,
         });
@@ -555,17 +571,6 @@ fn ai_chain(settings: &WorkspaceSettings, workspace_id: &str) -> Result<Vec<Prov
         ));
     }
     Ok(out)
-}
-
-/// PM 1.6 offline mode: cloud providers are refused, local Ollama keeps working.
-fn ensure_ai_online(settings: &WorkspaceSettings) -> Result<()> {
-    if settings.ai_offline && settings.ai_provider.as_deref() != Some("ollama") {
-        return Err(AppError::Protocol(
-            "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
-                .into(),
-        ));
-    }
-    Ok(())
 }
 
 fn append_diff_summary(buf: &mut String, diff: &DiffSummary) {
@@ -848,7 +853,6 @@ pub async fn explain_conflict(
 ) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
     let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
@@ -977,14 +981,13 @@ pub fn list_reflog(
 pub fn get_health(ctx: &AppContext, workspace_id: &str) -> Result<HealthReport> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_collect_health(&repo)
+    infra_collect_health(&repo, 30)
 }
 
 /// AI summary of the health report (advice only, P1).
 pub async fn explain_health(ctx: &AppContext, workspace_id: String) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
 
@@ -1033,7 +1036,6 @@ pub async fn explain_reflog(
 ) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
-    ensure_ai_online(&settings)?;
     let chain = ai_chain(&settings, &workspace_id)?;
     let primary = &chain[0];
 
@@ -1562,6 +1564,17 @@ mod tests {
             ..settings
         };
         assert_eq!(provider_chain_ids(&offline), vec!["ollama".to_string()]);
+    }
+
+    #[test]
+    fn ai_chain_offline_without_ollama_errors_deterministically() {
+        let settings = WorkspaceSettings {
+            ai_provider: Some("openai".into()),
+            ai_offline: true,
+            ..WorkspaceSettings::default()
+        };
+        let err = ai_chain(&settings, "ws-offline").unwrap_err();
+        assert!(err.to_string().contains("offline"), "got: {err}");
     }
 
     fn fresh_ctx() -> AppContext {

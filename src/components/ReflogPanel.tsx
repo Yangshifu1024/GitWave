@@ -98,6 +98,7 @@ export function ReflogPanel(): React.JSX.Element {
     bumpHistory();
     void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
     void queryClient.invalidateQueries({ queryKey: ["reflog", workspaceId] });
+    void queryClient.invalidateQueries({ queryKey: ["health", workspaceId] });
   };
 
   const submitRecoveryBranch = (): void => {

@@ -554,6 +554,55 @@ mod reset_tests {
     }
 
     #[test]
+    fn reset_hard_appends_reflog_entry() {
+        let (path, repo) = build_linear_repo(3);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap();
+        let older = tip.parent(0).unwrap();
+
+        reset_head_hard(&repo, &older.id().to_string()).unwrap();
+
+        // The M2 panel refresh depends on the reset showing up in the reflog.
+        let log = crate::infrastructure::git::reflog::list_reflog(&repo, "HEAD").unwrap();
+        assert_eq!(log[0].action, "reset");
+        assert_eq!(log[0].new_oid, older.id().to_string());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn reset_hard_discards_dirty_worktree() {
+        let (path, repo) = build_linear_repo(2);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap();
+        let older = tip.parent(0).unwrap();
+        fs::write(
+            repo.workdir().unwrap().join("file1.txt"),
+            "dirty edit
+",
+        )
+        .unwrap();
+        fs::write(
+            repo.workdir().unwrap().join("stray.txt"),
+            "stray
+",
+        )
+        .unwrap();
+
+        reset_head_hard(&repo, &older.id().to_string()).unwrap();
+
+        // file1.txt was added by the reverted commit — it must be gone.
+        assert!(
+            !repo.workdir().unwrap().join("file1.txt").exists(),
+            "file added by the reset-away commit must disappear"
+        );
+        // git semantics: reset --hard reverts tracked files but leaves
+        // untracked files alone (that is `git clean`'s job).
+        assert!(
+            repo.workdir().unwrap().join("stray.txt").exists(),
+            "untracked files survive a hard reset"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
     fn reset_hard_refuses_detached_head() {
         let (path, repo) = build_linear_repo(2);
         let tip = repo.head().unwrap().peel_to_commit().unwrap();
