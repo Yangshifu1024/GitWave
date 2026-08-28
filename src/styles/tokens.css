@@ -625,7 +625,10 @@
   --field-border: var(--color-border-default);
   --field-border-hover: var(--color-border-strong);
   --field-border-focus: var(--color-accent);
-  --field-focus: var(--color-accent);
+  /* HeroUI uses --field-focus as the focused input's BACKGROUND (unlike
+     --field-border-focus, which colors the border). Keep it equal to the
+     field background so focus tints only the border/ring, not the fill. */
+  --field-focus: var(--field-background);
   --field-foreground: var(--color-text-primary);
   --field-placeholder: var(--color-text-muted);
   --field-radius: var(--radius-md);
