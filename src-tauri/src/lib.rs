@@ -45,13 +45,14 @@ use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, Interacti
 use infrastructure::git::merge::MergeResult;
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
-use infrastructure::persistence::{migrations, open as open_state, SqliteWorkspaceRepo};
+use infrastructure::persistence::{migrations, open as open_state, state_dir, SqliteWorkspaceRepo};
 use infrastructure::ssh::keys::{SshKey, SshTestResult};
 use std::fmt::Display;
 use tauri::WebviewWindow;
 mod macos_window;
 
 use tauri_plugin_decoration::WebviewWindowExt;
+use tauri_plugin_opener::OpenerExt;
 use tracing::info;
 
 // ─── App meta ─────────────────────────────────────────────────────────────
@@ -60,6 +61,18 @@ use tracing::info;
 #[tauri::command]
 fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Opens the platform state directory (holds the SQLite database) in the OS
+/// file manager. Runs on the Rust side via the opener plugin: the plugin's
+/// `open_path` IPC permission has no usable default scope, so calling it
+/// here bypasses the webview ACL entirely.
+#[tauri::command]
+fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = state_dir().map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 // ─── Workspace commands (Sprint 1) ───────────────────────────────────────
@@ -815,6 +828,7 @@ pub fn run() {
             activate_and_show,
             toggle_instant_zoom,
             get_app_version,
+            open_data_dir,
             cmd_list_workspaces,
             cmd_create_workspace,
             cmd_rename_workspace,

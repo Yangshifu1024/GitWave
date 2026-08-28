@@ -86,6 +86,11 @@ export function getAppVersion(): Promise<string> {
   return invoke<string>("get_app_version");
 }
 
+/** Open the platform state directory (SQLite home) in the OS file manager. */
+export function openDataDir(): Promise<void> {
+  return invoke<void>("open_data_dir");
+}
+
 // ─── Workspace commands ───────────────────────────────────────────────────
 
 export function listWorkspaces(): Promise<WorkspaceSummary[]> {
