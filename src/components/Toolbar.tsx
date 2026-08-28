@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings } from "lucide-react";
+import { Info, Settings } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SettingsModal } from "@/components/SettingsModal";
+import { AboutModal } from "@/components/AboutModal";
 import { ToolbarContextTitle } from "@/components/ToolbarContextTitle";
 import { SyncProgressBar } from "@/components/SyncProgressBar";
 import { Button } from "@/components/ui/Button";
-import { KeyHint } from "@/components/ui/KeyHint";
 import { useMacTitlebarWindow } from "@/hooks/useMacTitlebarWindow";
 import { isMacOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
 export function Toolbar(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const dragZoneRef = useRef<HTMLDivElement>(null);
   useMacTitlebarWindow(dragZoneRef);
 
@@ -47,7 +48,6 @@ export function Toolbar(): React.JSX.Element {
         <ToolbarContextTitle />
 
         <div className="ml-auto flex items-center gap-0.5 pointer-events-auto">
-          <KeyHint keys={["⌘", "K"]} className="mr-1 opacity-80" />
           <ThemeToggle />
           <Button
             variant="ghost"
@@ -59,12 +59,23 @@ export function Toolbar(): React.JSX.Element {
           >
             <Settings size={16} />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1"
+            aria-label="About"
+            title="About GitWave"
+            onClick={() => setAboutOpen(true)}
+          >
+            <Info size={16} />
+          </Button>
         </div>
       </div>
 
       <SyncProgressBar />
 
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <AboutModal open={aboutOpen} onOpenChange={setAboutOpen} />
     </header>
   );
 }

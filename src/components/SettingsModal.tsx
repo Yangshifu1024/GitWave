@@ -1,35 +1,20 @@
 import { useEffect, useState } from "react";
-import {
-  FolderOpen,
-  Github,
-  Info,
-  KeyRound,
-  Monitor,
-  Moon,
-  Palette as PaletteIcon,
-  Sun,
-} from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { KeyRound, Monitor, Moon, Palette as PaletteIcon, Sun } from "lucide-react";
 
 import { usePalette } from "@/hooks/usePalette";
 import { useTheme, type Theme } from "@/hooks/useTheme";
 import { PALETTE_META, type Palette } from "@/lib/palette";
-import { formatAppError, getAppVersion, openDataDir } from "@/lib/api";
 import { Radio, RadioGroup } from "@heroui/react";
 import { Modal } from "@/components/ui/Modal";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
-type SettingsSection = "appearance" | "ssh" | "about";
-
-const GITHUB_URL = "https://github.com/Yangshifu1024/GitWave";
-const SLOGAN = "Local-first Git client with AI collaboration.";
+type SettingsSection = "appearance" | "ssh";
 
 const SECTIONS: { id: SettingsSection; label: string; icon: typeof PaletteIcon }[] = [
   { id: "appearance", label: "Appearance", icon: PaletteIcon },
   { id: "ssh", label: "SSH Keys", icon: KeyRound },
-  { id: "about", label: "About", icon: Info },
 ];
 
 interface SettingsModalProps {
@@ -78,7 +63,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
         <div className="min-w-0 flex-1 overflow-auto pl-5">
           {section === "appearance" ? <AppearanceSection /> : null}
           {section === "ssh" ? <SshKeyManager /> : null}
-          {section === "about" ? <AboutSection /> : null}
         </div>
       </div>
     </Modal>
@@ -128,13 +112,7 @@ function AppearanceSection(): React.JSX.Element {
           style={{ display: "grid" }}
         >
           {(Object.keys(PALETTE_META) as Palette[]).map((id) => (
-            <CardOption
-              key={id}
-              value={id}
-              selected={palette === id}
-              label={PALETTE_META[id].name}
-              description={PALETTE_META[id].description}
-            >
+            <CardOption key={id} value={id} selected={palette === id} label={PALETTE_META[id].name}>
               <PaletteSwatch meta={PALETTE_META[id]} />
             </CardOption>
           ))}
@@ -148,7 +126,7 @@ function PaletteSwatch({ meta }: { meta: (typeof PALETTE_META)[Palette] }): Reac
   return (
     <span
       aria-hidden="true"
-      className="mb-2 flex h-10 items-center gap-1.5 rounded-md border border-black/8 p-1.5"
+      className="flex h-7 w-20 shrink-0 items-center gap-1.5 rounded-md border border-black/8 p-1"
       style={{ backgroundColor: meta.swatch.canvas }}
     >
       <span
@@ -168,25 +146,23 @@ function PaletteSwatch({ meta }: { meta: (typeof PALETTE_META)[Palette] }): Reac
   );
 }
 
-/** Card-style radio option with a preview slot, label and optional description. */
+/** Card-style radio option: preview slot and label side by side, single row. */
 function CardOption({
   value,
   selected,
   label,
-  description,
   children,
 }: {
   value: string;
   selected: boolean;
   label: string;
-  description?: string;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
     <Radio value={value} className="w-full">
       <Radio.Content
         className={cn(
-          "flex h-auto w-full flex-col items-start rounded-lg border p-2.5 text-left transition-colors",
+          "flex h-auto w-full flex-row items-center gap-2 rounded-lg border p-2 text-left transition-colors",
           selected
             ? "border-accent bg-accent/5 ring-accent/30 ring-1"
             : "border-border-default hover:border-border-strong",
@@ -195,76 +171,13 @@ function CardOption({
         {children}
         <span
           className={cn(
-            "block text-sm",
+            "block truncate text-sm",
             selected ? "font-medium text-text-primary" : "text-text-secondary",
           )}
         >
           {label}
         </span>
-        {description ? (
-          <span className="mt-0.5 block text-xs leading-snug text-text-secondary">
-            {description}
-          </span>
-        ) : null}
       </Radio.Content>
     </Radio>
-  );
-}
-
-// ─── About ────────────────────────────────────────────────────────────────
-
-function AboutSection(): React.JSX.Element {
-  const [version, setVersion] = useState("…");
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getAppVersion()
-      .then(setVersion)
-      .catch(() => setVersion("?.?.?"));
-  }, []);
-
-  const handleOpenDataDir = async (): Promise<void> => {
-    setActionError(null);
-    try {
-      await openDataDir();
-    } catch (e) {
-      setActionError(formatAppError(e));
-    }
-  };
-
-  const handleOpenRepo = async (): Promise<void> => {
-    setActionError(null);
-    try {
-      await openUrl(GITHUB_URL);
-    } catch (e) {
-      setActionError(formatAppError(e));
-    }
-  };
-
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-      <img
-        src="/app-icon.png"
-        alt="GitWave app icon"
-        draggable={false}
-        className="size-20 rounded-xl"
-      />
-      <div>
-        <p className="text-lg font-semibold text-text-primary">GitWave</p>
-        <p className="text-sm text-text-muted tabular-nums">v{version}</p>
-      </div>
-      <p className="max-w-xs text-sm text-text-secondary">{SLOGAN}</p>
-      <div className="mt-2 flex items-center gap-2">
-        <Button variant="secondary" size="sm" onClick={() => void handleOpenDataDir()}>
-          <FolderOpen size={14} />
-          App Data
-        </Button>
-        <Button variant="secondary" size="sm" onClick={() => void handleOpenRepo()}>
-          <Github size={14} />
-          GitHub
-        </Button>
-      </div>
-      {actionError ? <p className="text-xs text-danger">{actionError}</p> : null}
-    </div>
   );
 }

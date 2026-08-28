@@ -25,7 +25,6 @@ export {
   ContextMenuPrimitive,
   type ContextMenuItemProps,
 } from "./ContextMenu";
-export { KeyHint, type KeyHintProps } from "./KeyHint";
 export {
   DropdownMenu,
   DropdownMenuTrigger,
