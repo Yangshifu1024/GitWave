@@ -40,7 +40,7 @@ function WordDiffSpans({
   return (
     <>
       {text.slice(0, midStart)}
-      <span className={side === "removed" ? "bg-danger/30" : "bg-success/30"}>
+      <span className={side === "removed" ? "bg-diff-del-word" : "bg-diff-add-word"}>
         {text.slice(midStart, midEnd)}
       </span>
       {text.slice(midEnd)}
@@ -100,8 +100,8 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       ) : (
         <span
           className={cn(
-            "flex-1 px-2",
-            line.kind === "removed" && "bg-danger/10 text-danger",
+            "flex-1 px-2 whitespace-pre-wrap",
+            line.kind === "removed" && "bg-diff-del-bg",
             line.kind === "context" && "text-text-primary",
           )}
         >
@@ -115,8 +115,8 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       ) : (
         <span
           className={cn(
-            "flex-1 px-2",
-            line.kind === "added" && "bg-success/10 text-success",
+            "flex-1 px-2 whitespace-pre-wrap",
+            line.kind === "added" && "bg-diff-add-bg",
             line.kind === "context" && "text-text-primary",
           )}
         >
@@ -138,19 +138,21 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
     );
   }
 
+  // Line text stays text-primary (GitHub diffBlob style); only the +/- prefix
+  // and word-diff spans carry semantic color.
   const bgClass =
     line.kind === "added"
-      ? "bg-success/10 text-success"
+      ? "bg-diff-add-bg"
       : line.kind === "removed"
-        ? "bg-danger/10 text-danger"
+        ? "bg-diff-del-bg"
         : "text-text-primary";
 
   return (
     <div
       className={cn(
         "flex text-xs font-mono leading-5",
-        line.kind === "added" && "bg-success/10",
-        line.kind === "removed" && "bg-danger/10",
+        line.kind === "added" && "bg-diff-add-bg",
+        line.kind === "removed" && "bg-diff-del-bg",
       )}
     >
       <span className="shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
@@ -159,7 +161,7 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       <span className="shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
       </span>
-      <span className={cn("flex-1 px-2 min-w-0", bgClass)}>
+      <span className={cn("flex-1 px-2 min-w-0 whitespace-pre-wrap", bgClass)}>
         {prefix} {line.content}
       </span>
     </div>
@@ -175,21 +177,21 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
     if (mode === "unified" && line.kind === "removed" && next?.kind === "added") {
       rendered.push(
         <div key={`w-${i}`}>
-          <div className="flex text-xs font-mono leading-5 bg-danger/10">
+          <div className="flex text-xs font-mono leading-5 bg-diff-del-bg">
             <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
               {line.old_line_no ?? ""}
             </span>
             <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
-            <span className="flex-1 px-2 text-danger">
+            <span className="flex-1 px-2 text-danger whitespace-pre-wrap">
               - <WordDiffSpans before={line.content} after={next.content} side="removed" />
             </span>
           </div>
-          <div className="flex text-xs font-mono leading-5 bg-success/10">
+          <div className="flex text-xs font-mono leading-5 bg-diff-add-bg">
             <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
             <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
               {next.new_line_no ?? ""}
             </span>
-            <span className="flex-1 px-2 text-success">
+            <span className="flex-1 px-2 text-success whitespace-pre-wrap">
               + <WordDiffSpans before={line.content} after={next.content} side="added" />
             </span>
           </div>
@@ -203,7 +205,7 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
 
   return (
     <div className="border border-border-subtle overflow-hidden mb-3">
-      <div className="bg-bg-elevated px-3 py-1 text-xs text-text-muted font-mono border-b border-border-subtle">
+      <div className="bg-diff-hunk-bg px-3 py-1 text-xs text-text-muted font-mono border-b border-border-subtle">
         @@ -{hunk.old_start},{hunk.old_lines} +{hunk.new_start},{hunk.new_lines} @@
       </div>
       {rendered}

@@ -30,7 +30,7 @@ export const TabsTrigger = forwardRef<
     className={cn(
       "shrink-0 px-3 py-2 text-sm font-medium text-text-secondary",
       "border-b-2 border-transparent -mb-px",
-      "transition-colors duration-200",
+      "transition-colors duration-base",
       "hover:text-text-primary",
       "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
       "data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:text-accent",

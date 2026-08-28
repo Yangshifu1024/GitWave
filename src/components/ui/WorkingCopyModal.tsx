@@ -61,7 +61,7 @@ export function WorkingCopyModal({
         </div>
       ) : null}
 
-      <div className="h-[62vh] min-h-0 grid grid-cols-[minmax(340px,420px)_1fr] border border-border-subtle rounded-md overflow-hidden bg-bg-primary">
+      <div className="h-[62vh] min-h-0 grid grid-cols-2 border border-border-subtle rounded-md overflow-hidden bg-bg-primary">
         <div className="min-h-0 border-r border-border-subtle">
           <ChangesPanel
             selectedPath={selected?.path ?? null}

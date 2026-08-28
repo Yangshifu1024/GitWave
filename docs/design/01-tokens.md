@@ -77,7 +77,7 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
   bg-primary        #262628       系统暗窗口画布（应用根 / 顶栏 / 侧栏 / WorkingCopyBar）
   bg-secondary      #202022       层次色
   bg-elevated       #313134       菜单 / 抬升面
-  bg-panel          #262628       中 / 右面板画布（同 bg-primary，dark 不区分）
+  bg-panel          #2A2A2D       中 / 右面板画布（比窗口亮半档——dark 材质分层，见 07-theme.md §3.1）
   bg-overlay        rgba(0,0,0,0.55)  模态遮罩
 
 文本
@@ -109,7 +109,7 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
 bg-primary        #F4F6F8 (Foam)           #161B20
 bg-secondary      #E6EBEF (Mist)           #12161A (Abyss)
 bg-elevated       #EEF1F4                  #1C2329
-bg-panel          = bg-primary             = bg-primary
+bg-panel          = bg-primary             #191F25（比窗口亮半档，dark 材质分层）
 bg-overlay        rgba(27,34,40,0.40)      = 共享 rgba(0,0,0,0.55)
 text-primary      #1B2228 (Ink)            #E8ECF0
 text-secondary    #4A5560                  #B4BEC8
@@ -139,6 +139,18 @@ bg-danger             →   danger
 ...
 ```
 
+### 1.5 Diff 语义色（2026-08-28 新增，见 07-theme.md §3.1）
+
+GitHub `diffBlob` 模式：diff 行只染底不染字（行文字保持 `text-primary`），`+`/`-` 前缀与 word-diff span 用语义色。light 用实体浅 tint，dark 用 dark 语义色的透明 tint：
+
+| Token | Light | Dark |
+|---|---|---|
+| diff-add-bg | `#E6F2EB` | `rgb(62 207 142 / 0.14)` |
+| diff-add-word | `#BFE0CE` | `rgb(62 207 142 / 0.30)` |
+| diff-del-bg | `#F7E9E8` | `rgb(224 90 90 / 0.14)` |
+| diff-del-word | `#EFC6C4` | `rgb(224 90 90 / 0.30)` |
+| diff-hunk-bg | `#F0F0F3` | `rgb(255 255 255 / 0.05)` |
+
 ## 2. Spacing（间距）
 
 ```
@@ -158,17 +170,23 @@ Tailwind: 默认 spacing scale 已被默认覆盖到 4px 网格；用 `p-1` (=4p
 
 ### 3.1 Font families
 
+实现值（`tokens.css` @theme，2026-08-28 平台化，见 07-theme.md §3.2）——平台原生字体优先，打包 Roboto 兜底，中文回退必含：
+
 ```
 font-sans
   macOS:    -apple-system, BlinkMacSystemFont, "SF Pro Text"
-  Windows:  "Segoe UI"
-  Linux:    Cantarell, Ubuntu, "Helvetica Neue"
-  fallback: system-ui, -apple-system, sans sans-serif
+  Windows:  "Segoe UI Variable Text", "Segoe UI"
+  兜底:     Roboto（@fontsource 打包）, "Helvetica Neue", Arial
+  中文回退: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC"
 
 font-mono
-  SHA / 路径 / diff: "IBM Plex Mono"
-  fallback: "SF Mono", Menlo, Monaco, Consolas, "Cascadia Code", ui-monospace
+  Windows:  "Cascadia Mono"（Windows Terminal 分发）
+  macOS:    "SF Mono"
+  兜底:     "Roboto Mono"（@fontsource 打包）, Menlo, Consolas
+  中文回退: 同上
 ```
+
+全局 `font-variant-numeric: tabular-nums`（body 级，计数/行号等宽数字）。
 
 ### 3.2 Scale
 
@@ -227,16 +245,21 @@ shadow-modal-dark
 
 ## 6. Motion（动效）
 
-```
-duration-fast    120ms    颜色 / 透明度切换
-duration-base    200ms    默认 transition（hover / focus / 状态变化）
-duration-slow    300ms    模态进出 / pane 切换
-duration-spring  spring   模态 spring（macOS 风格 0.85 damping）
+实现值（`tokens.css` @theme，2026-08-28 token 化，见 07-theme.md §3.3）：
 
-ease-default    cubic-bezier(0.4, 0, 0.2, 1)   ease-out
-ease-in         cubic-bezier(0.4, 0, 1, 1)
-ease-out        cubic-bezier(0, 0, 0.2, 1)
 ```
+duration-fast    120ms    hover / 色彩过渡 / 菜单 / 进度条
+duration-base    200ms    控件 / Modal / Tab / pane 阴影
+duration-slow    300ms    大面积切换（预留）
+
+ease-standard    cubic-bezier(0.2, 0, 0, 1)     过渡默认（M3 emphasized）
+ease-enter       cubic-bezier(0, 0, 0.2, 1)     浮层进入（decelerate）
+ease-exit        cubic-bezier(0.3, 0, 0.8, 0.15) 浮层退出（accelerate）
+```
+
+浮层进出场：自实现 tailwindcss-animate 子集（`animate-in` / `animate-out` + `fade-in-0` `fade-out-0` `fade-out-80` `zoom-in-95` `zoom-out-95` `slide-in-from-right-full` `slide-out-to-right-full`），keyframes 用 `transform` 合成 Tailwind v4 的 translate 属性定位；`duration-*` 类可覆盖默认时长（经 `--tw-duration`）。duration/ease 的 `--duration-*` / `--ease-*` 均由 Tailwind v4 生成同名工具类。
+
+`prefers-reduced-motion: reduce` → 全局动画 / 过渡即时完成（动画仍会触发 `animationend`，Radix 状态不受影响）。
 
 ## 7. Z-Index（层级）
 

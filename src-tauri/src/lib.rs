@@ -21,20 +21,20 @@ use application::{
     continue_interactive_rebase, create_branch, create_workspace, delete_branch,
     delete_remote_branch, delete_ssh_key, delete_workspace, discard_changes, drop_stash,
     execute_interactive_rebase, explain_conflict, fetch, generate_commit_message, get_ahead_behind,
-    get_ai_key_status, get_blame, get_branches, get_commit_diff, get_commit_log,
-    get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff, get_working_copy,
-    get_workspace, ignore_path, init_repo, interactive_rebase_paused, list_conflicts, list_repos,
-    list_ssh_keys, list_stashes, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
-    plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
-    remove_repo, remove_worktree, rename_workspace, resolve_conflict, save_stash, set_active_repo,
-    set_ai_api_key, stage_all, stage_files, test_ssh_connection, unstage_files,
-    update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
+    get_ai_key_status, get_blame, get_branches, get_commit_details, get_commit_diff,
+    get_commit_log, get_conflict_sides, get_file_diff, get_stash_diff, get_workdir_diff,
+    get_working_copy, get_workspace, ignore_path, init_repo, interactive_rebase_paused,
+    list_conflicts, list_repos, list_ssh_keys, list_stashes, list_workspaces, list_worktrees,
+    merge_branch, merge_in_progress, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
+    rebase_branch, relink_repo, remove_repo, remove_worktree, rename_workspace, resolve_conflict,
+    save_stash, set_active_repo, set_ai_api_key, stage_all, stage_files, test_ssh_connection,
+    unstage_files, update_workspace_settings, AheadBehind, AiKeyStatus, AppContext,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
 use domain::diff::FileDiff;
 use domain::error::AppError;
-use domain::history::CommitSummary;
+use domain::history::{CommitDetails, CommitSummary};
 use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
@@ -45,13 +45,14 @@ use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, Interacti
 use infrastructure::git::merge::MergeResult;
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
-use infrastructure::persistence::{migrations, open as open_state, SqliteWorkspaceRepo};
+use infrastructure::persistence::{migrations, open as open_state, state_dir, SqliteWorkspaceRepo};
 use infrastructure::ssh::keys::{SshKey, SshTestResult};
 use std::fmt::Display;
 use tauri::WebviewWindow;
 mod macos_window;
 
 use tauri_plugin_decoration::WebviewWindowExt;
+use tauri_plugin_opener::OpenerExt;
 use tracing::info;
 
 // ─── App meta ─────────────────────────────────────────────────────────────
@@ -60,6 +61,18 @@ use tracing::info;
 #[tauri::command]
 fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Opens the platform state directory (holds the SQLite database) in the OS
+/// file manager. Runs on the Rust side via the opener plugin: the plugin's
+/// `open_path` IPC permission has no usable default scope, so calling it
+/// here bypasses the webview ACL entirely.
+#[tauri::command]
+fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = state_dir().map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 // ─── Workspace commands (Sprint 1) ───────────────────────────────────────
@@ -271,6 +284,15 @@ async fn cmd_get_workdir_diff(
     workspace_id: String,
 ) -> Result<DiffSummary, AppError> {
     get_workdir_diff(&ctx, &workspace_id)
+}
+
+#[tauri::command]
+async fn cmd_get_commit_details(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    commit_oid: String,
+) -> Result<CommitDetails, AppError> {
+    get_commit_details(&ctx, &workspace_id, &commit_oid)
 }
 
 #[tauri::command]
@@ -815,6 +837,7 @@ pub fn run() {
             activate_and_show,
             toggle_instant_zoom,
             get_app_version,
+            open_data_dir,
             cmd_list_workspaces,
             cmd_create_workspace,
             cmd_rename_workspace,
@@ -838,6 +861,7 @@ pub fn run() {
             cmd_delete_ssh_key,
             cmd_test_ssh_connection,
             cmd_get_commit_log,
+            cmd_get_commit_details,
             cmd_get_workdir_diff,
             cmd_get_commit_diff,
             cmd_get_file_diff,

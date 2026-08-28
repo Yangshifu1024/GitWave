@@ -43,8 +43,10 @@ export function FileListItem({
       }}
       className={cn(
         "flex items-center gap-2 px-3 py-1.5",
-        "rounded-md transition-colors duration-150",
-        "text-sm font-mono",
+        "rounded-md transition-colors duration-fast",
+        // UI (sans) font, one step below body size — the path is a label,
+        // not code; the +/- stats below stay mono for column alignment.
+        "text-xs",
         "cursor-pointer",
         selected && "bg-accent/10",
         !selected && "hover:bg-bg-secondary",

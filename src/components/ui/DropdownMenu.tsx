@@ -18,6 +18,9 @@ export const DropdownMenuContent = forwardRef<
         "z-popover min-w-[180px] rounded-lg",
         "bg-bg-elevated border border-border-default shadow-modal",
         "p-1",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+        "data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
         className,
       )}
       {...props}
@@ -40,7 +43,7 @@ export const DropdownMenuItem = forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-      "outline-none transition-colors duration-150",
+      "outline-none transition-colors duration-fast",
       "focus:bg-bg-secondary",
       destructive ? "text-danger" : "text-text-primary",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",

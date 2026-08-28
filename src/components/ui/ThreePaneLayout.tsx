@@ -133,7 +133,7 @@ export function ThreePaneLayout({
 
       <div
         className={cn(
-          "min-w-0 min-h-0 h-full overflow-hidden transition-[box-shadow] duration-200",
+          "min-w-0 min-h-0 h-full overflow-hidden transition-[box-shadow] duration-base",
           inspectorClassName,
         )}
       >

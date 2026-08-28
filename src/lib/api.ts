@@ -86,6 +86,11 @@ export function getAppVersion(): Promise<string> {
   return invoke<string>("get_app_version");
 }
 
+/** Open the platform state directory (SQLite home) in the OS file manager. */
+export function openDataDir(): Promise<void> {
+  return invoke<void>("open_data_dir");
+}
+
 // ─── Workspace commands ───────────────────────────────────────────────────
 
 export function listWorkspaces(): Promise<WorkspaceSummary[]> {
@@ -343,6 +348,10 @@ export function getWorkdirDiff(workspaceId: string): Promise<DiffSummary> {
 
 export function getCommitDiff(workspaceId: string, commitOid: string): Promise<DiffSummary> {
   return invoke<DiffSummary>("cmd_get_commit_diff", { workspaceId, commitOid });
+}
+
+export function getCommitDetails(workspaceId: string, commitOid: string): Promise<CommitDetails> {
+  return invoke<CommitDetails>("cmd_get_commit_details", { workspaceId, commitOid });
 }
 
 export function getFileDiff(

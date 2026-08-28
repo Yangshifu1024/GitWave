@@ -1,6 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// Bundled fallback faces: platform-native fonts (SF Pro / Segoe UI / Cascadia
+// Mono) resolve first in tokens.css; Roboto covers Linux and machines
+// missing them.
 import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
