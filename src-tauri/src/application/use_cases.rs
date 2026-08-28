@@ -72,6 +72,7 @@ use crate::infrastructure::git::stash::{
     save_stash as infra_save_stash, stash_diff as infra_stash_diff,
 };
 use crate::infrastructure::git::submodule::{
+    add_submodule as infra_submodule_add, deinit_submodule as infra_submodule_deinit,
     init_submodule as infra_submodule_init, list_submodules as infra_list_submodules,
     update_submodule as infra_submodule_update,
 };
@@ -1484,11 +1485,38 @@ pub fn init_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Resul
     infra_submodule_init(&repo, name)
 }
 
-/// `git submodule update --init <name>` (clone + checkout the worktree).
-pub fn update_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+/// `git submodule update --init <name>` (clone + checkout the worktree);
+/// with `recursive`, also update nested submodules of its worktree.
+pub fn update_submodule(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    recursive: bool,
+) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_submodule_update(&repo, name)
+    infra_submodule_update(&repo, name, recursive)
+}
+
+/// `git submodule add <url> <path>` — clones and stages the gitlink +
+/// `.gitmodules` entry. Staged only; the user commits via the normal flow.
+pub fn add_submodule(
+    ctx: &AppContext,
+    workspace_id: &str,
+    url: String,
+    path: String,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_submodule_add(&repo, &url, &path)
+}
+
+/// `git submodule deinit <name>` — unregisters from `.git/config`; the
+/// submodule worktree is emptied.
+pub fn deinit_submodule(ctx: &AppContext, workspace_id: &str, name: &str) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_submodule_deinit(&repo, name)
 }
 
 // ─── Git LFS use cases ──────────────────────────────────────────────────────

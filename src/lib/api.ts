@@ -551,6 +551,8 @@ export interface SubmoduleInfo {
   url: string | null;
   initialized: boolean;
   head_sha: string | null;
+  /** Checked-out HEAD matches the sha recorded in the parent index. */
+  in_sync: boolean;
 }
 
 export function listSubmodules(workspaceId: string): Promise<SubmoduleInfo[]> {
@@ -561,8 +563,22 @@ export function initSubmodule(workspaceId: string, name: string): Promise<void> 
   return invoke<void>("cmd_init_submodule", { workspaceId, name });
 }
 
-export function updateSubmodule(workspaceId: string, name: string): Promise<void> {
-  return invoke<void>("cmd_update_submodule", { workspaceId, name });
+export function updateSubmodule(
+  workspaceId: string,
+  name: string,
+  recursive = false,
+): Promise<void> {
+  return invoke<void>("cmd_update_submodule", { workspaceId, name, recursive });
+}
+
+/** `git submodule add` — clones and stages gitlink + .gitmodules. */
+export function addSubmodule(workspaceId: string, url: string, path: string): Promise<void> {
+  return invoke<void>("cmd_add_submodule", { workspaceId, url, path });
+}
+
+/** `git submodule deinit` — unregisters; the worktree is left untouched. */
+export function deinitSubmodule(workspaceId: string, name: string): Promise<void> {
+  return invoke<void>("cmd_deinit_submodule", { workspaceId, name });
 }
 
 // --- .gitignore editor (S2) -------------------------------------------------
