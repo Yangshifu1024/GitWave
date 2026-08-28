@@ -26,7 +26,8 @@ docs/tech/
 ├── architecture/         ← 系统架构、模块划分、数据流、关键序列图
 ├── tech-selection/       ← 技术选型记录（框架、语言、关键库，含上下文 / 备选 / 决策 / 后果）
 ├── decisions/            ← ADR 风格的架构决策记录
-└── engineering/          ← 工程约定（命名、目录、依赖、CI、安全、日志、错误处理等）
+├── engineering/          ← 工程约定（命名、目录、依赖、CI、安全、日志、错误处理等）
+└── planning/             ← 版本开发计划（里程碑、依赖、验收、风险）
 ```
 
 ## 命名与格式
@@ -44,6 +45,8 @@ docs/tech/
 | architecture | [architecture/00-overview.md](./architecture/00-overview.md) | 进程拓扑、DDD 分层、IPC 边界、性能热点、多 Workspace 并行 |
 | decisions | [decisions/00-overview.md](./decisions/00-overview.md) | ADR 汇总（框架 / Workspace / 凭证 / AI 双轨） |
 | engineering | [engineering/00-overview.md](./engineering/00-overview.md) | 代码风格 / 测试策略 / 错误与日志 / CI/CD / 安全 |
+| planning | [planning/roadmap-v0.2.md](./planning/roadmap-v0.2.md) | v0.2 开发计划：里程碑 M0–M3、依赖、验收、风险 |
+| planning | [planning/roadmap-v0.3.md](./planning/roadmap-v0.3.md) | v0.3 开发计划：里程碑 M0–M5、依赖、验收、风险 |
 
 ## 关联
 
