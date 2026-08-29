@@ -125,50 +125,50 @@ export function CommitInfoHeader({
         <span className="truncate">{data.author_email}</span>
         <span aria-hidden="true">·</span>
         <span>{formatDateTime(data.time)}</span>
-        <span className="ml-auto flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label="Explain this commit with AI"
-            title="Explain with AI"
-            onClick={() => setExplainOpen(true)}
-          >
-            <Sparkles size={13} />
-            Explain
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label="Manage tags on this commit"
-            title="Manage tags"
-            onClick={() => setTagOpen(true)}
-          >
-            <TagIcon size={13} />
-            Tag
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            aria-label="Cherry-pick this commit onto the current branch"
-            title="Cherry-pick onto current branch"
-            onClick={() => setPending("cherry-pick")}
-          >
-            <Cherry size={13} />
-            Cherry-pick
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            aria-label="Revert this commit"
-            title="Revert this commit"
-            onClick={() => setPending("revert")}
-          >
-            <Undo2 size={13} />
-            Revert
-          </Button>
-        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border-subtle pt-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Explain this commit with AI"
+          title="Explain with AI"
+          onClick={() => setExplainOpen(true)}
+        >
+          <Sparkles size={13} />
+          Explain
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Manage tags on this commit"
+          title="Manage tags"
+          onClick={() => setTagOpen(true)}
+        >
+          <TagIcon size={13} />
+          Tag
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          aria-label="Cherry-pick this commit onto the current branch"
+          title="Cherry-pick onto current branch"
+          onClick={() => setPending("cherry-pick")}
+        >
+          <Cherry size={13} />
+          Cherry-pick
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          aria-label="Revert this commit"
+          title="Revert this commit"
+          onClick={() => setPending("revert")}
+        >
+          <Undo2 size={13} />
+          Revert
+        </Button>
       </div>
 
       {explainOpen ? (
