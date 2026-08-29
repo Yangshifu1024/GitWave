@@ -60,6 +60,11 @@
   --color-diff-del-word: #efc6c4;
   --color-diff-hunk-bg: #f0f0f3;
 
+  /* Merge-conflict marker surfaces — conflict panel editor highlight (dark
+   * overrides below follow the diff tokens' translucent pattern). */
+  --color-conflict-region-bg: #f9eceb;
+  --color-conflict-marker-bg: #f4d9d7;
+
   /* fonts — sans stays platform-native (SF Pro / Segoe UI); mono leads with
    * bundled Roboto Mono for a consistent code face across platforms. CJK
    * fallbacks always present. See 07-theme.md §3.2 */
@@ -158,6 +163,8 @@
     --color-diff-del-bg: rgb(224 90 90 / 0.14);
     --color-diff-del-word: rgb(224 90 90 / 0.3);
     --color-diff-hunk-bg: rgb(255 255 255 / 0.05);
+    --color-conflict-region-bg: rgb(224 90 90 / 0.12);
+    --color-conflict-marker-bg: rgb(224 90 90 / 0.28);
     --color-lane-1: #0a84ff;
     --color-lane-2: #64d2ff;
     --color-lane-3: #7d7aff;

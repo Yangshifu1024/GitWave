@@ -27,6 +27,8 @@ import { RemotesPanel } from "@/components/RemotesPanel";
 import { ReflogPanel } from "@/components/ReflogPanel";
 import { HealthPanel } from "@/components/HealthPanel";
 import { ConflictPanel } from "@/components/ConflictPanel";
+import { MergeBanner } from "@/components/MergeBanner";
+import { useMergeConflicts } from "@/hooks/useMergeConflicts";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
 import { cn } from "@/lib/utils";
@@ -40,6 +42,9 @@ function App(): React.JSX.Element {
   /** One-shot request for CommitGraph to center a commit; `seq` re-fires on repeated clicks. */
   const [locateRequest, setLocateRequest] = useState<LocateRequest | null>(null);
   const locateSeq = useRef(0);
+  /** Conflict panel is opened on demand (Merge banner's Resolve button). */
+  const [conflictPanelOpen, setConflictPanelOpen] = useState(false);
+  const mergeConflicts = useMergeConflicts();
 
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -114,6 +119,8 @@ function App(): React.JSX.Element {
       >
         <Toolbar />
 
+        <MergeBanner merge={mergeConflicts} onResolve={() => setConflictPanelOpen(true)} />
+
         <ActionBar />
 
         <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
@@ -178,7 +185,11 @@ function App(): React.JSX.Element {
           />
         </div>
 
-        <ConflictPanel />
+        <ConflictPanel
+          open={conflictPanelOpen}
+          onClose={() => setConflictPanelOpen(false)}
+          merge={mergeConflicts}
+        />
 
         <CommandPalette requestLocate={handlePaletteLocate} />
       </div>
