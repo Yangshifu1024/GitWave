@@ -97,19 +97,34 @@ jobs:
           mkdir -p "$HOME/.local/bin"
           cat > "$HOME/.local/bin/codesign" <<'WRAPPER'
           #!/bin/bash
-          args=()
+          if [ -x /usr/bin/codesign.real ]; then REAL=/usr/bin/codesign.real; else REAL=/usr/bin/codesign; fi
+          echo "[codesign-wrapper] real=$REAL args=$*" >&2
+          out=(--timestamp=http://timestamp.apple.com/ts01)
+          skip=0
           for a in "$@"; do
-            if [ "$a" = "--timestamp" ]; then
-              args+=("--timestamp=http://timestamp.apple.com/ts01")
-            else
-              args+=("$a")
-            fi
+            if [ "$skip" = 1 ]; then skip=0; continue; fi
+            case "$a" in
+              --timestamp=*) ;;
+              --timestamp) skip=1 ;;
+              *) out+=("$a") ;;
+            esac
           done
-          exec /usr/bin/codesign "${args[@]}"
+          exec "$REAL" "${out[@]}"
           WRAPPER
           chmod +x "$HOME/.local/bin/codesign"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          echo "codesign wrapper installed: bare --timestamp now uses http://timestamp.apple.com/ts01 (HTTP)"
+          # also replace /usr/bin/codesign when the volume allows, to cover absolute-path invocations
+          if [ ! -e /usr/bin/codesign.real ]; then
+            sudo mount -uw / 2>/dev/null || true
+            if sudo mv /usr/bin/codesign /usr/bin/codesign.real 2>/dev/null && sudo cp "$HOME/.local/bin/codesign" /usr/bin/codesign; then
+              echo "/usr/bin/codesign replaced (covers absolute-path calls)"
+            else
+              echo "/usr/bin/codesign replace failed — relying on PATH wrapper"
+            fi
+          else
+            sudo cp "$HOME/.local/bin/codesign" /usr/bin/codesign
+          fi
+          echo "codesign wrappers installed: timestamp forced to http://timestamp.apple.com/ts01"
       - name: frontend build
         run: npm run build
       - name: cargo build (compile phase)
