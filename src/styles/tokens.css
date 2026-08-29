@@ -437,6 +437,29 @@
     box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-border-subtle) 50%, transparent);
   }
 
+  /* Overlay-style scrollbars for sidebar cards: the gutter is always
+   * reserved (no layout shift on expand) and the thumb only paints while
+   * the card is hovered, so expand/collapse never flashes a scrollbar. */
+  .sidebar-card-scroll {
+    scrollbar-gutter: stable;
+  }
+  .sidebar-card-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .sidebar-card-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-card-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border: none;
+  }
+  .sidebar-card-scroll:hover::-webkit-scrollbar-thumb,
+  .sidebar-card-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-scrollbar-thumb);
+    border: none;
+  }
+
   @keyframes sync-progress-shimmer {
     0% {
       transform: translateX(-100%);
