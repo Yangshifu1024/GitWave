@@ -2,7 +2,7 @@
 
 > Local-first Git client with AI collaboration. See `docs/pm/core/01-features.md` for product scope and `docs/tech/` for engineering decisions.
 
-**Status:** v0.3.0 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized. Current scope per `docs/pm/core/03-roadmap.md` (v0.3: three platforms + collaboration + AI intelligence).
+**Status:** v0.4.0 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized. Current scope per `docs/pm/core/03-roadmap.md` (v0.3: three platforms + collaboration + AI intelligence).
 
 ## Features
 
