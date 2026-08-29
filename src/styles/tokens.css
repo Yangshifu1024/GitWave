@@ -412,20 +412,6 @@
     user-select: none;
   }
 
-  /* Focus indication policy (user request): the main UI must not show
-   * web-style focus rings. Chromium re-matches :focus-visible and React Aria
-   * re-marks data-focus-visible after window switches, so any painted ring
-   * "comes back" on alt-tab. Orientation comes from selection/hover states
-   * instead; text fields keep their border-based focus styling. */
-  :focus-visible {
-    outline: none;
-  }
-
-  [data-focus-visible="true"] {
-    outline: none;
-    box-shadow: none;
-  }
-
   /* Custom titlebar (tauri-plugin-decoration) — see docs/design/03-layout.md */
   :root {
     --app-titlebar-height: 40px;
@@ -568,6 +554,9 @@
 }
 
 @layer base {
+
+
+
   /* Hand cursor on every operable element. Tailwind v4 preflight no longer
    * sets pointer on <button>, so restore it globally and cover the ARIA
    * roles Radix injects at runtime (menus, options, tabs, combobox).
@@ -589,6 +578,20 @@
     cursor: pointer;
   }
 }
+
+  /* Focus indication policy (user request): the main UI must not show
+   * web-style focus rings. Chromium re-matches :focus-visible and React Aria
+   * re-marks data-focus-visible after window switches, so any painted ring
+   * "comes back" on alt-tab. Orientation comes from selection/hover states
+   * instead; text fields keep their border-based focus styling. */
+  :focus-visible {
+    outline: none;
+  }
+
+  [data-focus-visible="true"] {
+    outline: none;
+    box-shadow: none;
+  }
 
 /* ─── HeroUI v3 bridge ──────────────────────────────────────────────────────
  * HeroUI component styles consume its own semantic variables (--accent,
