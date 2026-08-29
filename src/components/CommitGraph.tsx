@@ -8,6 +8,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Chip, Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Circle, FolderOpen, GitBranch, Tag } from "lucide-react";
 
@@ -64,7 +65,8 @@ function RefBadge({
 }): React.JSX.Element {
   const chrome = cn(
     "inline-flex items-center gap-1 shrink-0",
-    "rounded px-1 py-0 text-[9px] leading-none font-medium border shadow-none",
+    // Same size as the commit title (text-xs) so refs read as part of the row.
+    "rounded px-1 py-0 text-xs leading-none font-medium border shadow-none",
   );
   const displayName = r.kind === "tag" ? r.name : truncateRefName(r.name);
 
@@ -88,7 +90,7 @@ function RefBadge({
         className={cn(chrome, "bg-warning/20 text-warning border-warning/60")}
       >
         <Chip.Label className="inline-flex items-center gap-1">
-          <Tag size={8} />
+          <Tag size={12} />
           {displayName}
         </Chip.Label>
       </Chip>
@@ -125,7 +127,7 @@ function RefBadge({
       }}
     >
       <Chip.Label className="inline-flex items-center gap-1">
-        {r.kind === "remote_branch" ? <Circle size={8} /> : <GitBranch size={8} />}
+        {r.kind === "remote_branch" ? <Circle size={12} /> : <GitBranch size={12} />}
         {displayName}
       </Chip.Label>
     </Chip>
@@ -345,7 +347,7 @@ function CommitRow({
             />
           ))}
           {refs.length > 2 ? (
-            <span className="text-[9px] text-text-muted shrink-0">+{refs.length - 2}</span>
+            <span className="text-xs text-text-muted shrink-0">+{refs.length - 2}</span>
           ) : null}
         </span>
       ) : null}
@@ -518,28 +520,46 @@ export function CommitGraph({
     );
   }
 
-  if (loading && commits.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Loading history...
-      </div>
-    );
-  }
+  // The search toolbar must stay mounted in every state: the filter lives in
+  // this input, and a zero-hit search that replaced the whole panel used to
+  // strand it (the input vanished along with the graph, no way to clear).
+  const showGraph = !error && !(loading && commits.length === 0) && commits.length > 0;
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full text-danger text-sm px-4 text-center">
-        {error}
-      </div>
-    );
-  }
-
-  if (commits.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        No commits yet
-      </div>
-    );
+  let stateContent: React.JSX.Element | null = null;
+  if (!showGraph) {
+    if (loading && commits.length === 0) {
+      stateContent = (
+        <div className="flex items-center justify-center h-full text-text-muted text-sm">
+          Loading history...
+        </div>
+      );
+    } else if (error) {
+      stateContent = (
+        <div className="flex items-center justify-center h-full text-danger text-sm px-4 text-center">
+          {error}
+        </div>
+      );
+    } else if (commits.length === 0) {
+      stateContent = filter ? (
+        <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted text-sm">
+          <span>No commits match “{filter}”</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearchInput("");
+              setFilter(null);
+            }}
+          >
+            Clear search
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center h-full text-text-muted text-sm">
+          No commits yet
+        </div>
+      );
+    }
   }
 
   return (
@@ -553,50 +573,56 @@ export function CommitGraph({
           className="h-7 bg-bg-panel hover:bg-bg-panel focus-within:bg-bg-panel focus-visible:bg-bg-panel"
         />
       </div>
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: "100%",
-            position: "relative",
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const commit = commits[virtualRow.index];
-            if (!commit) return null;
-            return (
-              <div
-                key={commit.sha}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: `${virtualRow.size}px`,
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <CommitRow
-                  commit={commit}
-                  art={rowArtByIndex[virtualRow.index] ?? EMPTY_ROW_ART}
-                  maxLane={maxLane}
-                  onSelect={handleSelect}
-                  isSelected={selectedSha === commit.sha}
-                  isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {loading && commits.length > 0 ? (
-          <div className="py-2 text-center text-[10px] text-text-muted">Loading older commits…</div>
-        ) : !hasMore && commits.length > 0 ? (
-          <div className="py-2 text-center text-[10px] text-text-muted">
-            End of history · {commits.length} commits
+      {showGraph ? (
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const commit = commits[virtualRow.index];
+              if (!commit) return null;
+              return (
+                <div
+                  key={commit.sha}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <CommitRow
+                    commit={commit}
+                    art={rowArtByIndex[virtualRow.index] ?? EMPTY_ROW_ART}
+                    maxLane={maxLane}
+                    onSelect={handleSelect}
+                    isSelected={selectedSha === commit.sha}
+                    isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
+                  />
+                </div>
+              );
+            })}
           </div>
-        ) : null}
-      </div>
+
+          {loading && commits.length > 0 ? (
+            <div className="py-2 text-center text-[10px] text-text-muted">
+              Loading older commits…
+            </div>
+          ) : !hasMore && commits.length > 0 ? (
+            <div className="py-2 text-center text-[10px] text-text-muted">
+              End of history · {commits.length} commits
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        stateContent
+      )}
     </div>
   );
 }
