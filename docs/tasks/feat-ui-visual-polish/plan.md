@@ -315,3 +315,64 @@
 - `tauri.conf.json`：`minWidth/minHeight` 800x600 → **1024x768**
 - ActionBar：移除 Hooks 按钮（Hooks 编辑器仍可从 Repository 菜单打开），
   Fetch 移入 Pull/Push 组首位 → 右侧组 = Fetch / Pull / Push，少一组分隔线
+
+## 第十八批（用户反馈）：左栏面板可达性 + 弹框对齐 Fork
+
+1. **空数据不可展开**：SidebarSection 增 `collapsible` prop（false = 静态头部，
+   无 Disclosure 不可能展开）；Stash/Tags/Remotes/Worktrees/Submodules 五个
+   面板把 SidebarSection 移入各自组件并按数据置 collapsible；BRANCHES/
+   Recovery/Health 维持 App 级
+2. **Health 上移至 Branches 之上；Recovery 移到最底**
+3. **Remotes**：移除 Add 按钮；REMOTES 头右键弹菜单（Add Remote 项）打开既有
+   弹框（name + url；Fork 的 HTTPS 下拉/Test Connection 需后端 ls-remote
+   能力，本批不做）
+4. **Worktree**：移除面板内 "New worktree" 按钮与内联表单；Repository 菜单增
+   **New worktree**（菜单动作 `repo:worktree-new` 三件套）打开 Create
+   Worktree 弹框（Start from 分支下拉[默认当前分支] / Branch name /
+   Location[PathInput]）；后端 add_worktree 增 `start_point` 参数
+   （create_branch 时从该 rev 建分支，默认 HEAD）——worktree.rs/use_cases/
+   lib.rs 三层透传
+5. **子面板头部展开图标移除**：SidebarSection 不再渲染 chevron（点击折叠
+   逻辑不变）
+6. **分支缩进整体左移 8px**：顶层 pl-8→pl-6（与 LOCAL 组头文字对齐）、
+   文件夹头 pl-9→pl-7、子项 pl-12→pl-10
+- tsc / eslint / vite build / cargo check 全部通过
+
+### 补丁（用户反馈）：Health 面板 AI Summary 交互
+
+- 点击 AI Summary 后按钮进入 loading（Loader2 旋转 + "Summarizing…"）
+- 完成后 AI 摘要在**弹框**中展示（Modal，whitespace-pre-wrap）
+- 移除按钮下方的内联摘要文字区域
+
+## 第十九批（用户反馈）：分支面板缩进整体左移一级
+
+- LOCAL/REMOTE 组头 `pl-6 → pl-3`：与 "BRANCHES" 卡片标题文字左对齐
+- 顶层行 `pl-6 → pl-4`、文件夹头 `pl-7 → pl-6`、文件夹子项 `pl-10 → pl-8`：
+  整体缩进减小一级，层级关系（组头 → 行 → 文件夹 → 子项）保持
+
+### 补丁（用户反馈）：面板展开时滚动条闪现
+
+- 现象：面板展开瞬间右侧出现滚动条随后消失——展开引发 flex 重排，滚动容器
+  瞬时溢出，全局 `::-webkit-scrollbar`（带 track 底色的经典滚动条）随之画出
+- 修复：新增 `sidebar-card-scroll` 滚动条样式（tokens.css）：`scrollbar-gutter:
+  stable` 常驻预留轨道（无布局位移）+ thumb/track 透明、hover 才显色
+  （overlay 式）；SidebarSection 的 Disclosure.Content 挂上该类
+
+### 补丁二：抑制规则被 @layer base 吞掉（真正根因）
+
+- 现象复发：REMOTES 头部（Disclosure.Trigger）在切窗口后仍套蓝色环
+- 根因：焦点抑制规则写在 tokens.css 的 `@layer base` 块内——层顺序
+  theme, base, components, utilities 中 base 在 components 之前，HeroUI
+  components 层的 status-focused（ring-2 蓝圈）反压 base 层的抑制规则
+  （层顺序优先于选择器特异性）。此前 Tab 的修复有效是因为走 utilities 层
+- 修复：抑制块移出 @layer base，放到与 HeroUI bridge 相邻的无层区
+  （tokens.css 的桥接注释前）——无层声明击败所有分层声明，一次覆盖
+  outline + box-shadow 两种焦点环载体，全元素生效（表单域边框式聚焦不受
+  影响：其焦点色走 border-color 与 :focus，不走 outline/box-shadow）
+
+## 第二十批（用户反馈）：Remotes 行操作改右键菜单
+
+- 每行右侧的悬停按钮（Fetch / Edit / Remove）移除，改为**行右键菜单**：
+  ui/ContextMenu 包裹行元素，菜单项 = Fetch / Edit… / Remove（destructive），
+  菜单头显示 remote 名与 URL
+- 与头部右键菜单（Add Remote）并存：行右键 = 行级操作，卡片头右键 = 添加
