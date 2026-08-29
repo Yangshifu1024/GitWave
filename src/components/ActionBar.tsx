@@ -49,6 +49,8 @@ import { PrDescriptionModal } from "@/components/PrDescriptionModal";
 import { LfsPanel } from "@/components/LfsPanel";
 import { HooksPanel } from "@/components/HooksPanel";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
+import { WorkspaceDropdown } from "@/components/WorkspaceDropdown";
+import { SyncStatusArea } from "@/components/SyncStatusArea";
 
 interface PullDialogState {
   remote: string;
@@ -58,29 +60,6 @@ interface PullDialogState {
 }
 
 type AddKind = "init" | "clone" | "local" | null;
-
-function GroupDivider(): React.JSX.Element {
-  return (
-    <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
-  );
-}
-
-function ActionBarGroup({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-        {label}
-      </span>
-      <div className="flex items-center gap-1">{children}</div>
-    </div>
-  );
-}
 
 function ActionBarButton({
   icon,
@@ -92,7 +71,7 @@ function ActionBarButton({
   tone,
 }: {
   icon: React.ReactNode;
-  /** Visible button text (short — the group header carries the context). */
+  /** Visible button text (short — the tooltip carries the full description). */
   label: string;
   /** Full description for tooltip / aria-label; defaults to `label`. */
   title?: string;
@@ -542,9 +521,13 @@ export function ActionBar(): React.JSX.Element {
 
   return (
     <>
-      <div className="flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
+      <div className="relative flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
+        <WorkspaceDropdown />
+
+        {/* Reserved middle zone between the selector and the ops. */}
         <div className="flex-1" />
-        <ActionBarGroup label="Local">
+
+        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<FileDiff size={14} />}
             label={changeCount > 0 ? `Changes(${changeCount})` : "Changes"}
@@ -553,9 +536,12 @@ export function ActionBar(): React.JSX.Element {
             disabled={localChangesDisabled}
             onClick={() => setWcModalOpen(true)}
           />
-        </ActionBarGroup>
-        <GroupDivider />
-        <ActionBarGroup label="Repository">
+        </div>
+        <Separator
+          orientation="vertical"
+          className="mx-1 h-8 w-px self-center bg-border-subtle"
+        />
+        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDownUp size={14} />}
             label="Fetch"
@@ -569,9 +555,12 @@ export function ActionBar(): React.JSX.Element {
             disabled={noRepo}
             onClick={() => setHooksOpen(true)}
           />
-        </ActionBarGroup>
-        <GroupDivider />
-        <ActionBarGroup label="Branch">
+        </div>
+        <Separator
+          orientation="vertical"
+          className="mx-1 h-8 w-px self-center bg-border-subtle"
+        />
+        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDown size={14} />}
             label="Pull"
@@ -584,9 +573,15 @@ export function ActionBar(): React.JSX.Element {
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPushDialog}
           />
-        </ActionBarGroup>
+        </div>
 
-        <div className="flex-1" />
+        {/* Status area: absolutely centered in the whole bar so it stays on
+            the window's center axis regardless of the selector / buttons
+            widths. Non-interactive, so pointer-events-none keeps the buttons
+            clickable even if a narrow window overlaps them. */}
+        <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+          <SyncStatusArea />
+        </div>
       </div>
 
       <ErrorAlert message={wc.actionError} onDismiss={() => wc.setActionError(null)} />

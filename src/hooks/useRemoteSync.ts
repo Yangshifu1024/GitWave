@@ -12,7 +12,22 @@ import {
   type SyncProgress,
 } from "@/lib/api";
 import { useSyncStore } from "@/stores/syncStore";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+
+/** Short result lines written to the ActionBar status area; the area keeps
+ * showing the last one until the next operation overwrites it. */
+const SUCCESS_LABELS = {
+  fetch: "Fetched from origin",
+  pull: "Pulled from origin",
+  push: "Pushed to origin",
+} as const;
+
+const FAILURE_LABELS = {
+  fetch: "Fetch failed",
+  pull: "Pull failed",
+  push: "Push failed",
+} as const;
 
 let syncListenerReady = false;
 
@@ -48,8 +63,9 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     void queryClient.invalidateQueries({ queryKey: ["working-copy", workspaceId, repoId] });
   };
 
-  const handleError = (e: unknown) => {
+  const handleError = (e: unknown, op: "fetch" | "pull" | "push") => {
     useSyncStore.getState().endOp();
+    useStatusAreaStore.getState().setStatus(FAILURE_LABELS[op], "danger");
     onError?.(formatAppError(e));
   };
 
@@ -57,10 +73,11 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     mutationFn: () => fetchRemote(workspaceId!),
     onMutate: () => useSyncStore.getState().startOp("fetch"),
     onSuccess: () => {
+      useStatusAreaStore.getState().setStatus(SUCCESS_LABELS.fetch, "success");
       invalidate();
       bumpHistory();
     },
-    onError: handleError,
+    onError: (e) => handleError(e, "fetch"),
     onSettled: () => useSyncStore.getState().endOp(),
   });
 
@@ -68,10 +85,11 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     mutationFn: (options: PullOptions | undefined) => pullRemote(workspaceId!, options),
     onMutate: () => useSyncStore.getState().startOp("pull"),
     onSuccess: () => {
+      useStatusAreaStore.getState().setStatus(SUCCESS_LABELS.pull, "success");
       invalidate();
       bumpHistory();
     },
-    onError: handleError,
+    onError: (e) => handleError(e, "pull"),
     onSettled: () => useSyncStore.getState().endOp(),
   });
 
@@ -79,10 +97,11 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
     onMutate: () => useSyncStore.getState().startOp("push"),
     onSuccess: () => {
+      useStatusAreaStore.getState().setStatus(SUCCESS_LABELS.push, "success");
       invalidate();
       bumpHistory();
     },
-    onError: handleError,
+    onError: (e) => handleError(e, "push"),
     onSettled: () => useSyncStore.getState().endOp(),
   });
 

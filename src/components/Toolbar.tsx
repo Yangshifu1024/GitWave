@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Info, Settings } from "lucide-react";
 
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { AppMenuBar } from "@/components/AppMenuBar";
 import { SettingsModal } from "@/components/SettingsModal";
 import { AboutModal } from "@/components/AboutModal";
-import { ToolbarContextTitle } from "@/components/ToolbarContextTitle";
-import { SyncProgressBar } from "@/components/SyncProgressBar";
-import { Button } from "@/components/ui/Button";
+import { ToolbarAppTitle } from "@/components/ToolbarAppTitle";
 import { useMacTitlebarWindow } from "@/hooks/useMacTitlebarWindow";
 import { isMacOS } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -39,7 +35,7 @@ export function Toolbar(): React.JSX.Element {
     <header
       className={cn(
         "app-toolbar relative z-20 flex items-center shrink-0 h-10 gap-1.5",
-        "bg-bg-primary border-b border-border-subtle",
+        "bg-bg-primary",
         isMacOS() && "app-toolbar--macos",
       )}
     >
@@ -52,34 +48,8 @@ export function Toolbar(): React.JSX.Element {
       <div className="relative z-10 flex flex-1 min-w-0 items-center pointer-events-none">
         <AppMenuBar onAbout={() => setAboutOpen(true)} />
 
-        <ToolbarContextTitle />
-
-        <div className="ml-auto flex items-center gap-0.5 pointer-events-auto">
-          <ThemeToggle />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1"
-            aria-label="Settings"
-            title={isMacOS() ? "Settings (⌘,)" : "Settings (Ctrl+,)"}
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Settings size={16} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-1"
-            aria-label="About"
-            title="About GitWave"
-            onClick={() => setAboutOpen(true)}
-          >
-            <Info size={16} />
-          </Button>
-        </div>
+        <ToolbarAppTitle />
       </div>
-
-      <SyncProgressBar />
 
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
       <AboutModal open={aboutOpen} onOpenChange={setAboutOpen} />

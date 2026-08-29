@@ -1,6 +1,19 @@
 import { create } from "zustand";
 import type { SyncOperation, SyncProgress } from "@/lib/api";
 
+/** Human label for an in-flight sync operation ("Pulling changes…"). */
+export function syncOperationLabel(op: SyncOperation | null): string | null {
+  if (!op) return null;
+  switch (op) {
+    case "fetch":
+      return "Fetching from origin…";
+    case "pull":
+      return "Pulling changes…";
+    case "push":
+      return "Pushing to origin…";
+  }
+}
+
 interface SyncStoreState {
   activeOp: SyncOperation | null;
   receivedObjects: number;
