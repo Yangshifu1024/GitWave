@@ -13,6 +13,7 @@ import {
   type SubmoduleInfo,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { SidebarSection } from "@/components/ui/SidebarSection";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -104,7 +105,8 @@ export function SubmodulesPanel(): React.JSX.Element {
   if (!workspaceId || !repoId) return <></>;
 
   return (
-    <div className="flex flex-col gap-1 px-1">
+    <SidebarSection title="Submodules" collapsible={items.length > 0}>
+      <div className="flex flex-col gap-1 px-1">
       {error ? <p className="px-2 text-xs text-danger">{error}</p> : null}
       {items.length === 0 ? (
         <p className="px-2 py-1 text-xs text-text-muted italic">No submodules</p>
@@ -232,6 +234,7 @@ export function SubmodulesPanel(): React.JSX.Element {
           </div>
         </Modal>
       ) : null}
-    </div>
+      </div>
+    </SidebarSection>
   );
 }

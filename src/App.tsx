@@ -135,27 +135,17 @@ function App(): React.JSX.Element {
               <aside className="flex flex-col h-full gap-1.5 px-2 py-2 bg-bg-panel overflow-hidden select-none pane-edge-right">
                 {activeWorkspaceId ? (
                   <>
-                    <BranchList onBranchSelect={handleBranchSelect} />
-                    <SidebarSection title="Stash" defaultOpen={false}>
-                      <StashPanel compact />
-                    </SidebarSection>
-                    <SidebarSection title="Tags" defaultOpen={false}>
-                      <TagsPanel onSelect={handleTagSelect} />
-                    </SidebarSection>
-                    <SidebarSection title="Remotes" defaultOpen={false}>
-                      <RemotesPanel />
-                    </SidebarSection>
-                    <SidebarSection title="Recovery" defaultOpen={false}>
-                      <ReflogPanel />
-                    </SidebarSection>
                     <SidebarSection title="Health" defaultOpen={false}>
                       <HealthPanel />
                     </SidebarSection>
-                    <SidebarSection title="Worktrees" defaultOpen={false}>
-                      <WorktreePanel compact />
-                    </SidebarSection>
-                    <SidebarSection title="Submodules" defaultOpen={false}>
-                      <SubmodulesPanel />
+                    <BranchList onBranchSelect={handleBranchSelect} />
+                    <StashPanel compact />
+                    <TagsPanel onSelect={handleTagSelect} />
+                    <RemotesPanel />
+                    <WorktreePanel compact />
+                    <SubmodulesPanel />
+                    <SidebarSection title="Recovery" defaultOpen={false}>
+                      <ReflogPanel />
                     </SidebarSection>
                   </>
                 ) : (
