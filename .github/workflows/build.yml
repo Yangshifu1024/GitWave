@@ -52,8 +52,12 @@ jobs:
             echo "::error::APPLE_API_KEY_P8 缺少 '-----END PRIVATE KEY-----' 行，内容已损坏。用 gh secret set APPLE_API_KEY_P8 < AuthKey_XXX.p8 重新设置"
             exit 1
           }
-      - name: tauri build
-        run: npm run tauri -- build
+      - name: frontend build
+        run: npm run build
+      - name: cargo build (compile phase)
+        run: cargo build --manifest-path src-tauri/Cargo.toml --release
+      - name: tauri build (bundle + sign + notarize, verbose)
+        run: npm run tauri -- build --verbose
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
