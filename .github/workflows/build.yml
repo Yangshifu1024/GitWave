@@ -140,6 +140,23 @@ jobs:
         run: npm run build
       - name: cargo build (compile phase)
         run: cargo build --manifest-path src-tauri/Cargo.toml --release
+      - name: Big-binary HTTP TSA signing experiment
+        run: |
+          bin=src-tauri/target/release/gitwave
+          ls -la "$bin"
+          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '$1 ~ /^[0-9]+\)$/ {print $2; exit}')
+          echo "--- a) HTTP TSA on real binary (120s limit) ---"
+          if perl -e 'alarm shift; exec @ARGV' 120 codesign --force --timestamp=http://timestamp.apple.com/ts01 -s "$id_hash" --options runtime "$bin"; then
+            echo "HTTP TSA big-binary: PASSED"
+          else
+            echo "HTTP TSA big-binary: FAILED/hung"
+          fi
+          echo "--- b) no-timestamp control (120s limit) ---"
+          if perl -e 'alarm shift; exec @ARGV' 120 codesign --force --timestamp=none -s "$id_hash" --options runtime "$bin"; then
+            echo "no-timestamp control: PASSED"
+          else
+            echo "no-timestamp control: FAILED/hung"
+          fi
       - name: tauri build (bundle + sign + notarize, verbose)
         run: perl -e 'alarm shift; exec @ARGV' 2100 npm run tauri -- build --verbose
         env:
