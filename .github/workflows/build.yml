@@ -53,26 +53,30 @@ jobs:
             echo "::error::APPLE_API_KEY_P8 缺少 '-----END PRIVATE KEY-----' 行，内容已损坏。用 gh secret set APPLE_API_KEY_P8 < AuthKey_XXX.p8 重新设置"
             exit 1
           }
-      - name: Probe Apple connectivity (fail fast before compile)
+      - name: Probe Apple TSA (fail fast before compile)
         run: |
           security find-identity -v -p codesigning build.keychain || true
-          for host in timestamp.apple.com api.appstoreconnect.apple.com itunes.apple.com www.apple.com; do
+          probe() { curl -sS -o /dev/null --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; }
+          if probe; then echo "TSA reachable directly"; exit 0; fi
+          for host in api.appstoreconnect.apple.com itunes.apple.com www.apple.com; do
             curl -sS -o /dev/null -w "$host: HTTP %{http_code} in %{time_total}s\n" \
               --connect-timeout 10 --max-time 20 "https://$host/" || echo "$host: unreachable"
           done
+          echo "Direct egress failed; pinning timestamp.apple.com -> 17.157.80.35 in /etc/hosts"
+          echo "17.157.80.35 timestamp.apple.com" | sudo tee -a /etc/hosts >/dev/null
+          dscacheutil -flushcache || true
+          killall -HUP mDNSResponder 2>/dev/null || true
           ok=0
           for i in 1 2 3; do
-            if curl -sS -o /dev/null --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; then
-              ok=1
-              break
-            fi
+            if probe; then ok=1; break; fi
             echo "TSA attempt $i failed; sleeping 20s before retry"
             sleep 20
           done
           if [ "$ok" != 1 ]; then
-            echo "::error::Apple TSA unreachable after 3 attempts — codesign would hang. Failing fast before the 20-min compile."
+            echo "::error::Apple TSA unreachable even with pinned IP — codesign would hang. Failing fast before the 20-min compile."
             exit 1
           fi
+          echo "TSA reachable via pinned IP 17.157.80.35"
       - name: frontend build
         run: npm run build
       - name: cargo build (compile phase)
