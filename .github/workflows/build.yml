@@ -85,11 +85,31 @@ jobs:
             echo "TSA attempt $i failed; sleeping 20s before retry"
             sleep 20
           done
-          if [ "$ok" != 1 ]; then
-            echo "::error::Apple TSA unreachable even with pinned IP — codesign would hang. Failing fast before the 20-min compile."
+          if [ "$ok" = 1 ]; then
+            echo "TSA reachable via pinned IP 17.157.80.35"
+            exit 0
+          fi
+          echo "HTTPS TSA unreachable; checking HTTP TSA fallback (ts01 over port 80)"
+          if ! curl -sS -o /dev/null --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/timestamp-query" --data-binary "probe" http://timestamp.apple.com/ts01; then
+            echo "::error::Apple TSA unreachable over both HTTPS and HTTP — codesign cannot take a timestamp. Failing fast before the 20-min compile."
             exit 1
           fi
-          echo "TSA reachable via pinned IP 17.157.80.35"
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/codesign" <<'WRAPPER'
+          #!/bin/bash
+          args=()
+          for a in "$@"; do
+            if [ "$a" = "--timestamp" ]; then
+              args+=("--timestamp=http://timestamp.apple.com/ts01")
+            else
+              args+=("$a")
+            fi
+          done
+          exec /usr/bin/codesign "${args[@]}"
+          WRAPPER
+          chmod +x "$HOME/.local/bin/codesign"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "codesign wrapper installed: bare --timestamp now uses http://timestamp.apple.com/ts01 (HTTP)"
       - name: frontend build
         run: npm run build
       - name: cargo build (compile phase)
