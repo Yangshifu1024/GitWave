@@ -628,13 +628,15 @@ export function ActionBar(): React.JSX.Element {
           />
           <ActionBarButton
             icon={<ArrowDown size={14} />}
-            label="Pull"
+            label={wc.data && wc.data.behind > 0 ? `Pull (${wc.data.behind})` : "Pull"}
+            title="Pull"
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPullDialog}
           />
           <ActionBarButton
             icon={<ArrowUp size={14} />}
-            label="Push"
+            label={wc.data && wc.data.ahead > 0 ? `Push (${wc.data.ahead})` : "Push"}
+            title="Push"
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPushDialog}
           />
