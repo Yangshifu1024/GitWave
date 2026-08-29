@@ -40,6 +40,7 @@ function FileSection({
   actionLabel,
   actionVariant,
   allActionLabel,
+  allActionVariant = "secondary",
   dangerActionLabel,
   allDangerActionLabel,
   files,
@@ -60,6 +61,7 @@ function FileSection({
   actionLabel: string;
   actionVariant: "primary" | "secondary";
   allActionLabel?: string;
+  allActionVariant?: "primary" | "secondary";
   /** Destructive bulk action on the selected files (with confirmation upstream). */
   dangerActionLabel?: string;
   onDangerAction?: (paths: string[]) => void;
@@ -164,7 +166,7 @@ function FileSection({
         {allActionLabel && onAllAction ? (
           <Button
             type="button"
-            variant="secondary"
+            variant={allActionVariant}
             size="sm"
             className="shrink-0"
             disabled={files.length === 0}
@@ -207,7 +209,7 @@ function FileSection({
         {dangerActionLabel && onDangerAction ? (
           <Button
             type="button"
-            variant="danger"
+            variant="danger-soft"
             size="sm"
             className="shrink-0"
             disabled={selectedInSection.length === 0}
@@ -496,8 +498,9 @@ export function ChangesPanel({
     <FileSection
       title="Unstaged"
       actionLabel="Stage"
-      actionVariant="primary"
+      actionVariant="secondary"
       allActionLabel="Stage All"
+      allActionVariant="primary"
       files={unstagedFiles}
       emptyLabel="No unstaged changes"
       selectedPath={selectedPath}
@@ -527,6 +530,7 @@ export function ChangesPanel({
       actionLabel="Unstage"
       actionVariant="secondary"
       allActionLabel="Unstage All"
+      allActionVariant="primary"
       files={stagedFiles}
       emptyLabel="No staged changes"
       selectedPath={selectedPath}

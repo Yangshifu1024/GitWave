@@ -9,6 +9,7 @@ const buttonVariants = cva("inline-flex items-center justify-center gap-2 font-m
       primary: "",
       secondary: "",
       danger: "",
+      "danger-soft": "",
       ghost: "",
     },
     size: {
@@ -26,12 +27,13 @@ const heroVariant = {
   primary: "primary",
   secondary: "outline",
   danger: "danger",
+  "danger-soft": "danger-soft",
   ghost: "ghost",
 } as const;
 
 export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: "primary" | "secondary" | "danger" | "danger-soft" | "ghost";
   size?: "sm" | "md";
 }
 
