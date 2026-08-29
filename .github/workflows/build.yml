@@ -52,16 +52,30 @@ jobs:
             echo "::error::APPLE_API_KEY_P8 缺少 '-----END PRIVATE KEY-----' 行，内容已损坏。用 gh secret set APPLE_API_KEY_P8 < AuthKey_XXX.p8 重新设置"
             exit 1
           }
+      - name: Probe Apple connectivity (fail fast before compile)
+        run: |
+          security find-identity -v -p codesigning build.keychain || true
+          for host in timestamp.apple.com api.appstoreconnect.apple.com itunes.apple.com www.apple.com; do
+            curl -sS -o /dev/null -w "$host: HTTP %{http_code} in %{time_total}s\n" \
+              --connect-timeout 10 --max-time 20 "https://$host/" || echo "$host: unreachable"
+          done
+          ok=0
+          for i in 1 2 3; do
+            if curl -sS -o /dev/null --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; then
+              ok=1
+              break
+            fi
+            echo "TSA attempt $i failed; sleeping 20s before retry"
+            sleep 20
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::Apple TSA unreachable after 3 attempts — codesign would hang. Failing fast before the 20-min compile."
+            exit 1
+          fi
       - name: frontend build
         run: npm run build
       - name: cargo build (compile phase)
         run: cargo build --manifest-path src-tauri/Cargo.toml --release
-      - name: Diagnose signing prerequisites
-        run: |
-          security find-identity -v -p codesigning build.keychain || true
-          curl -sS -o /dev/null -w "Apple TSA: HTTP %{http_code} in %{time_total}s\n" \
-            --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 \
-            || echo "Apple TSA unreachable (network timeout)"
       - name: tauri build (bundle + sign + notarize, verbose)
         run: perl -e 'alarm shift; exec @ARGV' 2100 npm run tauri -- build --verbose
         env:
