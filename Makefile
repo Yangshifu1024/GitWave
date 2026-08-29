@@ -1,25 +1,26 @@
-CARGO := cargo --manifest-path src-tauri/Cargo.toml
+CARGO := cargo
+CARGO_MANIFEST := --manifest-path src-tauri/Cargo.toml
 
 .DEFAULT_GOAL := help
 .PHONY: test format fmt-check lint check build dev help
 
 format: ## 格式化前端 + Rust(会改文件)
 	npm run format
-	$(CARGO) fmt
+	$(CARGO) fmt $(CARGO_MANIFEST)
 
 fmt-check: ## 只校验格式,不改文件(对齐 CI)
 	npx prettier --check .
-	$(CARGO) fmt -- --check
+	$(CARGO) fmt $(CARGO_MANIFEST) -- --check
 
 test: ## 前端 + Rust 全部测试
 	npm test
-	$(CARGO) test --all-targets
+	$(CARGO) test $(CARGO_MANIFEST) --all-targets
 
 lint: ## eslint + clippy + typecheck + cargo check
 	npm run lint
-	$(CARGO) clippy --all-targets -- -D warnings
+	$(CARGO) clippy $(CARGO_MANIFEST) --all-targets -- -D warnings
 	npm run typecheck
-	$(CARGO) check --all-targets
+	$(CARGO) check $(CARGO_MANIFEST) --all-targets
 
 check: fmt-check lint test ## 提交前自查:只校验不改文件,等价 CI
 
