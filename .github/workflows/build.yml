@@ -58,11 +58,19 @@ jobs:
           security find-identity -v -p codesigning build.keychain || true
           probe() { curl -sS -o /dev/null --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; }
           if probe; then echo "TSA reachable directly"; exit 0; fi
-          for host in api.appstoreconnect.apple.com itunes.apple.com www.apple.com; do
-            curl -sS -o /dev/null -w "$host: HTTP %{http_code} in %{time_total}s\n" \
-              --connect-timeout 10 --max-time 20 "https://$host/" || echo "$host: unreachable"
-          done
-          echo "Direct egress failed; pinning timestamp.apple.com -> 17.157.80.35 in /etc/hosts"
+          echo "--- proxy env ---"
+          env | grep -iE "^(http_proxy|https_proxy|all_proxy|no_proxy)=" || echo "(no proxy env vars)"
+          echo "--- system resolve of timestamp.apple.com ---"
+          dscacheutil -q host -a name timestamp.apple.com || true
+          echo "--- curl -v connection target ---"
+          curl -v --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 -o /dev/null 2>&1 | grep -E "Trying|connect|Failed|error" || true
+          echo "--- curl --resolve forced to 17.157.80.35 ---"
+          if curl -sS -o /dev/null --resolve timestamp.apple.com:443:17.157.80.35 --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; then
+            echo "RESOLVED-IP PATH WORKS"
+          else
+            echo "resolved-IP path also blocked"
+          fi
+          echo "Pinning /etc/hosts and retrying"
           echo "17.157.80.35 timestamp.apple.com" | sudo tee -a /etc/hosts >/dev/null
           dscacheutil -flushcache || true
           killall -HUP mDNSResponder 2>/dev/null || true
