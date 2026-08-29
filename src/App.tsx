@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { FolderOpen, GitCommitHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
+import { useAutoRefreshLoop } from "@/hooks/useAutoRefresh";
 import type { BranchInfo } from "@/lib/api";
 import { listWorkspaces } from "@/lib/api";
 import type { LocateRequest } from "@/lib/commitLocate";
@@ -50,6 +51,7 @@ function App(): React.JSX.Element {
   const setInspectorMaximized = useLayoutStore((s) => s.setInspectorMaximized);
   const titlebarMode = useTitlebarActivation();
   useTheme();
+  useAutoRefreshLoop();
 
   useEffect(() => {
     setInspectorMaximized(false);

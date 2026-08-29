@@ -27,10 +27,14 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // epoch in deps: auto-refresh bumps it to re-run this manual effect.
+  const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
+
   const refresh = useCallback(async () => {
+    void historyEpoch; // re-run trigger: auto-refresh bumps the epoch.
     if (!workspaceId) return;
     setItems(await listWorktrees(workspaceId));
-  }, [workspaceId]);
+  }, [workspaceId, historyEpoch]);
 
   useEffect(() => {
     if (!workspaceId || !repoId) {
