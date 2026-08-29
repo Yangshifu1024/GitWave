@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { ArrowDown, ArrowDownUp, ArrowUp, FileDiff, Webhook } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, FileDiff } from "lucide-react";
 
 import {
   addLocalRepo,
@@ -548,19 +548,6 @@ export function ActionBar(): React.JSX.Element {
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
           />
-          <ActionBarButton
-            icon={<Webhook size={14} />}
-            label="Hooks"
-            title="Git hooks editor"
-            disabled={noRepo}
-            onClick={() => setHooksOpen(true)}
-          />
-        </div>
-        <Separator
-          orientation="vertical"
-          className="mx-1 h-8 w-px self-center bg-border-subtle"
-        />
-        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDown size={14} />}
             label="Pull"
