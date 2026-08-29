@@ -25,7 +25,7 @@ GitHub Secrets：
 ## 改动（`.github/workflows/build.yml` macos job）
 
 1. `Import signing certificate`：`security create-keychain` 建 runner 临时钥匙串并导入 `.p12`（`set-key-partition-list` 免交互授权 codesign），证书文件用后即删，不落盘。
-2. `Write App Store Connect API key`：把 `APPLE_API_KEY_P8` secret 写为 `AuthKey.p8`——`APPLE_API_KEY_PATH` 是路径不是 secret，故在 CI 生成。
+2. `Write App Store Connect API key`：把 `APPLE_API_KEY_P8` secret 写为 workspace 根的 `AuthKey.p8`——`APPLE_API_KEY_PATH` 是路径不是 secret，故在 CI 生成。**必须是绝对路径**（`${{ github.workspace }}/AuthKey.p8`）：bundler 在临时目录下调用 notarytool，相对路径会报 `The file couldn't be opened`（首跑 v0.3.0 已踩坑）。
 3. `tauri build` step 注入 `APPLE_SIGNING_IDENTITY` + 公证三变量；Tauri bundler 自动完成：签 .app → notarytool 公证 → staple 回 dmg。
 
 `tauri.conf.json` 无需改动。
