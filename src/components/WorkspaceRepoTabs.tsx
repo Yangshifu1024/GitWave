@@ -165,8 +165,10 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                   value={r.id}
                   disabled={r.status === "missing"}
                   className={cn(
-                    "h-6 px-3 py-0 text-xs cursor-grab active:cursor-grabbing",
-                    drag.draggingId === r.id && "opacity-50",
+                    // Default cursor on hover (tabs are click-to-switch);
+                    // grabbing only while a drag is actually in flight.
+                    "h-6 px-3 py-0 text-xs cursor-default",
+                    drag.draggingId === r.id && "cursor-grabbing opacity-50",
                   )}
                   title={
                     r.status === "missing" ? `${label} — missing, right-click to relink` : r.path

@@ -56,14 +56,18 @@ export function RemotesPanel(): React.JSX.Element {
   const [editNewName, setEditNewName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<RemoteInfo | null>(null);
 
+  // epoch in deps: auto-refresh bumps it to re-run this manual effect.
+  const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
+
   const refresh = useCallback(async () => {
+    void historyEpoch; // re-run trigger: auto-refresh bumps the epoch.
     if (!workspaceId || !repoId) {
       setItems([]);
       return;
     }
     setItems(await listRemoteDetails(workspaceId));
     setError(null);
-  }, [workspaceId, repoId]);
+  }, [workspaceId, repoId, historyEpoch]);
 
   useEffect(() => {
     refresh().catch((e) => setError(formatAppError(e)));

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { KeyRound, Monitor, Moon, Palette as PaletteIcon, Sun } from "lucide-react";
+import { KeyRound, Monitor, Moon, Palette as PaletteIcon, Settings2, Sun } from "lucide-react";
 
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useFonts } from "@/hooks/useFonts";
 import { usePalette } from "@/hooks/usePalette";
 import { useTheme, type Theme } from "@/hooks/useTheme";
@@ -16,12 +17,14 @@ import { Radio, RadioGroup } from "@heroui/react";
 import { Modal } from "@/components/ui/Modal";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
-type SettingsSection = "appearance" | "ssh";
+type SettingsSection = "general" | "appearance" | "ssh";
 
 const SECTIONS: { id: SettingsSection; label: string; icon: typeof PaletteIcon }[] = [
+  { id: "general", label: "General", icon: Settings2 },
   { id: "appearance", label: "Appearance", icon: PaletteIcon },
   { id: "ssh", label: "SSH Keys", icon: KeyRound },
 ];
@@ -32,12 +35,12 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React.JSX.Element {
-  const [section, setSection] = useState<SettingsSection>("appearance");
+  const [section, setSection] = useState<SettingsSection>("general");
 
   // Reopening always lands on the first section instead of resuming the
   // previous one.
   useEffect(() => {
-    if (open) setSection("appearance");
+    if (open) setSection("general");
   }, [open]);
 
   return (
@@ -56,7 +59,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
               aria-current={section === id ? "page" : undefined}
               onClick={() => setSection(id)}
               className={cn(
-                "h-auto justify-start flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-base",
+                "h-auto w-full justify-start flex items-center gap-2 rounded-md px-3 py-2 text-sm text-left transition-colors duration-base",
                 section === id
                   ? "bg-accent/10 font-medium text-accent"
                   : "text-text-secondary hover:bg-accent/5 hover:text-text-primary",
@@ -69,11 +72,34 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
         </nav>
 
         <div className="min-w-0 flex-1 overflow-auto pl-5">
+          {section === "general" ? <GeneralSection /> : null}
           {section === "appearance" ? <AppearanceSection /> : null}
           {section === "ssh" ? <SshKeyManager /> : null}
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ─── General ──────────────────────────────────────────────────────────────
+
+function GeneralSection(): React.JSX.Element {
+  const { autoRefresh, setAutoRefresh } = useAutoRefresh();
+  return (
+    <div className="flex flex-col gap-5">
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          Auto refresh
+        </h3>
+        <Checkbox checked={autoRefresh} onChange={setAutoRefresh} className="text-sm">
+          Refresh repository data every minute
+        </Checkbox>
+        <p className="text-xs text-text-muted">
+          Refreshes commits, branches and panels, and fetches from the remote. Never pulls or
+          pushes.
+        </p>
+      </section>
+    </div>
   );
 }
 
