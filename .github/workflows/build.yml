@@ -56,8 +56,14 @@ jobs:
         run: npm run build
       - name: cargo build (compile phase)
         run: cargo build --manifest-path src-tauri/Cargo.toml --release
+      - name: Diagnose signing prerequisites
+        run: |
+          security find-identity -v -p codesigning build.keychain || true
+          curl -sS -o /dev/null -w "Apple TSA: HTTP %{http_code} in %{time_total}s\n" \
+            --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 \
+            || echo "Apple TSA unreachable (network timeout)"
       - name: tauri build (bundle + sign + notarize, verbose)
-        run: npm run tauri -- build --verbose
+        run: perl -e 'alarm shift; exec @ARGV' 2100 npm run tauri -- build --verbose
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
