@@ -119,7 +119,7 @@ function BranchRow({
   const row = (
     <ListItem
       selected={selected}
-      className={indented ? "pl-12" : "pl-8"}
+      className={indented ? "pl-8" : "pl-4"}
       onClick={() => {
         if (busy) return;
         onSelect(branch.name);
@@ -525,7 +525,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           size="sm"
           aria-expanded={!collapsed}
           onClick={() => toggleGroup(groupKey, groupKey !== "local")}
-          className="h-auto w-full justify-start flex items-center gap-1.5 pl-6 pr-3 py-1 text-[11px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary rounded-none border-0 shadow-none bg-transparent"
+          className="h-auto w-full justify-start flex items-center gap-1.5 pl-3 pr-3 py-1 text-[11px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary rounded-none border-0 shadow-none bg-transparent"
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
           {label}
@@ -552,7 +552,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                     onClick={() =>
                       toggleGroup(folderKey, !list.some((b) => b.name === selectedName))
                     }
-                    className="h-auto w-full justify-start flex items-center gap-1.5 pl-9 pr-3 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary rounded-none border-0 shadow-none bg-transparent"
+                    className="h-auto w-full justify-start flex items-center gap-1.5 pl-6 pr-3 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary rounded-none border-0 shadow-none bg-transparent"
                   >
                     {folderCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
                     <Folder size={11} className="shrink-0 text-text-muted" />
