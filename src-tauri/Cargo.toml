@@ -42,7 +42,10 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # SSH remotes fail on every platform. libssh2 speaks to ssh-agent via
 # SSH_AUTH_SOCK on unix and the OpenSSH Agent named pipe on Windows, so
 # `Cred::ssh_key_from_agent` works on both once the feature is on.
-git2 = { version = "0.20", features = ["vendored-libgit2", "ssh"] }
+# `vendored-openssl` static-links OpenSSL: libssh2-sys pulls openssl-sys,
+# which on macOS otherwise links Homebrew's libssl and the app crashes on
+# launch (missing dylib / Team-ID mismatch under library validation).
+git2 = { version = "0.20", features = ["vendored-libgit2", "ssh", "vendored-openssl"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tauri-plugin-decoration = "3"
