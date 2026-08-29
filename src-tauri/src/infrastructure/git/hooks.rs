@@ -104,9 +104,8 @@ pub fn write_hook(repo: &Repository, name: &str, content: &str) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::permissions(&path)?;
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&path, perms)?;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| AppError::Unknown(format!("set hook permissions: {e}")))?;
     }
     Ok(())
 }
