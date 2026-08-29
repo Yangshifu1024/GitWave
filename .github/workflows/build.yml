@@ -62,8 +62,10 @@ jobs:
           env | grep -iE "^(http_proxy|https_proxy|all_proxy|no_proxy)=" || echo "(no proxy env vars)"
           echo "--- system resolve of timestamp.apple.com ---"
           dscacheutil -q host -a name timestamp.apple.com || true
-          echo "--- curl -v connection target ---"
-          curl -v --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 -o /dev/null 2>&1 | grep -E "Trying|connect|Failed|error" || true
+          echo "--- curl -v full output (443) ---"
+          curl -v --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 -o /dev/null 2>&1 || true
+          echo "--- curl -v full output (80) ---"
+          curl -v --connect-timeout 10 --max-time 20 http://timestamp.apple.com/ -o /dev/null 2>&1 || true
           echo "--- curl --resolve forced to 17.157.80.35 ---"
           if curl -sS -o /dev/null --resolve timestamp.apple.com:443:17.157.80.35 --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; then
             echo "RESOLVED-IP PATH WORKS"
