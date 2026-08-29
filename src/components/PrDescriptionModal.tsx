@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 
 export function PrDescriptionModal({
   workspaceId,
@@ -25,7 +25,7 @@ export function PrDescriptionModal({
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const genMut = useMutation({
     mutationFn: () => generatePrDescription(workspaceId),
@@ -35,10 +35,7 @@ export function PrDescriptionModal({
       setProvider(res.provider_used);
       setError(null);
       if (res.used_fallback) {
-        toast({
-          title: `Primary AI provider failed — response served by ${res.provider_used}`,
-          variant: "info",
-        });
+        setStatus(`Primary AI provider failed — response served by ${res.provider_used}`, "info");
       }
     },
     onError: (e) => setError(formatAppError(e)),
@@ -58,9 +55,9 @@ export function PrDescriptionModal({
   const copy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast({ title: `${label} copied to clipboard` });
+      setStatus(`${label} copied to clipboard`);
     } catch {
-      toast({ title: "Clipboard unavailable", variant: "danger" });
+      setStatus("Clipboard unavailable", "danger");
     }
   };
 

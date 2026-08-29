@@ -23,9 +23,9 @@ import {
   rebaseBranch,
   saveStash,
 } from "@/lib/api";
-import { useToast } from "@/components/ui/Toast";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
+import { useSyncStore, type UiOperation } from "@/stores/syncStore";
 import { cn } from "@/lib/utils";
 import { gateCheckout } from "@/lib/checkoutGate";
 import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
@@ -242,13 +242,13 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     bumpHistoryEpoch();
   }, [bumpHistoryEpoch]);
 
-  const { toast } = useToast();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
-  // Sidebar operation results (checkout, merge, rebase) surface as
-  // top-center HeroUI toasts instead of an inline banner. Branch checkout
-  // results go to the ActionBar status area instead — see checkoutOnto.
+  const startOp = useSyncStore((s) => s.startOp);
+  const endOp = useSyncStore((s) => s.endOp);
+  // Sidebar operation results (checkout, merge, rebase, delete) surface in
+  // the ActionBar status area — the single operation-status surface.
   const showNotice = (text: string, variant: "success" | "danger" = "success") => {
-    toast({ title: text, variant });
+    setStatus(text, variant);
   };
 
   useEffect(() => {
@@ -296,10 +296,11 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     };
   }, [activeWorkspaceId, activeRepoId, historyEpoch]);
 
-  const run = async (fn: () => Promise<void>) => {
+  const run = async (op: UiOperation, fn: () => Promise<void>) => {
     if (!activeWorkspaceId || busy) return;
     setBusy(true);
     setError(null);
+    startOp(op);
     try {
       await fn();
       refresh();
@@ -309,6 +310,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       setError(formatAppError(e));
     } finally {
       setBusy(false);
+      endOp(op);
     }
   };
 
@@ -361,7 +363,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           setSwitchDialog({ kind: "dirty", name, fileCount: gate.fileCount });
           return;
         }
-        await run(() => checkoutOnto(name, "safe"));
+        await run("checkout", () => checkoutOnto(name, "safe"));
       } catch (e) {
         setError(formatAppError(e));
       }
@@ -385,7 +387,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     : [];
 
   const handleConfirmDelete = () =>
-    void run(async () => {
+    void run("delete", async () => {
       if (!deleteDialog) return;
       const { name, deleteRemote } = deleteDialog;
       await deleteBranch(activeWorkspaceId!, name);
@@ -405,7 +407,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const handleMerge = (name: string) => setMergeDialog({ name });
 
   const handleMergeConfirmed = (name: string, noFf: boolean) =>
-    void run(async () => {
+    void run("merge", async () => {
       const result = await mergeBranch(activeWorkspaceId!, name, noFf);
       if (result.conflicts.length > 0) {
         showNotice(
@@ -418,7 +420,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     });
 
   const handleRebaseOnto = (name: string) =>
-    void run(async () => {
+    void run("rebase", async () => {
       const result = await rebaseBranch(activeWorkspaceId!, name);
       if (result.kind === "conflicts" || result.conflicts.length > 0) {
         showNotice(
@@ -433,7 +435,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     });
 
   const handleContinueIrebase = () =>
-    void run(async () => {
+    void run("rebase", async () => {
       const result = await continueInteractiveRebase(activeWorkspaceId!);
       if (result.kind === "conflicts") {
         showNotice(`Continue rebase conflicts: ${result.conflicts.join(", ")}`, "danger");
@@ -445,7 +447,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     });
 
   const handleAbortIrebasePause = () =>
-    void run(async () => {
+    void run("rebase", async () => {
       await abortInteractiveRebasePause(activeWorkspaceId!);
       showNotice("Cleared interactive rebase pause state");
     });
@@ -645,7 +647,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
               onClick={() => {
                 const target = switchDialog.name;
                 setSwitchDialog(null);
-                void run(() => checkoutOnto(target, "force"));
+                void run("checkout", () => checkoutOnto(target, "force"));
               }}
             >
               Discard
@@ -657,7 +659,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
               onClick={() => {
                 const target = switchDialog.name;
                 setSwitchDialog(null);
-                void run(() => checkoutOnto(target, "stash"));
+                void run("checkout", () => checkoutOnto(target, "stash"));
               }}
             >
               Stash & switch

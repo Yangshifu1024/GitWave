@@ -3,7 +3,7 @@ import type { MergeConflictsState } from "@/hooks/useMergeConflicts";
 import { formatAppError } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { AlertTriangle, XCircle } from "lucide-react";
 
 interface MergeBannerProps {
@@ -21,7 +21,7 @@ export function MergeBanner({ merge, onResolve }: MergeBannerProps): React.JSX.E
   const { active, files, abort } = merge;
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const [busy, setBusy] = useState(false);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   if (!active) return null;
   const allResolved = files.length === 0;
@@ -33,7 +33,7 @@ export function MergeBanner({ merge, onResolve }: MergeBannerProps): React.JSX.E
         await abort();
         bumpHistory();
       } catch (e) {
-        toast({ title: formatAppError(e), variant: "danger" });
+        setStatus(formatAppError(e), "danger");
       } finally {
         setBusy(false);
       }

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { Modal } from "@/components/ui/Modal";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { AlertTriangle, ChevronDown, ChevronUp, Sparkles, X, XCircle } from "lucide-react";
 
 /** text-xs + leading-5 — editor and backdrop must agree for hunk jumps. */
@@ -46,7 +46,7 @@ export function ConflictPanel({
   /** Editor content the current buffer was seeded from — dirty check on close. */
   const seedRef = useRef("");
   const openRef = useRef(open);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   // The highlight backdrop derives from a deferred copy of the editor so a
   // keystroke never blocks on re-highlighting a large file (lockfile-sized
@@ -342,10 +342,10 @@ export function ConflictPanel({
                           if (!openRef.current) return;
                           setExplain(res.text);
                           if (res.used_fallback) {
-                            toast({
-                              title: `Primary AI provider failed — response served by ${res.provider_used}`,
-                              variant: "info",
-                            });
+                            setStatus(
+                              `Primary AI provider failed — response served by ${res.provider_used}`,
+                              "info",
+                            );
                           }
                         } catch (e) {
                           if (openRef.current) setError(formatAppError(e));

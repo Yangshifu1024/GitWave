@@ -23,7 +23,8 @@ import { useUiStore } from "@/stores/uiStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
+import { useSyncStore } from "@/stores/syncStore";
 import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +50,7 @@ export function CommandPalette({
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const [query, setQuery] = useState("");
   const [intent, setIntent] = useState<PaletteIntent | null>(null);
@@ -97,15 +98,20 @@ export function CommandPalette({
         icon: <Download size={14} />,
         hint: "",
         run: () => {
-          if (!workspaceId) return;
+          if (!workspaceId || useSyncStore.getState().isBusy()) return;
           setOpen(false);
+          // Own lifecycle: the backend emits sync-progress for any fetch, so
+          // startOp/endOp here keep the status area from sticking in "sync".
+          const sync = useSyncStore.getState();
+          sync.startOp("fetch");
           fetchRemote(workspaceId)
-            .then(() => toast({ title: "Fetch complete" }))
-            .catch((e) => toast({ title: formatAppError(e), variant: "danger" }));
+            .then(() => setStatus("Fetch complete"))
+            .catch((e) => setStatus(formatAppError(e), "danger"))
+            .finally(() => sync.endOp("fetch"));
         },
       },
     ],
-    [workspaceId, setOpen, setSettingsOpen, toast],
+    [workspaceId, setOpen, setSettingsOpen, setStatus],
   );
 
   const filtered = staticCommands.filter((c) =>
@@ -149,39 +155,44 @@ export function CommandPalette({
             if (!from) throw new Error("no base commit for the new branch");
             await createBranch(workspaceId, params.name ?? "", from);
             bumpHistory();
-            toast({ title: `Created branch ${params.name}` });
+            setStatus(`Created branch ${params.name}`);
             break;
           }
           case "checkout_branch": {
             await checkoutBranch(workspaceId, params.name ?? "", false);
             bumpHistory();
             void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
-            toast({ title: `Checked out ${params.name}` });
+            setStatus(`Checked out ${params.name}`);
             break;
           }
           case "create_tag": {
             const target = params.sha?.trim() || (await getWorkingCopy(workspaceId)).sha || null;
             await createTag(workspaceId, params.name ?? "", target || null, null);
             bumpHistory();
-            toast({ title: `Created tag ${params.name}` });
+            setStatus(`Created tag ${params.name}`);
             break;
           }
           case "stash_changes": {
             await saveStash(workspaceId, params.message || undefined);
             void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
-            toast({ title: "Changes stashed" });
+            setStatus("Changes stashed");
             break;
           }
           case "fetch_remotes": {
-            await fetchRemote(workspaceId);
-            toast({ title: "Fetch complete" });
+            if (!useSyncStore.getState().isBusy()) {
+              const sync = useSyncStore.getState();
+              sync.startOp("fetch");
+              try {
+                await fetchRemote(workspaceId);
+                setStatus("Fetch complete");
+              } finally {
+                sync.endOp("fetch");
+              }
+            }
             break;
           }
           case "none": {
-            toast({
-              title: next.explanation || "No matching action for that request",
-              variant: "info",
-            });
+            setStatus(next.explanation || "No matching action for that request", "info");
             break;
           }
         }

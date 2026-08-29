@@ -33,8 +33,8 @@ import {
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
+import { useSyncStore } from "@/stores/syncStore";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
-import { useToast } from "@/components/ui/Toast";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { cn } from "@/lib/utils";
 import { Separator } from "@heroui/react";
@@ -127,7 +127,9 @@ function deriveDestName(url: string): string {
 
 export function ActionBar(): React.JSX.Element {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
+  const startOp = useSyncStore((s) => s.startOp);
+  const endOp = useSyncStore((s) => s.endOp);
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
@@ -232,7 +234,7 @@ export function ActionBar(): React.JSX.Element {
     if (!mode || !transferPath.trim()) return;
     const path = transferPath.trim();
     const done = (message: string): void => {
-      toast({ title: message });
+      setStatus(message);
       setTransferOpen(null);
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     };
@@ -269,8 +271,6 @@ export function ActionBar(): React.JSX.Element {
   const [wtName, setWtName] = useState("");
   const [wtLocation, setWtLocation] = useState("");
   const [wtBusy, setWtBusy] = useState(false);
-
-  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const refreshRepos = (): void => {
     void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
@@ -438,6 +438,7 @@ export function ActionBar(): React.JSX.Element {
     if (!activeWorkspaceId || stashSaving) return;
     setStashSaving(true);
     wc.setActionError(null);
+    startOp("stash");
     try {
       await saveStash(activeWorkspaceId, stashMessage.trim() || undefined, stashStage);
       setStatus("Saved stash", "success");
@@ -451,6 +452,7 @@ export function ActionBar(): React.JSX.Element {
       wc.setActionError(formatAppError(e));
     } finally {
       setStashSaving(false);
+      endOp("stash");
     }
   };
 
@@ -468,6 +470,7 @@ export function ActionBar(): React.JSX.Element {
     if (!name || !location) return;
     setWtBusy(true);
     wc.setActionError(null);
+    startOp("worktree");
     try {
       await addWorktree(activeWorkspaceId, name, location, name, true, wtStart || undefined);
       setStatus(`Created worktree ${name}`, "success");
@@ -479,6 +482,7 @@ export function ActionBar(): React.JSX.Element {
       wc.setActionError(formatAppError(e));
     } finally {
       setWtBusy(false);
+      endOp("worktree");
     }
   };
 

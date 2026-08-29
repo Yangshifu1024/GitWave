@@ -25,7 +25,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/ContextMenu";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
+import { useSyncStore } from "@/stores/syncStore";
 import { Cloud } from "lucide-react";
 
 /**
@@ -38,7 +39,9 @@ export function RemotesPanel(): React.JSX.Element {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
+  const startOp = useSyncStore((s) => s.startOp);
+  const endOp = useSyncStore((s) => s.endOp);
 
   const [items, setItems] = useState<RemoteInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -72,14 +75,16 @@ export function RemotesPanel(): React.JSX.Element {
     if (busy) return;
     setBusy(key);
     setError(null);
+    startOp("remote-op");
     try {
       await fn();
-      if (success) toast({ title: success });
+      if (success) setStatus(success);
       await refresh();
     } catch (e) {
-      toast({ title: formatAppError(e), variant: "danger" });
+      setStatus(formatAppError(e), "danger");
     } finally {
       setBusy(null);
+      endOp("remote-op");
     }
   };
 

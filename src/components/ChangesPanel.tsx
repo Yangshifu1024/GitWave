@@ -18,7 +18,7 @@ import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { GitignoreEditor } from "@/components/GitignoreEditor";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Radio, RadioGroup } from "@heroui/react";
 import { formatAppError, generateCommitMessage, getWorkspace, type FileChange } from "@/lib/api";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
@@ -326,7 +326,7 @@ export function ChangesPanel({
   const [aiPromptOpen, setAiPromptOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [gitignoreOpen, setGitignoreOpen] = useState(false);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
   /** Context-menu / bulk action awaiting confirmation (destructive ops only). */
   const [pendingAction, setPendingAction] = useState<
     { type: "discard"; files: FileChange[] } | { type: "ignore"; file: FileChange } | null
@@ -357,10 +357,7 @@ export function ChangesPanel({
       .then((res) => {
         setMessage(res.text);
         if (res.used_fallback) {
-          toast({
-            title: `Primary AI provider failed — response served by ${res.provider_used}`,
-            variant: "info",
-          });
+          setStatus(`Primary AI provider failed — response served by ${res.provider_used}`, "info");
         }
       })
       .catch((e) => setActionError(formatAppError(e)))

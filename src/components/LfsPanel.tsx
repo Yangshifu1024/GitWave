@@ -10,7 +10,7 @@ import { formatAppError, lfsInstall, lfsStatus, lfsTrack, lfsUntrack } from "@/l
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 
 export function LfsPanel({
   workspaceId,
@@ -23,7 +23,7 @@ export function LfsPanel({
 }): React.JSX.Element {
   const [pattern, setPattern] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
   const queryClient = useQueryClient();
 
   const refresh = () => {
@@ -40,7 +40,7 @@ export function LfsPanel({
   const installMut = useMutation({
     mutationFn: () => lfsInstall(workspaceId),
     onSuccess: () => {
-      toast({ title: "LFS filters wired into this repository" });
+      setStatus("LFS filters wired into this repository");
       refresh();
     },
     onError: (e) => setError(formatAppError(e)),

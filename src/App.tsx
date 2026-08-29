@@ -8,7 +8,6 @@ import { useWorkspaceUiStore, readLastActive } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SidebarSection } from "@/components/ui/SidebarSection";
-import { ToastProvider } from "@/components/ui/Toast";
 import { FolderOpen, GitCommitHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import type { BranchInfo } from "@/lib/api";
@@ -111,75 +110,73 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <ToastProvider>
-      <div
-        className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
-        data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
-      >
-        <Toolbar />
+    <div
+      className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
+      data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
+    >
+      <Toolbar />
 
-        <MergeBanner merge={mergeConflicts} onResolve={() => setConflictPanelOpen(true)} />
+      <MergeBanner merge={mergeConflicts} onResolve={() => setConflictPanelOpen(true)} />
 
-        <ActionBar />
+      <ActionBar />
 
-        <WorkspaceRepoTabs />
+      <WorkspaceRepoTabs />
 
-        <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
-          <ThreePaneLayout
-            inspectorMaximized={inspectorMaximized}
-            inspectorClassName={cn(
-              inspectorMaximized &&
-                "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
-            )}
-            sidebar={
-              <aside className="flex flex-col h-full gap-1.5 px-2 py-2 bg-bg-panel overflow-hidden select-none pane-edge-right">
-                {activeWorkspaceId ? (
-                  <>
-                    <SidebarSection title="Health" defaultOpen={false}>
-                      <HealthPanel />
-                    </SidebarSection>
-                    <BranchList onBranchSelect={handleBranchSelect} />
-                    <StashPanel compact />
-                    <TagsPanel onSelect={handleTagSelect} />
-                    <RemotesPanel />
-                    <WorktreePanel compact />
-                    <SubmodulesPanel />
-                    <SidebarSection title="Recovery" defaultOpen={false}>
-                      <ReflogPanel />
-                    </SidebarSection>
-                  </>
-                ) : (
-                  <EmptyState
-                    icon={<FolderOpen size={22} />}
-                    title="No workspace selected"
-                    description="Choose or create a workspace in the sidebar."
-                    className="flex-1"
-                  />
-                )}
-              </aside>
-            }
-            main={
-              <section className="flex flex-col h-full bg-bg-panel overflow-hidden">
-                <CommitGraph
-                  selectedSha={selectedCommitOid}
-                  onCommitSelect={handleCommitSelect}
-                  locateRequest={locateRequest}
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+        <ThreePaneLayout
+          inspectorMaximized={inspectorMaximized}
+          inspectorClassName={cn(
+            inspectorMaximized &&
+              "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
+          )}
+          sidebar={
+            <aside className="flex flex-col h-full gap-1.5 px-2 py-2 bg-bg-panel overflow-hidden select-none pane-edge-right">
+              {activeWorkspaceId ? (
+                <>
+                  <SidebarSection title="Health" defaultOpen={false}>
+                    <HealthPanel />
+                  </SidebarSection>
+                  <BranchList onBranchSelect={handleBranchSelect} />
+                  <StashPanel compact />
+                  <TagsPanel onSelect={handleTagSelect} />
+                  <RemotesPanel />
+                  <WorktreePanel compact />
+                  <SubmodulesPanel />
+                  <SidebarSection title="Recovery" defaultOpen={false}>
+                    <ReflogPanel />
+                  </SidebarSection>
+                </>
+              ) : (
+                <EmptyState
+                  icon={<FolderOpen size={22} />}
+                  title="No workspace selected"
+                  description="Choose or create a workspace in the sidebar."
+                  className="flex-1"
                 />
-              </section>
-            }
-            inspector={<MainContent selectedCommitOid={selectedCommitOid} />}
-          />
-        </div>
-
-        <ConflictPanel
-          open={conflictPanelOpen}
-          onClose={() => setConflictPanelOpen(false)}
-          merge={mergeConflicts}
+              )}
+            </aside>
+          }
+          main={
+            <section className="flex flex-col h-full bg-bg-panel overflow-hidden">
+              <CommitGraph
+                selectedSha={selectedCommitOid}
+                onCommitSelect={handleCommitSelect}
+                locateRequest={locateRequest}
+              />
+            </section>
+          }
+          inspector={<MainContent selectedCommitOid={selectedCommitOid} />}
         />
-
-        <CommandPalette requestLocate={handlePaletteLocate} />
       </div>
-    </ToastProvider>
+
+      <ConflictPanel
+        open={conflictPanelOpen}
+        onClose={() => setConflictPanelOpen(false)}
+        merge={mergeConflicts}
+      />
+
+      <CommandPalette requestLocate={handlePaletteLocate} />
+    </div>
   );
 }
 

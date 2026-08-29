@@ -8,7 +8,7 @@ import { formatAppError, getHook, listHooks, saveHook, type HookInfo } from "@/l
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { cn } from "@/lib/utils";
 
 const SAMPLE_PRE_COMMIT = `#!/bin/sh
@@ -33,7 +33,7 @@ export function HooksPanel({
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
   const queryClient = useQueryClient();
 
   const { data: hooks = [] } = useQuery({
@@ -57,7 +57,7 @@ export function HooksPanel({
     mutationFn: () => saveHook(workspaceId, selected ?? "", content),
     onSuccess: () => {
       setDirty(false);
-      toast({ title: `Hook ${selected} saved` });
+      setStatus(`Hook ${selected} saved`);
       void queryClient.invalidateQueries({ queryKey: ["hooks", workspaceId] });
     },
     onError: (e) => setError(formatAppError(e)),

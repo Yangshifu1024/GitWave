@@ -12,7 +12,7 @@ import {
   listTags,
   revertCommit,
 } from "@/lib/api";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -48,7 +48,7 @@ export function CommitInfoHeader({
     queryFn: () => getCommitDetails(workspaceId, sha),
   });
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const [pending, setPending] = useState<CommitAction | null>(null);
   const [busy, setBusy] = useState(false);
@@ -87,17 +87,16 @@ export function CommitInfoHeader({
       op === "revert" ? revertCommit(workspaceId, sha) : cherryPickCommit(workspaceId, sha);
     request
       .then(() => {
-        toast({
-          title:
-            op === "revert"
-              ? `Reverted ${shortSha}`
-              : `Cherry-picked ${shortSha} onto the current branch`,
-        });
+        setStatus(
+          op === "revert"
+            ? `Reverted ${shortSha}`
+            : `Cherry-picked ${shortSha} onto the current branch`,
+        );
         void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
         void queryClient.invalidateQueries({ queryKey: ["commit-details", workspaceId, sha] });
         bumpHistory();
       })
-      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => {
         setBusy(false);
         setPending(null);
@@ -192,8 +191,8 @@ export function CommitInfoHeader({
             void refetchTags();
             bumpHistory();
           }}
-          onError={(message) => toast({ title: message, variant: "danger" })}
-          onCreated={(name) => toast({ title: `Tagged ${shortSha} as ${name}` })}
+          onError={(message) => setStatus(message, "danger")}
+          onCreated={(name) => setStatus(`Tagged ${shortSha} as ${name}`)}
         />
       ) : null}
 
