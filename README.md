@@ -82,6 +82,7 @@ Per AGENTS.md, **AI agents must not commit / push / merge** — humans gate ever
 
 ## Documentation
 
+- Website — <https://gitwave.work> (landing page & downloads)
 - `docs/pm/core/` — Product management (features, scope, roadmap)
 - `docs/tech/` — Engineering decisions (architecture, selection, ADRs, conventions)
 - `docs/design/` — UI/UX overview (3-pane layout, tokens, components)
