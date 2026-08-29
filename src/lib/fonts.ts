@@ -40,12 +40,7 @@ const FORBIDDEN_CHARS = /["'\\;{}<>]|\p{C}/gu;
 export function sanitizeFontList(input: string): string {
   return input
     .split(",")
-    .map((segment) =>
-      segment
-        .replace(FORBIDDEN_CHARS, "")
-        .replace(/\s+/g, " ")
-        .trim(),
-    )
+    .map((segment) => segment.replace(FORBIDDEN_CHARS, "").replace(/\s+/g, " ").trim())
     .filter((segment) => segment !== "")
     .join(", ");
 }

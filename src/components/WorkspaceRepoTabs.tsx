@@ -169,9 +169,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                     drag.draggingId === r.id && "opacity-50",
                   )}
                   title={
-                    r.status === "missing"
-                      ? `${label} — missing, right-click to relink`
-                      : r.path
+                    r.status === "missing" ? `${label} — missing, right-click to relink` : r.path
                   }
                   onPointerDown={(e) => drag.handlePointerDown(e, r.id)}
                   onContextMenu={(e) => {
@@ -194,8 +192,8 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 No repositories — init, clone, or add from the Repository menu.
               </span>
             ) : null}
-        </TabsList>
-      </Tabs>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Repo right-click menu — outside the tablists, see file head. */}

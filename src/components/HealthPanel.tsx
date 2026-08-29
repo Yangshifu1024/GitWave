@@ -141,11 +141,7 @@ export function HealthPanel(): React.JSX.Element {
           disabled={aiBusy || !report}
           onClick={runSummary}
         >
-          {aiBusy ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Sparkles size={12} />
-          )}
+          {aiBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
           {aiBusy ? "Summarizing…" : "AI summary"}
         </Button>
       </div>

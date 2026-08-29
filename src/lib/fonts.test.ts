@@ -32,7 +32,7 @@ describe("sanitizeFontList", () => {
   it("returns empty for blank or fully-forbidden input", () => {
     expect(sanitizeFontList("")).toBe("");
     expect(sanitizeFontList("   ")).toBe("");
-    expect(sanitizeFontList('"\';,\'"')).toBe("");
+    expect(sanitizeFontList("\"';,'\"")).toBe("");
   });
 });
 
@@ -61,8 +61,6 @@ describe("previewFontFamily", () => {
   });
 
   it("delegates to buildFontOverride for non-blank drafts", () => {
-    expect(previewFontFamily("Fira Code", "mono")).toBe(
-      '"Fira Code", var(--font-mono-fallback)',
-    );
+    expect(previewFontFamily("Fira Code", "mono")).toBe('"Fira Code", var(--font-mono-fallback)');
   });
 });

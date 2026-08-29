@@ -494,9 +494,7 @@ export function ActionBar(): React.JSX.Element {
 
   // "Start from" choices for the Create Worktree dialog: local branches.
   const wtBranchOptions = worktreeCreateOpen
-    ? (branchesQuery.data ?? [])
-        .filter((b) => b.kind === "local")
-        .map((b) => b.name)
+    ? (branchesQuery.data ?? []).filter((b) => b.kind === "local").map((b) => b.name)
     : [];
   const branchOptions = (() => {
     if (!pullDialog) return [];
@@ -616,10 +614,7 @@ export function ActionBar(): React.JSX.Element {
             onClick={() => setStashOpen(true)}
           />
         </div>
-        <Separator
-          orientation="vertical"
-          className="mx-1 h-8 w-px self-center bg-border-subtle"
-        />
+        <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
         <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDownUp size={14} />}

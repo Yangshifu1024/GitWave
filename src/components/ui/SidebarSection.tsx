@@ -41,10 +41,7 @@ export function SidebarSection({
     // Disclosure is mounted at all.
     return (
       <HeroCard className={cardClass}>
-        <div
-          className="flex items-center px-3 py-1.5"
-          onContextMenu={onHeaderContextMenu}
-        >
+        <div className="flex items-center px-3 py-1.5" onContextMenu={onHeaderContextMenu}>
           <span className="truncate text-[11px] font-semibold text-text-muted uppercase tracking-wider">
             {title}
           </span>
@@ -59,10 +56,7 @@ export function SidebarSection({
   return (
     <HeroCard className={cardClass}>
       <Disclosure defaultExpanded={defaultOpen} className="flex min-h-0 flex-col">
-        <div
-          className="shrink-0 flex items-center gap-1"
-          onContextMenu={onHeaderContextMenu}
-        >
+        <div className="shrink-0 flex items-center gap-1" onContextMenu={onHeaderContextMenu}>
           <Disclosure.Heading className="m-0 flex-1 min-w-0 text-inherit font-inherit leading-inherit">
             <Disclosure.Trigger
               className={cn(
@@ -75,9 +69,7 @@ export function SidebarSection({
               <span className="truncate">{title}</span>
             </Disclosure.Trigger>
           </Disclosure.Heading>
-          {actions ? (
-            <div className="shrink-0 flex items-center gap-1 pr-2">{actions}</div>
-          ) : null}
+          {actions ? <div className="shrink-0 flex items-center gap-1 pr-2">{actions}</div> : null}
         </div>
         {/* Content is the box flex actually clamps, so the scroll belongs
             here: an inner height-auto wrapper would never overflow itself.

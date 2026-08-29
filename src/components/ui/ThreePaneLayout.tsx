@@ -83,10 +83,7 @@ function ResizeHandle({
       aria-orientation="vertical"
       tabIndex={0}
     >
-      <div
-        aria-hidden
-        className="absolute inset-y-0 -left-[5px] -right-[5px] cursor-col-resize"
-      />
+      <div aria-hidden className="absolute inset-y-0 -left-[5px] -right-[5px] cursor-col-resize" />
     </div>
   );
 }

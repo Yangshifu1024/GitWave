@@ -28,10 +28,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
   const [selectedOid, setSelectedOid] = useState<string | null>(null);
   const [diff, setDiff] = useState<DiffSummary | null>(null);
 
-  const {
-    data: entries = [],
-    error: listError,
-  } = useQuery({
+  const { data: entries = [], error: listError } = useQuery({
     queryKey: ["stashes", workspaceId],
     queryFn: () => listStashes(workspaceId!),
     enabled: Boolean(workspaceId && repoId),
@@ -160,9 +157,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
               }
             >
               <div className="flex flex-col min-w-0">
-                <span
-                  className={cn("text-text-primary truncate", compact ? "text-xs" : "text-sm")}
-                >
+                <span className={cn("text-text-primary truncate", compact ? "text-xs" : "text-sm")}>
                   {`stash@{${e.index}}`} · {e.message || "(no message)"}
                 </span>
                 <span className="text-[10px] text-text-muted font-mono">{e.oid.slice(0, 7)}</span>

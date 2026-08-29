@@ -128,9 +128,9 @@ export function useTabDragReorder(options: {
       }
       const container = containerRef.current;
       if (!container) return;
-      const rects = Array.from(
-        container.querySelectorAll<HTMLElement>('[role="tab"]'),
-      ).map((el) => el.getBoundingClientRect());
+      const rects = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]')).map((el) =>
+        el.getBoundingClientRect(),
+      );
       const order = orderRef.current;
       // Rects and ids must describe the same row; skip a frame if a render
       // is still in flight.
