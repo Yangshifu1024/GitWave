@@ -56,17 +56,20 @@ pub fn list_worktrees(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
 }
 
 /// Create a new worktree at `path` checked out to `branch`.
-/// If `create_branch` is true, create `branch` from HEAD first.
+/// If `create_branch` is true, create `branch` from `start_point` (defaults
+/// to HEAD) first. Otherwise `branch` must be an existing local branch.
 pub fn add_worktree(
     repo: &Repository,
     name: &str,
     path: &Path,
     branch: &str,
     create_branch: bool,
+    start_point: Option<&str>,
 ) -> Result<WorktreeInfo> {
     if create_branch {
+        let sp = start_point.unwrap_or("HEAD");
         let commit = repo
-            .head()
+            .revparse_single(sp)
             .map_err(map_git_err)?
             .peel_to_commit()
             .map_err(map_git_err)?;
@@ -126,7 +129,7 @@ mod tests {
             .join(format!("gitwave-wt-{}", std::process::id()));
         let _ = fs::remove_dir_all(&wt_path);
 
-        let info = add_worktree(&repo, "feat-wt", &wt_path, "feat-wt", true).unwrap();
+        let info = add_worktree(&repo, "feat-wt", &wt_path, "feat-wt", true, None).unwrap();
         assert!(!info.is_main);
         assert!(wt_path.exists());
 

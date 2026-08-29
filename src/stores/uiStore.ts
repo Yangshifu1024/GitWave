@@ -19,6 +19,7 @@ export type AppMenuAction =
   | "repo:fetch"
   | "repo:lfs"
   | "repo:hooks"
+  | "repo:worktree-new"
   | "branch:new"
   | "branch:pull"
   | "branch:push"

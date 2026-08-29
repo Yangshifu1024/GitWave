@@ -2098,6 +2098,7 @@ pub fn add_worktree(
     path: String,
     branch: String,
     create_branch: bool,
+    start_point: Option<String>,
 ) -> Result<WorktreeInfo> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -2107,6 +2108,7 @@ pub fn add_worktree(
         PathBuf::from(path).as_path(),
         &branch,
         create_branch,
+        start_point.as_deref(),
     )
 }
 

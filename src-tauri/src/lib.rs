@@ -1091,8 +1091,17 @@ async fn cmd_add_worktree(
     path: String,
     branch: String,
     create_branch: bool,
+    start_point: Option<String>,
 ) -> Result<WorktreeInfo, AppError> {
-    add_worktree(&ctx, &workspace_id, name, path, branch, create_branch)
+    add_worktree(
+        &ctx,
+        &workspace_id,
+        name,
+        path,
+        branch,
+        create_branch,
+        start_point,
+    )
 }
 
 #[tauri::command]

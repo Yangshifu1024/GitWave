@@ -17,6 +17,7 @@ import {
   FolderGit2,
   FolderOpen,
   FolderPlus,
+  FolderTree,
   GitBranch,
   GitPullRequest,
   Info,
@@ -274,6 +275,14 @@ export function AppMenuBar({ onAbout }: { onAbout: () => void }): React.JSX.Elem
         >
           <Webhook size={14} />
           Hooks
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          textValue="Create worktree"
+          disabled={noRepo}
+          onSelect={fire("repo:worktree-new")}
+        >
+          <FolderTree size={14} />
+          New worktree
         </DropdownMenuItem>
       </MenuBarMenu>
 

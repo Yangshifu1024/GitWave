@@ -14,6 +14,7 @@ import { ArrowDown, ArrowDownUp, ArrowUp, Archive, FileDiff } from "lucide-react
 
 import {
   addLocalRepo,
+  addWorktree,
   cloneRepo,
   createBranch,
   createWorkspace,
@@ -263,6 +264,11 @@ export function ActionBar(): React.JSX.Element {
   const [stashMessage, setStashMessage] = useState("");
   const [stashStage, setStashStage] = useState(true);
   const [stashSaving, setStashSaving] = useState(false);
+  const [worktreeCreateOpen, setWorktreeCreateOpen] = useState(false);
+  const [wtStart, setWtStart] = useState("");
+  const [wtName, setWtName] = useState("");
+  const [wtLocation, setWtLocation] = useState("");
+  const [wtBusy, setWtBusy] = useState(false);
 
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
@@ -369,7 +375,7 @@ export function ActionBar(): React.JSX.Element {
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
     queryFn: () => getBranches(activeWorkspaceId!),
-    enabled: pullDialog !== null && Boolean(activeWorkspaceId),
+    enabled: (pullDialog !== null || worktreeCreateOpen) && Boolean(activeWorkspaceId),
   });
 
   const branchCreateMut = useMutation({
@@ -448,6 +454,34 @@ export function ActionBar(): React.JSX.Element {
     }
   };
 
+  const openWorktreeCreate = (): void => {
+    setWtStart(wc.data?.branch ?? "");
+    setWtName("");
+    setWtLocation("");
+    setWorktreeCreateOpen(true);
+  };
+
+  const handleCreateWorktree = async (): Promise<void> => {
+    if (!activeWorkspaceId || wtBusy) return;
+    const name = wtName.trim();
+    const location = wtLocation.trim();
+    if (!name || !location) return;
+    setWtBusy(true);
+    wc.setActionError(null);
+    try {
+      await addWorktree(activeWorkspaceId, name, location, name, true, wtStart || undefined);
+      setStatus(`Created worktree ${name}`, "success");
+      void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
+      setWorktreeCreateOpen(false);
+      setWtName("");
+      setWtLocation("");
+    } catch (e) {
+      wc.setActionError(formatAppError(e));
+    } finally {
+      setWtBusy(false);
+    }
+  };
+
   // The fetched remote list wins over the seeded default once it arrives.
   useEffect(() => {
     if (!pullDialog || remotes.length === 0) return;
@@ -457,6 +491,13 @@ export function ActionBar(): React.JSX.Element {
   }, [pullDialog, remotes]);
 
   const remoteOptions = remotes.length > 0 ? remotes : [pullDialog?.remote ?? "origin"];
+
+  // "Start from" choices for the Create Worktree dialog: local branches.
+  const wtBranchOptions = worktreeCreateOpen
+    ? (branchesQuery.data ?? [])
+        .filter((b) => b.kind === "local")
+        .map((b) => b.name)
+    : [];
   const branchOptions = (() => {
     if (!pullDialog) return [];
     const prefix = `${pullDialog.remote}/`;
@@ -520,6 +561,9 @@ export function ActionBar(): React.JSX.Element {
         break;
       case "repo:hooks":
         setHooksOpen(true);
+        break;
+      case "repo:worktree-new":
+        openWorktreeCreate();
         break;
       case "branch:new":
         openBranchCreate();
@@ -1194,6 +1238,61 @@ export function ActionBar(): React.JSX.Element {
                 onClick={() => void handleSaveStash()}
               >
                 Save Stash
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {worktreeCreateOpen ? (
+        <Modal
+          open
+          onOpenChange={(o) => !o && setWorktreeCreateOpen(false)}
+          title="Create Worktree"
+          description="Create branch and check out it in a separate worktree"
+          size="sm"
+        >
+          <div className="flex flex-col gap-2">
+            <Label>Start from</Label>
+            <Select
+              aria-label="Start from"
+              className="h-8 bg-bg-primary border-border-subtle px-1.5 text-xs"
+              value={wtStart}
+              disabled={wtBusy}
+              onChange={(v) => setWtStart(v)}
+              options={wtBranchOptions.map((b) => ({ value: b, label: b }))}
+            />
+            <Label>Branch name</Label>
+            <Input
+              value={wtName}
+              onChange={setWtName}
+              placeholder="Enter branch name"
+              disabled={wtBusy}
+            />
+            <Label>Location</Label>
+            <PathInput
+              directory
+              value={wtLocation}
+              onChange={setWtLocation}
+              placeholder="Path for the new worktree"
+              disabled={wtBusy}
+            />
+            <div className="mt-1 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setWorktreeCreateOpen(false)}
+                disabled={wtBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={wtBusy || !wtName.trim() || !wtLocation.trim()}
+                onClick={() => void handleCreateWorktree()}
+              >
+                Create
               </Button>
             </div>
           </div>

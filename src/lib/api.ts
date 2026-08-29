@@ -985,6 +985,7 @@ export function addWorktree(
   path: string,
   branch: string,
   createBranch: boolean,
+  startPoint?: string,
 ): Promise<WorktreeInfo> {
   return invoke<WorktreeInfo>("cmd_add_worktree", {
     workspaceId,
@@ -992,6 +993,7 @@ export function addWorktree(
     path,
     branch,
     createBranch,
+    startPoint: startPoint ?? null,
   });
 }
 
