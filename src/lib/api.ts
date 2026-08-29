@@ -937,10 +937,15 @@ export function listStashes(workspaceId: string): Promise<StashEntry[]> {
   return invoke<StashEntry[]>("cmd_list_stashes", { workspaceId });
 }
 
-export function saveStash(workspaceId: string, message?: string): Promise<string> {
+export function saveStash(
+  workspaceId: string,
+  message?: string,
+  includeUntracked = true,
+): Promise<string> {
   return invoke<string>("cmd_save_stash", {
     workspaceId,
     message: message ?? null,
+    includeUntracked,
   });
 }
 
@@ -980,6 +985,7 @@ export function addWorktree(
   path: string,
   branch: string,
   createBranch: boolean,
+  startPoint?: string,
 ): Promise<WorktreeInfo> {
   return invoke<WorktreeInfo>("cmd_add_worktree", {
     workspaceId,
@@ -987,6 +993,7 @@ export function addWorktree(
     path,
     branch,
     createBranch,
+    startPoint: startPoint ?? null,
   });
 }
 

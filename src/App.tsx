@@ -3,8 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { Toolbar } from "@/components/Toolbar";
 import { ActionBar } from "@/components/ActionBar";
-import { WorkspaceList } from "@/components/WorkspaceList";
-import { RepoList } from "@/components/RepoList";
+import { WorkspaceRepoTabs } from "@/components/WorkspaceRepoTabs";
 import { useWorkspaceUiStore, readLastActive } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -123,6 +122,8 @@ function App(): React.JSX.Element {
 
         <ActionBar />
 
+        <WorkspaceRepoTabs />
+
         <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
           <ThreePaneLayout
             inspectorMaximized={inspectorMaximized}
@@ -131,34 +132,19 @@ function App(): React.JSX.Element {
                 "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
             )}
             sidebar={
-              <aside className="flex flex-col h-full bg-bg-panel overflow-x-hidden overflow-y-auto no-scrollbar select-none pane-edge-right">
-                <WorkspaceList />
+              <aside className="flex flex-col h-full gap-1.5 px-2 py-2 bg-bg-panel overflow-hidden select-none pane-edge-right">
                 {activeWorkspaceId ? (
                   <>
-                    <RepoList workspaceId={activeWorkspaceId} />
-                    <BranchList onBranchSelect={handleBranchSelect} />
-                    <SidebarSection title="Stash" defaultOpen={false}>
-                      <StashPanel compact />
-                    </SidebarSection>
-                    <SidebarSection title="Tags" defaultOpen={false}>
-                      <TagsPanel onSelect={handleTagSelect} />
-                    </SidebarSection>
-                    <SidebarSection title="Remotes" defaultOpen={false}>
-                      <RemotesPanel />
-                    </SidebarSection>
-                    <SidebarSection title="Recovery" defaultOpen={false}>
-                      <ReflogPanel />
-                    </SidebarSection>
                     <SidebarSection title="Health" defaultOpen={false}>
                       <HealthPanel />
                     </SidebarSection>
-                    <SidebarSection title="Worktrees" defaultOpen={false}>
-                      <WorktreePanel compact />
-                    </SidebarSection>
-                    <SidebarSection title="Submodules" defaultOpen={false}>
-                      <SubmodulesPanel />
-                    </SidebarSection>
-                    <SidebarSection title="Reflog" defaultOpen={false}>
+                    <BranchList onBranchSelect={handleBranchSelect} />
+                    <StashPanel compact />
+                    <TagsPanel onSelect={handleTagSelect} />
+                    <RemotesPanel />
+                    <WorktreePanel compact />
+                    <SubmodulesPanel />
+                    <SidebarSection title="Recovery" defaultOpen={false}>
                       <ReflogPanel />
                     </SidebarSection>
                   </>

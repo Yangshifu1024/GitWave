@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { WorktreeInfo } from "@/lib/api";
 import {
   addLocalRepo,
-  addWorktree,
   formatAppError,
   listWorktrees,
   removeWorktree,
@@ -11,11 +10,11 @@ import {
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
+import { SidebarSection } from "@/components/ui/SidebarSection";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { cn } from "@/lib/utils";
-import { FolderTree, Plus, Trash2, ArrowRightLeft } from "lucide-react";
+import { FolderTree, Trash2, ArrowRightLeft } from "lucide-react";
 
 export function WorktreePanel({ compact = false }: { compact?: boolean }): React.JSX.Element {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
@@ -27,10 +26,6 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [name, setName] = useState("");
-  const [path, setPath] = useState("");
-  const [branch, setBranch] = useState("");
 
   const refresh = useCallback(async () => {
     if (!workspaceId) return;
@@ -63,19 +58,6 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
     }
   };
 
-  const handleCreate = () =>
-    void run(async () => {
-      const n = name.trim();
-      const p = path.trim();
-      const b = branch.trim() || n;
-      if (!n || !p) throw new Error("Name and path are required");
-      await addWorktree(workspaceId!, n, p, b, true);
-      setShowCreate(false);
-      setName("");
-      setPath("");
-      setBranch("");
-    });
-
   /** Switch = add worktree path as a Workspace repo and make it active. */
   const handleSwitch = (wt: WorktreeInfo) =>
     void run(async () => {
@@ -85,88 +67,12 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
       void queryClient.invalidateQueries({ queryKey: ["repos", workspaceId] });
     });
 
-  if (!workspaceId || !repoId) {
-    return (
-      <p
-        className={cn(
-          "text-text-muted",
-          compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm",
-        )}
-      >
-        Select a repository to manage worktrees
-      </p>
-    );
-  }
-
-  if (loading) {
-    return (
-      <p
-        className={cn(
-          "text-text-muted italic",
-          compact ? "px-3 py-1.5 text-xs" : "flex items-center justify-center h-full text-sm",
-        )}
-      >
-        Loading worktrees…
-      </p>
-    );
-  }
+  // Empty dataset = static header (nothing to expand); worktrees are created
+  // from the Repository menu ("New worktree").
+  const collapsible = !loading && items.length > 0;
 
   return (
-    <div className={cn("min-h-0 flex flex-col", !compact && "h-full overflow-hidden")}>
-      <div
-        className={cn(
-          "shrink-0",
-          compact ? "px-2 py-1" : "px-3 py-2 border-b border-border-subtle",
-        )}
-      >
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={busy}
-          onClick={() => setShowCreate((v) => !v)}
-        >
-          <Plus size={14} />
-          {compact ? "New" : "New worktree"}
-        </Button>
-      </div>
-
-      {showCreate ? (
-        <div
-          className={cn(
-            "shrink-0 flex flex-col gap-1.5 bg-bg-elevated",
-            compact ? "px-2 py-1.5" : "px-3 py-2 border-b border-border-subtle gap-2",
-          )}
-        >
-          <Input placeholder="Name" value={name} onChange={setName} disabled={busy} />
-          <Input placeholder="Path" value={path} onChange={setPath} disabled={busy} />
-          {!compact ? (
-            <Input
-              placeholder="Branch (default: same as name, created from HEAD)"
-              value={branch}
-              onChange={setBranch}
-              disabled={busy}
-            />
-          ) : (
-            <Input
-              placeholder="Branch (optional)"
-              value={branch}
-              onChange={setBranch}
-              disabled={busy}
-            />
-          )}
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy || !name.trim() || !path.trim()}
-              onClick={handleCreate}
-            >
-              Create
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
+    <SidebarSection title="Worktrees" collapsible={collapsible}>
       {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
       <div className={cn("min-h-0 overflow-auto", compact ? "max-h-52" : "flex-1")}>
@@ -197,7 +103,7 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
                         className="p-1 text-danger hover:bg-danger/10"
                         disabled={busy}
                         title="Remove worktree"
-                        onClick={() => void run(async () => removeWorktree(workspaceId, wt.name))}
+                        onClick={() => void run(async () => removeWorktree(workspaceId!, wt.name))}
                       >
                         <Trash2 size={12} />
                       </Button>
@@ -223,6 +129,6 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
           ))
         )}
       </div>
-    </div>
+    </SidebarSection>
   );
 }

@@ -246,7 +246,6 @@ export function ConflictPanel({
                     }}
                     className={cn(
                       "flex items-center px-3 py-1.5 rounded-md text-xs cursor-pointer transition-colors duration-fast",
-                      "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
                       selected === f.path ? "bg-accent/10" : "hover:bg-bg-secondary",
                     )}
                   >

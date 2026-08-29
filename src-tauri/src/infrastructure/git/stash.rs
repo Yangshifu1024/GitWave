@@ -25,14 +25,21 @@ pub fn list_stashes(repo: &mut Repository) -> Result<Vec<StashEntry>> {
     Ok(out)
 }
 
-pub fn save_stash(repo: &mut Repository, message: Option<&str>) -> Result<String> {
+pub fn save_stash(
+    repo: &mut Repository,
+    message: Option<&str>,
+    include_untracked: bool,
+) -> Result<String> {
     let sig = commit_signature(repo)?;
+    // INCLUDE_UNTRACKED = `git stash push -u` (covers new files); without it
+    // untracked files stay in the working tree (Fork's "Stage new files").
+    let flags = if include_untracked {
+        Some(StashFlags::INCLUDE_UNTRACKED)
+    } else {
+        None
+    };
     let oid = repo
-        .stash_save(
-            &sig,
-            message.unwrap_or("WIP"),
-            Some(StashFlags::INCLUDE_UNTRACKED),
-        )
+        .stash_save(&sig, message.unwrap_or("WIP"), flags)
         .map_err(map_git_err)?;
     Ok(oid.to_string())
 }
@@ -66,7 +73,7 @@ mod tests {
     fn save_list_pop_roundtrip() {
         let (path, mut repo) = build_linear_repo(1);
         fs::write(path.join("wip.txt"), "wip\n").unwrap();
-        let oid = save_stash(&mut repo, Some("test stash")).unwrap();
+        let oid = save_stash(&mut repo, Some("test stash"), true).unwrap();
         assert_eq!(oid.len(), 40);
 
         let list = list_stashes(&mut repo).unwrap();

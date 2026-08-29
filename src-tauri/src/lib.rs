@@ -1034,8 +1034,9 @@ async fn cmd_save_stash(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     message: Option<String>,
+    include_untracked: Option<bool>,
 ) -> Result<String, AppError> {
-    save_stash(&ctx, &workspace_id, message)
+    save_stash(&ctx, &workspace_id, message, include_untracked.unwrap_or(true))
 }
 
 #[tauri::command]
@@ -1090,8 +1091,17 @@ async fn cmd_add_worktree(
     path: String,
     branch: String,
     create_branch: bool,
+    start_point: Option<String>,
 ) -> Result<WorktreeInfo, AppError> {
-    add_worktree(&ctx, &workspace_id, name, path, branch, create_branch)
+    add_worktree(
+        &ctx,
+        &workspace_id,
+        name,
+        path,
+        branch,
+        create_branch,
+        start_point,
+    )
 }
 
 #[tauri::command]

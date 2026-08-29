@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Sparkles } from "lucide-react";
+import { Activity, Loader2, Sparkles } from "lucide-react";
 
 import { explainHealth, formatAppError, getHealth, type HealthReport } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 
@@ -140,16 +141,24 @@ export function HealthPanel(): React.JSX.Element {
           disabled={aiBusy || !report}
           onClick={runSummary}
         >
-          <Sparkles size={12} />
-          AI summary
+          {aiBusy ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Sparkles size={12} />
+          )}
+          {aiBusy ? "Summarizing…" : "AI summary"}
         </Button>
-        {aiBusy ? <p className="text-[11px] text-text-muted italic">Thinking…</p> : null}
-        {aiText ? (
-          <p className="rounded-md bg-bg-primary p-2 text-[11px] leading-4 whitespace-pre-wrap text-text-secondary">
-            {aiText}
-          </p>
-        ) : null}
       </div>
+
+      {/* The AI summary lands in a dialog — the sidebar card stays compact. */}
+      <Modal
+        open={aiText !== null}
+        onOpenChange={(o) => !o && setAiText(null)}
+        title="AI summary"
+        size="md"
+      >
+        <p className="text-xs leading-5 whitespace-pre-wrap text-text-secondary">{aiText}</p>
+      </Modal>
     </div>
   );
 }

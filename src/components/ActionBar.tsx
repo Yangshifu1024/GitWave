@@ -10,10 +10,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { ArrowDown, ArrowDownUp, ArrowUp, FileDiff, Webhook } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, Archive, FileDiff } from "lucide-react";
 
 import {
   addLocalRepo,
+  addWorktree,
   cloneRepo,
   createBranch,
   createWorkspace,
@@ -26,10 +27,12 @@ import {
   listRemotes,
   listWorkspaces,
   renameWorkspace,
+  saveStash,
   setActiveRepo,
   type CloneProgress,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { useToast } from "@/components/ui/Toast";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
@@ -49,6 +52,8 @@ import { PrDescriptionModal } from "@/components/PrDescriptionModal";
 import { LfsPanel } from "@/components/LfsPanel";
 import { HooksPanel } from "@/components/HooksPanel";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
+import { WorkspaceDropdown } from "@/components/WorkspaceDropdown";
+import { SyncStatusArea } from "@/components/SyncStatusArea";
 
 interface PullDialogState {
   remote: string;
@@ -58,29 +63,6 @@ interface PullDialogState {
 }
 
 type AddKind = "init" | "clone" | "local" | null;
-
-function GroupDivider(): React.JSX.Element {
-  return (
-    <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
-  );
-}
-
-function ActionBarGroup({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-        {label}
-      </span>
-      <div className="flex items-center gap-1">{children}</div>
-    </div>
-  );
-}
 
 function ActionBarButton({
   icon,
@@ -92,7 +74,7 @@ function ActionBarButton({
   tone,
 }: {
   icon: React.ReactNode;
-  /** Visible button text (short — the group header carries the context). */
+  /** Visible button text (short — the tooltip carries the full description). */
   label: string;
   /** Full description for tooltip / aria-label; defaults to `label`. */
   title?: string;
@@ -278,6 +260,17 @@ export function ActionBar(): React.JSX.Element {
   const [cloneFailed, setCloneFailed] = useState(false);
   const [localPath, setLocalPath] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [stashOpen, setStashOpen] = useState(false);
+  const [stashMessage, setStashMessage] = useState("");
+  const [stashStage, setStashStage] = useState(true);
+  const [stashSaving, setStashSaving] = useState(false);
+  const [worktreeCreateOpen, setWorktreeCreateOpen] = useState(false);
+  const [wtStart, setWtStart] = useState("");
+  const [wtName, setWtName] = useState("");
+  const [wtLocation, setWtLocation] = useState("");
+  const [wtBusy, setWtBusy] = useState(false);
+
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const refreshRepos = (): void => {
     void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
@@ -382,7 +375,7 @@ export function ActionBar(): React.JSX.Element {
   const branchesQuery = useQuery({
     queryKey: ["branches", activeWorkspaceId],
     queryFn: () => getBranches(activeWorkspaceId!),
-    enabled: pullDialog !== null && Boolean(activeWorkspaceId),
+    enabled: (pullDialog !== null || worktreeCreateOpen) && Boolean(activeWorkspaceId),
   });
 
   const branchCreateMut = useMutation({
@@ -441,6 +434,54 @@ export function ActionBar(): React.JSX.Element {
     });
   };
 
+  const handleSaveStash = async (): Promise<void> => {
+    if (!activeWorkspaceId || stashSaving) return;
+    setStashSaving(true);
+    wc.setActionError(null);
+    try {
+      await saveStash(activeWorkspaceId, stashMessage.trim() || undefined, stashStage);
+      setStatus("Saved stash", "success");
+      void queryClient.invalidateQueries({ queryKey: ["stashes", activeWorkspaceId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["working-copy", activeWorkspaceId, activeRepoId],
+      });
+      setStashOpen(false);
+      setStashMessage("");
+    } catch (e) {
+      wc.setActionError(formatAppError(e));
+    } finally {
+      setStashSaving(false);
+    }
+  };
+
+  const openWorktreeCreate = (): void => {
+    setWtStart(wc.data?.branch ?? "");
+    setWtName("");
+    setWtLocation("");
+    setWorktreeCreateOpen(true);
+  };
+
+  const handleCreateWorktree = async (): Promise<void> => {
+    if (!activeWorkspaceId || wtBusy) return;
+    const name = wtName.trim();
+    const location = wtLocation.trim();
+    if (!name || !location) return;
+    setWtBusy(true);
+    wc.setActionError(null);
+    try {
+      await addWorktree(activeWorkspaceId, name, location, name, true, wtStart || undefined);
+      setStatus(`Created worktree ${name}`, "success");
+      void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
+      setWorktreeCreateOpen(false);
+      setWtName("");
+      setWtLocation("");
+    } catch (e) {
+      wc.setActionError(formatAppError(e));
+    } finally {
+      setWtBusy(false);
+    }
+  };
+
   // The fetched remote list wins over the seeded default once it arrives.
   useEffect(() => {
     if (!pullDialog || remotes.length === 0) return;
@@ -450,6 +491,13 @@ export function ActionBar(): React.JSX.Element {
   }, [pullDialog, remotes]);
 
   const remoteOptions = remotes.length > 0 ? remotes : [pullDialog?.remote ?? "origin"];
+
+  // "Start from" choices for the Create Worktree dialog: local branches.
+  const wtBranchOptions = worktreeCreateOpen
+    ? (branchesQuery.data ?? [])
+        .filter((b) => b.kind === "local")
+        .map((b) => b.name)
+    : [];
   const branchOptions = (() => {
     if (!pullDialog) return [];
     const prefix = `${pullDialog.remote}/`;
@@ -514,6 +562,9 @@ export function ActionBar(): React.JSX.Element {
       case "repo:hooks":
         setHooksOpen(true);
         break;
+      case "repo:worktree-new":
+        openWorktreeCreate();
+        break;
       case "branch:new":
         openBranchCreate();
         break;
@@ -542,9 +593,13 @@ export function ActionBar(): React.JSX.Element {
 
   return (
     <>
-      <div className="flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
+      <div className="relative flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
+        <WorkspaceDropdown />
+
+        {/* Reserved middle zone between the selector and the ops. */}
         <div className="flex-1" />
-        <ActionBarGroup label="Local">
+
+        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<FileDiff size={14} />}
             label={changeCount > 0 ? `Changes(${changeCount})` : "Changes"}
@@ -553,25 +608,25 @@ export function ActionBar(): React.JSX.Element {
             disabled={localChangesDisabled}
             onClick={() => setWcModalOpen(true)}
           />
-        </ActionBarGroup>
-        <GroupDivider />
-        <ActionBarGroup label="Repository">
+          <ActionBarButton
+            icon={<Archive size={14} />}
+            label="Stash"
+            title="Stash local changes"
+            disabled={localChangesDisabled}
+            onClick={() => setStashOpen(true)}
+          />
+        </div>
+        <Separator
+          orientation="vertical"
+          className="mx-1 h-8 w-px self-center bg-border-subtle"
+        />
+        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDownUp size={14} />}
             label="Fetch"
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
           />
-          <ActionBarButton
-            icon={<Webhook size={14} />}
-            label="Hooks"
-            title="Git hooks editor"
-            disabled={noRepo}
-            onClick={() => setHooksOpen(true)}
-          />
-        </ActionBarGroup>
-        <GroupDivider />
-        <ActionBarGroup label="Branch">
           <ActionBarButton
             icon={<ArrowDown size={14} />}
             label="Pull"
@@ -584,9 +639,15 @@ export function ActionBar(): React.JSX.Element {
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPushDialog}
           />
-        </ActionBarGroup>
+        </div>
 
-        <div className="flex-1" />
+        {/* Status area: absolutely centered in the whole bar so it stays on
+            the window's center axis regardless of the selector / buttons
+            widths. Non-interactive, so pointer-events-none keeps the buttons
+            clickable even if a narrow window overlaps them. */}
+        <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+          <SyncStatusArea />
+        </div>
       </div>
 
       <ErrorAlert message={wc.actionError} onDismiss={() => wc.setActionError(null)} />
@@ -1131,6 +1192,109 @@ export function ActionBar(): React.JSX.Element {
             >
               Push
             </Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {stashOpen ? (
+        <Modal
+          open
+          onOpenChange={(o) => !o && setStashOpen(false)}
+          title="Save stash"
+          description="Save your local changes to a new stash"
+          size="sm"
+        >
+          <div className="flex flex-col gap-2">
+            <Input
+              value={stashMessage}
+              onChange={setStashMessage}
+              placeholder="Stash message (optional)"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !stashSaving) void handleSaveStash();
+              }}
+            />
+            <Checkbox
+              checked={stashStage}
+              disabled={stashSaving}
+              onChange={(v) => setStashStage(v)}
+              className="items-start text-text-primary"
+            >
+              <span className="flex flex-col">
+                <span>Stage new files</span>
+                <span className="text-xs font-normal text-text-muted">
+                  By default stash ignores new files until you stage them
+                </span>
+              </span>
+            </Checkbox>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setStashOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={stashSaving}
+                onClick={() => void handleSaveStash()}
+              >
+                Save Stash
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {worktreeCreateOpen ? (
+        <Modal
+          open
+          onOpenChange={(o) => !o && setWorktreeCreateOpen(false)}
+          title="Create Worktree"
+          description="Create branch and check out it in a separate worktree"
+          size="sm"
+        >
+          <div className="flex flex-col gap-2">
+            <Label>Start from</Label>
+            <Select
+              aria-label="Start from"
+              className="h-8 bg-bg-primary border-border-subtle px-1.5 text-xs"
+              value={wtStart}
+              disabled={wtBusy}
+              onChange={(v) => setWtStart(v)}
+              options={wtBranchOptions.map((b) => ({ value: b, label: b }))}
+            />
+            <Label>Branch name</Label>
+            <Input
+              value={wtName}
+              onChange={setWtName}
+              placeholder="Enter branch name"
+              disabled={wtBusy}
+            />
+            <Label>Location</Label>
+            <PathInput
+              directory
+              value={wtLocation}
+              onChange={setWtLocation}
+              placeholder="Path for the new worktree"
+              disabled={wtBusy}
+            />
+            <div className="mt-1 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setWorktreeCreateOpen(false)}
+                disabled={wtBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={wtBusy || !wtName.trim() || !wtLocation.trim()}
+                onClick={() => void handleCreateWorktree()}
+              >
+                Create
+              </Button>
+            </div>
           </div>
         </Modal>
       ) : null}

@@ -47,7 +47,7 @@
   --color-status-missing: #d64545;
   --color-branch-local: #007aff;
   --color-branch-current: #007aff;
-  --color-branch-remote: #7a8692;
+  --color-branch-remote: #06b7db;
   --color-branch-ahead: #2f9e6b;
   --color-branch-behind: #c47a1a;
   --color-branch-conflict: #d64545;
@@ -111,13 +111,13 @@
 @layer base {
   :root {
     /* History graph lane colors (used via literal var() in SVG code, so they
-     * live outside @theme where Tailwind would prune them) — Apple system
-     * colors: blue / teal / indigo / purple / gray. */
+     * live outside @theme where Tailwind would prune them) — vivid swatch
+     * colors: blue / cyan / purple / green / amber (HeroUI swatch hues). */
     --color-lane-1: #007aff;
-    --color-lane-2: #32ade6;
-    --color-lane-3: #5856d6;
-    --color-lane-4: #af52de;
-    --color-lane-5: #8e8e93;
+    --color-lane-2: #06b7db;
+    --color-lane-3: #7828c8;
+    --color-lane-4: #17c964;
+    --color-lane-5: #f5a524;
 
     /* Scrollbar track always follows the pane background it sits on. */
     --color-scrollbar-track: var(--color-bg-secondary);
@@ -154,7 +154,7 @@
     --color-status-missing: #e05a5a;
     --color-branch-local: #0a84ff;
     --color-branch-current: #0a84ff;
-    --color-branch-remote: #8b97a3;
+    --color-branch-remote: #64d2ff;
     --color-branch-ahead: #3ecf8e;
     --color-branch-behind: #e0a04a;
     --color-branch-conflict: #e05a5a;
@@ -167,9 +167,9 @@
     --color-conflict-marker-bg: rgb(224 90 90 / 0.28);
     --color-lane-1: #0a84ff;
     --color-lane-2: #64d2ff;
-    --color-lane-3: #7d7aff;
-    --color-lane-4: #bf5af2;
-    --color-lane-5: #98989d;
+    --color-lane-3: #bf5af2;
+    --color-lane-4: #3ecf8e;
+    --color-lane-5: #f5a524;
     --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
     --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
     --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -202,15 +202,15 @@
       --color-status-missing: #e05a5a;
       --color-branch-local: #0a84ff;
       --color-branch-current: #0a84ff;
-      --color-branch-remote: #8b97a3;
+      --color-branch-remote: #64d2ff;
       --color-branch-ahead: #3ecf8e;
       --color-branch-behind: #e0a04a;
       --color-branch-conflict: #e05a5a;
       --color-lane-1: #0a84ff;
       --color-lane-2: #64d2ff;
-      --color-lane-3: #7d7aff;
-      --color-lane-4: #bf5af2;
-      --color-lane-5: #98989d;
+      --color-lane-3: #bf5af2;
+      --color-lane-4: #3ecf8e;
+      --color-lane-5: #f5a524;
       --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
       --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
       --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -236,11 +236,11 @@
     --color-accent-hover: #157873;
     --color-branch-local: #1a8f8a;
     --color-branch-current: #1a8f8a;
-    --color-lane-1: #1a8f8a;
-    --color-lane-2: #3d6b9a;
-    --color-lane-3: #4a5fa8;
-    --color-lane-4: #5b56a8;
-    --color-lane-5: #7a8692;
+    --color-lane-1: #12a594;
+    --color-lane-2: #0090ff;
+    --color-lane-3: #8e4ec6;
+    --color-lane-4: #f76b15;
+    --color-lane-5: #d6409f;
   }
 
   html.dark[data-palette="tide"] {
@@ -260,11 +260,11 @@
     --color-accent-hover: #5ec9c2;
     --color-branch-local: #3ebab3;
     --color-branch-current: #3ebab3;
-    --color-lane-1: #3ebab3;
-    --color-lane-2: #6b8fc4;
-    --color-lane-3: #4a5fa8;
-    --color-lane-4: #5b56a8;
-    --color-lane-5: #8b97a3;
+    --color-lane-1: #2dd4bf;
+    --color-lane-2: #60a5fa;
+    --color-lane-3: #c084fc;
+    --color-lane-4: #fb923c;
+    --color-lane-5: #f472b6;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -285,11 +285,11 @@
       --color-accent-hover: #5ec9c2;
       --color-branch-local: #3ebab3;
       --color-branch-current: #3ebab3;
-      --color-lane-1: #3ebab3;
-      --color-lane-2: #6b8fc4;
-      --color-lane-3: #4a5fa8;
-      --color-lane-4: #5b56a8;
-      --color-lane-5: #8b97a3;
+      --color-lane-1: #2dd4bf;
+      --color-lane-2: #60a5fa;
+      --color-lane-3: #c084fc;
+      --color-lane-4: #fb923c;
+      --color-lane-5: #f472b6;
     }
   }
 
@@ -412,24 +412,6 @@
     user-select: none;
   }
 
-  /* Outline token: focus rings use accent color */
-  :focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 1px;
-  }
-
-  /* Buttons never show a focus/selection ring anywhere in the app (user
-     request): suppress both the global outline above and HeroUI's
-     data-focus-visible ring on button-like elements. */
-  button:focus-visible,
-  [role="button"]:focus-visible,
-  button[data-focus-visible="true"],
-  [role="button"][data-focus-visible="true"],
-  .button[data-focus-visible="true"] {
-    outline: none;
-    box-shadow: none;
-  }
-
   /* Custom titlebar (tauri-plugin-decoration) — see docs/design/03-layout.md */
   :root {
     --app-titlebar-height: 40px;
@@ -448,11 +430,34 @@
   }
 
   .pane-edge-right {
-    box-shadow: inset -1px 0 0 var(--color-border-subtle);
+    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--color-border-subtle) 50%, transparent);
   }
 
   .pane-edge-left {
-    box-shadow: inset 1px 0 0 var(--color-border-subtle);
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-border-subtle) 50%, transparent);
+  }
+
+  /* Overlay-style scrollbars for sidebar cards: the gutter is always
+   * reserved (no layout shift on expand) and the thumb only paints while
+   * the card is hovered, so expand/collapse never flashes a scrollbar. */
+  .sidebar-card-scroll {
+    scrollbar-gutter: stable;
+  }
+  .sidebar-card-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .sidebar-card-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-card-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border: none;
+  }
+  .sidebar-card-scroll:hover::-webkit-scrollbar-thumb,
+  .sidebar-card-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-scrollbar-thumb);
+    border: none;
   }
 
   @keyframes sync-progress-shimmer {
@@ -472,10 +477,10 @@
     background: linear-gradient(
       90deg,
       transparent,
-      color-mix(in srgb, var(--color-accent) 60%, transparent),
+      color-mix(in srgb, var(--color-accent) 85%, white),
       transparent
     );
-    animation: sync-progress-shimmer 1.2s ease-in-out infinite;
+    animation: sync-progress-shimmer 1.1s ease-in-out infinite;
   }
 
   /* Reduced motion: complete animations/transitions immediately instead of
@@ -572,6 +577,9 @@
 }
 
 @layer base {
+
+
+
   /* Hand cursor on every operable element. Tailwind v4 preflight no longer
    * sets pointer on <button>, so restore it globally and cover the ARIA
    * roles Radix injects at runtime (menus, options, tabs, combobox).
@@ -593,6 +601,20 @@
     cursor: pointer;
   }
 }
+
+  /* Focus indication policy (user request): the main UI must not show
+   * web-style focus rings. Chromium re-matches :focus-visible and React Aria
+   * re-marks data-focus-visible after window switches, so any painted ring
+   * "comes back" on alt-tab. Orientation comes from selection/hover states
+   * instead; text fields keep their border-based focus styling. */
+  :focus-visible {
+    outline: none;
+  }
+
+  [data-focus-visible="true"] {
+    outline: none;
+    box-shadow: none;
+  }
 
 /* ─── HeroUI v3 bridge ──────────────────────────────────────────────────────
  * HeroUI component styles consume its own semantic variables (--accent,

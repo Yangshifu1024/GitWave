@@ -53,7 +53,6 @@ export function FileListItem({
         "cursor-pointer shadow-none",
         selected && "bg-accent/10",
         !selected && "hover:bg-bg-secondary",
-        "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
         className,
       )}
     >

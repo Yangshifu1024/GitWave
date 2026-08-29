@@ -48,7 +48,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
               onClick={() => setSection(id)}
               className={cn(
                 "h-auto justify-start flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-base",
-                "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1",
                 section === id
                   ? "bg-accent/10 font-medium text-accent"
                   : "text-text-secondary hover:bg-accent/5 hover:text-text-primary",
