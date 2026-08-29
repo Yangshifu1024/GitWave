@@ -6,18 +6,20 @@
 
 ## 选型原则
 
-- 不用纯白 `#FFFFFF`；「不用系统蓝 `#007AFF`」适用于 Tide 及其余候选方案——**K · Native Blue 是显式例外**（应用默认 palette，用户 2026-08-27 拍板）
+- 不用纯白 `#FFFFFF`；「不用系统蓝 `#007AFF`」适用于 Tide 及其余候选方案。K · Native Blue 曾以 systemBlue 为显式例外（2026-08-27 拍板），**2026-08-30 起 accent 与语义色改为对齐 HeroUI v3 默认主题**（见下方共享语义色与 K 的现值）
 - **Tide Lanes**(history 图 lane 渐变)每套方案独立定义,是各方案的签名色;落地的 lane token 为 `--color-lane-1..5`
 - 语义色(success / warning / danger)跨方案保持一致,降低认知成本
 - Light / Dark 成对设计,dark 不是简单反色
 
-## 共享语义色（全部方案通用）
+## 共享语义色（全部方案通用 · 2026-08-30 起为 HeroUI 默认主题值）
 
 | Token | Light | Dark |
 |---|---|---|
-| success / ahead | `#2F9E6B` | `#3ECF8E` |
-| warning / behind | `#C47A1A` | `#E0A04A` |
-| danger / coral | `#D64545` | `#E05A5A` |
+| success / ahead | `oklch(0.7329 0.1935 150.81)` ≈ `#17C964`（亮暗同值） | 同 light |
+| warning / behind | `oklch(0.7819 0.1585 72.33)` ≈ `#F5A524` | `oklch(0.8203 0.1388 76.34)` ≈ `#F7B750` |
+| danger / coral | `oklch(0.6532 0.2328 25.74)` ≈ `#FF383C` | `oklch(0.594 0.1967 24.63)` ≈ `#DB3B3E` |
+
+> 2026-08-27 定稿值为 `#2F9E6B` / `#C47A1A` / `#D64545`（dark `#3ECF8E` / `#E0A04A` / `#E05A5A`）；2026-08-30 随「采用 HeroUI 原始配色」决策整体替换，动机与机制见 [`01-tokens.md`](./01-tokens.md) §1.6。
 
 ---
 
@@ -227,7 +229,7 @@
 
 ## K · Native Blue（默认 · 已实现）
 
-**气质**：macOS 系统窗口质感（近 `windowBackgroundColor` 灰阶）+ **systemBlue** accent。lanes 取 Apple system colors（蓝/青/靛/紫/灰），贴近原生图表观感。2026-08-27 与 PM 确认后成为应用默认；「不用系统蓝」原则的显式例外。
+**气质**：macOS 系统窗口质感（近 `windowBackgroundColor` 灰阶）+ HeroUI 默认蓝 accent。2026-08-27 落地时 accent 为 systemBlue、lanes 取 Apple system colors；**2026-08-30 起 accent 与语义色对齐 HeroUI v3 默认主题**（accent 亮暗同值），lanes 同步换为 HeroUI swatch 色相（蓝/青/紫/绿/琥珀）。中性铬色保持 macOS 灰阶不变。
 
 | Role | Light | Dark |
 |---|---|---|
@@ -236,9 +238,9 @@
 | Elevated | `#F4F4F5` | `#313134` |
 | Ink | `#1B1B1D` | `#EFEFF1` |
 | Muted | `#85858B` | `#78787E` |
-| **Accent** | `#007AFF` (systemBlue) | `#0A84FF` (systemBlue dark) |
+| **Accent** | `oklch(0.6204 0.195 253.83)` ≈ `#0485F7` | 同 light |
 | Hairline | `#DBDBDD` | `#333336` |
-| **Lanes** | `#007AFF` → `#32ADE6` → `#5856D6` → `#AF52DE` → `#8E8E93` | `#0A84FF` → `#64D2FF` → `#7D7AFF` → `#BF5AF2` → `#98989D` |
+| **Lanes** | `#007AFF` → `#06B7DB` → `#7828C8` → `#17C964` → `#F5A524` | `#0A84FF` → `#64D2FF` → `#BF5AF2` → `#3ECF8E` → `#F5A524` |
 
 落地细节见 [`01-tokens.md`](./01-tokens.md) §1。
 

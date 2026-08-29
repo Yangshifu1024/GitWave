@@ -9,10 +9,10 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
 
 | Palette | 气质 | 强调色 | 状态 |
 |---|---|---|---|
-| **native-blue** | macOS 系统窗口质感 | systemBlue `#007AFF` / dark `#0A84FF` | **默认** |
+| **native-blue** | macOS 系统窗口质感 | HeroUI 默认蓝 `oklch(0.6204 0.195 253.83)` ≈ `#0485F7`（light/dark 同值） | **默认** |
 | **tide** | GitWave 青绿签名（Foam/Mist/Ink 冷灰系）| Tide `#1A8F8A` / dark `#3EBAB3` | 可选 |
 
-命名色（Tide palette 品牌）：**Foam** `#F4F6F8` · **Mist** `#E6EBEF` · **Ink** `#1B2228` · **Tide** `#1A8F8A` · **Abyss** `#12161A` · **Coral** `#D64545`。
+命名色（Tide palette 品牌）：**Foam** `#F4F6F8` · **Mist** `#E6EBEF` · **Ink** `#1B2228` · **Tide** `#1A8F8A` · **Abyss** `#12161A`。（原 danger 签名色 Coral `#D64545` 已随 2026-08-30 语义色对齐 HeroUI 弃用，见 §1.6。）
 
 ### 1.0 Palette 运行时机制
 
@@ -42,31 +42,33 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
   border-default    #CBCBCF       控件边框
   border-strong     #A9A9AE       强分隔
 
-强调色
-  accent            #007AFF       systemBlue
-  accent-hover      #0068D9       悬停
+强调色（HeroUI 默认主题值，2026-08-30 对齐，见 §1.6）
+  accent            oklch(0.6204 0.195 253.83) ≈ #0485F7
+  accent-hover      color-mix(in oklab, accent 90%, white)
 
-历史图 lane（--color-lane-1..5，Apple system colors）
+历史图 lane（--color-lane-1..5，HeroUI swatch 色相）
   lane-1            #007AFF       blue
-  lane-2            #32ADE6       teal
-  lane-3            #5856D6       indigo
-  lane-4            #AF52DE       purple
-  lane-5            #8E8E93       gray
+  lane-2            #06B7DB       cyan
+  lane-3            #7828C8       purple
+  lane-4            #17C964       green
+  lane-5            #F5A524       amber
 ```
 
-共享语义状态色（两套 palette 相同）：
+共享语义状态色（HeroUI 默认主题值，2026-08-30 对齐；tide 不覆盖）：
 
 ```
-  success           #2F9E6B       成功
-  warning           #C47A1A       警告
-  danger            #D64545       Coral
-  info              #3D6B9A       信息
-  status-active     #2F9E6B       仓库 active
-  status-missing    #D64545       仓库 missing
-  branch-remote     #7A8692       远程分支（灰）
-  branch-ahead      #2F9E6B       ahead
-  branch-behind     #C47A1A       behind
-  branch-conflict   #D64545       conflict
+  success           oklch(0.7329 0.1935 150.81) ≈ #17C964   亮暗同值
+  warning           light oklch(0.7819 0.1585 72.33) ≈ #F5A524
+                    dark  oklch(0.8203 0.1388 76.34) ≈ #F7B750
+  danger            light oklch(0.6532 0.2328 25.74) ≈ #FF383C
+                    dark  oklch(0.594 0.1967 24.63) ≈ #DB3B3E
+  info              #3D6B9A       信息（HeroUI 无 info，保留原值）
+  status-active     = success     仓库 active
+  status-missing    = danger      仓库 missing
+  branch-remote     #06B7DB（light）/ #64D2FF（dark）   远程分支
+  branch-ahead      = success     ahead
+  branch-behind     = warning     behind
+  branch-conflict   = danger      conflict
   branch-local / branch-current = 各 palette 的 accent 值
 ```
 
@@ -91,13 +93,13 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
   border-default    #444448
   border-strong     #5C5C61
 
-强调色（dark mode 提亮）
-  accent            #0A84FF       systemBlue (dark)
-  accent-hover      #409CFF
+强调色（2026-08-30 起 accent 亮暗同值，见 §1.6）
+  accent            oklch(0.6204 0.195 253.83) ≈ #0485F7
+  accent-hover      color-mix(in oklab, accent 90%, white)
 
 历史图 lane（dark）
-  lane-1            #0A84FF   lane-2 #64D2FF   lane-3 #7D7AFF
-  lane-4            #BF5AF2   lane-5 #98989D
+  lane-1            #0A84FF   lane-2 #64D2FF   lane-3 #BF5AF2
+  lane-4            #3ECF8E   lane-5 #F5A524
 ```
 
 ### 1.3 Tide Studio palette 覆盖（`<html data-palette="tide">`）
@@ -121,8 +123,8 @@ border-strong     #9AA4AE                  #5A6570
 accent            #1A8F8A (Tide)           #3EBAB3（提亮）
 accent-hover      #157873                  #5EC9C2
 branch-local/-current = accent 同值
-lane-1..5         #1A8F8A #3D6B9A #4A5FA8 #5B56A8 #7A8692
-                  #3EBAB3 #6B8FC4 #4A5FA8 #5B56A8 #8B97A3
+lane-1..5         #12A594 #0090FF #8E4EC6 #F76B15 #D6409F
+                  #2DD4BF #60A5FA #C084FC #FB923C #F472B6
 ```
 
 ### 1.4 Semantic 映射（Tailwind）
@@ -141,15 +143,22 @@ bg-danger             →   danger
 
 ### 1.5 Diff 语义色（2026-08-28 新增，见 07-theme.md §3.1）
 
-GitHub `diffBlob` 模式：diff 行只染底不染字（行文字保持 `text-primary`），`+`/`-` 前缀与 word-diff span 用语义色。light 用实体浅 tint，dark 用 dark 语义色的透明 tint：
+GitHub `diffBlob` 模式：diff 行只染底不染字（行文字保持 `text-primary`），`+`/`-` 前缀与 word-diff span 用语义色。2026-08-30 起 tint 不再写死色值，改为从语义色 `color-mix` 现算（success/danger 换色自动跟随）：
 
 | Token | Light | Dark |
 |---|---|---|
-| diff-add-bg | `#E6F2EB` | `rgb(62 207 142 / 0.14)` |
-| diff-add-word | `#BFE0CE` | `rgb(62 207 142 / 0.30)` |
-| diff-del-bg | `#F7E9E8` | `rgb(224 90 90 / 0.14)` |
-| diff-del-word | `#EFC6C4` | `rgb(224 90 90 / 0.30)` |
+| diff-add-bg | `color-mix(in srgb, success 12%, white)` | `color-mix(in srgb, success 14%, transparent)` |
+| diff-add-word | `color-mix(in srgb, success 30%, white)` | `color-mix(in srgb, success 30%, transparent)` |
+| diff-del-bg | `color-mix(in srgb, danger 12%, white)` | `color-mix(in srgb, danger 14%, transparent)` |
+| diff-del-word | `color-mix(in srgb, danger 30%, white)` | `color-mix(in srgb, danger 30%, transparent)` |
 | diff-hunk-bg | `#F0F0F3` | `rgb(255 255 255 / 0.05)` |
+
+### 1.6 HeroUI v3 桥接与配色对齐（2026-08-30）
+
+- **语义色整体采用 HeroUI v3 默认主题值**（accent / success / warning / danger 及其 hover / soft），使 HeroUI 组件与应用自绘 UI（diff 高亮、状态点、branch 色等）共用一套配色；中性色（bg / text / border）仍为 GitWave 自有 token，未采用 HeroUI 中性色
+- 桥接块位于 `tokens.css` 末尾（刻意不加 layer，以压过 HeroUI 的 `@layer` 默认值）：把 HeroUI 语义变量（`--accent` / `--danger` / `--background` / `--field-*` 等）别名到 GitWave token，六套主题块（light/dark × palette × 自动暗色）自动跟随
+- hover / soft 派生公式与 HeroUI 一致：hover = `color-mix(in oklab, 色 90%, 白 10%)`；soft = oklab 15% / 20%（dark 提淡为 12% / 16%，经非 layer 的 `:root.dark` 与媒体查询覆盖）
+- accent 在 HeroUI 中亮暗同值（原 iOS 式 `#007AFF`→`#0A84FF` 提亮不再存在）；tide palette 仅覆盖 accent（青绿），语义状态色继续共享
 
 ## 2. Spacing（间距）
 

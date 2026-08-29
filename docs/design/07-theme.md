@@ -2,7 +2,7 @@
 
 > 状态：**已实施**（2026-08-28，分支 `feature/theme-design`）  
 > 范围：**仅**颜色 / 字体 / 动画（含阴影材质 token）。**不涉及布局**——布局与组件形态见 [`05-visual-redesign.md`](./05-visual-redesign.md)。  
-> Palette 体系（native-blue 默认 / tide 可选）沿用 2026-08-27 拍板结论，accent / lanes / 语义色签名全部不动。
+> Palette 体系（native-blue 默认 / tide 可选）沿用 2026-08-27 拍板结论。**2026-08-30 追记**：语义色与 native-blue accent 改为对齐 HeroUI v3 默认主题（本文 §3.1「不动」结论对该维度失效），见 §3.4 与 [`01-tokens.md`](./01-tokens.md) §1.6。
 
 ---
 
@@ -61,14 +61,14 @@
 
 **不动**：双 palette 的全部中性色、accent、lanes、语义色、交互态（hover / 选中）、阴影。
 
-**改动一 · 新增 diff 语义 token**（GitHub `diffBlob` 模式，light 用实体浅 tint、dark 用语义色透明 tint）：
+**改动一 · 新增 diff 语义 token**（GitHub `diffBlob` 模式，light 用实体浅 tint、dark 用语义色透明 tint；2026-08-30 起 tint 值改为从语义色 `color-mix` 现算，不再写死 hex）：
 
 | Token | Light | Dark |
 |---|---|---|
-| `--color-diff-add-bg` | `#E6F2EB` | `rgb(62 207 142 / 0.14)`（= dark success 14%） |
-| `--color-diff-add-word` | `#BFE0CE` | `rgb(62 207 142 / 0.30)` |
-| `--color-diff-del-bg` | `#F7E9E8` | `rgb(224 90 90 / 0.14)`（= dark danger 14%） |
-| `--color-diff-del-word` | `#EFC6C4` | `rgb(224 90 90 / 0.30)` |
+| `--color-diff-add-bg` | `color-mix(in srgb, success 12%, white)` | `color-mix(in srgb, success 14%, transparent)` |
+| `--color-diff-add-word` | `color-mix(in srgb, success 30%, white)` | `color-mix(in srgb, success 30%, transparent)` |
+| `--color-diff-del-bg` | `color-mix(in srgb, danger 12%, white)` | `color-mix(in srgb, danger 14%, transparent)` |
+| `--color-diff-del-word` | `color-mix(in srgb, danger 30%, white)` | `color-mix(in srgb, danger 30%, transparent)` |
 | `--color-diff-hunk-bg` | `#F0F0F3` | `rgb(255 255 255 / 0.05)` |
 
 diff 行文字恢复 `text-primary`；仅 `+` / `-` 前缀与 word-diff span 保留语义色。
@@ -125,6 +125,15 @@ font-mono:
 - Modal 移除 v3 时代的 `slide-from-left-1/2` 居中 hack（v4 下语义失效）
 - 修复后生效的动画：Modal / Overlay fade + zoom；Tooltip / ContextMenu / DropdownMenu（补上类）fade + zoom；Toast 右滑入出 + fade；Tabs 内容 fade
 - `prefers-reduced-motion: reduce` → 全局动画 / 过渡即时完成
+
+### 3.4 HeroUI 配色对齐（2026-08-30 追记）
+
+用户拍板「采用原始 HeroUI 配色」。选择**反向对齐**：把 GitWave 语义色 token 改为 HeroUI v3 默认主题值，而不是删掉 HeroUI 桥接块——后者会让 Modal 变纯白、输入框换 HeroUI 中性色，与 GitWave 面板灰产生混色，且 tide palette 失去跟随。要点：
+
+- accent / success / warning / danger 整体替换为 HeroUI 默认值（accent、success 亮暗同值；warning、danger 有专属 dark 值）；hover / soft 派生公式同 HeroUI（oklab 90/10 hover；soft 15%/20%，dark 12%/16%）
+- `branch-*` / `status-*` / diff / conflict tint 等 derived token 改为从语义色引用或 `color-mix` 现算，不再复制 hex
+- 中性色（bg / text / border）、`branch-remote`、lanes、tide accent（青绿）不动；tide 语义色继续共享全局值
+- 机制与完整 token 现值见 [`01-tokens.md`](./01-tokens.md) §1.6；palette 记录见 [`06-color-palettes.md`](./06-color-palettes.md)
 
 ---
 

@@ -35,35 +35,38 @@
   --color-border-default: #cbcbcf;
   --color-border-strong: #a9a9ae;
   --color-scrollbar-thumb: #b9b9bd;
-  --color-accent: #007aff;
-  --color-accent-hover: #0068d9;
+  --color-accent: oklch(0.6204 0.195 253.83);
+  --color-accent-hover: color-mix(in oklab, var(--color-accent) 90%, white);
 
-  /* Shared semantic colors — identical across palettes (see 06-color-palettes.md) */
-  --color-success: #2f9e6b;
-  --color-warning: #c47a1a;
-  --color-danger: #d64545;
+  /* Shared semantic colors — values follow HeroUI's default theme so HeroUI
+   * components and app-drawn UI render one palette (see 06-color-palettes.md).
+   * Tide palette overrides accent below; the rest stay shared. */
+  --color-success: oklch(0.7329 0.1935 150.81);
+  --color-warning: oklch(0.7819 0.1585 72.33);
+  --color-danger: oklch(0.6532 0.2328 25.74);
   --color-info: #3d6b9a;
-  --color-status-active: #2f9e6b;
-  --color-status-missing: #d64545;
-  --color-branch-local: #007aff;
-  --color-branch-current: #007aff;
+  --color-status-active: var(--color-success);
+  --color-status-missing: var(--color-danger);
+  --color-branch-local: var(--color-accent);
+  --color-branch-current: var(--color-accent);
   --color-branch-remote: #06b7db;
-  --color-branch-ahead: #2f9e6b;
-  --color-branch-behind: #c47a1a;
-  --color-branch-conflict: #d64545;
+  --color-branch-ahead: var(--color-success);
+  --color-branch-behind: var(--color-warning);
+  --color-branch-conflict: var(--color-danger);
 
-  /* Diff surfaces — GitHub diffBlob-style solid tints (dark overrides below
-   * use translucent tints of the dark semantic colors). See 07-theme.md §3.1 */
-  --color-diff-add-bg: #e6f2eb;
-  --color-diff-add-word: #bfe0ce;
-  --color-diff-del-bg: #f7e9e8;
-  --color-diff-del-word: #efc6c4;
+  /* Diff surfaces — tints derived from the semantic palette so they follow
+   * whatever values success/danger hold (dark overrides below mix into
+   * transparent instead of white). See 07-theme.md §3.1 */
+  --color-diff-add-bg: color-mix(in srgb, var(--color-success) 12%, white);
+  --color-diff-add-word: color-mix(in srgb, var(--color-success) 30%, white);
+  --color-diff-del-bg: color-mix(in srgb, var(--color-danger) 12%, white);
+  --color-diff-del-word: color-mix(in srgb, var(--color-danger) 30%, white);
   --color-diff-hunk-bg: #f0f0f3;
 
   /* Merge-conflict marker surfaces — conflict panel editor highlight (dark
    * overrides below follow the diff tokens' translucent pattern). */
-  --color-conflict-region-bg: #f9eceb;
-  --color-conflict-marker-bg: #f4d9d7;
+  --color-conflict-region-bg: color-mix(in srgb, var(--color-danger) 12%, white);
+  --color-conflict-marker-bg: color-mix(in srgb, var(--color-danger) 22%, white);
 
   /* fonts — sans stays platform-native (SF Pro / Segoe UI); mono leads with
    * bundled Roboto Mono for a consistent code face across platforms. CJK
@@ -152,27 +155,27 @@
     --color-border-default: #444448;
     --color-border-strong: #5c5c61;
     --color-scrollbar-thumb: #57575c;
-    --color-accent: #0a84ff;
-    --color-accent-hover: #409cff;
-    --color-success: #3ecf8e;
-    --color-warning: #e0a04a;
-    --color-danger: #e05a5a;
+    --color-accent: oklch(0.6204 0.195 253.83);
+    --color-accent-hover: color-mix(in oklab, var(--color-accent) 90%, white);
+    --color-success: oklch(0.7329 0.1935 150.81);
+    --color-warning: oklch(0.8203 0.1388 76.34);
+    --color-danger: oklch(0.594 0.1967 24.63);
     --color-info: #6b8fc4;
-    --color-status-active: #3ecf8e;
-    --color-status-missing: #e05a5a;
-    --color-branch-local: #0a84ff;
-    --color-branch-current: #0a84ff;
+    --color-status-active: var(--color-success);
+    --color-status-missing: var(--color-danger);
+    --color-branch-local: var(--color-accent);
+    --color-branch-current: var(--color-accent);
     --color-branch-remote: #64d2ff;
-    --color-branch-ahead: #3ecf8e;
-    --color-branch-behind: #e0a04a;
-    --color-branch-conflict: #e05a5a;
-    --color-diff-add-bg: rgb(62 207 142 / 0.14);
-    --color-diff-add-word: rgb(62 207 142 / 0.3);
-    --color-diff-del-bg: rgb(224 90 90 / 0.14);
-    --color-diff-del-word: rgb(224 90 90 / 0.3);
+    --color-branch-ahead: var(--color-success);
+    --color-branch-behind: var(--color-warning);
+    --color-branch-conflict: var(--color-danger);
+    --color-diff-add-bg: color-mix(in srgb, var(--color-success) 14%, transparent);
+    --color-diff-add-word: color-mix(in srgb, var(--color-success) 30%, transparent);
+    --color-diff-del-bg: color-mix(in srgb, var(--color-danger) 14%, transparent);
+    --color-diff-del-word: color-mix(in srgb, var(--color-danger) 30%, transparent);
     --color-diff-hunk-bg: rgb(255 255 255 / 0.05);
-    --color-conflict-region-bg: rgb(224 90 90 / 0.12);
-    --color-conflict-marker-bg: rgb(224 90 90 / 0.28);
+    --color-conflict-region-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    --color-conflict-marker-bg: color-mix(in srgb, var(--color-danger) 28%, transparent);
     --color-lane-1: #0a84ff;
     --color-lane-2: #64d2ff;
     --color-lane-3: #bf5af2;
@@ -610,9 +613,13 @@
   --accent: var(--color-accent);
   --accent-hover: var(--color-accent-hover);
   --accent-foreground: var(--color-text-inverse);
-  --accent-soft: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  --accent-soft-hover: color-mix(in srgb, var(--color-accent) 16%, transparent);
-  --accent-soft-foreground: var(--color-accent);
+  --accent-soft: color-mix(in oklab, var(--color-accent) 15%, transparent);
+  --accent-soft-hover: color-mix(in oklab, var(--color-accent) 20%, transparent);
+  --accent-soft-foreground: color-mix(
+    in oklab,
+    var(--color-accent) 70%,
+    var(--color-text-primary) 30%
+  );
 
   --background: var(--color-bg-primary);
   --background-secondary: var(--color-bg-secondary);
@@ -636,11 +643,15 @@
   --default-soft-foreground: var(--color-text-secondary);
 
   --danger: var(--color-danger);
-  --danger-hover: color-mix(in srgb, var(--color-danger) 88%, black);
+  --danger-hover: color-mix(in oklab, var(--color-danger) 90%, white);
   --danger-foreground: var(--color-text-inverse);
-  --danger-soft: color-mix(in srgb, var(--color-danger) 10%, transparent);
-  --danger-soft-hover: color-mix(in srgb, var(--color-danger) 16%, transparent);
-  --danger-soft-foreground: var(--color-danger);
+  --danger-soft: color-mix(in oklab, var(--color-danger) 15%, transparent);
+  --danger-soft-hover: color-mix(in oklab, var(--color-danger) 20%, transparent);
+  --danger-soft-foreground: color-mix(
+    in oklab,
+    var(--color-danger) 70%,
+    var(--color-text-primary) 30%
+  );
   --success: var(--color-success);
   --warning: var(--color-warning);
 
@@ -661,4 +672,43 @@
   --overlay-foreground: var(--color-text-primary);
   --focus: var(--color-accent);
   --link: var(--color-accent);
+}
+
+/* HeroUI's dark theme thins the soft tints (12%/16% instead of light 15%/20%)
+   and lightens their foreground mixes; mirror that with unlayered overrides so
+   they beat the base bridge above regardless of specificity. */
+:root.dark {
+  --accent-soft: color-mix(in oklab, var(--color-accent) 12%, transparent);
+  --accent-soft-hover: color-mix(in oklab, var(--color-accent) 16%, transparent);
+  --accent-soft-foreground: color-mix(
+    in oklab,
+    var(--color-accent) 80%,
+    var(--color-text-primary) 30%
+  );
+  --danger-soft: color-mix(in oklab, var(--color-danger) 12%, transparent);
+  --danger-soft-hover: color-mix(in oklab, var(--color-danger) 16%, transparent);
+  --danger-soft-foreground: color-mix(
+    in oklab,
+    var(--color-danger) 80%,
+    var(--color-text-primary) 30%
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --accent-soft: color-mix(in oklab, var(--color-accent) 12%, transparent);
+    --accent-soft-hover: color-mix(in oklab, var(--color-accent) 16%, transparent);
+    --accent-soft-foreground: color-mix(
+      in oklab,
+      var(--color-accent) 80%,
+      var(--color-text-primary) 30%
+    );
+    --danger-soft: color-mix(in oklab, var(--color-danger) 12%, transparent);
+    --danger-soft-hover: color-mix(in oklab, var(--color-danger) 16%, transparent);
+    --danger-soft-foreground: color-mix(
+      in oklab,
+      var(--color-danger) 80%,
+      var(--color-text-primary) 30%
+    );
+  }
 }
