@@ -309,3 +309,9 @@
   justify-center` 相对整条 ActionBar 居中（与上方 "GitWave v0.2.0" 标题同
   一中轴）；中间恢复 `flex-1` 留白；`pointer-events-none` 保证窄窗口重叠时
   按钮仍可点
+
+## 第十七批补充（用户反馈）：最小窗口 1024x768 + ActionBar 精简
+
+- `tauri.conf.json`：`minWidth/minHeight` 800x600 → **1024x768**
+- ActionBar：移除 Hooks 按钮（Hooks 编辑器仍可从 Repository 菜单打开），
+  Fetch 移入 Pull/Push 组首位 → 右侧组 = Fetch / Pull / Push，少一组分隔线
