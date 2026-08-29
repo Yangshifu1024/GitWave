@@ -66,6 +66,9 @@ jobs:
           curl -v --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 -o /dev/null 2>&1 || true
           echo "--- curl -v full output (80) ---"
           curl -v --connect-timeout 10 --max-time 20 http://timestamp.apple.com/ -o /dev/null 2>&1 || true
+          echo "--- TSA endpoint reachability: 80 vs 443 ---"
+          curl -sS -o /dev/null -w "http  ts01 POST: HTTP %{http_code} in %{time_total}s\n" -X POST -H "Content-Type: application/timestamp-query" --data-binary "probe" --connect-timeout 10 --max-time 20 http://timestamp.apple.com/ts01 || echo "http  ts01: failed"
+          curl -sS -o /dev/null -w "https ts01 POST: HTTP %{http_code} in %{time_total}s\n" -X POST -H "Content-Type: application/timestamp-query" --data-binary "probe" --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 || echo "https ts01: failed"
           echo "--- curl --resolve forced to 17.157.80.35 ---"
           if curl -sS -o /dev/null --resolve timestamp.apple.com:443:17.157.80.35 --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; then
             echo "RESOLVED-IP PATH WORKS"
