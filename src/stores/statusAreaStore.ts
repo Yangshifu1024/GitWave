@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type StatusVariant = "success" | "danger";
+export type StatusVariant = "success" | "danger" | "info";
 
 export interface StatusEntry {
   text: string;

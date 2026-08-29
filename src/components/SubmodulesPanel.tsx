@@ -17,14 +17,14 @@ import { SidebarSection } from "@/components/ui/SidebarSection";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Blocks, CircleAlert, CircleCheck, Plus } from "lucide-react";
 
 export function SubmodulesPanel(): React.JSX.Element {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const [items, setItems] = useState<SubmoduleInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,13 +54,11 @@ export function SubmodulesPanel(): React.JSX.Element {
     try {
       if (op === "init") await initSubmodule(workspaceId, name);
       else await updateSubmodule(workspaceId, name, true);
-      toast({
-        title: `Submodule ${name} ${op === "init" ? "initialized" : "updated"}`,
-      });
+      setStatus(`Submodule ${name} ${op === "init" ? "initialized" : "updated"}`);
       bumpHistory();
       await refresh();
     } catch (e) {
-      toast({ title: formatAppError(e), variant: "danger" });
+      setStatus(formatAppError(e), "danger");
     } finally {
       setBusy(null);
     }
@@ -72,15 +70,13 @@ export function SubmodulesPanel(): React.JSX.Element {
     setError(null);
     try {
       await addSubmodule(workspaceId, url.trim(), path.trim());
-      toast({
-        title: `Submodule added at ${path.trim()} — staged, ready to commit`,
-      });
+      setStatus(`Submodule added at ${path.trim()} — staged, ready to commit`);
       setUrl("");
       setPath("");
       setAdding(false);
       await refresh();
     } catch (e) {
-      toast({ title: formatAppError(e), variant: "danger" });
+      setStatus(formatAppError(e), "danger");
     } finally {
       setBusy(null);
     }
@@ -92,11 +88,11 @@ export function SubmodulesPanel(): React.JSX.Element {
     setError(null);
     try {
       await deinitSubmodule(workspaceId, pendingDeinit);
-      toast({ title: `Submodule ${pendingDeinit} deactivated` });
+      setStatus(`Submodule ${pendingDeinit} deactivated`);
       setPendingDeinit(null);
       await refresh();
     } catch (e) {
-      toast({ title: formatAppError(e), variant: "danger" });
+      setStatus(formatAppError(e), "danger");
     } finally {
       setBusy(null);
     }

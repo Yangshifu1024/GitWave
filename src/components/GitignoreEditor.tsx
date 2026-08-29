@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { formatAppError, getGitignore, writeGitignore } from "@/lib/api";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
@@ -19,7 +19,7 @@ export interface GitignoreEditorProps {
  */
 export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.JSX.Element | null {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,9 +29,9 @@ export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.
     setLoading(true);
     getGitignore(workspaceId)
       .then(setContent)
-      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setLoading(false));
-  }, [open, workspaceId, toast]);
+  }, [open, workspaceId, setStatus]);
 
   if (!open) return null;
 
@@ -40,10 +40,10 @@ export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.
     setSaving(true);
     writeGitignore(workspaceId, content)
       .then(() => {
-        toast({ title: ".gitignore saved" });
+        setStatus(".gitignore saved");
         onClose();
       })
-      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setSaving(false));
   };
 

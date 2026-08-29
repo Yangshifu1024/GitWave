@@ -64,7 +64,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   };
 
   const handleError = (e: unknown, op: "fetch" | "pull" | "push") => {
-    useSyncStore.getState().endOp();
+    useSyncStore.getState().endOp(op);
     useStatusAreaStore.getState().setStatus(FAILURE_LABELS[op], "danger");
     onError?.(formatAppError(e));
   };
@@ -78,7 +78,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       bumpHistory();
     },
     onError: (e) => handleError(e, "fetch"),
-    onSettled: () => useSyncStore.getState().endOp(),
+    onSettled: () => useSyncStore.getState().endOp("fetch"),
   });
 
   const pullMut = useMutation({
@@ -90,7 +90,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       bumpHistory();
     },
     onError: (e) => handleError(e, "pull"),
-    onSettled: () => useSyncStore.getState().endOp(),
+    onSettled: () => useSyncStore.getState().endOp("pull"),
   });
 
   const pushMut = useMutation({
@@ -102,7 +102,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       bumpHistory();
     },
     onError: (e) => handleError(e, "push"),
-    onSettled: () => useSyncStore.getState().endOp(),
+    onSettled: () => useSyncStore.getState().endOp("push"),
   });
 
   const isSyncBusy = activeOp !== null && !fading;

@@ -9,7 +9,7 @@ import { Copy, RefreshCw } from "lucide-react";
 import { explainCommit, formatAppError } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 
 export function CommitExplainModal({
   workspaceId,
@@ -28,7 +28,7 @@ export function CommitExplainModal({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const genMut = useMutation({
     mutationFn: () => explainCommit(workspaceId, sha),
@@ -37,10 +37,7 @@ export function CommitExplainModal({
       setProvider(res.provider_used);
       setError(null);
       if (res.used_fallback) {
-        toast({
-          title: `Primary AI provider failed — response served by ${res.provider_used}`,
-          variant: "info",
-        });
+        setStatus(`Primary AI provider failed — response served by ${res.provider_used}`, "info");
       }
     },
     onError: (e) => setError(formatAppError(e)),
@@ -59,9 +56,9 @@ export function CommitExplainModal({
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      toast({ title: "Explanation copied to clipboard" });
+      setStatus("Explanation copied to clipboard");
     } catch {
-      toast({ title: "Clipboard unavailable", variant: "danger" });
+      setStatus("Clipboard unavailable", "danger");
     }
   };
 

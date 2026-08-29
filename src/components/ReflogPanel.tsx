@@ -15,7 +15,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { cn } from "@/lib/utils";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -60,7 +60,7 @@ export function ReflogPanel(): React.JSX.Element {
   const branchName = wc.data?.branch;
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const [scope, setScope] = useState<"HEAD" | "branch">("HEAD");
   const reference =
@@ -106,11 +106,11 @@ export function ReflogPanel(): React.JSX.Element {
     setBusy(true);
     createBranch(workspaceId, branchName_.trim(), branchModal.oid)
       .then(() => {
-        toast({ title: `Recovery branch "${branchName_.trim()}" created` });
+        setStatus(`Recovery branch "${branchName_.trim()}" created`);
         setBranchModal(null);
         afterMutation();
       })
-      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setBusy(false));
   };
 
@@ -119,12 +119,12 @@ export function ReflogPanel(): React.JSX.Element {
     setBusy(true);
     resetHeadHard(workspaceId, resetModal.oid)
       .then(() => {
-        toast({ title: `Branch reset to ${resetModal.oid.slice(0, 7)}` });
+        setStatus(`Branch reset to ${resetModal.oid.slice(0, 7)}`);
         setResetModal(null);
         setSelected(null);
         afterMutation();
       })
-      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setBusy(false));
   };
 
@@ -134,7 +134,7 @@ export function ReflogPanel(): React.JSX.Element {
     setAiText(null);
     explainReflog(workspaceId, entry)
       .then(setAiText)
-      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setAiBusy(false));
   };
 

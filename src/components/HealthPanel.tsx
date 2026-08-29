@@ -6,7 +6,7 @@ import { explainHealth, formatAppError, getHealth, type HealthReport } from "@/l
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { useToast } from "@/components/ui/Toast";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { cn } from "@/lib/utils";
 
 function mb(bytes: number): string {
@@ -90,7 +90,7 @@ function renderReport(report: HealthReport): React.JSX.Element {
 export function HealthPanel(): React.JSX.Element {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
-  const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const {
     data: report,
@@ -115,7 +115,7 @@ export function HealthPanel(): React.JSX.Element {
     setAiBusy(true);
     explainHealth(workspaceId)
       .then(setAiText)
-      .catch((e) => toast({ title: formatAppError(e), variant: "danger" }))
+      .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setAiBusy(false));
   };
 
