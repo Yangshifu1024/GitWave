@@ -2,13 +2,31 @@
 
 > Local-first Git client with AI collaboration. See `docs/pm/core/01-features.md` for product scope and `docs/tech/` for engineering decisions.
 
-**Status:** Sprint 0 (Tauri scaffold) ✅ shipped; Sprint 1 (Workspace CRUD) in progress per `docs/pm/core/04-sprint-v0.1.md`. No user-facing features yet — engineering gates (CI matrix, lint / format / test) must be green before features land.
+**Status:** v0.3.0 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized. Current scope per `docs/pm/core/03-roadmap.md` (v0.3: three platforms + collaboration + AI intelligence).
+
+## Features
+
+- **Workspace management** — multiple workspaces, repo tabs with drag-reorder, per-workspace AI context; a workspace is an abstraction, not a directory
+- **Working copy** — stage / unstage, discard, ignore, commit with conventional-commit type chips, commit message AI assist
+- **Branches & sync** — create / switch / delete / rename, push / pull with confirm, sync status area, merge (ff & no-ff) with conflict panel
+- **History** — commit graph with fork-style edges, commit details, blame, reflog, tags
+- **Diff viewer** — side-by-side and unified views, Shiki syntax highlighting, per-hunk operations
+- **Advanced Git** — stash, interactive rebase, worktrees, submodules, LFS, remotes, .gitignore editor, Git hooks panel, repo health checks
+- **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider
+- **SSH key management** — generate / import keys, per-repo SSH configuration
+- **Platform UX** — command palette, menu bar app mode, themes and font settings
+
+## Tech stack
+
+- **Frontend:** React 19 + TypeScript + Vite 7, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query / Virtual
+- **Backend:** Rust + [Tauri 2](https://tauri.app), clean-architecture layers (`domain` / `application` / `infrastructure`), `git2` (vendored libgit2 + libssh2 + OpenSSL) — no system Git dependency
+- **Testing:** Vitest (unit), Playwright (e2e)
 
 ## Quick start
 
 Prerequisites:
 
-- Rust stable ≥ 1.78 ([rustup](https://rustup.rs))
+- Rust stable ([rustup](https://rustup.rs))
 - Node.js ≥ 20
 - macOS: Xcode command line tools (`xcode-select --install`)
 - Linux: `webkit2gtk-4.1-dev`, `build-essential`, `cmake`, `curl`, `wget`, `file`, `libssl-dev`, `libxdo-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`
@@ -19,8 +37,6 @@ npm install
 npm run tauri dev
 ```
 
-The app window opens with "Hello GitWave".
-
 ## Scripts
 
 | Command | What it does |
@@ -28,12 +44,13 @@ The app window opens with "Hello GitWave".
 | `npm run dev` | Vite dev server (frontend only, no IPC) |
 | `npm run build` | TypeScript check + Vite production build |
 | `npm run tauri dev` | Tauri app in dev mode (frontend + Rust core) |
-| `npm run tauri build` | Tauri production build (.dmg / .exe / .AppImage) |
-| `npm run lint` | ESLint |
+| `npm run tauri build` | Tauri production build (.dmg / .exe / .deb / .rpm / .AppImage) |
+| `npm run lint` | ESLint (`lint:fix` to auto-fix) |
 | `npm run format:check` | Prettier check (no write) |
 | `npm run format` | Prettier write |
 | `npm run typecheck` | TypeScript check |
-| `npm test` | Vitest (currently `--passWithNoTests`: empty test set is allowed until Sprint 1 lands; flag becomes a no-op once real specs exist) |
+| `npm test` | Vitest (unit) |
+| `npm run test:e2e` | Playwright e2e tests |
 
 Rust commands (run inside `src-tauri/`):
 
@@ -46,26 +63,31 @@ Rust commands (run inside `src-tauri/`):
 
 ## CI
 
-Three GitHub Actions jobs run on every push to `main` / `feature/**` / `fix/**` and on every PR to `main`:
+Workflows live in `.github/workflows/`:
 
-| Job | Runner | What it runs |
-|---|---|---|
-| `rust-lint` | macOS | `cargo fmt -- --check`, `cargo clippy --all-targets -- -D warnings` |
-| `frontend-lint` | Ubuntu | `prettier --check`, `eslint`, `tsc --noEmit` |
-| `rust-test` | macOS + Ubuntu | `cargo test --all-targets` |
-| `frontend-test` | Ubuntu | `npm test` (vitest) |
-| `build-macos` | macOS | `cargo tauri build` (via `@tauri-apps/cli`) → `.dmg` / `.app` |
-| `build-linux` | Ubuntu 22.04 | Tauri Linux build deps + `cargo tauri build` → `.deb` / `.AppImage` |
+- **lint / test** — on every push and PR: `rust-lint` + `frontend-lint`, `rust-test` + `frontend-test`, each on a macOS / Ubuntu / Windows matrix
+- **build** — on tag push (`v*` or any tag): builds macOS (aarch64), Linux (deb / rpm / AppImage) and Windows (NSIS); when all three pass, a **draft GitHub release** is created with all artifacts and auto-generated release notes. macOS builds are signed and notarized via repository secrets (`APPLE_*`, `KEYCHAIN_PASSWORD`), and OpenSSL/libgit2 are statically linked so binaries are self-contained
 
-See `.github/workflows/` for full definitions. Per AGENTS.md, **AI agents must not push / merge** — humans gate every commit.
+### Cutting a release
+
+1. Bump the version in all four places: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` (the `gitwave` entry)
+2. Commit, then tag and push:
+   ```bash
+   git tag -a v0.x.0 -m "v0.x.0"
+   git push origin main v0.x.0
+   ```
+3. When CI is green, find the draft under Releases, review the notes, and publish
+
+Per AGENTS.md, **AI agents must not commit / push / merge** — humans gate every change to `main`.
 
 ## Documentation
 
-- `docs/pm/core/` — Product management (features, scope, roadmap, sprint plan)
-- `docs/tech/` — Engineering decisions (selection, architecture, ADRs, conventions)
+- `docs/pm/core/` — Product management (features, scope, roadmap)
+- `docs/tech/` — Engineering decisions (architecture, selection, ADRs, conventions)
+- `docs/design/` — UI/UX overview (3-pane layout, tokens, components)
 - `docs/tasks/` — Per-task plans and reviews
-- `AGENTS.md` — Workflow rules
+- `AGENTS.md` — Workflow rules and agent boundaries
 
 ## License
 
-TBD.
+[MIT](./LICENSE) © Yangzhenbiao

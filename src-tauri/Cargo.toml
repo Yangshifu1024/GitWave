@@ -2,6 +2,7 @@
 name = "gitwave"
 version = "0.3.0"
 description = "GitWave — local-first Git client with AI collaboration"
+license = "MIT"
 authors = ["Yangzhenbiao <yangshifu1024@qq.com>"]
 edition = "2021"
 
