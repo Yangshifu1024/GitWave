@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Menu, Popover } from "@heroui/react";
 
 import {
   addRemote,
@@ -15,13 +16,23 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { SidebarSection } from "@/components/ui/SidebarSection";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/ContextMenu";
 import { useToast } from "@/components/ui/Toast";
-import { Cloud, Pencil, Plus, Trash2 } from "lucide-react";
+import { Cloud } from "lucide-react";
 
 /**
- * Sidebar section body: configured remotes with full CRUD (M1). Fetch
- * per remote reuses the normal fetch pipeline (credentials via the system
- * git credential helper).
+ * Sidebar card: configured remotes with full CRUD. Fetch per remote reuses
+ * the normal fetch pipeline (credentials via the system git credential
+ * helper). Adding a remote lives in the header's right-click menu — an
+ * empty list collapses the card to a static header.
  */
 export function RemotesPanel(): React.JSX.Element {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
@@ -35,6 +46,7 @@ export function RemotesPanel(): React.JSX.Element {
   const [addOpen, setAddOpen] = useState(false);
   const [addName, setAddName] = useState("");
   const [addUrl, setAddUrl] = useState("");
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [edit, setEdit] = useState<RemoteInfo | null>(null);
   const [editFetchUrl, setEditFetchUrl] = useState("");
   const [editPushUrl, setEditPushUrl] = useState("");
@@ -103,87 +115,110 @@ export function RemotesPanel(): React.JSX.Element {
   };
 
   return (
-    <div className="flex flex-col gap-1 px-1 pb-1">
-      {error ? <p className="px-2 text-xs text-danger">{error}</p> : null}
-      {items.length === 0 ? (
-        <p className="px-2 py-1 text-xs text-text-muted italic">No remotes</p>
-      ) : (
-        items.map((r) => (
-          <div
-            key={r.name}
-            className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-bg-elevated"
-          >
-            <Cloud size={13} className="shrink-0 text-text-muted" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-text-primary">{r.name}</p>
-              <p className="truncate text-[11px] text-text-muted" title={r.fetch_url ?? undefined}>
-                {r.fetch_url ?? "(no URL)"}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy !== null}
-                title={`Fetch from ${r.name}`}
-                onClick={() =>
-                  void run(
-                    `fetch-${r.name}`,
-                    async () => {
-                      await fetchRemote(workspaceId, r.name);
-                      bumpHistory(); // remote-tracking refs feed the history graph
-                    },
-                    `Fetched from ${r.name}`,
-                  )
-                }
-              >
-                Fetch
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="p-1"
-                aria-label={`Edit remote ${r.name}`}
-                title="Edit remote"
-                disabled={busy !== null}
-                onClick={() => {
-                  setEdit(r);
-                  setEditFetchUrl(r.fetch_url ?? "");
-                  setEditPushUrl(r.push_url ?? "");
-                  setEditNewName(r.name);
-                }}
-              >
-                <Pencil size={12} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="p-1 text-text-muted hover:text-danger"
-                aria-label={`Remove remote ${r.name}`}
-                title="Remove remote"
-                disabled={busy !== null}
-                onClick={() => setDeleteTarget(r)}
-              >
-                <Trash2 size={12} />
-              </Button>
-            </div>
-          </div>
-        ))
-      )}
-
-      <Button
-        variant="ghost"
-        size="sm"
-        className="self-start px-2 text-text-muted"
-        onClick={() => {
-          setAddName("");
-          setAddUrl("");
-          setAddOpen(true);
+    <>
+      <SidebarSection
+        title="Remotes"
+        collapsible={items.length > 0}
+        onHeaderContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
         }}
       >
-        <Plus size={13} />
-        Add remote
-      </Button>
+        <div className="flex flex-col gap-1 px-1 pb-1">
+          {error ? <p className="px-2 text-xs text-danger">{error}</p> : null}
+          {items.length === 0 ? (
+            <p className="px-2 py-1 text-xs text-text-muted italic">No remotes</p>
+          ) : (
+            items.map((r) => (
+              <ContextMenu key={r.name}>
+                <ContextMenuTrigger asChild>
+                  <div
+                    className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-bg-elevated"
+                    title={r.fetch_url ?? undefined}
+                  >
+                    <Cloud size={13} className="shrink-0 text-text-muted" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-text-primary">{r.name}</p>
+                      <p className="truncate text-[11px] text-text-muted">
+                        {r.fetch_url ?? "(no URL)"}
+                      </p>
+                    </div>
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="max-w-[240px]">
+                  <ContextMenuLabel title={r.fetch_url ?? undefined}>{r.name}</ContextMenuLabel>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    disabled={busy !== null}
+                    onSelect={() =>
+                      void run(
+                        `fetch-${r.name}`,
+                        async () => {
+                          await fetchRemote(workspaceId, r.name);
+                          bumpHistory(); // remote-tracking refs feed the history graph
+                        },
+                        `Fetched from ${r.name}`,
+                      )
+                    }
+                  >
+                    Fetch
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    disabled={busy !== null}
+                    onSelect={() => {
+                      setEdit(r);
+                      setEditFetchUrl(r.fetch_url ?? "");
+                      setEditPushUrl(r.push_url ?? "");
+                      setEditNewName(r.name);
+                    }}
+                  >
+                    Edit…
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    destructive
+                    disabled={busy !== null}
+                    onSelect={() => setDeleteTarget(r)}
+                  >
+                    Remove
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            ))
+          )}
+        </div>
+      </SidebarSection>
+
+      {/* Group-level actions live in the header's right-click menu. */}
+      {menu ? (
+        <Popover isOpen onOpenChange={(o) => !o && setMenu(null)}>
+          <Popover.Trigger
+            aria-hidden
+            className="fixed z-popover h-px w-px overflow-hidden p-0 pointer-events-none"
+            style={{ left: menu.x, top: menu.y }}
+          />
+          <Popover.Content
+            placement="bottom start"
+            offset={2}
+            className="z-popover min-w-[160px] rounded-lg bg-bg-elevated border border-border-default shadow-modal p-1"
+          >
+            <Menu className="outline-none">
+              <Menu.Item
+                textValue="Add remote"
+                onAction={() => {
+                  setAddName("");
+                  setAddUrl("");
+                  setAddOpen(true);
+                  setMenu(null);
+                }}
+                className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-text-primary"
+              >
+                Add remote
+              </Menu.Item>
+            </Menu>
+          </Popover.Content>
+        </Popover>
+      ) : null}
 
       <Modal
         open={addOpen}
@@ -282,6 +317,6 @@ export function RemotesPanel(): React.JSX.Element {
           </div>
         </Modal>
       ) : null}
-    </div>
+    </>
   );
 }
