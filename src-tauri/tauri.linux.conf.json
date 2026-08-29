@@ -2,12 +2,14 @@
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
     "targets": ["deb", "rpm", "appimage"],
+    "category": "Development",
+    "shortDescription": "Local-first Git client with AI collaboration",
     "linux": {
-      "desktop": {
-        "name": "GitWave",
-        "genericName": "Git Client",
-        "comment": "Local-first Git client with AI collaboration",
-        "categories": ["Development"]
+      "deb": {
+        "desktopTemplate": "./linux/gitwave.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "./linux/gitwave.desktop"
       }
     }
   }

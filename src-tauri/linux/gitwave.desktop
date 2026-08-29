@@ -1,0 +1,14 @@
+# tauri-bundler (deb/rpm) 自定义 desktop 模板，经 bundle.linux.{deb,rpm}.desktopTemplate 引用。
+# 可用 Handlebars 变量：name/categories/comment/exec/icon（exec/icon 为二进制名）。
+[Desktop Entry]
+Categories={{categories}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}}
+GenericName=Git Client
+StartupWMClass={{exec}}
+Icon={{icon}}
+Name={{name}}
+Terminal=false
+Type=Application
