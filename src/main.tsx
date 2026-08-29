@@ -8,6 +8,7 @@ import "@fontsource/roboto-mono/400.css";
 import "@fontsource/roboto-mono/500.css";
 import { applyInitialFonts } from "./lib/fonts";
 import { applyInitialPalette } from "./lib/palette";
+import { installNativeAppMenuEarly } from "./hooks/useNativeAppMenu";
 import App from "./App";
 import "./styles/tokens.css";
 
@@ -24,6 +25,12 @@ window.addEventListener("contextmenu", (e) => {
 
 // Apply theme + palette + font preferences before React mounts to avoid FOUC.
 applyInitialPreferences();
+
+// macOS: replace the Tauri default menu with ours before React mounts, so
+// the window never shows the default menu bar (no-op elsewhere).
+// useNativeAppMenu rebuilds with live gating right after mount and
+// supersedes this install via the same serialized queue.
+installNativeAppMenuEarly();
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {
