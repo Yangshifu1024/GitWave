@@ -67,13 +67,11 @@
 
   /* fonts — sans stays platform-native (SF Pro / Segoe UI); mono leads with
    * bundled Roboto Mono for a consistent code face across platforms. CJK
-   * fallbacks always present. See 07-theme.md §3.2 */
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
-    "Helvetica Neue", Arial, "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
-  --font-mono:
-    "Roboto Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas, "Microsoft YaHei", "PingFang SC",
-    "Noto Sans CJK SC", monospace;
+   * fallbacks always present. The chains live in --font-*-fallback (:root in
+   * @layer base below) so the font settings (src/lib/fonts.ts) can lead them
+   * at runtime via an inline-style override on <html>. See 07-theme.md §3.2 */
+  --font-sans: var(--font-sans-fallback);
+  --font-mono: var(--font-mono-fallback);
 
   /* radius */
   --radius-sm: 4px;
@@ -128,6 +126,16 @@
     --duration-fast: 120ms;
     --duration-base: 200ms;
     --duration-slow: 300ms;
+
+    /* Font chains — same reason: the @theme --font-* values reference these,
+     * and the font settings lead them at runtime (src/lib/fonts.ts writes
+     * '"<user font>", var(--font-*-fallback)' inline on <html>). */
+    --font-sans-fallback:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+      "Helvetica Neue", Arial, "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+    --font-mono-fallback:
+      "Roboto Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas, "Microsoft YaHei", "PingFang SC",
+      "Noto Sans CJK SC", monospace;
   }
 
   :root.dark {

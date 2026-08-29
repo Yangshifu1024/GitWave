@@ -32,8 +32,8 @@ use application::{
     list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
     merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch,
     relink_repo, remove_remote, remove_repo, remove_worktree, rename_remote, rename_workspace,
-    reset_hard, resolve_conflict, revert_commit, save_hook, save_stash, set_active_repo,
-    set_ai_api_key, set_remote_push_url, set_remote_url, stage_all, stage_files,
+    reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook, save_stash,
+    set_active_repo, set_ai_api_key, set_remote_push_url, set_remote_url, stage_all, stage_files,
     test_ssh_connection, unstage_files, update_submodule, update_workspace_settings,
     write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus, AppContext, PaletteIntent,
     PrDescriptionOutcome,
@@ -289,6 +289,15 @@ fn cmd_list_repos(
     workspace_id: String,
 ) -> Result<Vec<RepoRef>, AppError> {
     list_repos(&ctx, workspace_id)
+}
+
+#[tauri::command]
+fn cmd_reorder_repos(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_ids: Vec<String>,
+) -> Result<(), AppError> {
+    reorder_repos(&ctx, workspace_id, repo_ids)
 }
 
 // ─── SSH commands (Sprint 2) ──────────────────────────────────────────────
@@ -1226,6 +1235,7 @@ pub fn run() {
             cmd_remove_repo,
             cmd_relink_repo,
             cmd_list_repos,
+            cmd_reorder_repos,
             cmd_list_ssh_keys,
             cmd_add_ssh_key,
             cmd_delete_ssh_key,

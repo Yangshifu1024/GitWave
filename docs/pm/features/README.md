@@ -56,6 +56,8 @@
 | [F002](./F002-repo-ingestion.md) | Repo Ingestion + SSH Key Management | 接受 | Sprint 2 |
 | [F003](./F003-history-diff-blame.md) | History Graph + File Diff + Blame + Branch Ops | 接受 | Sprint 3 |
 | [F004](./F004-safe-branch-switch.md) | Safe branch switch（双击切换 + 脏工作区弹窗） | 接受 | v0.1 |
+| [F005](./F005-repo-tab-drag-reorder.md) | Repository Tab 拖动排序 | 接受 | v0.2.x |
+| [F006](./F006-font-settings.md) | 字体设置（UI 字体 + Mono 字体） | 接受 | v0.2.x |
 
 ## 相关文档
 

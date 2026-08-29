@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // render identically on every platform.
 import "@fontsource/roboto-mono/400.css";
 import "@fontsource/roboto-mono/500.css";
+import { applyInitialFonts } from "./lib/fonts";
 import { applyInitialPalette } from "./lib/palette";
 import App from "./App";
 import "./styles/tokens.css";
@@ -21,7 +22,7 @@ window.addEventListener("contextmenu", (e) => {
   e.preventDefault();
 });
 
-// Apply theme + palette preferences before React mounts to avoid FOUC.
+// Apply theme + palette + font preferences before React mounts to avoid FOUC.
 applyInitialPreferences();
 
 const rootEl = document.getElementById("root");
@@ -54,4 +55,5 @@ function applyInitialPreferences(): void {
       : "light";
   }
   applyInitialPalette();
+  applyInitialFonts();
 }

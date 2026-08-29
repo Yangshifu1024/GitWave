@@ -251,6 +251,12 @@ export function listRepos(workspaceId: string): Promise<RepoRef[]> {
   return invoke<RepoRef[]>("cmd_list_repos", { workspaceId });
 }
 
+/** Persist Repository Tab order (F005): `repoIds` must list every repo of
+ * the workspace exactly once, in the desired order. */
+export function reorderRepos(workspaceId: string, repoIds: string[]): Promise<void> {
+  return invoke<void>("cmd_reorder_repos", { workspaceId, repoIds });
+}
+
 export function initRepo(workspaceId: string, path: string): Promise<RepoRef> {
   return invoke<RepoRef>("cmd_init_repo", { workspaceId, path });
 }

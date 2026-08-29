@@ -24,6 +24,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "repos-status-and-missing",
         sql: include_str!("../../../migrations/0002-repos-status.sql"),
     },
+    Migration {
+        version: 3,
+        name: "repos-position",
+        sql: include_str!("../../../migrations/0003-repos-position.sql"),
+    },
 ];
 
 struct Migration {
@@ -118,7 +123,7 @@ mod tests {
             .unwrap()
             .filter_map(std::result::Result::ok)
             .collect();
-        assert_eq!(versions, vec![1, 2]);
+        assert_eq!(versions, vec![1, 2, 3]);
     }
 
     #[test]
@@ -152,5 +157,51 @@ mod tests {
             })
             .unwrap();
         assert!(missing_at.is_none());
+    }
+
+    #[test]
+    fn migration_3_backfills_position_by_added_at() {
+        let conn = in_memory();
+        // Apply only up to v2 so the rows below reproduce a pre-F005 database.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY NOT NULL)",
+        )
+        .unwrap();
+        for migration in MIGRATIONS.iter().filter(|m| m.version <= 2) {
+            conn.execute_batch(migration.sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_version (version) VALUES (?1)",
+                [migration.version],
+            )
+            .unwrap();
+        }
+
+        conn.execute(
+            "INSERT INTO workspaces (id, name, settings_json, created_at, updated_at) \
+             VALUES ('ws-1', 'X', '{}', 1, 1)",
+            [],
+        )
+        .unwrap();
+        // Insertion order deliberately differs from added_at order; ties on
+        // added_at fall back to id (matches the backfill's tiebreaker).
+        for (id, added_at) in [("r-2", 2000i64), ("r-1", 1000), ("r-4", 1000), ("r-3", 3000)] {
+            conn.execute(
+                "INSERT INTO repos (id, workspace_id, path, added_at) \
+                 VALUES (?1, 'ws-1', '/tmp', ?2)",
+                rusqlite::params![id, added_at],
+            )
+            .unwrap();
+        }
+
+        apply(&conn).expect("apply v3");
+
+        let ordered: Vec<String> = conn
+            .prepare("SELECT id FROM repos WHERE workspace_id = 'ws-1' ORDER BY position")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .collect();
+        assert_eq!(ordered, vec!["r-1", "r-4", "r-2", "r-3"]);
     }
 }

@@ -1,8 +1,8 @@
 // Repository tab strip under the ActionBar: switches repositories of the
 // active workspace. Workspace switching lives in the ActionBar's workspace
-// dropdown; row ops (relink / remove) live on as a right-click menu on the
-// repo tabs. Init / clone / add / fetch stay in the Repository menu and
-// ActionBar.
+// dropdown; row ops (reorder via drag or right-click Move Left/Right,
+// relink / remove) live on the repo tabs. Init / clone / add / fetch stay
+// in the Repository menu and ActionBar.
 //
 // Right-click menu notes: the menu content is a controlled HeroUI Popover
 // rendered OUTSIDE the HeroTabs tablists — React Aria renders collection
@@ -11,7 +11,7 @@
 // drops non-Tab wrapper elements, so per-tab title / onContextMenu ride on
 // TabsTrigger's DOM passthrough.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Header, Menu, Popover, Separator } from "@heroui/react";
 
@@ -20,10 +20,12 @@ import {
   listRepos,
   relinkRepo,
   removeRepo,
+  reorderRepos,
   setActiveRepo,
   type RepoRef,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { applyOrder, arrayMove, useTabDragReorder } from "@/hooks/useTabDragReorder";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -47,6 +49,8 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
   const [removing, setRemoving] = useState<RepoRef | null>(null);
   const [relinkPath, setRelinkPath] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
+  const tabstripRef = useRef<HTMLDivElement>(null);
 
   const { data: repos = [], error: reposError } = useQuery({
     queryKey: ["repos", activeWorkspaceId],
@@ -54,9 +58,50 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
     enabled: !!activeWorkspaceId,
   });
 
+  // Tab order as currently rendered: drag preview overrides the stored one.
+  const renderedRepos = previewOrder ? applyOrder(repos, previewOrder) : repos;
+
   const refresh = (): void => {
     void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
     void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+  };
+
+  const reorderMut = useMutation({
+    mutationFn: (ids: string[]) => reorderRepos(activeWorkspaceId!, ids),
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: ["repos", activeWorkspaceId] });
+      const prev = queryClient.getQueryData<RepoRef[]>(["repos", activeWorkspaceId]);
+      if (prev) queryClient.setQueryData(["repos", activeWorkspaceId], applyOrder(prev, ids));
+      return { prev };
+    },
+    onError: (e, _ids, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["repos", activeWorkspaceId], ctx.prev);
+      setActionError(formatAppError(e));
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
+    },
+  });
+
+  const drag = useTabDragReorder({
+    containerRef: tabstripRef,
+    ids: renderedRepos.map((r) => r.id),
+    onPreview: setPreviewOrder,
+    onCommit: (ids) => {
+      setPreviewOrder(null);
+      reorderMut.mutate(ids);
+    },
+    // pointercancel / released back on the original order — fall back to the
+    // stored order so an uncommitted preview can't leak into later commits.
+    onAbort: () => setPreviewOrder(null),
+  });
+
+  const moveRepo = (repo: RepoRef, dir: -1 | 1): void => {
+    const ids = renderedRepos.map((r) => r.id);
+    const i = ids.indexOf(repo.id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    reorderMut.mutate(arrayMove(ids, i, j));
   };
 
   const activateRepo = async (repoId: string): Promise<void> => {
@@ -98,30 +143,37 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
     // and the selected tab's segment disappears so it merges with the panes.
     <div className="shrink-0 bg-bg-primary select-none">
       {/* Repositories of the active workspace; workspace switching lives in
-          the ActionBar's workspace dropdown. */}
-      <div className="flex min-w-0 items-end">
+          the ActionBar's workspace dropdown. The ref scopes drag-reorder's
+          [role=tab] lookups to this strip. */}
+      <div ref={tabstripRef} className="flex min-w-0 items-end">
         <Tabs
           value={activeRepoId ?? ""}
           onValueChange={(id) => {
             if (id === activeRepoId) return;
+            // A drag release lands on a tab without picking it.
+            if (drag.suppressClickRef.current) return;
             void activateRepo(id).catch((e: unknown) => setActionError(formatAppError(e)));
           }}
           className="min-w-0 flex-1"
         >
           <TabsList className="h-6 flex-1 rounded-none bg-bg-primary items-end [&>div]:w-full [&_[role=tablist]]:items-end [&_[role=tablist]]:p-0">
-            {repos.map((r) => {
+            {renderedRepos.map((r) => {
               const label = r.nickname ?? basename(r.path);
               return (
                 <TabsTrigger
                   key={r.id}
                   value={r.id}
                   disabled={r.status === "missing"}
-                  className="h-6 px-3 py-0 text-xs"
+                  className={cn(
+                    "h-6 px-3 py-0 text-xs cursor-grab active:cursor-grabbing",
+                    drag.draggingId === r.id && "opacity-50",
+                  )}
                   title={
                     r.status === "missing"
                       ? `${label} — missing, right-click to relink`
                       : r.path
                   }
+                  onPointerDown={(e) => drag.handlePointerDown(e, r.id)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setMenu({ repo: r, x: e.clientX, y: e.clientY });
@@ -171,6 +223,34 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 >
                   {menu.repo.nickname ?? basename(menu.repo.path)}
                 </Header>
+                <Separator className="my-1 bg-border-subtle" />
+                {/* Keyboard/pointer-free alternative to drag-reorder (F005);
+                    works on missing tabs too. */}
+                <Menu.Item
+                  textValue="Move Left"
+                  isDisabled={menu.repo.id === renderedRepos[0]?.id || reorderMut.isPending}
+                  onAction={() => {
+                    moveRepo(menu.repo, -1);
+                    closeMenu();
+                  }}
+                  className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-text-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40"
+                >
+                  Move Left
+                </Menu.Item>
+                <Menu.Item
+                  textValue="Move Right"
+                  isDisabled={
+                    menu.repo.id === renderedRepos[renderedRepos.length - 1]?.id ||
+                    reorderMut.isPending
+                  }
+                  onAction={() => {
+                    moveRepo(menu.repo, 1);
+                    closeMenu();
+                  }}
+                  className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-text-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40"
+                >
+                  Move Right
+                </Menu.Item>
                 <Separator className="my-1 bg-border-subtle" />
                 {menu.repo.status === "missing" ? (
                   <Menu.Item

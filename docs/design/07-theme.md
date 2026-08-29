@@ -103,6 +103,8 @@ font-mono:
 - `@fontsource/roboto-mono` 打包保留（mono 首选，保证跨平台一致）
 - 全局 `font-variant-numeric: tabular-nums`（ahead / behind 计数、行号对齐）
 
+**用户字体覆盖**（F006）：设置中可分别配置 UI / Mono 字体，作为字体链首选，保留上述回退链（含 CJK）。实现：默认链声明为 `:root` 上的 `--font-sans-fallback` / `--font-mono-fallback`（`@theme` 外，避免 Tailwind 裁剪），`--font-sans` / `--font-mono` 引用它们；用户设置由 `src/lib/fonts.ts` 以 inline style 写 `"<用户字体>", var(--font-*-fallback)` 覆盖 html 上的主变量，localStorage 持久化，挂载前应用防 FOUC。
+
 ### 3.3 动效
 
 **Token**（Tailwind v4 命名空间，自动生成 `duration-*` / `ease-*` 工具类）：

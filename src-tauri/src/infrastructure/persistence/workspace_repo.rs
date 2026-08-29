@@ -27,6 +27,9 @@ pub trait WorkspaceRepository: Send {
     fn list_repos(&self, workspace_id: &str) -> Result<Vec<RepoRef>>;
     fn mark_repo_missing(&self, workspace_id: &str, repo_id: &str) -> Result<()>;
     fn relink_repo(&self, workspace_id: &str, repo_id: &str, new_path: &str) -> Result<()>;
+    /// Persist tab order: `repo_ids` must list EVERY repo of the workspace
+    /// exactly once, in the desired order (F005).
+    fn reorder_repos(&self, workspace_id: &str, repo_ids: &[String]) -> Result<()>;
 }
 
 /// SQLite-backed `WorkspaceRepository`.
@@ -171,8 +174,9 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
         self.conn
             .execute(
                 "INSERT INTO repos \
-                 (id, workspace_id, path, nickname, settings_override_json, status, missing_at, added_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 (id, workspace_id, path, nickname, settings_override_json, status, missing_at, added_at, position) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, \
+                         (SELECT COALESCE(MAX(position), -1) + 1 FROM repos WHERE workspace_id = ?2))",
                 params![
                         repo.id,
                         repo.workspace_id,
@@ -210,7 +214,7 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             .prepare(
                 "SELECT id, workspace_id, path, nickname, settings_override_json, \
                         status, missing_at, added_at \
-                 FROM repos WHERE workspace_id = ?1 ORDER BY added_at",
+                 FROM repos WHERE workspace_id = ?1 ORDER BY position, added_at",
             )
             .map_err(map_sqlite_err)?;
         let rows = stmt
@@ -248,6 +252,34 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
         if affected == 0 {
             return Err(AppError::Protocol(format!("repo not found: {repo_id}")));
         }
+        Ok(())
+    }
+
+    fn reorder_repos(&self, workspace_id: &str, repo_ids: &[String]) -> Result<()> {
+        let current = self.list_repos(workspace_id)?;
+        // The order payload must be a permutation of the workspace's repos —
+        // anything else (stale frontend list, cross-workspace id) would
+        // silently drop or shift rows.
+        if current.len() != repo_ids.len()
+            || !current.iter().all(|r| repo_ids.iter().any(|id| id == &r.id))
+        {
+            return Err(AppError::Protocol(format!(
+                "reorder ids do not match repos of workspace {workspace_id}"
+            )));
+        }
+        let tx = self.conn.unchecked_transaction().map_err(map_sqlite_err)?;
+        for (idx, repo_id) in repo_ids.iter().enumerate() {
+            let affected = tx
+                .execute(
+                    "UPDATE repos SET position = ?1 WHERE id = ?2 AND workspace_id = ?3",
+                    params![idx as i64, repo_id, workspace_id],
+                )
+                .map_err(map_sqlite_err)?;
+            if affected == 0 {
+                return Err(AppError::Protocol(format!("repo not found: {repo_id}")));
+            }
+        }
+        tx.commit().map_err(map_sqlite_err)?;
         Ok(())
     }
 }
@@ -518,5 +550,75 @@ mod tests {
         let err = repo.add_repo(&r).expect_err("FK should fail");
         // rusqlite returns Generic/Constraint error; we surface as Unknown.
         assert_eq!(err.category(), "Unknown");
+    }
+
+    // ─── Reorder tests (F005) ───────────────────────────────────────────
+
+    #[test]
+    fn reorder_repos_persists_new_order() {
+        let repo = fresh_repo();
+        repo.create(&sample_ws("ws-1", "Default")).unwrap();
+        for id in ["r-1", "r-2", "r-3"] {
+            repo.add_repo(&sample_repo("ws-1", id, "/tmp")).unwrap();
+        }
+
+        repo.reorder_repos("ws-1", &["r-3".into(), "r-1".into(), "r-2".into()])
+            .expect("reorder");
+
+        let ids: Vec<String> = repo
+            .list_repos("ws-1")
+            .unwrap()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(ids, vec!["r-3", "r-1", "r-2"]);
+    }
+
+    #[test]
+    fn reorder_repos_rejects_incomplete_or_foreign_ids() {
+        let repo = fresh_repo();
+        repo.create(&sample_ws("ws-1", "Default")).unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-1", "/tmp/x")).unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-2", "/tmp/y")).unwrap();
+
+        // Missing id — would silently drop a repo from the order.
+        let err = repo
+            .reorder_repos("ws-1", &["r-1".into()])
+            .expect_err("incomplete ids");
+        assert_eq!(err.category(), "Protocol");
+
+        // Foreign / unknown id.
+        let err = repo
+            .reorder_repos("ws-1", &["r-1".into(), "r-9".into()])
+            .expect_err("foreign id");
+        assert_eq!(err.category(), "Protocol");
+
+        // Neither call may touch stored positions.
+        let ids: Vec<String> = repo
+            .list_repos("ws-1")
+            .unwrap()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(ids, vec!["r-1", "r-2"]);
+    }
+
+    #[test]
+    fn add_repo_after_reorder_appends_to_end() {
+        let repo = fresh_repo();
+        repo.create(&sample_ws("ws-1", "Default")).unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-1", "/tmp/x")).unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-2", "/tmp/y")).unwrap();
+        repo.reorder_repos("ws-1", &["r-2".into(), "r-1".into()])
+            .unwrap();
+
+        repo.add_repo(&sample_repo("ws-1", "r-3", "/tmp/z")).unwrap();
+        let ids: Vec<String> = repo
+            .list_repos("ws-1")
+            .unwrap()
+            .into_iter()
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(ids, vec!["r-2", "r-1", "r-3"]);
     }
 }
