@@ -121,6 +121,11 @@ export function openDataDir(): Promise<void> {
   return invoke<void>("open_data_dir");
 }
 
+/** Quit the whole application (File → Exit; not tied to window close). */
+export function quitApp(): Promise<void> {
+  return invoke<void>("quit_app");
+}
+
 // ─── Workspace commands ───────────────────────────────────────────────────
 
 export function listWorkspaces(): Promise<WorkspaceSummary[]> {
