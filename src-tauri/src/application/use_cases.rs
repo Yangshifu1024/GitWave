@@ -2350,7 +2350,6 @@ mod tests {
         assert!(err.to_string().contains("missing \"sha\""), "{err}");
     }
 
-
     #[test]
     fn ai_chain_preserves_explicit_models() {
         let settings = WorkspaceSettings {

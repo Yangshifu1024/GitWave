@@ -261,7 +261,9 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
         // anything else (stale frontend list, cross-workspace id) would
         // silently drop or shift rows.
         if current.len() != repo_ids.len()
-            || !current.iter().all(|r| repo_ids.iter().any(|id| id == &r.id))
+            || !current
+                .iter()
+                .all(|r| repo_ids.iter().any(|id| id == &r.id))
         {
             return Err(AppError::Protocol(format!(
                 "reorder ids do not match repos of workspace {workspace_id}"
@@ -578,8 +580,10 @@ mod tests {
     fn reorder_repos_rejects_incomplete_or_foreign_ids() {
         let repo = fresh_repo();
         repo.create(&sample_ws("ws-1", "Default")).unwrap();
-        repo.add_repo(&sample_repo("ws-1", "r-1", "/tmp/x")).unwrap();
-        repo.add_repo(&sample_repo("ws-1", "r-2", "/tmp/y")).unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-1", "/tmp/x"))
+            .unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-2", "/tmp/y"))
+            .unwrap();
 
         // Missing id — would silently drop a repo from the order.
         let err = repo
@@ -607,12 +611,15 @@ mod tests {
     fn add_repo_after_reorder_appends_to_end() {
         let repo = fresh_repo();
         repo.create(&sample_ws("ws-1", "Default")).unwrap();
-        repo.add_repo(&sample_repo("ws-1", "r-1", "/tmp/x")).unwrap();
-        repo.add_repo(&sample_repo("ws-1", "r-2", "/tmp/y")).unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-1", "/tmp/x"))
+            .unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-2", "/tmp/y"))
+            .unwrap();
         repo.reorder_repos("ws-1", &["r-2".into(), "r-1".into()])
             .unwrap();
 
-        repo.add_repo(&sample_repo("ws-1", "r-3", "/tmp/z")).unwrap();
+        repo.add_repo(&sample_repo("ws-1", "r-3", "/tmp/z"))
+            .unwrap();
         let ids: Vec<String> = repo
             .list_repos("ws-1")
             .unwrap()

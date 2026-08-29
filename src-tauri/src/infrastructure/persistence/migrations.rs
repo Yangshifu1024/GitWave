@@ -184,7 +184,12 @@ mod tests {
         .unwrap();
         // Insertion order deliberately differs from added_at order; ties on
         // added_at fall back to id (matches the backfill's tiebreaker).
-        for (id, added_at) in [("r-2", 2000i64), ("r-1", 1000), ("r-4", 1000), ("r-3", 3000)] {
+        for (id, added_at) in [
+            ("r-2", 2000i64),
+            ("r-1", 1000),
+            ("r-4", 1000),
+            ("r-3", 3000),
+        ] {
             conn.execute(
                 "INSERT INTO repos (id, workspace_id, path, added_at) \
                  VALUES (?1, 'ws-1', '/tmp', ?2)",
