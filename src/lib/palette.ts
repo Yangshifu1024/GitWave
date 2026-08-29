@@ -28,7 +28,7 @@ export const PALETTE_META: Record<Palette, PaletteMeta> = {
       canvas: "#ececec",
       sidebar: "#dfdfdf",
       accent: "#007aff",
-      lanes: ["#32ade6", "#5856d6", "#af52de"],
+      lanes: ["#007aff", "#06b7db", "#7828c8"],
     },
   },
   tide: {
@@ -40,7 +40,7 @@ export const PALETTE_META: Record<Palette, PaletteMeta> = {
       sidebar: "#e6ebef",
       accent: "#1a8f8a",
       // Matches shipped --color-lane-1..3 (see src/styles/tokens.css).
-      lanes: ["#1a8f8a", "#3d6b9a", "#4a5fa8"],
+      lanes: ["#12a594", "#0090ff", "#8e4ec6"],
     },
   },
 };

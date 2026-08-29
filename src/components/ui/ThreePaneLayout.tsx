@@ -1,7 +1,9 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-const HANDLE_PX = 1;
+/** Visual divider width in CSS px; the grab zone is the overlay in
+ * ResizeHandle (±5px), independent of this value. */
+const HANDLE_PX = 0.5;
 
 interface ThreePaneLayoutProps {
   sidebar: ReactNode;
@@ -61,15 +63,31 @@ function ResizeHandle({
   className?: string;
 }): React.JSX.Element {
   return (
+    // Fork-style split handle: the 1px line is decoration only; an invisible
+    // overlay extending into both panes is the actual grab zone (Fitts's law
+    // — a bare 1px target is effectively ungrabbable). Events on the overlay
+    // bubble to this div.
     <div
       onMouseDown={onMouseDown}
       onDoubleClick={onDoubleClick}
-      className={cn("bg-border-subtle cursor-col-resize", className)}
+      className={cn(
+        // Invisible grab zone: the visible hairline is painted by the panes
+        // themselves (pane-edge-left / pane-edge-right inset shadows), so
+        // this div must stay transparent — anything painted here sits UNDER
+        // the pane-edge shadows and never shows.
+        "relative z-10 cursor-col-resize",
+        className,
+      )}
       style={{ width: HANDLE_PX }}
       role="separator"
       aria-orientation="vertical"
       tabIndex={0}
-    />
+    >
+      <div
+        aria-hidden
+        className="absolute inset-y-0 -left-[5px] -right-[5px] cursor-col-resize"
+      />
+    </div>
   );
 }
 

@@ -85,7 +85,7 @@ function RefBadge({
       <Chip
         size="sm"
         title={r.name}
-        className={cn(chrome, "bg-warning/15 text-warning border-warning/40")}
+        className={cn(chrome, "bg-warning/20 text-warning border-warning/60")}
       >
         <Chip.Label className="inline-flex items-center gap-1">
           <Tag size={8} />
@@ -110,15 +110,17 @@ function RefBadge({
     );
   }
 
-  const lineColor = laneColor(lane);
+  // Remote branches wear a fixed vivid color (--color-branch-remote) so they
+  // stay distinguishable from local branches, which follow their lane color.
+  const lineColor = r.kind === "remote_branch" ? "var(--color-branch-remote)" : laneColor(lane);
   return (
     <Chip
       size="sm"
       title={r.name}
       className={chrome}
       style={{
-        backgroundColor: `color-mix(in srgb, ${lineColor} 14%, transparent)`,
-        borderColor: `color-mix(in srgb, ${lineColor} 45%, transparent)`,
+        backgroundColor: `color-mix(in srgb, ${lineColor} 18%, transparent)`,
+        borderColor: `color-mix(in srgb, ${lineColor} 60%, transparent)`,
         color: lineColor,
       }}
     >
@@ -542,13 +544,13 @@ export function CommitGraph({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="shrink-0 border-b border-border-subtle bg-bg-elevated px-3 py-1.5">
+      <div className="shrink-0 border-b border-border-subtle px-3 py-1.5">
         <Input
           variant="search"
           value={searchInput}
           onChange={setSearchInput}
           placeholder="Search commits (message or author)"
-          className="h-7"
+          className="h-7 bg-bg-panel hover:bg-bg-panel focus-within:bg-bg-panel focus-visible:bg-bg-panel"
         />
       </div>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
