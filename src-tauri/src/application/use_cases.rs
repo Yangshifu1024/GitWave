@@ -2048,10 +2048,15 @@ pub fn list_stashes(ctx: &AppContext, workspace_id: &str) -> Result<Vec<StashEnt
     infra_list_stashes(&mut repo)
 }
 
-pub fn save_stash(ctx: &AppContext, workspace_id: &str, message: Option<String>) -> Result<String> {
+pub fn save_stash(
+    ctx: &AppContext,
+    workspace_id: &str,
+    message: Option<String>,
+    include_untracked: bool,
+) -> Result<String> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let mut repo = ctx.open_repo(&repo_path)?;
-    infra_save_stash(&mut repo, message.as_deref())
+    infra_save_stash(&mut repo, message.as_deref(), include_untracked)
 }
 
 pub fn apply_stash(ctx: &AppContext, workspace_id: &str, index: u32) -> Result<()> {

@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { ArrowDown, ArrowDownUp, ArrowUp, FileDiff } from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, Archive, FileDiff } from "lucide-react";
 
 import {
   addLocalRepo,
@@ -26,10 +26,12 @@ import {
   listRemotes,
   listWorkspaces,
   renameWorkspace,
+  saveStash,
   setActiveRepo,
   type CloneProgress,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { useToast } from "@/components/ui/Toast";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
@@ -257,6 +259,12 @@ export function ActionBar(): React.JSX.Element {
   const [cloneFailed, setCloneFailed] = useState(false);
   const [localPath, setLocalPath] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [stashOpen, setStashOpen] = useState(false);
+  const [stashMessage, setStashMessage] = useState("");
+  const [stashStage, setStashStage] = useState(true);
+  const [stashSaving, setStashSaving] = useState(false);
+
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const refreshRepos = (): void => {
     void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
@@ -420,6 +428,26 @@ export function ActionBar(): React.JSX.Element {
     });
   };
 
+  const handleSaveStash = async (): Promise<void> => {
+    if (!activeWorkspaceId || stashSaving) return;
+    setStashSaving(true);
+    wc.setActionError(null);
+    try {
+      await saveStash(activeWorkspaceId, stashMessage.trim() || undefined, stashStage);
+      setStatus("Saved stash", "success");
+      void queryClient.invalidateQueries({ queryKey: ["stashes", activeWorkspaceId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["working-copy", activeWorkspaceId, activeRepoId],
+      });
+      setStashOpen(false);
+      setStashMessage("");
+    } catch (e) {
+      wc.setActionError(formatAppError(e));
+    } finally {
+      setStashSaving(false);
+    }
+  };
+
   // The fetched remote list wins over the seeded default once it arrives.
   useEffect(() => {
     if (!pullDialog || remotes.length === 0) return;
@@ -535,6 +563,13 @@ export function ActionBar(): React.JSX.Element {
             tone={changeCount > 0 ? "warning" : "success"}
             disabled={localChangesDisabled}
             onClick={() => setWcModalOpen(true)}
+          />
+          <ActionBarButton
+            icon={<Archive size={14} />}
+            label="Stash"
+            title="Stash local changes"
+            disabled={localChangesDisabled}
+            onClick={() => setStashOpen(true)}
           />
         </div>
         <Separator
@@ -1113,6 +1148,54 @@ export function ActionBar(): React.JSX.Element {
             >
               Push
             </Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {stashOpen ? (
+        <Modal
+          open
+          onOpenChange={(o) => !o && setStashOpen(false)}
+          title="Save stash"
+          description="Save your local changes to a new stash"
+          size="sm"
+        >
+          <div className="flex flex-col gap-2">
+            <Input
+              value={stashMessage}
+              onChange={setStashMessage}
+              placeholder="Stash message (optional)"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !stashSaving) void handleSaveStash();
+              }}
+            />
+            <Checkbox
+              checked={stashStage}
+              disabled={stashSaving}
+              onChange={(v) => setStashStage(v)}
+              className="items-start text-text-primary"
+            >
+              <span className="flex flex-col">
+                <span>Stage new files</span>
+                <span className="text-xs font-normal text-text-muted">
+                  By default stash ignores new files until you stage them
+                </span>
+              </span>
+            </Checkbox>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setStashOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={stashSaving}
+                onClick={() => void handleSaveStash()}
+              >
+                Save Stash
+              </Button>
+            </div>
           </div>
         </Modal>
       ) : null}

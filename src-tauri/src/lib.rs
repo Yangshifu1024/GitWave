@@ -1034,8 +1034,9 @@ async fn cmd_save_stash(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     message: Option<String>,
+    include_untracked: Option<bool>,
 ) -> Result<String, AppError> {
-    save_stash(&ctx, &workspace_id, message)
+    save_stash(&ctx, &workspace_id, message, include_untracked.unwrap_or(true))
 }
 
 #[tauri::command]

@@ -307,7 +307,7 @@ pub fn pull_with_options(
     // Newest stash entry is index 0.
     let mut stashed = false;
     if opts.stash && worktree_is_dirty(repo)? {
-        crate::infrastructure::git::stash::save_stash(repo, Some("pull: auto stash"))?;
+        crate::infrastructure::git::stash::save_stash(repo, Some("pull: auto stash"), true)?;
         stashed = true;
     }
 
