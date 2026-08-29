@@ -1,29 +1,23 @@
 import React, { useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState } from "react";
-import type { CommitRef, CommitSummary } from "@/lib/api";
+import type { CommitSummary } from "@/lib/api";
 import { formatAppError, getCommitLog } from "@/lib/api";
 import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-import { Chip, Surface } from "@heroui/react";
+import { Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Circle, FolderOpen, GitBranch, Tag } from "lucide-react";
+import { FolderOpen } from "lucide-react";
+import { laneColor, RefBadge } from "@/components/RefBadge";
 
 const ROW_H = 28;
 const INITIAL_LIMIT = 200;
 const PAGE_SIZE = 300;
 const LANE_GAP = 14;
 const NODE_R = 3.2;
-const LANE_COLORS = [
-  "var(--color-lane-1)",
-  "var(--color-lane-2)",
-  "var(--color-lane-3)",
-  "var(--color-lane-4)",
-  "var(--color-lane-5)",
-];
 
 function formatTime(time: number): string {
   const now = Math.floor(Date.now() / 1000);
@@ -39,99 +33,8 @@ function shortSha(sha: string): string {
   return sha.slice(0, 7);
 }
 
-function laneColor(lane: number): string {
-  return LANE_COLORS[lane % LANE_COLORS.length] ?? LANE_COLORS[0]!;
-}
-
 function laneX(lane: number): number {
   return LANE_GAP / 2 + lane * LANE_GAP;
-}
-
-const REF_NAME_MAX_LEN = 24;
-
-function truncateRefName(name: string): string {
-  if (name.length <= REF_NAME_MAX_LEN) return name;
-  return `${name.slice(0, REF_NAME_MAX_LEN)}...`;
-}
-
-function RefBadge({
-  r,
-  lane,
-  emphasize = false,
-}: {
-  r: CommitRef;
-  lane: number;
-  emphasize?: boolean;
-}): React.JSX.Element {
-  const chrome = cn(
-    "inline-flex items-center gap-1 shrink-0",
-    // Same size as the commit title (text-xs) so refs read as part of the row.
-    "rounded px-1 py-0 text-xs leading-none font-medium border shadow-none",
-  );
-  const displayName = r.kind === "tag" ? r.name : truncateRefName(r.name);
-
-  if (r.kind === "head") {
-    return (
-      <Chip
-        size="sm"
-        title={r.name}
-        className={cn(chrome, "bg-branch-current text-text-inverse border-branch-current")}
-      >
-        <Chip.Label>{displayName}</Chip.Label>
-      </Chip>
-    );
-  }
-
-  if (r.kind === "tag") {
-    return (
-      <Chip
-        size="sm"
-        title={r.name}
-        className={cn(chrome, "bg-warning/20 text-warning border-warning/60")}
-      >
-        <Chip.Label className="inline-flex items-center gap-1">
-          <Tag size={12} />
-          {displayName}
-        </Chip.Label>
-      </Chip>
-    );
-  }
-
-  if (emphasize) {
-    return (
-      <Chip
-        size="sm"
-        title={r.name}
-        className={cn(
-          chrome,
-          "bg-branch-current/20 text-branch-current border-branch-current/50 font-semibold",
-        )}
-      >
-        <Chip.Label>{displayName}</Chip.Label>
-      </Chip>
-    );
-  }
-
-  // Remote branches wear a fixed vivid color (--color-branch-remote) so they
-  // stay distinguishable from local branches, which follow their lane color.
-  const lineColor = r.kind === "remote_branch" ? "var(--color-branch-remote)" : laneColor(lane);
-  return (
-    <Chip
-      size="sm"
-      title={r.name}
-      className={chrome}
-      style={{
-        backgroundColor: `color-mix(in srgb, ${lineColor} 18%, transparent)`,
-        borderColor: `color-mix(in srgb, ${lineColor} 60%, transparent)`,
-        color: lineColor,
-      }}
-    >
-      <Chip.Label className="inline-flex items-center gap-1">
-        {r.kind === "remote_branch" ? <Circle size={12} /> : <GitBranch size={12} />}
-        {displayName}
-      </Chip.Label>
-    </Chip>
-  );
 }
 
 interface RowArt {

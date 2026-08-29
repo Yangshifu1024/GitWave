@@ -8,16 +8,19 @@ import {
   createTag,
   deleteTag,
   formatAppError,
+  getBranches,
   getCommitDetails,
   listTags,
   revertCommit,
 } from "@/lib/api";
+import type { CommitRef } from "@/lib/api";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { CommitExplainModal } from "@/components/CommitExplainModal";
+import { RefBadge } from "@/components/RefBadge";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 function formatDateTime(time: number): string {
@@ -61,6 +64,12 @@ export function CommitInfoHeader({
     queryFn: () => listTags(workspaceId),
   });
 
+  // Branch tips (local + remote) so the refs row can show what points here.
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches", workspaceId],
+    queryFn: () => getBranches(workspaceId),
+  });
+
   if (isLoading) {
     return (
       <div className="shrink-0 border-b border-border-subtle bg-bg-elevated px-4 py-2.5 text-xs text-text-muted">
@@ -81,6 +90,21 @@ export function CommitInfoHeader({
   const body = bodyLines.join("\n").trim();
   const shortSha = data.sha.slice(0, 7);
 
+  // Everything pointing at this commit: branch tips whose tip sha matches
+  // (current branch renders as head) plus tags — the same shapes the history
+  // rows badge, so colors and icons stay consistent.
+  const commitRefs: CommitRef[] = [
+    ...branches
+      .filter((b) => b.last_commit_sha === data.sha)
+      .map((b): CommitRef => ({
+        name: b.name,
+        kind: b.is_current ? "head" : b.kind === "remote" ? "remote_branch" : "local_branch",
+      })),
+    ...tags
+      .filter((t) => t.sha === data.sha)
+      .map((t): CommitRef => ({ name: t.name, kind: "tag" })),
+  ];
+
   const run = (op: CommitAction): void => {
     setBusy(true);
     const request =
@@ -94,6 +118,7 @@ export function CommitInfoHeader({
         );
         void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
         void queryClient.invalidateQueries({ queryKey: ["commit-details", workspaceId, sha] });
+        void queryClient.invalidateQueries({ queryKey: ["branches", workspaceId] });
         bumpHistory();
       })
       .catch((e) => setStatus(formatAppError(e), "danger"))
@@ -126,6 +151,13 @@ export function CommitInfoHeader({
         <span aria-hidden="true">·</span>
         <span>{formatDateTime(data.time)}</span>
       </div>
+      {commitRefs.length > 0 ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {commitRefs.map((r) => (
+            <RefBadge key={`${r.kind}:${r.name}`} r={r} truncate={false} />
+          ))}
+        </div>
+      ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border-subtle pt-1.5">
         <Button
           variant="ghost"
