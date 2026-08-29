@@ -94,6 +94,16 @@ jobs:
             echo "::error::Apple TSA unreachable over both HTTPS and HTTP — codesign cannot take a timestamp. Failing fast before the 20-min compile."
             exit 1
           fi
+          echo "--- smoke test: real codesign with HTTP timestamp URL (60s limit) ---"
+          cp /bin/echo /tmp/gw_sig_test
+          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '/"\)/{print $2; exit}')
+          echo "identity hash: $id_hash"
+          if perl -e 'alarm shift; exec @ARGV' 60 codesign --force --timestamp=http://timestamp.apple.com/ts01 -s "$id_hash" --options runtime /tmp/gw_sig_test; then
+            echo "codesign HTTP TSA smoke test PASSED"
+          else
+            echo "::error::codesign cannot take a timestamp over HTTP either (curl works but codesign hangs). See job log."
+            exit 1
+          fi
           mkdir -p "$HOME/.local/bin"
           cat > "$HOME/.local/bin/codesign" <<'WRAPPER'
           #!/bin/bash
@@ -109,6 +119,7 @@ jobs:
               *) out+=("$a") ;;
             esac
           done
+          echo "[codesign-wrapper] out=${out[*]}" >&2
           exec "$REAL" "${out[@]}"
           WRAPPER
           chmod +x "$HOME/.local/bin/codesign"
