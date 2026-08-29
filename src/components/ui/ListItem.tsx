@@ -52,7 +52,6 @@ export function ListItem({
         !selected && "border-l-transparent hover:bg-bg-primary/70 cursor-pointer",
         onClick && "cursor-pointer",
         onDoubleClick && "cursor-pointer",
-        "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
         className,
       )}
     >

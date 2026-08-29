@@ -154,7 +154,6 @@ function FileSection({
               "h-auto flex-1 min-w-0 flex items-center gap-1.5 px-3 py-1.5",
               "text-xs font-medium text-text-muted uppercase tracking-wide",
               "hover:bg-bg-primary/60 hover:text-text-secondary",
-              "focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]",
               "rounded-none border-0 shadow-none bg-transparent",
             )}
           >
