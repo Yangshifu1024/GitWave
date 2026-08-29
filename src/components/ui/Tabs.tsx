@@ -63,11 +63,13 @@ export const TabsTrigger = forwardRef<
     disabled?: boolean;
     children?: ReactNode;
     /** DOM passthroughs — the TabList collection drops non-Tab wrappers, so
-     * per-tab attributes (title, onContextMenu, …) must ride on the Tab. */
+     * per-tab attributes (title, onContextMenu, onPointerDown, …) must ride
+     * on the Tab. */
     title?: string;
     onContextMenu?: (event: React.MouseEvent<HTMLDivElement>) => void;
+    onPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
   }
->(({ value, className, disabled, children, title, onContextMenu }, ref) => (
+>(({ value, className, disabled, children, title, onContextMenu, onPointerDown }, ref) => (
   // React Aria wraps Tab in a Pressable that needs the DOM element: the
   // ref MUST be forwarded or the tab tree crashes on mount.
   <HeroTabs.Tab
@@ -76,7 +78,7 @@ export const TabsTrigger = forwardRef<
     isDisabled={disabled}
     // spread bypasses TabProps' narrow typing; RAC forwards standard DOM
     // attributes (title / handlers) to the rendered tab element.
-    {...{ title, onContextMenu }}
+    {...{ title, onContextMenu, onPointerDown }}
     className={cn(
       // "group" lets the underline child react to this tab's data-selected;
       // grow shares the full row across tabs (HeroUI's w-full would make

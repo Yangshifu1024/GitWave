@@ -1,11 +1,16 @@
-import { type InputHTMLAttributes, forwardRef } from "react";
-import { FieldError, InputGroup, TextField } from "@heroui/react";
+import { type InputHTMLAttributes, type ReactNode, forwardRef } from "react";
+import { Description, FieldError, InputGroup, TextField } from "@heroui/react";
 import { Search } from "lucide-react";
+import { Label } from "@/components/ui/Label";
 import { cn } from "@/lib/utils";
 
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
   /** Error message — renders red border + helper text below */
   error?: string | null;
+  /** Field label — rendered above the input and associated with it for a11y */
+  label?: ReactNode;
+  /** Helper text below the input (hidden while `error` is shown) */
+  description?: ReactNode;
   /** Visual style variant */
   variant?: "text" | "search";
   /**
@@ -21,6 +26,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       type = "text",
       variant = "text",
       error,
+      label,
+      description,
       id,
       onChange,
       disabled,
@@ -47,6 +54,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         isInvalid={Boolean(error)}
         className="flex min-w-0 flex-col gap-1"
       >
+        {label != null ? <Label>{label}</Label> : null}
         <InputGroup fullWidth className={cn("h-8 min-h-8 w-full min-w-0 rounded-md", className)}>
           {isSearch ? (
             <InputGroup.Prefix className="pl-2 text-text-muted" aria-hidden="true">
@@ -63,7 +71,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
         </InputGroup>
-        {error ? <FieldError className="text-xs text-danger">{error}</FieldError> : null}
+        {error ? (
+          <FieldError className="text-xs text-danger">{error}</FieldError>
+        ) : description != null ? (
+          <Description className="text-[11px] text-text-muted">{description}</Description>
+        ) : null}
       </TextField>
     );
   },

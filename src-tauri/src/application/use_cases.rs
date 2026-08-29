@@ -373,6 +373,15 @@ pub fn list_repos(ctx: &AppContext, workspace_id: String) -> Result<Vec<RepoRef>
         .list_repos(&workspace_id)
 }
 
+/// Persist the Repository Tab order (F005). `repo_ids` must be a permutation
+/// of the workspace's repos; the persistence layer validates that.
+pub fn reorder_repos(ctx: &AppContext, workspace_id: String, repo_ids: Vec<String>) -> Result<()> {
+    ctx.workspaces
+        .lock()
+        .expect("workspace repo mutex poisoned")
+        .reorder_repos(&workspace_id, &repo_ids)
+}
+
 /// Mark Active→Missing when path is gone; Missing→Active when path is a git repo again.
 fn refresh_repo_presence(ctx: &AppContext, workspace_id: &str) -> Result<()> {
     let repos = ctx
