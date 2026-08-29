@@ -96,7 +96,7 @@ jobs:
           fi
           echo "--- smoke test: real codesign with HTTP timestamp URL (60s limit) ---"
           cp /bin/echo /tmp/gw_sig_test
-          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '/"\)/{print $2; exit}')
+          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '$1 ~ /^[0-9]+\)$/ {print $2; exit}')
           echo "identity hash: $id_hash"
           if perl -e 'alarm shift; exec @ARGV' 60 codesign --force --timestamp=http://timestamp.apple.com/ts01 -s "$id_hash" --options runtime /tmp/gw_sig_test; then
             echo "codesign HTTP TSA smoke test PASSED"
