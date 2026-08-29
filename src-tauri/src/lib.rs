@@ -1159,6 +1159,13 @@ fn toggle_instant_zoom(window: WebviewWindow) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Quit the whole application (File → Exit menu item), regardless of how the
+/// platform treats plain window closes (e.g. macOS keeps apps alive).
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 // ─── App startup ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1184,6 +1191,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             activate_and_show,
             toggle_instant_zoom,
+            quit_app,
             get_app_version,
             open_data_dir,
             cmd_list_workspaces,

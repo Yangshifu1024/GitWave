@@ -60,7 +60,11 @@ export function Modal({
                 </div>
                 <HeroModal.CloseTrigger className="shrink-0" onPress={close} />
               </div>
-              <HeroModal.Body className="flex flex-col gap-3 p-0">{children}</HeroModal.Body>
+              {/* No p-0 here: HeroUI's .modal__body ships -m-[3px] + p-[3px]
+                  so focus rings on first/last fields have clip room inside
+                  the overflow-y-auto scroll box. p-0 made the ring flush with
+                  the clip edge and got it cut off (top/left/right). */}
+              <HeroModal.Body className="flex flex-col gap-3">{children}</HeroModal.Body>
             </div>
           )}
         </HeroModal.Dialog>

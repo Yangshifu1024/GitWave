@@ -1,5 +1,5 @@
 import { type ReactNode, forwardRef } from "react";
-import { Dropdown, Header, Separator } from "@heroui/react";
+import { Dropdown, Header, Kbd, Separator } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
 export const DropdownMenu = Dropdown;
@@ -13,10 +13,12 @@ export const DropdownMenuContent = forwardRef<
   {
     className?: string;
     sideOffset?: number;
+    placement?: React.ComponentProps<typeof Dropdown.Popover>["placement"];
     children?: ReactNode;
   }
->(({ className, sideOffset = 6, children }, _ref) => (
+>(({ className, sideOffset = 6, placement, children }, _ref) => (
   <Dropdown.Popover
+    placement={placement}
     offset={sideOffset}
     className={cn(
       "z-popover min-w-[180px] rounded-lg",
@@ -37,12 +39,20 @@ export interface DropdownMenuItemProps {
   onSelect?: () => void;
   children?: ReactNode;
   id?: string;
+  /** Plain-text label for the item id / typeahead (pass when children isn't plain text). */
+  textValue?: string;
+  /** Right-aligned keyboard shortcut hint, rendered inside a Kbd. */
+  shortcut?: ReactNode;
 }
 
 export const DropdownMenuItem = forwardRef<HTMLDivElement, DropdownMenuItemProps>(
-  ({ className, destructive = false, disabled, onSelect, children, id }, _ref) => (
+  (
+    { className, destructive = false, disabled, onSelect, children, id, textValue, shortcut },
+    _ref,
+  ) => (
     <Dropdown.Item
-      id={id ?? (typeof children === "string" ? children : undefined)}
+      id={id ?? textValue ?? (typeof children === "string" ? children : undefined)}
+      textValue={textValue}
       isDisabled={disabled}
       variant={destructive ? "danger" : undefined}
       onAction={onSelect}
@@ -54,6 +64,11 @@ export const DropdownMenuItem = forwardRef<HTMLDivElement, DropdownMenuItemProps
       )}
     >
       {children}
+      {shortcut != null && (
+        <Kbd variant="light" className="ms-auto">
+          {shortcut}
+        </Kbd>
+      )}
     </Dropdown.Item>
   ),
 );

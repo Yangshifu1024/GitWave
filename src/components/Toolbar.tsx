@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Info, Settings } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AppMenuBar } from "@/components/AppMenuBar";
 import { SettingsModal } from "@/components/SettingsModal";
 import { AboutModal } from "@/components/AboutModal";
 import { ToolbarContextTitle } from "@/components/ToolbarContextTitle";
@@ -49,6 +50,8 @@ export function Toolbar(): React.JSX.Element {
       />
 
       <div className="relative z-10 flex flex-1 min-w-0 items-center pointer-events-none">
+        <AppMenuBar onAbout={() => setAboutOpen(true)} />
+
         <ToolbarContextTitle />
 
         <div className="ml-auto flex items-center gap-0.5 pointer-events-auto">

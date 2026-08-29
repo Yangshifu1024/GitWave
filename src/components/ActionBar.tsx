@@ -1,31 +1,16 @@
-// Operations toolbar below the top bar: grouped workspace / repository /
-// branch actions on the left, the Local Changes modal trigger on the right.
-// The dialogs and mutations for each group live here so the sidebar lists
-// stay pure navigation. Named `ActionBar` (not `ToolBar`) because Windows
-// filesystems are case-insensitive and `Toolbar.tsx` already exists.
+// Operations toolbar below the top bar: the Local Changes trigger plus the
+// sync actions that deserve persistent buttons (Fetch / Hooks / Pull / Push).
+// Workspace / repository / branch management moved to the Toolbar menu bar
+// (AppMenuBar), which dispatches `AppMenuAction` requests that this component
+// consumes (see uiStore.menuAction) — every dialog and mutation still lives
+// here, so the menu bar and the remaining buttons share identical handlers.
+// Named `ActionBar` (not `ToolBar`) because Windows filesystems are
+// case-insensitive and `Toolbar.tsx` already exists.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import {
-  ArrowDown,
-  ArrowDownToLine,
-  ArrowDownUp,
-  ArrowUp,
-  ArrowUpFromLine,
-  Download,
-  FileDiff,
-  FolderGit2,
-  FolderOpen,
-  FolderPlus,
-  GitBranch,
-  GitPullRequest,
-  Package,
-  Pencil,
-  Sparkles,
-  Trash2,
-  Webhook,
-} from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, FileDiff, Webhook } from "lucide-react";
 
 import {
   addLocalRepo,
@@ -45,6 +30,7 @@ import {
   type CloneProgress,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { useToast } from "@/components/ui/Toast";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { cn } from "@/lib/utils";
@@ -226,6 +212,12 @@ export function ActionBar(): React.JSX.Element {
     createMut.mutate(name);
   }
 
+  function openCreateWorkspace(): void {
+    setCreateName("");
+    setCreateError(null);
+    setCreateOpen(true);
+  }
+
   function openRename(): void {
     if (!activeWorkspace) return;
     setRenameValue(activeWorkspace.name);
@@ -239,6 +231,18 @@ export function ActionBar(): React.JSX.Element {
     if (!name) return;
     setRenameError(null);
     renameMut.mutate({ id: activeWorkspace.id, newName: name });
+  }
+
+  function openExport(): void {
+    setTransferPath(`${activeWorkspace?.name ?? "workspace"}.gitwave-workspace.json`);
+    setTransferError(null);
+    setTransferOpen("export");
+  }
+
+  function openImport(): void {
+    setTransferPath("");
+    setTransferError(null);
+    setTransferOpen("import");
   }
 
   function submitTransfer(): void {
@@ -408,6 +412,16 @@ export function ActionBar(): React.JSX.Element {
 
   const detached = wc.data?.branch === "(detached)";
 
+  function openBranchCreate(): void {
+    setBranchName("");
+    setBranchError(null);
+    setBranchCreateOpen(true);
+  }
+
+  function openPushDialog(): void {
+    setPushDialog({ tags: false, force: false });
+  }
+
   const remotesQuery = useQuery({
     queryKey: ["remotes", activeWorkspaceId],
     queryFn: () => listRemotes(activeWorkspaceId!),
@@ -451,8 +465,80 @@ export function ActionBar(): React.JSX.Element {
   const changeCount = wc.data?.files.length ?? 0;
   const localChangesDisabled = !activeRepoId || changeCount === 0;
 
-  const noWorkspace = !activeWorkspaceId;
   const noRepo = !activeRepoId;
+
+  // ── Menu bar requests ──────────────────────────────────────────────────
+  // AppMenuBar dispatches AppMenuAction requests; route each one to the same
+  // handler its (former) ActionBar button used, so menu and button behavior
+  // stay identical by construction. The router lives in a ref to keep the
+  // effect deps noise-free while always seeing fresh state.
+  const menuAction = useUiStore((s) => s.menuAction);
+  const clearMenuAction = useUiStore((s) => s.clearMenuAction);
+
+  const runMenuActionRef = useRef<(action: AppMenuAction) => void>(() => undefined);
+  runMenuActionRef.current = (action) => {
+    switch (action) {
+      case "workspace:new":
+        openCreateWorkspace();
+        break;
+      case "workspace:rename":
+        openRename();
+        break;
+      case "workspace:ai":
+        setAiOpen(true);
+        break;
+      case "workspace:export":
+        openExport();
+        break;
+      case "workspace:import":
+        openImport();
+        break;
+      case "workspace:delete":
+        setDeleteOpen(true);
+        break;
+      case "repo:init":
+        startAdd("init");
+        break;
+      case "repo:clone":
+        startAdd("clone");
+        break;
+      case "repo:add":
+        startAdd("local");
+        break;
+      case "repo:fetch":
+        wc.fetch();
+        break;
+      case "repo:lfs":
+        setLfsOpen(true);
+        break;
+      case "repo:hooks":
+        setHooksOpen(true);
+        break;
+      case "branch:new":
+        openBranchCreate();
+        break;
+      case "branch:pull":
+        openPullDialog();
+        break;
+      case "branch:push":
+        openPushDialog();
+        break;
+      case "branch:pr":
+        setPrOpen(true);
+        break;
+      default: {
+        // Compile error when a new AppMenuAction member misses its routing.
+        const exhaustive: never = action;
+        throw new Error(`Unhandled menu action: ${String(exhaustive)}`);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!menuAction) return;
+    runMenuActionRef.current(menuAction.action);
+    clearMenuAction(menuAction.id);
+  }, [menuAction, clearMenuAction]);
 
   return (
     <>
@@ -469,96 +555,12 @@ export function ActionBar(): React.JSX.Element {
           />
         </ActionBarGroup>
         <GroupDivider />
-        <ActionBarGroup label="Workspace">
-          <ActionBarButton
-            icon={<FolderPlus size={14} />}
-            label="New"
-            title="New workspace"
-            onClick={() => {
-              setCreateName("");
-              setCreateError(null);
-              setCreateOpen(true);
-            }}
-          />
-          <ActionBarButton
-            icon={<Pencil size={14} />}
-            label="Rename"
-            title="Rename workspace"
-            disabled={noWorkspace}
-            onClick={openRename}
-          />
-          <ActionBarButton
-            icon={<Sparkles size={14} />}
-            label="AI"
-            title="AI provider"
-            disabled={noWorkspace}
-            onClick={() => setAiOpen(true)}
-          />
-          <ActionBarButton
-            icon={<ArrowUpFromLine size={14} />}
-            label="Export"
-            title="Export workspace to a .gitwave-workspace.json file"
-            disabled={noWorkspace}
-            onClick={() => {
-              setTransferPath(`${activeWorkspace?.name ?? "workspace"}.gitwave-workspace.json`);
-              setTransferError(null);
-              setTransferOpen("export");
-            }}
-          />
-          <ActionBarButton
-            icon={<ArrowDownToLine size={14} />}
-            label="Import"
-            title="Import a workspace from a .gitwave-workspace.json file"
-            onClick={() => {
-              setTransferPath("");
-              setTransferError(null);
-              setTransferOpen("import");
-            }}
-          />
-          <ActionBarButton
-            icon={<Trash2 size={14} />}
-            label="Delete"
-            title="Delete workspace"
-            disabled={noWorkspace}
-            danger
-            onClick={() => setDeleteOpen(true)}
-          />
-        </ActionBarGroup>
-        <GroupDivider />
         <ActionBarGroup label="Repository">
-          <ActionBarButton
-            icon={<FolderGit2 size={14} />}
-            label="Init"
-            title="Initialize new repo"
-            disabled={noWorkspace}
-            onClick={() => startAdd("init")}
-          />
-          <ActionBarButton
-            icon={<Download size={14} />}
-            label="Clone"
-            title="Clone remote repo"
-            disabled={noWorkspace}
-            onClick={() => startAdd("clone")}
-          />
-          <ActionBarButton
-            icon={<FolderOpen size={14} />}
-            label="Add"
-            title="Add existing local repo"
-            disabled={noWorkspace}
-            onClick={() => startAdd("local")}
-          />
           <ActionBarButton
             icon={<ArrowDownUp size={14} />}
             label="Fetch"
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
-          />
-          <ActionBarButton
-            icon={<Package size={14} />}
-            label="LFS"
-            title="Git LFS — track large files"
-            disabled={noRepo}
-            onClick={() => setLfsOpen(true)}
           />
           <ActionBarButton
             icon={<Webhook size={14} />}
@@ -571,17 +573,6 @@ export function ActionBar(): React.JSX.Element {
         <GroupDivider />
         <ActionBarGroup label="Branch">
           <ActionBarButton
-            icon={<GitBranch size={14} />}
-            label="New"
-            title="New branch"
-            disabled={noRepo || detached || !wc.data?.sha}
-            onClick={() => {
-              setBranchName("");
-              setBranchError(null);
-              setBranchCreateOpen(true);
-            }}
-          />
-          <ActionBarButton
             icon={<ArrowDown size={14} />}
             label="Pull"
             disabled={noRepo || wc.isSyncBusy || detached}
@@ -591,14 +582,7 @@ export function ActionBar(): React.JSX.Element {
             icon={<ArrowUp size={14} />}
             label="Push"
             disabled={noRepo || wc.isSyncBusy || detached}
-            onClick={() => setPushDialog({ tags: false, force: false })}
-          />
-          <ActionBarButton
-            icon={<GitPullRequest size={14} />}
-            label="PR"
-            title="AI PR description for the current branch"
-            disabled={noRepo || detached}
-            onClick={() => setPrOpen(true)}
+            onClick={openPushDialog}
           />
         </ActionBarGroup>
 
