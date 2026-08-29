@@ -20,4 +20,8 @@ pub fn hide_console_window(cmd: &mut Command) {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
+    #[cfg(not(windows))]
+    {
+        let _ = cmd;
+    }
 }
