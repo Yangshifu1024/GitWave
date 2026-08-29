@@ -25,6 +25,7 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { cn } from "@/lib/utils";
 import { gateCheckout } from "@/lib/checkoutGate";
 import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
@@ -88,7 +89,7 @@ interface BranchRowProps {
   branch: BranchInfo;
   /** Text shown in the row (prefix stripped when nested in a folder). */
   displayName?: string;
-  /** Extra left padding when the row sits inside a prefix folder. */
+  /** Folder children sit one indent level deeper than top-level rows. */
   indented?: boolean;
   selected: boolean;
   busy: boolean;
@@ -118,7 +119,7 @@ function BranchRow({
   const row = (
     <ListItem
       selected={selected}
-      className={indented ? "pl-8" : undefined}
+      className={indented ? "pl-12" : "pl-8"}
       onClick={() => {
         if (busy) return;
         onSelect(branch.name);
@@ -242,17 +243,19 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   }, [bumpHistoryEpoch]);
 
   const { toast } = useToast();
+  const setStatus = useStatusAreaStore((s) => s.setStatus);
   // Sidebar operation results (checkout, merge, rebase) surface as
-  // top-center HeroUI toasts instead of an inline banner.
+  // top-center HeroUI toasts instead of an inline banner. Branch checkout
+  // results go to the ActionBar status area instead — see checkoutOnto.
   const showNotice = (text: string, variant: "success" | "danger" = "success") => {
     toast({ title: text, variant });
   };
 
   useEffect(() => {
-    // Repo switch: drop the previous repo's rows immediately so a click during
-    // the reload window can't select a branch that belongs to the old repo.
+    // Repo switch: drop the previous repo's selection immediately, but keep
+    // rendering the old rows — the refetch lands in milliseconds and the rows
+    // are inert while `loading`, so blanking would only flash the UI.
     setSelectedName(null);
-    setBranches([]);
   }, [activeRepoId]);
 
   useEffect(() => {
@@ -316,13 +319,13 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       await checkoutBranch(activeWorkspaceId, name, false);
       try {
         await popStash(activeWorkspaceId, 0);
-        showNotice(`Checked out ${name} and re-applied stash`);
+        setStatus(`Checked out ${name} and re-applied stash`);
       } catch {
-        showNotice(`Checked out ${name}. Stash re-apply failed; the stash was kept.`, "danger");
+        setStatus(`Checked out ${name}. Stash re-apply failed; the stash was kept.`, "danger");
       }
     } else {
       await checkoutBranch(activeWorkspaceId, name, mode === "force");
-      showNotice(`Checked out ${name}`);
+      setStatus(`Checked out ${name}`);
     }
     setSelectedName(name);
     void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
@@ -505,7 +508,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           displayName={nameOf(branch)}
           indented={indented}
           selected={branch.name === selectedName}
-          busy={busy}
+          busy={busy || loading}
           onSelect={handleSelect}
           onCheckout={handleCheckout}
           onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
@@ -530,6 +533,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         </Button>
         {!collapsed && (
           <>
+            {/* Top-level rows (unprefixed) at the base indent; folder
+                children one level deeper. */}
+            {renderRows(roots, display, false)}
             {folderList.map(([prefix, list]) => {
               const folderKey = `${groupKey}:${prefix}`;
               // Default collapsed, except the folder holding the selected
@@ -558,7 +564,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 </div>
               );
             })}
-            {renderRows(roots, display, false)}
           </>
         )}
       </div>
@@ -581,11 +586,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       );
     }
     if (loading && branches.length === 0) {
-      return (
-        <div className="flex items-center justify-center py-6 text-text-muted text-sm">
-          Loading branches...
-        </div>
-      );
+      // Cold start only: nothing cached to keep on screen yet, so render an
+      // empty body instead of a spinner; the list pops in when data lands.
+      return <div className="h-8" />;
     }
     if (branches.length === 0) {
       return (
