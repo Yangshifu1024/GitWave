@@ -11,10 +11,10 @@ import {
   formatAppError,
   getBranches,
   getCommitDetails,
-  listTags,
   revertCommit,
 } from "@/lib/api";
 import type { CommitRef } from "@/lib/api";
+import { useTags } from "@/hooks/useTags";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -61,10 +61,7 @@ export function CommitInfoHeader({
   const [explainOpen, setExplainOpen] = useState(false);
 
   // Tags on this commit (listed inside the tag manager modal).
-  const { data: tags = [], refetch: refetchTags } = useQuery({
-    queryKey: ["tags", workspaceId],
-    queryFn: () => listTags(workspaceId),
-  });
+  const { data: tags = [], invalidate: invalidateTags } = useTags();
 
   // Branch tips (local + remote) so the refs row can show what points here.
   const { data: branches = [] } = useQuery({
@@ -222,7 +219,7 @@ export function CommitInfoHeader({
           tags={tags}
           onClose={() => setTagOpen(false)}
           onChanged={() => {
-            void refetchTags();
+            invalidateTags();
             bumpHistory();
           }}
           onError={(message) => setStatus(message, "danger")}

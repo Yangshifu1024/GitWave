@@ -3,12 +3,11 @@
 // Delete (confirm modal), matching the sidebar branch-delete convention.
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Tag as TagIcon, Trash2 } from "lucide-react";
 
-import { deleteTag, formatAppError, listTags, type TagInfo } from "@/lib/api";
-import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { deleteTag, formatAppError, type TagInfo } from "@/lib/api";
+import { useTags } from "@/hooks/useTags";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { ListItem } from "@/components/ui/ListItem";
@@ -33,24 +32,12 @@ export function TagsPanel({
   selectedSha?: string | null;
 }): React.JSX.Element {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const { data: tags = [], isLoading, error, workspaceId, invalidate } = useTags();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const [deleteTarget, setDeleteTarget] = useState<TagInfo | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const {
-    data: tags = [],
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["tags", workspaceId],
-    queryFn: () => listTags(workspaceId!),
-    enabled: Boolean(workspaceId && repoId),
-  });
 
   const collapsible = !isLoading && !error && tags.length > 0;
 
@@ -65,7 +52,7 @@ export function TagsPanel({
       .catch((e) => setActionError(formatAppError(e)))
       .finally(() => {
         setDeleting(false);
-        void queryClient.invalidateQueries({ queryKey: ["tags", workspaceId] });
+        invalidate();
       });
   };
 
