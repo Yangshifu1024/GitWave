@@ -1,0 +1,46 @@
+{
+  "workspace": {
+    "title": "Workspaces",
+    "new": "New workspace",
+    "loadFailed": "Failed to load: {{error}}",
+    "reposLoadFailed": "Failed to load repos: {{error}}",
+    "empty": {
+      "title": "No workspaces",
+      "description": "Create a workspace to get started."
+    },
+    "itemRenameAria": "Rename {{name}}",
+    "itemDeleteAria": "Delete {{name}}",
+    "create": {
+      "namePlaceholder": "Workspace name",
+      "submit": "Create"
+    },
+    "rename": {
+      "title": "Rename \"{{name}}\""
+    },
+    "delete": {
+      "title": "Delete \"{{name}}\"?",
+      "description": "This removes the workspace and its repo references from GitWave. It does not delete the local repositories themselves."
+    },
+    "tabs": {
+      "missing": "missing",
+      "missingTitle": "{{name}} — missing, right-click to relink",
+      "empty": "No repositories — init, clone, or add from the Repository menu."
+    },
+    "menu": {
+      "moveLeft": "Move Left",
+      "moveRight": "Move Right",
+      "relink": "Relink…"
+    },
+    "relink": {
+      "title": "Relink \"{{path}}\"",
+      "pathPlaceholder": "New path to a valid git working tree",
+      "submit": "Relink"
+    },
+    "remove": {
+      "title": "Remove \"{{name}}\"?",
+      "path": "Path: {{path}}",
+      "refNote": "Removes the workspace reference.",
+      "localNote": "The local directory and its .git/ folder are not touched."
+    }
+  }
+}

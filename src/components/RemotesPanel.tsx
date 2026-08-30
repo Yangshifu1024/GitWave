@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Menu, Popover } from "@heroui/react";
 
 import {
@@ -36,6 +37,7 @@ import { Cloud } from "lucide-react";
  * empty list collapses the card to a static header.
  */
 export function RemotesPanel(): React.JSX.Element {
+  const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
@@ -102,7 +104,7 @@ export function RemotesPanel(): React.JSX.Element {
         setAddUrl("");
         setAddOpen(false);
       },
-      `Remote "${addName.trim()}" added`,
+      t("remotes.added", { name: addName.trim() }),
     );
   };
 
@@ -119,14 +121,14 @@ export function RemotesPanel(): React.JSX.Element {
         }
         setEdit(null);
       },
-      `Remote "${name}" updated`,
+      t("remotes.updated", { name }),
     );
   };
 
   return (
     <>
       <SidebarSection
-        title="Remotes"
+        title={t("remotes.title")}
         collapsible={items.length > 0}
         onHeaderContextMenu={(e) => {
           e.preventDefault();
@@ -136,7 +138,7 @@ export function RemotesPanel(): React.JSX.Element {
         <div className="flex flex-col gap-1 px-1 pb-1">
           {error ? <p className="px-2 text-xs text-danger">{error}</p> : null}
           {items.length === 0 ? (
-            <p className="px-2 py-1 text-xs text-text-muted italic">No remotes</p>
+            <p className="px-2 py-1 text-xs text-text-muted italic">{t("remotes.empty")}</p>
           ) : (
             items.map((r) => (
               <ContextMenu key={r.name}>
@@ -149,7 +151,7 @@ export function RemotesPanel(): React.JSX.Element {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-medium text-text-primary">{r.name}</p>
                       <p className="truncate text-[11px] text-text-muted">
-                        {r.fetch_url ?? "(no URL)"}
+                        {r.fetch_url ?? t("remotes.noUrl")}
                       </p>
                     </div>
                   </div>
@@ -166,11 +168,11 @@ export function RemotesPanel(): React.JSX.Element {
                           await fetchRemote(workspaceId, r.name);
                           bumpHistory(); // remote-tracking refs feed the history graph
                         },
-                        `Fetched from ${r.name}`,
+                        t("remotes.fetched", { name: r.name }),
                       )
                     }
                   >
-                    Fetch
+                    {t("remotes.actions.fetch")}
                   </ContextMenuItem>
                   <ContextMenuItem
                     disabled={busy !== null}
@@ -181,7 +183,7 @@ export function RemotesPanel(): React.JSX.Element {
                       setEditNewName(r.name);
                     }}
                   >
-                    Edit…
+                    {t("remotes.actions.edit")}
                   </ContextMenuItem>
                   <ContextMenuSeparator />
                   <ContextMenuItem
@@ -189,7 +191,7 @@ export function RemotesPanel(): React.JSX.Element {
                     disabled={busy !== null}
                     onSelect={() => setDeleteTarget(r)}
                   >
-                    Remove
+                    {t("common.remove")}
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
@@ -213,7 +215,7 @@ export function RemotesPanel(): React.JSX.Element {
           >
             <Menu className="outline-none">
               <Menu.Item
-                textValue="Add remote"
+                textValue={t("remotes.actions.add")}
                 onAction={() => {
                   setAddName("");
                   setAddUrl("");
@@ -222,7 +224,7 @@ export function RemotesPanel(): React.JSX.Element {
                 }}
                 className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-text-primary"
               >
-                Add remote
+                {t("remotes.actions.add")}
               </Menu.Item>
             </Menu>
           </Popover.Content>
@@ -232,7 +234,7 @@ export function RemotesPanel(): React.JSX.Element {
       <Modal
         open={addOpen}
         onOpenChange={(o) => !o && setAddOpen(false)}
-        title="Add remote"
+        title={t("remotes.add.title")}
         size="sm"
         footer={
           <>
@@ -242,7 +244,7 @@ export function RemotesPanel(): React.JSX.Element {
               className="min-w-0 flex-[3]"
               onClick={() => setAddOpen(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -251,17 +253,22 @@ export function RemotesPanel(): React.JSX.Element {
               disabled={busy !== null || !addName.trim() || !addUrl.trim()}
               onClick={submitAdd}
             >
-              Add
+              {t("common.add")}
             </Button>
           </>
         }
       >
         <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
-          <Input value={addName} onChange={setAddName} placeholder="name (e.g. origin)" autoFocus />
+          <Input
+            value={addName}
+            onChange={setAddName}
+            placeholder={t("remotes.add.namePlaceholder")}
+            autoFocus
+          />
           <Input
             value={addUrl}
             onChange={setAddUrl}
-            placeholder="URL (https:// or git@…)"
+            placeholder={t("remotes.add.urlPlaceholder")}
             onKeyDown={(e) => {
               if (e.key === "Enter") submitAdd();
             }}
@@ -273,7 +280,7 @@ export function RemotesPanel(): React.JSX.Element {
         <Modal
           open
           onOpenChange={(o) => !o && setEdit(null)}
-          title={`Edit remote "${edit.name}"`}
+          title={t("remotes.edit.title", { name: edit.name })}
           size="sm"
           footer={
             <>
@@ -283,7 +290,7 @@ export function RemotesPanel(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setEdit(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -292,18 +299,26 @@ export function RemotesPanel(): React.JSX.Element {
                 disabled={busy !== null || !editNewName.trim() || !editFetchUrl.trim()}
                 onClick={submitEdit}
               >
-                Save
+                {t("common.save")}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
-            <Input value={editNewName} onChange={setEditNewName} placeholder="name" />
-            <Input value={editFetchUrl} onChange={setEditFetchUrl} placeholder="fetch URL" />
+            <Input
+              value={editNewName}
+              onChange={setEditNewName}
+              placeholder={t("remotes.edit.namePlaceholder")}
+            />
+            <Input
+              value={editFetchUrl}
+              onChange={setEditFetchUrl}
+              placeholder={t("remotes.edit.fetchPlaceholder")}
+            />
             <Input
               value={editPushUrl}
               onChange={setEditPushUrl}
-              placeholder="push URL (empty = same as fetch)"
+              placeholder={t("remotes.edit.pushPlaceholder")}
             />
           </div>
         </Modal>
@@ -313,8 +328,8 @@ export function RemotesPanel(): React.JSX.Element {
         <Modal
           open
           onOpenChange={(o) => !o && setDeleteTarget(null)}
-          title={`Remove remote "${deleteTarget.name}"?`}
-          description="The remote configuration is removed. Local branches and commits are not touched."
+          title={t("remotes.delete.title", { name: deleteTarget.name })}
+          description={t("remotes.delete.description")}
           size="sm"
           footer={
             <>
@@ -324,7 +339,7 @@ export function RemotesPanel(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setDeleteTarget(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -339,11 +354,11 @@ export function RemotesPanel(): React.JSX.Element {
                       await removeRemote(workspaceId, name);
                       setDeleteTarget(null);
                     },
-                    `Remote "${name}" removed`,
+                    t("remotes.removed", { name }),
                   );
                 }}
               >
-                Remove
+                {t("common.remove")}
               </Button>
             </>
           }

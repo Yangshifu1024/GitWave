@@ -13,6 +13,7 @@
 
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Header, Menu, Popover, Separator } from "@heroui/react";
 
 import {
@@ -39,6 +40,7 @@ function basename(path: string): string {
 }
 
 export function WorkspaceRepoTabs(): React.JSX.Element | null {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -171,7 +173,9 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                     drag.draggingId === r.id && "cursor-grabbing opacity-50",
                   )}
                   title={
-                    r.status === "missing" ? `${label} — missing, right-click to relink` : r.path
+                    r.status === "missing"
+                      ? t("workspace.tabs.missingTitle", { name: label })
+                      : r.path
                   }
                   onPointerDown={(e) => drag.handlePointerDown(e, r.id)}
                   onContextMenu={(e) => {
@@ -182,7 +186,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                   {label}
                   {r.status === "missing" ? (
                     <span
-                      aria-label="missing"
+                      aria-label={t("workspace.tabs.missing")}
                       className="ml-1.5 size-1.5 rounded-full bg-warning"
                     />
                   ) : null}
@@ -190,9 +194,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
               );
             })}
             {repos.length === 0 ? (
-              <span className="px-3 py-2 text-xs text-text-muted">
-                No repositories — init, clone, or add from the Repository menu.
-              </span>
+              <span className="px-3 py-2 text-xs text-text-muted">{t("workspace.tabs.empty")}</span>
             ) : null}
           </TabsList>
         </Tabs>
@@ -227,7 +229,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 {/* Keyboard/pointer-free alternative to drag-reorder (F005);
                     works on missing tabs too. */}
                 <Menu.Item
-                  textValue="Move Left"
+                  textValue={t("workspace.menu.moveLeft")}
                   isDisabled={menu.repo.id === renderedRepos[0]?.id || reorderMut.isPending}
                   onAction={() => {
                     moveRepo(menu.repo, -1);
@@ -235,10 +237,10 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                   }}
                   className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-text-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40"
                 >
-                  Move Left
+                  {t("workspace.menu.moveLeft")}
                 </Menu.Item>
                 <Menu.Item
-                  textValue="Move Right"
+                  textValue={t("workspace.menu.moveRight")}
                   isDisabled={
                     menu.repo.id === renderedRepos[renderedRepos.length - 1]?.id ||
                     reorderMut.isPending
@@ -249,12 +251,12 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                   }}
                   className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-text-primary data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40"
                 >
-                  Move Right
+                  {t("workspace.menu.moveRight")}
                 </Menu.Item>
                 <Separator className="my-1 bg-border-subtle" />
                 {menu.repo.status === "missing" ? (
                   <Menu.Item
-                    textValue="Relink"
+                    textValue={t("workspace.menu.relink")}
                     onAction={() => {
                       setRelinking(menu.repo);
                       setRelinkPath(menu.repo.path);
@@ -263,11 +265,11 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                     }}
                     className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-text-primary"
                   >
-                    Relink…
+                    {t("workspace.menu.relink")}
                   </Menu.Item>
                 ) : null}
                 <Menu.Item
-                  textValue="Remove"
+                  textValue={t("common.remove")}
                   variant="danger"
                   data-destructive="true"
                   onAction={() => {
@@ -276,7 +278,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                   }}
                   className="relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none text-danger"
                 >
-                  Remove
+                  {t("common.remove")}
                 </Menu.Item>
               </>
             ) : null}
@@ -291,7 +293,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
           onOpenChange={(open) => {
             if (!open) setRelinking(null);
           }}
-          title={`Relink "${relinking.path}"`}
+          title={t("workspace.relink.title", { path: relinking.path })}
           size="sm"
           footer={
             <>
@@ -301,7 +303,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 className="min-w-0 flex-[3]"
                 onClick={() => setRelinking(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -312,7 +314,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 }
                 disabled={!relinkPath.trim() || relinkMut.isPending}
               >
-                Relink
+                {t("workspace.relink.submit")}
               </Button>
             </>
           }
@@ -327,7 +329,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 if (e.key === "Enter" && relinkPath.trim())
                   relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() });
               }}
-              placeholder="New path to a valid git working tree"
+              placeholder={t("workspace.relink.pathPlaceholder")}
               error={actionError}
             />
           </div>
@@ -341,8 +343,8 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
           onOpenChange={(open) => {
             if (!open) setRemoving(null);
           }}
-          title={`Remove "${basename(removing.path)}"?`}
-          description={`Path: ${removing.path}`}
+          title={t("workspace.remove.title", { name: basename(removing.path) })}
+          description={t("workspace.remove.path", { path: removing.path })}
           size="sm"
           footer={
             <>
@@ -352,7 +354,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 className="min-w-0 flex-[3]"
                 onClick={() => setRemoving(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -361,20 +363,21 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 onClick={() => removeMut.mutate(removing.id)}
                 disabled={removeMut.isPending}
               >
-                Remove
+                {t("common.remove")}
               </Button>
             </>
           }
         >
-          <p className="text-sm text-text-secondary">Removes the workspace reference.</p>
-          <p className="text-sm text-text-secondary">
-            The local directory and its .git/ folder are not touched.
-          </p>
+          <p className="text-sm text-text-secondary">{t("workspace.remove.refNote")}</p>
+          <p className="text-sm text-text-secondary">{t("workspace.remove.localNote")}</p>
         </Modal>
       )}
       <ErrorAlert
         message={
-          actionError ?? (reposError ? `Failed to load repos: ${formatAppError(reposError)}` : null)
+          actionError ??
+          (reposError
+            ? t("workspace.reposLoadFailed", { error: formatAppError(reposError) })
+            : null)
         }
         onDismiss={() => setActionError(null)}
       />

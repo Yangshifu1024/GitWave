@@ -16,9 +16,20 @@
     <meta property="og:image" content="https://gitwave.work/icon.png" />
     <meta property="og:url" content="https://gitwave.work" />
     <meta name="twitter:card" content="summary" />
+    <link rel="canonical" href="https://gitwave.work/" />
+    <link rel="alternate" hreflang="en" href="https://gitwave.work/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://gitwave.work/zh-CN/" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f7" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0d" />
+    <script>
+      // Chinese-browser visitors go straight to the Chinese page; no manual
+      // language toggle by design (F010). Direct visits to /zh-CN/ stay put,
+      // so there is no redirect loop.
+      if (navigator.language && navigator.language.toLowerCase().startsWith("zh")) {
+        location.replace("/zh-CN/" + location.search + location.hash);
+      }
+    </script>
     <style>
       :root {
         --accent: #007aff;

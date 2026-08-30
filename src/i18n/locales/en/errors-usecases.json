@@ -1,0 +1,80 @@
+{
+  "errors": {
+    "usecases": {
+      "repo": {
+        "open_failed": "Failed to open repository: {{error}}",
+        "no_active": "No active repo in this workspace",
+        "not_found": "Repo not found: {{id}}"
+      },
+      "workspace": {
+        "name_empty": "Workspace name cannot be empty",
+        "not_found": "Workspace not found: {{id}}"
+      },
+      "clone": {
+        "dest_clear_failed": "Failed to clear the destination directory: {{error}}"
+      },
+      "ai": {
+        "provider_unsupported": "Unsupported AI provider: {{provider}}",
+        "failover_provider_unsupported": "Unsupported AI failover provider: {{provider}}",
+        "provider_not_configured": "No AI provider is configured for this workspace",
+        "offline_mode": "Offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)",
+        "api_key_missing": "The {{provider}} API key is not configured",
+        "all_providers_failed": "All providers failed — {{errors}}"
+      },
+      "health": {
+        "serialize_failed": "Failed to serialize the health report: {{error}}"
+      },
+      "commit": {
+        "no_staged": "No staged changes — stage files before generating a commit message",
+        "oid_invalid": "Invalid commit OID: {{error}}"
+      },
+      "file_diff": {
+        "from_oid_invalid": "Invalid \"from\" OID: {{error}}",
+        "to_oid_invalid": "Invalid \"to\" OID: {{error}}"
+      },
+      "branch": {
+        "not_found_after_create": "Branch {{name}} not found after creation"
+      },
+      "pr": {
+        "no_base_branch": "No base branch found (tried origin/main, origin/master, main, master) — pick a base branch explicitly",
+        "no_commits_yet": "The repository has no commits yet — nothing to describe",
+        "no_common_ancestor": "No common ancestor between HEAD and {{base_name}}",
+        "no_commits_ahead": "No commits ahead of {{base_name}} — nothing to describe"
+      },
+      "palette": {
+        "empty_request": "Palette request is empty",
+        "no_json": "The AI did not return a JSON action — try rephrasing the request",
+        "malformed_json": "The AI returned malformed JSON — try again",
+        "action_forbidden": "{{hinted}} — commit, push, merge and rebase are never palette-driven",
+        "param_missing": "The AI action \"{{action}}\" is missing \"{{key}}\"",
+        "context_serialize_failed": "Failed to serialize the palette context: {{error}}"
+      },
+      "rebase": {
+        "dirty_worktree": "Rebase needs a clean worktree — commit or stash your changes first",
+        "no_new_head": "Rebase finished without a new HEAD"
+      },
+      "lfs": {
+        "not_installed": "git lfs is not installed — install Git LFS (https://git-lfs.com) and restart GitWave"
+      },
+      "gitignore": {
+        "read_failed": "Failed to read .gitignore: {{error}}",
+        "write_failed": "Failed to write .gitignore: {{error}}"
+      },
+      "transfer": {
+        "read_failed": "Failed to read the transfer file: {{error}}",
+        "invalid": "Invalid transfer file: {{error}}",
+        "version_unsupported": "Unsupported transfer file version: {{version}}",
+        "serialize_failed": "Failed to serialize the workspace: {{error}}",
+        "write_failed": "Failed to write the transfer file: {{error}}",
+        "workspace_vanished": "The imported workspace vanished"
+      },
+      "test": {
+        "network": "Network error (test)",
+        "protocol": "Protocol error (test)",
+        "credential": "Credential error (test)",
+        "unknown": "Unknown error (test)",
+        "keychain_unavailable": "Keychain unavailable"
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use rusqlite::Connection;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 /// All migrations, in version order. Add new entries here as files are
 /// added to `migrations/`.
@@ -76,7 +77,11 @@ pub fn apply(conn: &Connection) -> Result<()> {
 }
 
 fn map_sqlite_err(e: rusqlite::Error) -> AppError {
-    AppError::Unknown(format!("sqlite migration: {e}"))
+    AppError::unknown_with(
+        codes::infra::MIGRATION_FAILED,
+        format!("sqlite migration: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[cfg(test)]

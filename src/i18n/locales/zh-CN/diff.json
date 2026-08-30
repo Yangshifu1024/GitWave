@@ -1,0 +1,32 @@
+{
+  "diff": {
+    "file": {
+      "expand": "展开文件 diff",
+      "collapse": "折叠文件 diff",
+      "blame": "Blame",
+      "noHunkDetail": "（无 hunk 详情）",
+      "noChanges": "无改动"
+    },
+    "chip": {
+      "staged": "已暂存",
+      "unstaged": "未暂存"
+    },
+    "empty": {
+      "noStaged": "{{path}} 暂无已暂存 diff",
+      "noUnstaged": "{{path}} 暂无未暂存 diff",
+      "noForPath": "{{path}} 暂无 diff",
+      "noUncommitted": "没有未提交的改动",
+      "noAvailable": "暂无 diff"
+    },
+    "toolbar": {
+      "filesChanged_one": "已更改 {{count}} 个文件",
+      "filesChanged_other": "已更改 {{count}} 个文件",
+      "expandAll": "展开全部文件",
+      "collapseAll": "折叠全部文件",
+      "splitView": "切换到分栏视图",
+      "unifiedView": "切换到统一视图",
+      "restorePanel": "还原面板",
+      "expandPanel": "展开面板"
+    }
+  }
+}

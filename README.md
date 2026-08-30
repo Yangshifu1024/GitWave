@@ -1,5 +1,7 @@
 # GitWave
 
+English | [简体中文](./README.zh-CN.md)
+
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)** · See `docs/pm/core/01-features.md` for product scope and `docs/tech/` for engineering decisions.
 
 **Status:** v0.5.0 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized and in-app auto-updates served from GitHub Releases. Current scope per `docs/pm/core/03-roadmap.md` (v0.3: three platforms + collaboration + AI intelligence).

@@ -3,12 +3,17 @@
 use git2::{Repository, StashFlags};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::domain::stash::StashEntry;
 use crate::infrastructure::git::diff::{diff_commit_vs_parent, DiffSummary};
 use crate::infrastructure::git::git2_adapter::commit_signature;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 pub fn list_stashes(repo: &mut Repository) -> Result<Vec<StashEntry>> {
@@ -58,8 +63,13 @@ pub fn drop_stash(repo: &mut Repository, index: usize) -> Result<()> {
 
 /// Diff a stash commit against its first parent (the WIP tree vs HEAD at stash time).
 pub fn stash_diff(repo: &Repository, oid: &str) -> Result<DiffSummary> {
-    let oid = git2::Oid::from_str(oid)
-        .map_err(|e| AppError::Protocol(format!("invalid stash oid: {e}")))?;
+    let oid = git2::Oid::from_str(oid).map_err(|e| {
+        AppError::protocol_with(
+            codes::git::INVALID_STASH_OID,
+            format!("invalid stash oid: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     diff_commit_vs_parent(repo, oid)
 }
 

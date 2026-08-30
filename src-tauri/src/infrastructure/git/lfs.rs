@@ -11,19 +11,27 @@ use std::path::{Path, PathBuf};
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::process::hidden_command;
 
 /// Attribute flags `git lfs track` writes for a pattern.
 const LFS_ATTRS: &str = "filter=lfs diff=lfs merge=lfs -text";
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 fn attributes_path(repo: &Repository) -> Result<PathBuf> {
-    let workdir = repo
-        .workdir()
-        .ok_or_else(|| AppError::Protocol("bare repository has no working directory".into()))?;
+    let workdir = repo.workdir().ok_or_else(|| {
+        AppError::protocol(
+            codes::git::BARE_REPO,
+            "bare repository has no working directory",
+        )
+    })?;
     Ok(workdir.join(".gitattributes"))
 }
 
@@ -32,25 +40,34 @@ fn read_attributes(repo: &Repository) -> Result<String> {
     match std::fs::read_to_string(&path) {
         Ok(content) => Ok(content),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-        Err(e) => Err(AppError::Unknown(format!("read .gitattributes: {e}"))),
+        Err(e) => Err(AppError::unknown_with(
+            codes::git::READ_GITATTRIBUTES,
+            format!("read .gitattributes: {e}"),
+            &[("error", e.to_string())],
+        )),
     }
 }
 
 fn validate_pattern(pattern: &str) -> Result<()> {
     let trimmed = pattern.trim();
     if trimmed.is_empty() || trimmed.contains('\n') {
-        return Err(AppError::Protocol("invalid LFS pattern".into()));
+        return Err(AppError::protocol(
+            codes::git::INVALID_LFS_PATTERN,
+            "invalid LFS pattern",
+        ));
     }
     // gitattributes patterns are whitespace-delimited tokens; a pattern
     // with spaces would silently split into flags.
     if trimmed.chars().any(char::is_whitespace) {
-        return Err(AppError::Protocol(
-            "LFS patterns cannot contain spaces — use a glob like *.psd or assets/**".into(),
+        return Err(AppError::protocol(
+            codes::git::LFS_PATTERN_SPACES,
+            "LFS patterns cannot contain spaces — use a glob like *.psd or assets/**",
         ));
     }
     if trimmed.starts_with('#') {
-        return Err(AppError::Protocol(
-            "LFS patterns cannot start with '#' (that is a .gitattributes comment)".into(),
+        return Err(AppError::protocol(
+            codes::git::LFS_PATTERN_COMMENT,
+            "LFS patterns cannot start with '#' (that is a .gitattributes comment)",
         ));
     }
     Ok(())
@@ -68,29 +85,42 @@ pub fn lfs_available() -> bool {
 /// Wire the LFS clean/smudge filters into THIS repository only
 /// (`git lfs install --local`) — never the user's global git config.
 pub fn lfs_install(repo: &Repository) -> Result<String> {
-    let workdir = repo
-        .workdir()
-        .ok_or_else(|| AppError::Protocol("bare repository has no working directory".into()))?;
+    let workdir = repo.workdir().ok_or_else(|| {
+        AppError::protocol(
+            codes::git::BARE_REPO,
+            "bare repository has no working directory",
+        )
+    })?;
     let output = hidden_command("git")
         .args(["lfs", "install", "--local"])
         .current_dir(workdir)
         .output()
-        .map_err(|e| AppError::Unknown(format!("git lfs: {e}")))?;
+        .map_err(|e| {
+            AppError::unknown_with(
+                codes::git::LFS_CLI_FAILED,
+                format!("git lfs: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::Unknown(format!(
-            "git lfs install failed: {}",
-            stderr.trim()
-        )));
+        return Err(AppError::unknown_with(
+            codes::git::LFS_INSTALL_FAILED,
+            format!("git lfs install failed: {}", stderr.trim()),
+            &[("stderr", stderr.trim().to_string())],
+        ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 /// Installed = this repo's local config wires the LFS filters.
 pub fn lfs_installed(repo: &Repository) -> Result<bool> {
-    let workdir = repo
-        .workdir()
-        .ok_or_else(|| AppError::Protocol("bare repository has no working directory".into()))?;
+    let workdir = repo.workdir().ok_or_else(|| {
+        AppError::protocol(
+            codes::git::BARE_REPO,
+            "bare repository has no working directory",
+        )
+    })?;
     let config_path = workdir.join(".git").join("config");
     if !config_path.exists() {
         return Ok(false);
@@ -134,8 +164,13 @@ pub fn track_pattern(repo: &Repository, pattern: &str) -> Result<()> {
         content.push('\n');
     }
     content.push_str(&format!("{pattern} {LFS_ATTRS}\n"));
-    std::fs::write(&path, content)
-        .map_err(|e| AppError::Unknown(format!("write .gitattributes: {e}")))
+    std::fs::write(&path, content).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::WRITE_GITATTRIBUTES,
+            format!("write .gitattributes: {e}"),
+            &[("error", e.to_string())],
+        )
+    })
 }
 
 /// Remove the LFS tracking line for a pattern, leaving every other
@@ -160,7 +195,13 @@ pub fn untrack_pattern(repo: &Repository, pattern: &str) -> Result<()> {
     if !out.is_empty() {
         out.push('\n');
     }
-    std::fs::write(&path, out).map_err(|e| AppError::Unknown(format!("write .gitattributes: {e}")))
+    std::fs::write(&path, out).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::WRITE_GITATTRIBUTES,
+            format!("write .gitattributes: {e}"),
+            &[("error", e.to_string())],
+        )
+    })
 }
 
 #[cfg(test)]

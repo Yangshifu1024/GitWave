@@ -11,6 +11,7 @@
 | 0003 | 凭证策略：混合（Keychain + git helper） | 已采纳 |
 | 0004 | AI 双轨：写 = 确定性，建议 = AI | 已采纳 |
 | 0005 | 前端 UI 库栈：Tailwind v4 + Radix + Lucide + Shiki | 已采纳 |
+| 0006 | i18n 架构：react-i18next + 错误 key 化 | 已采纳 |
 
 ---
 
@@ -181,3 +182,42 @@ Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 
 - `docs/design/01-tokens.md`：tokens
 - `docs/design/02-components.md`：组件 API
 - `docs/design/03-layout.md`：3-pane 布局
+
+---
+
+## 0006 · i18n 架构：react-i18next + 错误 key 化
+
+### 上下文
+
+- F010 完整国际化：UI 中英双语即时切换 + AI 回复语言（中 / 日 / 韩 / 英）
+- 当前 UI 文案硬编码英文于约 40 个前端文件；Rust 228 处 `AppError` 英文消息经 IPC `{category, message, trace_id}` 直出
+- 语言是应用级偏好（用户拍板），不是 Workspace 级；两个语言选项均放 Settings → General
+- AI system prompt 在 Rust 组装（use_cases.rs），AI 语言必须跨 IPC 到达 prompt 组装点
+
+### 备选
+
+- **自研 `t()` / 轻量 context**：零依赖；但插值、fallback、语言切换重渲染订阅都要手写，长期维护成本高。否决。
+- **FormatJS（react-intl）**：ICU 标准完整；但 API 偏重、消息抽取工具链复杂，对两语言场景过度。否决。
+- **LinguiJS**：编译期抽取体验好；但宏魔法增加调试成本，与 Vite + React 19 组合成熟度一般。否决。
+- **react-i18next + 静态 JSON**：社区标准；插值 / fallback / 语言切换订阅开箱即用；JSON 直接 import 内联 bundle，无异步加载问题。
+
+### 决策
+
+采用 **react-i18next + 错误 key 化**：
+
+- 前端：`i18next` + `react-i18next`；每 locale 按域拆 JSON（`src/i18n/locales/{en,zh-CN}/<域>.json`）；语言解析 localStorage → `navigator.language` → `en`；切换即时 `changeLanguage`（同步 `html lang`、重建原生菜单）
+- AI 语言：localStorage 全局持久；随各散文产出 AI 命令以 `language: Option<String>` 参数传入，Rust sanitize（仅 zh/ja/ko/en）后在 system prompt 尾部追加回复语言指令；prompt 主体保持英文（LLM 指令遵循最稳）
+- 错误：`AppError` 序列化扩展可选 `code` + `params`；code 常量集中于 `domain/error_codes/` 模块单一来源（按区域分文件）；前端 `formatAppError` 唯一收口按 code 翻译，无 code 回落 `category: message`
+- 防漂移：vitest parity 测试双向校验 en / zh-CN key 集合，以及 locale `errors` 组与 `error_codes.rs` 常量
+
+### 后果
+
+- **正面**：两语言即时切换零重启；错误翻译与 UI 同源同步切换；AI 语言零存储 schema 变更；parity 测试防 key 漂移
+- **负面**：228 处错误构造点一次性机械改造；AI 命令签名变化（specta 类型再生成）；新增文案需双 locale 同步维护
+- **风险**：翻译质量（中文第一优先，术语以 PM 文档为准）；key 命名约定在 `docs/tasks/feat-i18n/plan.md` 固化
+
+### 关联
+
+- `docs/pm/features/F010-i18n.md`：功能提案
+- `docs/tasks/feat-i18n/plan.md`：实施计划与 key 命名约定
+- `docs/tech/engineering/00-overview.md` §错误处理与日志：错误文案策略由「前端渲染 friendly text」细化为「前端按 code 翻译」

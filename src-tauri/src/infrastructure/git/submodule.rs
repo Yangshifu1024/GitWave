@@ -6,9 +6,14 @@ use serde::Serialize;
 use std::path::Path;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 /// One submodule of the active repository.
@@ -67,8 +72,13 @@ pub fn list_submodules(repo: &Repository) -> Result<Vec<SubmoduleInfo>> {
 }
 
 fn find<'repo>(repo: &'repo Repository, name: &str) -> Result<git2::Submodule<'repo>> {
-    repo.find_submodule(name)
-        .map_err(|_| AppError::Protocol(format!("submodule not found: {name}")))
+    repo.find_submodule(name).map_err(|_| {
+        AppError::protocol_with(
+            codes::git::SUBMODULE_NOT_FOUND,
+            format!("submodule not found: {name}"),
+            &[("name", name.to_string())],
+        )
+    })
 }
 
 /// Register a submodule in `.git/config` (`git submodule init`).
@@ -108,19 +118,25 @@ pub fn update_submodule(repo: &Repository, name: &str, recursive: bool) -> Resul
 /// staged, NOT committed — the user commits them through the normal flow.
 pub fn add_submodule(repo: &Repository, url: &str, path: &str) -> Result<()> {
     if url.trim().is_empty() || path.trim().is_empty() {
-        return Err(AppError::Protocol(
-            "submodule URL and path are required".into(),
+        return Err(AppError::protocol(
+            codes::git::SUBMODULE_ARGS_REQUIRED,
+            "submodule URL and path are required",
         ));
     }
     if path.contains("..") || Path::new(path).is_absolute() {
-        return Err(AppError::Protocol(
-            "submodule path must be a relative path inside the repository".into(),
+        return Err(AppError::protocol(
+            codes::git::SUBMODULE_PATH_INVALID,
+            "submodule path must be a relative path inside the repository",
         ));
     }
     // git2 splits `git submodule add` into setup → clone → finalize.
-    let mut sm = repo
-        .submodule(url, Path::new(path), true)
-        .map_err(|e| AppError::Unknown(format!("submodule add: {e}")))?;
+    let mut sm = repo.submodule(url, Path::new(path), true).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::SUBMODULE_ADD_FAILED,
+            format!("submodule add: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     let mut opts = git2::SubmoduleUpdateOptions::new();
     let mut checkout = git2::build::CheckoutBuilder::new();
     checkout.allow_conflicts(true);
@@ -132,10 +148,14 @@ pub fn add_submodule(repo: &Repository, url: &str, path: &str) -> Result<()> {
         if let Some(workdir) = repo.workdir() {
             let _ = std::fs::remove_dir_all(workdir.join(path));
         }
-        return Err(AppError::Unknown(format!(
-            "submodule clone failed: {e} — the half-cloned directory was removed, \
-             but .gitmodules may have been modified (discard it to revert)"
-        )));
+        return Err(AppError::unknown_with(
+            codes::git::SUBMODULE_CLONE_FAILED,
+            format!(
+                "submodule clone failed: {e} — the half-cloned directory was removed, \
+                 but .gitmodules may have been modified (discard it to revert)"
+            ),
+            &[("error", e.to_string())],
+        ));
     }
     sm.add_to_index(true).map_err(map_git_err)?;
     sm.add_finalize().map_err(map_git_err)?;
@@ -167,9 +187,11 @@ pub fn deinit_submodule(repo: &Repository, name: &str) -> Result<()> {
         }
     }
     if keys.is_empty() {
-        return Err(AppError::Protocol(format!(
-            "submodule not initialized: {name}"
-        )));
+        return Err(AppError::protocol_with(
+            codes::git::SUBMODULE_NOT_INITIALIZED,
+            format!("submodule not initialized: {name}"),
+            &[("name", name.to_string())],
+        ));
     }
     for key in keys {
         config.remove(&key).map_err(map_git_err)?;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { InteractiveRebaseAction, InteractiveRebaseTodo } from "@/lib/api";
 import { executeInteractiveRebase, formatAppError, planInteractiveRebase } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +26,7 @@ export function InteractiveRebaseDialog({
   onClose,
   onDone,
 }: InteractiveRebaseDialogProps): React.JSX.Element {
+  const { t } = useTranslation();
   const [todos, setTodos] = useState<InteractiveRebaseTodo[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -71,17 +73,17 @@ export function InteractiveRebaseDialog({
       try {
         const result = await executeInteractiveRebase(workspaceId, upstream, todos);
         if (result.kind === "conflicts") {
-          setError(result.conflicts.join("; ") || "Rebase conflicts");
+          setError(result.conflicts.join("; ") || t("branches.irebase.conflictError"));
           return;
         }
         if (result.kind === "paused_for_edit") {
-          onDone(
-            `Paused for edit after applying a commit onto ${upstream}. Amend via Working Copy, then Continue from Branches.`,
-          );
+          onDone(t("branches.irebase.paused", { name: upstream }));
           onClose();
           return;
         }
-        onDone(`Interactive rebase onto ${upstream} (${result.kind.replace(/_/g, " ")})`);
+        onDone(
+          t("branches.irebase.done", { name: upstream, kind: result.kind.replace(/_/g, " ") }),
+        );
         onClose();
       } catch (e) {
         setError(formatAppError(e));
@@ -97,12 +99,12 @@ export function InteractiveRebaseDialog({
       onOpenChange={(v) => {
         if (!v) onClose();
       }}
-      title={`Interactive rebase onto ${upstream}`}
+      title={t("branches.irebase.title", { name: upstream })}
       size="lg"
       footer={
         <>
           <Button variant="secondary" size="sm" disabled={busy} onClick={onClose}>
-            Cancel
+            {t("branches.cancel")}
           </Button>
           <Button
             variant="primary"
@@ -110,21 +112,20 @@ export function InteractiveRebaseDialog({
             disabled={busy || loading || todos.length === 0}
             onClick={run}
           >
-            Start rebase
+            {t("branches.irebase.start")}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3 max-h-[60vh]">
-        <p className="text-xs text-text-muted">
-          Drag to reorder. Actions: pick / reword / edit / squash / fixup / drop. Does not
-          auto-push.
-        </p>
+        <p className="text-xs text-text-muted">{t("branches.irebase.hint")}</p>
         {error ? <p className="text-xs text-danger">{error}</p> : null}
         {loading ? (
-          <p className="text-sm text-text-muted">Loading commits…</p>
+          <p className="text-sm text-text-muted">{t("branches.irebase.loading")}</p>
         ) : todos.length === 0 ? (
-          <p className="text-sm text-text-muted">Already up to date with {upstream}.</p>
+          <p className="text-sm text-text-muted">
+            {t("branches.irebase.upToDate", { name: upstream })}
+          </p>
         ) : (
           <ul className="flex flex-col gap-1 overflow-auto border border-border-subtle rounded-md p-1">
             {todos.map((todo, index) => (
@@ -145,7 +146,7 @@ export function InteractiveRebaseDialog({
                 <div className="flex items-center gap-2">
                   <GripVertical size={14} className="text-text-muted shrink-0 cursor-grab" />
                   <Select
-                    aria-label="Rebase action"
+                    aria-label={t("branches.irebase.actionAria")}
                     className="h-auto w-auto flex-none px-1 py-0.5 text-xs"
                     value={todo.action}
                     disabled={busy}
@@ -169,8 +170,8 @@ export function InteractiveRebaseDialog({
                         className="w-full min-h-[48px] resize-y p-1.5 font-mono text-xs text-text-primary"
                         placeholder={
                           todo.action === "reword"
-                            ? "New commit message"
-                            : "Combined message (optional)"
+                            ? t("branches.irebase.rewordPlaceholder")
+                            : t("branches.irebase.squashPlaceholder")
                         }
                       />
                     </InputGroup>

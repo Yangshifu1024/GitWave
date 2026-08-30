@@ -1,0 +1,30 @@
+{
+  "palette": {
+    "placeholder": "Type a command, or describe what you want to do…",
+    "thinking": "Thinking…",
+    "askAi": "Ask AI",
+    "interpreting": "Interpreting your request…",
+    "askHint": "Press Enter to ask AI: e.g. \"create branch fix/auth\", \"tag this as v1.2.0\", \"explain the last commit\"",
+    "enterAsks": "Enter asks AI to interpret this request",
+    "needsConfirmation": "needs confirmation",
+    "runAction": "Run this action?",
+    "run": "Run",
+    "noMatch": "No matching action for that request",
+    "noWorkspace": "No active workspace",
+    "noBaseCommit": "No base commit for the new branch",
+    "action": {
+      "explain_commit": "Explain commit",
+      "locate_commit": "Locate commit in history",
+      "create_branch": "Create branch",
+      "checkout_branch": "Checkout branch",
+      "create_tag": "Create tag",
+      "stash_changes": "Stash changes",
+      "fetch_remotes": "Fetch remotes",
+      "none": "No matching action"
+    },
+    "command": {
+      "openSettings": "Open settings",
+      "fetchRemote": "Fetch from remote"
+    }
+  }
+}

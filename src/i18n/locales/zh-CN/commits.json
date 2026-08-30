@@ -1,0 +1,150 @@
+{
+  "commits": {
+    "action": {
+      "cancel": "取消",
+      "create": "创建",
+      "save": "保存",
+      "delete": "删除",
+      "add": "添加",
+      "close": "关闭",
+      "retry": "重试",
+      "clone": "克隆",
+      "export": "导出",
+      "import": "导入",
+      "revert": "撤销",
+      "cherryPick": "拣选",
+      "regenerate": "重新生成",
+      "copy": "复制",
+      "copyTitle": "复制标题",
+      "copyDescription": "复制描述",
+      "copyAll": "复制全部"
+    },
+    "header": {
+      "loading": "正在加载提交…",
+      "explain": "解释",
+      "explainTitle": "用 AI 解释",
+      "explainAria": "用 AI 解释此提交",
+      "tag": "标签",
+      "tagTitle": "管理标签",
+      "tagAria": "管理此提交上的标签",
+      "cherryPickTitle": "拣选到当前分支",
+      "cherryPickAria": "将此提交拣选到当前分支",
+      "revertTitle": "撤销此提交",
+      "revertAria": "撤销此提交"
+    },
+    "revert": {
+      "confirmTitle": "撤销 {{sha}}？",
+      "confirmDescription": "将创建一个撤销“{{subject}}”的提交。工作副本必须干净。",
+      "done": "已撤销 {{sha}}"
+    },
+    "cherryPick": {
+      "confirmTitle": "拣选 {{sha}}？",
+      "confirmDescription": "将“{{subject}}”作为新提交应用到当前分支（保留原作者）。工作副本必须干净。",
+      "done": "已将 {{sha}} 拣选到当前分支"
+    },
+    "tag": {
+      "managerTitle": "{{sha}} 上的标签",
+      "createButton": "创建标签",
+      "none": "此提交暂无标签。",
+      "annotated": "（附注）",
+      "deleteTitle": "删除 {{name}}",
+      "deleteAria": "删除标签 {{name}}",
+      "namePlaceholder": "标签名（如 v1.2.0）",
+      "annotationPlaceholder": "附注（可选——留空则为轻量标签）",
+      "created": "已将 {{sha}} 标记为 {{name}}"
+    },
+    "explain": {
+      "titleWithSubject": "解释：{{subject}}",
+      "titleWithSha": "解释 {{sha}}",
+      "description": "用通俗的语言说明这个提交改动了什么。仅为 AI 建议——不会应用任何更改。",
+      "thinking": "思考中…",
+      "copied": "解释已复制到剪贴板",
+      "clipboardUnavailable": "剪贴板不可用",
+      "generatedBy": "由 {{provider}} 生成。"
+    },
+    "pr": {
+      "title": "AI PR 描述",
+      "description": "基于当前分支与默认基础分支的差异生成。可自由编辑后复制——不会在远端创建任何内容。",
+      "titleLabel": "标题",
+      "descriptionLabel": "描述",
+      "descriptionMarkdown": "描述（markdown）",
+      "allLabel": "PR 描述",
+      "titlePlaceholder": "PR 标题",
+      "bodyPlaceholder": "PR 描述正文",
+      "generating": "正在使用 AI 生成…",
+      "copied": "{{label}}已复制到剪贴板",
+      "clipboardUnavailable": "剪贴板不可用"
+    },
+    "ai": {
+      "fallbackNotice": "主 AI 服务商请求失败——响应由 {{provider}} 提供"
+    },
+    "sync": {
+      "fetch": "获取",
+      "pull": "拉取",
+      "pullTitle": "拉取",
+      "pullWithCount": "拉取({{total}})",
+      "pullDescription": "拉取远程分支并合并到你的本地分支",
+      "push": "推送",
+      "pushTitle": "推送",
+      "pushWithCount": "推送({{total}})",
+      "pushDescription": "将你的本地变更推送到远程仓库",
+      "remote": "远程",
+      "branch": "分支",
+      "into": "合并到",
+      "to": "推送到",
+      "defaultTarget": "默认 ({{target}})",
+      "rebaseInstead": "变基而不是合并",
+      "stashAndReapply": "贮藏并重新应用本地变更",
+      "pushAllTags": "推送所有标签",
+      "forcePush": "强制推送"
+    },
+    "branch": {
+      "createTitle": "从“{{branch}}”新建分支",
+      "createDescription": "在当前分支顶端创建本地分支；当前分支保持检出。",
+      "namePlaceholder": "feature/my-branch",
+      "noTipError": "没有当前分支顶端可供创建分支"
+    },
+    "worktree": {
+      "createTitle": "创建 worktree",
+      "createDescription": "创建分支并在单独的 worktree 中检出",
+      "startFrom": "基于",
+      "branchName": "分支名称",
+      "branchNamePlaceholder": "输入分支名称",
+      "locationPlaceholder": "新 worktree 的路径",
+      "created": "已创建 worktree {{name}}"
+    },
+    "repo": {
+      "initTitle": "初始化新仓库",
+      "initDescription": "在空文件夹中创建全新的 Git 仓库。",
+      "cloneTitle": "克隆远程仓库",
+      "cloneDescription": "将远程仓库复制到本地文件夹。",
+      "cloning": "克隆中…",
+      "startingClone": "正在开始克隆…",
+      "cloneProgress": "对象 {{received}}/{{total}} · 增量 {{deltas}}/{{totalDeltas}} · {{kib}} KiB",
+      "cloneUrlPlaceholder": "https://github.com/user/repo.git 或 git@github.com:user/repo.git",
+      "detectedProtocol": "检测到的协议：",
+      "urlLabel": "URL",
+      "destinationPath": "目标路径",
+      "addLocalTitle": "添加现有本地仓库",
+      "addLocalDescription": "将现有的 Git 工作树注册到此工作区。",
+      "location": "位置"
+    },
+    "workspace": {
+      "createTitle": "新建工作区",
+      "namePlaceholder": "工作区名称",
+      "exportTitle": "导出工作区",
+      "exportDescription": "写入一个 .gitwave-workspace.json，包含工作区名称与仓库路径。绝不包含 API 密钥。",
+      "exportPathPlaceholder": "目标 .json 路径",
+      "importTitle": "导入工作区",
+      "importDescription": "读取 .gitwave-workspace.json，创建新工作区并重新添加磁盘上仍存在的仓库。",
+      "importPathPlaceholder": "源 .gitwave-workspace.json 路径",
+      "exported": "工作区已导出到 {{path}}",
+      "imported": "工作区“{{name}}”已导入",
+      "renameTitle": "重命名“{{name}}”",
+      "renameFallback": "重命名工作区",
+      "deleteTitle": "删除“{{name}}”？",
+      "deleteFallback": "删除工作区？",
+      "deleteDescription": "这将从 GitWave 移除该工作区及其仓库引用，但不会删除本地仓库本身。"
+    }
+  }
+}

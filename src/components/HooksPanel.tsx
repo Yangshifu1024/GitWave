@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { formatAppError, getHook, listHooks, saveHook, type HookInfo } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -29,6 +30,7 @@ export function HooksPanel({
   open: boolean;
   onClose: () => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export function HooksPanel({
     mutationFn: () => saveHook(workspaceId, selected ?? "", content),
     onSuccess: () => {
       setDirty(false);
-      setStatus(`Hook ${selected} saved`);
+      setStatus(t("repo.hooks.saved", { name: selected }));
       void queryClient.invalidateQueries({ queryKey: ["hooks", workspaceId] });
     },
     onError: (e) => setError(formatAppError(e)),
@@ -69,8 +71,8 @@ export function HooksPanel({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title="Git hooks"
-      description="Edit hook scripts in .git/hooks. GitWave only edits them — it never runs hooks for you."
+      title={t("repo.hooks.title")}
+      description={t("repo.hooks.description")}
       size="lg"
       footer={
         <Button
@@ -79,7 +81,7 @@ export function HooksPanel({
           disabled={!selected || saveMut.isPending || (!dirty && !error)}
           onClick={() => saveMut.mutate()}
         >
-          Save {selected ?? ""}
+          {t("repo.hooks.saveName", { name: selected ?? "" })}
         </Button>
       }
     >
@@ -120,7 +122,7 @@ export function HooksPanel({
                 }}
                 rows={14}
                 spellCheck={false}
-                placeholder={`#!/bin/sh\n# ${selected} script`}
+                placeholder={t("repo.hooks.scriptPlaceholder", { name: selected })}
                 className="rounded-md px-2 py-1.5 font-mono text-[11px] leading-5"
               />
               {!content.trim() ? (
@@ -134,14 +136,14 @@ export function HooksPanel({
                       setDirty(true);
                     }
                   }}
-                  title="Insert a starter script (pre-commit only)"
+                  title={t("repo.hooks.insertSampleTitle")}
                 >
-                  Insert sample
+                  {t("repo.hooks.insertSample")}
                 </Button>
               ) : null}
             </>
           ) : (
-            <p className="text-xs text-text-muted">Select a hook on the left to edit it.</p>
+            <p className="text-xs text-text-muted">{t("repo.hooks.selectHint")}</p>
           )}
 
           {error ? <p className="text-xs text-danger">{error}</p> : null}

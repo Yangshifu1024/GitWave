@@ -7,9 +7,14 @@ use git2::{Blame, BlameOptions, Repository};
 
 use crate::domain::blame::BlameLine;
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 /// Annotate each line of a file with the commit that last modified it.

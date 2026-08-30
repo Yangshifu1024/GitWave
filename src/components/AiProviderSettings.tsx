@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import {
   clearAiApiKey,
@@ -22,12 +23,18 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Textarea } from "@/components/ui/Textarea";
 
 const PROVIDERS = [
-  { id: "openai", label: "OpenAI" },
-  { id: "anthropic", label: "Anthropic" },
-  { id: "ollama", label: "Ollama (local)" },
+  { id: "openai", labelKey: "ai.provider.openai" },
+  { id: "anthropic", labelKey: "ai.provider.anthropic" },
+  { id: "ollama", labelKey: "ai.provider.ollama" },
 ] as const;
 
 type ProviderId = (typeof PROVIDERS)[number]["id"];
+
+const BASE_URL_HINT_KEY: Record<ProviderId, string> = {
+  openai: "ai.baseUrlHint.openai",
+  anthropic: "ai.baseUrlHint.anthropic",
+  ollama: "ai.baseUrlHint.ollama",
+};
 
 function defaultModel(provider: ProviderId): string {
   if (provider === "anthropic") return "claude-3-5-haiku-latest";
@@ -41,12 +48,6 @@ function defaultBaseUrl(provider: ProviderId): string {
   return "https://api.openai.com";
 }
 
-function baseUrlHint(provider: ProviderId): string {
-  if (provider === "anthropic") return "Default: https://api.anthropic.com";
-  if (provider === "ollama") return "Default: http://127.0.0.1:11434";
-  return "Default: https://api.openai.com (compatible /v1/chat/completions)";
-}
-
 export function AiProviderSettings({
   workspaceId,
   workspaceName,
@@ -58,6 +59,7 @@ export function AiProviderSettings({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element | null {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [provider, setProvider] = useState<ProviderId>("openai");
   const [model, setModel] = useState(defaultModel("openai"));
@@ -168,7 +170,7 @@ export function AiProviderSettings({
       }
     },
     onSuccess: () => {
-      setNotice("AI settings saved (key stays in OS keychain)");
+      setNotice(t("ai.saved"));
       setError(null);
       void queryClient.invalidateQueries({ queryKey: ["workspace", workspaceId] });
       void queryClient.invalidateQueries({ queryKey: ["ai-key", workspaceId] });
@@ -189,13 +191,13 @@ export function AiProviderSettings({
           setApiKey("");
         }
       }}
-      title={workspaceName ? `AI provider · ${workspaceName}` : "AI provider"}
-      description="Workspace-scoped. Cloud keys use OS keychain (BYOK). AI never auto-commits."
+      title={workspaceName ? t("ai.titleWithWorkspace", { name: workspaceName }) : t("ai.title")}
+      description={t("ai.description")}
       size="md"
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
-            Close
+            {t("ai.actions.close")}
           </Button>
           <Button
             variant="primary"
@@ -203,7 +205,7 @@ export function AiProviderSettings({
             disabled={saveMut.isPending}
             onClick={() => saveMut.mutate()}
           >
-            Save
+            {t("ai.actions.save")}
           </Button>
         </>
       }
@@ -211,14 +213,15 @@ export function AiProviderSettings({
       <div className="flex flex-col gap-3">
         {repoRules ? (
           <p className="rounded-md bg-bg-secondary px-2 py-1.5 text-[11px] text-text-secondary">
-            Per-repo AI rules active — <code>.gitwave/AI.md</code> ({repoRules.length} chars) is
-            appended to every AI prompt for the active repo.
+            {t("ai.repoRules.prefix")}
+            <code>.gitwave/AI.md</code>
+            {t("ai.repoRules.suffix", { chars: repoRules.length })}
           </p>
         ) : null}
         <Label className="text-xs text-text-secondary">
-          Provider
+          {t("ai.provider.label")}
           <Select
-            aria-label="Provider"
+            aria-label={t("ai.provider.label")}
             className="mt-1 w-full"
             value={provider}
             onChange={(next) => {
@@ -227,15 +230,15 @@ export function AiProviderSettings({
               setModel(defaultModel(id));
               setBaseUrl(defaultBaseUrl(id));
             }}
-            options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
+            options={PROVIDERS.map((p) => ({ value: p.id, label: t(p.labelKey) }))}
           />
         </Label>
 
-        <Input placeholder="Model" value={model} onChange={setModel} />
+        <Input placeholder={t("ai.modelPlaceholder")} value={model} onChange={setModel} />
 
         <div className="flex flex-col gap-1">
-          <Input placeholder="API base URL" value={baseUrl} onChange={setBaseUrl} />
-          <p className="text-[11px] text-text-muted">{baseUrlHint(provider)}</p>
+          <Input placeholder={t("ai.baseUrlPlaceholder")} value={baseUrl} onChange={setBaseUrl} />
+          <p className="text-[11px] text-text-muted">{t(BASE_URL_HINT_KEY[provider])}</p>
         </div>
 
         {provider === "ollama" ? (
@@ -250,14 +253,14 @@ export function AiProviderSettings({
                     setOllamaModels(models);
                     setNotice(
                       models.length
-                        ? `Found ${models.length} local model(s)`
-                        : "Ollama reachable but no models listed",
+                        ? t("ai.ollamaFound", { num: models.length })
+                        : t("ai.ollamaNoModels"),
                     );
                   })
                   .catch((e) => setError(formatAppError(e)));
               }}
             >
-              Detect Ollama
+              {t("ai.detectOllama")}
             </Button>
             {ollamaModels.length > 0 ? (
               <p className="text-xs text-text-muted truncate">{ollamaModels.join(", ")}</p>
@@ -267,9 +270,7 @@ export function AiProviderSettings({
           <>
             <Input
               type="password"
-              placeholder={
-                keyStatus?.has_key ? "API key (leave blank to keep existing)" : "API key"
-              }
+              placeholder={keyStatus?.has_key ? t("ai.apiKeyKeep") : t("ai.apiKey")}
               value={apiKey}
               onChange={setApiKey}
             />
@@ -281,7 +282,7 @@ export function AiProviderSettings({
                 onClick={() => {
                   void clearAiApiKey(workspaceId, provider)
                     .then(() => {
-                      setNotice("API key cleared");
+                      setNotice(t("ai.apiKeyCleared"));
                       void queryClient.invalidateQueries({
                         queryKey: ["ai-key", workspaceId, provider],
                       });
@@ -289,26 +290,23 @@ export function AiProviderSettings({
                     .catch((e) => setError(formatAppError(e)));
                 }}
               >
-                Clear stored key
+                {t("ai.clearStoredKey")}
               </Button>
             ) : null}
           </>
         )}
 
         <Checkbox checked={offline} onChange={setOffline} className="text-xs">
-          Offline mode — disable all cloud AI calls (Ollama still allowed)
+          {t("ai.offlineMode")}
         </Checkbox>
 
         <div className="flex flex-col gap-1">
-          <Label className="text-xs text-text-secondary">Fallback providers</Label>
-          <p className="text-[11px] text-text-muted">
-            Tried in order when the provider above fails with a network error. Cloud entries need
-            their own API key (stored per provider in the OS keychain).
-          </p>
+          <Label className="text-xs text-text-secondary">{t("ai.fallback.label")}</Label>
+          <p className="text-[11px] text-text-muted">{t("ai.fallback.hint")}</p>
           {failover.map((fb, i) => (
             <div key={i} className="flex items-center gap-1">
               <Select
-                aria-label={`Fallback provider ${i + 1}`}
+                aria-label={t("ai.fallback.ariaLabel", { num: i + 1 })}
                 className="w-36 shrink-0"
                 value={
                   (PROVIDERS.some((p) => p.id === fb.provider)
@@ -316,10 +314,10 @@ export function AiProviderSettings({
                     : "openai") as ProviderId
                 }
                 onChange={(next) => updateFallback(i, { provider: next })}
-                options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
+                options={PROVIDERS.map((p) => ({ value: p.id, label: t(p.labelKey) }))}
               />
               <Input
-                placeholder="Model (default)"
+                placeholder={t("ai.fallback.modelPlaceholder")}
                 value={fb.model ?? ""}
                 onChange={(v) => updateFallback(i, { model: v })}
                 className="flex-1"
@@ -329,7 +327,7 @@ export function AiProviderSettings({
                 size="sm"
                 disabled={i === 0}
                 onClick={() => moveFallback(i, -1)}
-                title="Move up"
+                title={t("ai.fallback.moveUp")}
               >
                 <ArrowUp size={14} />
               </Button>
@@ -338,7 +336,7 @@ export function AiProviderSettings({
                 size="sm"
                 disabled={i === failover.length - 1}
                 onClick={() => moveFallback(i, 1)}
-                title="Move down"
+                title={t("ai.fallback.moveDown")}
               >
                 <ArrowDown size={14} />
               </Button>
@@ -347,14 +345,14 @@ export function AiProviderSettings({
                 size="sm"
                 className="text-danger"
                 onClick={() => removeFallback(i)}
-                title="Remove"
+                title={t("ai.fallback.remove")}
               >
                 <X size={14} />
               </Button>
             </div>
           ))}
           <Button variant="ghost" size="sm" className="self-start" onClick={addFallback}>
-            Add fallback
+            {t("ai.fallback.add")}
           </Button>
         </div>
 
@@ -364,45 +362,43 @@ export function AiProviderSettings({
           className="self-start"
           onClick={() => setTemplatesOpen((v) => !v)}
         >
-          {templatesOpen ? "Hide prompt templates" : "Prompt templates (commit / conflict / PR)"}
+          {templatesOpen ? t("ai.templates.hide") : t("ai.templates.show")}
         </Button>
         {templatesOpen ? (
           <div className="flex flex-col gap-2 rounded-md border border-border-subtle p-2">
             <p className="text-[11px] text-text-muted">
-              Each field replaces the built-in system prompt for that task — the diff, conflict
-              sides, and repo context are appended automatically. Leave empty to use the built-in
-              default. Per-repo rules (<code>.gitwave/AI.md</code>) are added on top of whichever
-              prompt runs.
+              {t("ai.templates.hint")} <code>.gitwave/AI.md</code>
+              {t("ai.templates.hintTail")}
             </p>
             <PromptTemplateField
-              label="Commit message"
+              label={t("ai.templates.commitLabel")}
               value={tplCommit}
               onChange={setTplCommit}
-              placeholder="Override the built-in commit-message system prompt"
+              placeholder={t("ai.templates.commitPlaceholder")}
             />
             <PromptTemplateField
-              label="Conflict explanation"
+              label={t("ai.templates.conflictLabel")}
               value={tplConflict}
               onChange={setTplConflict}
-              placeholder="Override the built-in conflict-explanation system prompt"
+              placeholder={t("ai.templates.conflictPlaceholder")}
             />
             <PromptTemplateField
-              label="PR description"
+              label={t("ai.templates.prLabel")}
               value={tplPr}
               onChange={setTplPr}
-              placeholder="System prompt for AI PR description generation"
+              placeholder={t("ai.templates.prPlaceholder")}
             />
             <PromptTemplateField
-              label="Recovery assistant (reflog)"
+              label={t("ai.templates.reflogLabel")}
               value={tplReflog}
               onChange={setTplReflog}
-              placeholder="Override the recovery-assistant system prompt"
+              placeholder={t("ai.templates.reflogPlaceholder")}
             />
             <PromptTemplateField
-              label="Health summarizer"
+              label={t("ai.templates.healthLabel")}
               value={tplHealth}
               onChange={setTplHealth}
-              placeholder="Override the health-report system prompt"
+              placeholder={t("ai.templates.healthPlaceholder")}
             />
           </div>
         ) : null}

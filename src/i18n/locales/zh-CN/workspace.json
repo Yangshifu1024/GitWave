@@ -1,0 +1,46 @@
+{
+  "workspace": {
+    "title": "工作区",
+    "new": "新建工作区",
+    "loadFailed": "加载失败：{{error}}",
+    "reposLoadFailed": "仓库列表加载失败：{{error}}",
+    "empty": {
+      "title": "暂无工作区",
+      "description": "创建一个工作区即可开始使用。"
+    },
+    "itemRenameAria": "重命名 {{name}}",
+    "itemDeleteAria": "删除 {{name}}",
+    "create": {
+      "namePlaceholder": "工作区名称",
+      "submit": "创建"
+    },
+    "rename": {
+      "title": "重命名「{{name}}」"
+    },
+    "delete": {
+      "title": "删除「{{name}}」？",
+      "description": "将移除该工作区及其在 GitWave 中的仓库引用；本地仓库本身不会被删除。"
+    },
+    "tabs": {
+      "missing": "缺失",
+      "missingTitle": "{{name}} —— 路径缺失，右键可重新关联",
+      "empty": "暂无仓库 —— 可通过「仓库」菜单 init、clone 或添加。"
+    },
+    "menu": {
+      "moveLeft": "左移",
+      "moveRight": "右移",
+      "relink": "重新关联…"
+    },
+    "relink": {
+      "title": "重新关联「{{path}}」",
+      "pathPlaceholder": "指向有效 git 工作树的新路径",
+      "submit": "重新关联"
+    },
+    "remove": {
+      "title": "移除「{{name}}」？",
+      "path": "路径：{{path}}",
+      "refNote": "仅移除工作区中的引用。",
+      "localNote": "本地目录及其 .git/ 文件夹不会被改动。"
+    }
+  }
+}

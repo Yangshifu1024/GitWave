@@ -9,6 +9,7 @@
 // mid-open is unlikely.
 
 import { useEffect, useRef, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { Menu } from "@tauri-apps/api/menu";
 
 import { buildAppMenuSpec, type AppMenuItemHandler, type MenuGating } from "@/lib/appMenuSpec";
@@ -101,6 +102,7 @@ export function installNativeAppMenuEarly(): void {
 }
 
 export function useNativeAppMenu(options: { onAbout: () => void }): void {
+  const { i18n } = useTranslation();
   const gating = useAppMenuGating();
   const requestMenuAction = useUiStore((s) => s.requestMenuAction);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
@@ -146,5 +148,8 @@ export function useNativeAppMenu(options: { onAbout: () => void }): void {
         run.installed = null;
       }
     };
-  }, [gating]);
+    // Menu labels translate at spec-build time (module-level i18next.t,
+    // invisible to the lint rule) — i18n.language forces a rebuild on
+    // language switch.
+  }, [gating, i18n.language]);
 }

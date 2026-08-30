@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { BranchIndicator } from "@/components/ui/BranchIndicator";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -21,6 +22,7 @@ export function WorkingCopyModal({
   open,
   onOpenChange,
 }: WorkingCopyModalProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   const wc = useWorkingCopy();
   const [selected, setSelected] = useState<{ path: string; staged: boolean } | null>(null);
 
@@ -45,7 +47,7 @@ export function WorkingCopyModal({
   const snapshot = wc.data ?? null;
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Local Changes" size="xl">
+    <Modal open={open} onOpenChange={onOpenChange} title={t("changes.panel.title")} size="xl">
       {snapshot ? (
         <div className="flex items-center gap-2 text-xs text-text-muted">
           <BranchIndicator
@@ -56,7 +58,10 @@ export function WorkingCopyModal({
             behind={snapshot.behind}
           />
           <span>
-            {wc.unstagedFiles.length} unstaged · {wc.stagedFiles.length} staged
+            {t("changes.panel.statusSummary", {
+              unstaged: wc.unstagedFiles.length,
+              staged: wc.stagedFiles.length,
+            })}
           </span>
         </div>
       ) : null}
@@ -76,8 +81,8 @@ export function WorkingCopyModal({
             <DiffViewer workdir path={selected.path} staged={selected.staged} hideMaximize />
           ) : (
             <EmptyState
-              title="No file selected"
-              description="Click a file on the left to see its diff."
+              title={t("changes.panel.noFileSelected")}
+              description={t("changes.panel.noFileSelectedDescription")}
               className="h-full"
             />
           )}

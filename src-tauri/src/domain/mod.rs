@@ -7,6 +7,7 @@ pub mod blame;
 pub mod branch;
 pub mod diff;
 pub mod error;
+pub mod error_codes;
 pub mod history;
 pub mod hooks;
 pub mod lfs;

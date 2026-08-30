@@ -6,6 +6,7 @@ use git2::{AutotagOption, BranchType, FetchOptions, PushOptions, Repository, Sta
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::git::credentials::{
     CredentialProvider, GitCredentialHelper, SshAgentCredential,
 };
@@ -29,8 +30,16 @@ pub struct SyncProgress {
 
 fn map_git_err(e: git2::Error) -> AppError {
     match e.code() {
-        git2::ErrorCode::Auth => AppError::Credential(format!("auth failed: {e}")),
-        _ => AppError::Unknown(format!("git: {e}")),
+        git2::ErrorCode::Auth => AppError::credential_with(
+            codes::git::AUTH_FAILED,
+            format!("auth failed: {e}"),
+            &[("error", e.to_string())],
+        ),
+        _ => AppError::unknown_with(
+            codes::git::GIT_ERROR,
+            format!("git: {e}"),
+            &[("error", e.to_string())],
+        ),
     }
 }
 
@@ -44,10 +53,13 @@ fn provider_for_url(url: &str) -> Arc<dyn CredentialProvider> {
 
 fn remote_url(repo: &Repository, remote_name: &str) -> Result<String> {
     let remote = repo.find_remote(remote_name).map_err(map_git_err)?;
-    remote
-        .url()
-        .map(str::to_string)
-        .ok_or_else(|| AppError::Protocol(format!("remote '{remote_name}' has no URL")))
+    remote.url().map(str::to_string).ok_or_else(|| {
+        AppError::protocol_with(
+            codes::git::REMOTE_NO_URL,
+            format!("remote '{remote_name}' has no URL"),
+            &[("name", remote_name.to_string())],
+        )
+    })
 }
 
 fn attach_transfer_progress(
@@ -89,8 +101,16 @@ pub fn fetch(
     remote
         .fetch(&[] as &[&str], Some(&mut fo), None)
         .map_err(|e| match e.code() {
-            git2::ErrorCode::Auth => AppError::Credential(format!("fetch auth: {e}")),
-            _ => AppError::Network(format!("fetch failed: {e}")),
+            git2::ErrorCode::Auth => AppError::credential_with(
+                codes::git::FETCH_AUTH_FAILED,
+                format!("fetch auth: {e}"),
+                &[("error", e.to_string())],
+            ),
+            _ => AppError::network_with(
+                codes::git::FETCH_FAILED,
+                format!("fetch failed: {e}"),
+                &[("error", e.to_string())],
+            ),
         })?;
     Ok(())
 }
@@ -116,7 +136,10 @@ pub fn push_with_options(
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
-        return Err(AppError::Protocol("cannot push detached HEAD".into()));
+        return Err(AppError::protocol(
+            codes::git::PUSH_DETACHED_HEAD,
+            "cannot push detached HEAD",
+        ));
     }
     let branch = head.shorthand().unwrap_or("HEAD").to_string();
     let mut refspecs = vec![format!(
@@ -140,8 +163,16 @@ pub fn push_with_options(
     remote
         .push(&str_refs, Some(&mut po))
         .map_err(|e| match e.code() {
-            git2::ErrorCode::Auth => AppError::Credential(format!("push auth: {e}")),
-            _ => AppError::Network(format!("push failed: {e}")),
+            git2::ErrorCode::Auth => AppError::credential_with(
+                codes::git::PUSH_AUTH_FAILED,
+                format!("push auth: {e}"),
+                &[("error", e.to_string())],
+            ),
+            _ => AppError::network_with(
+                codes::git::PUSH_FAILED,
+                format!("push failed: {e}"),
+                &[("error", e.to_string())],
+            ),
         })?;
     Ok(())
 }
@@ -177,23 +208,41 @@ pub fn list_remote_details(repo: &Repository) -> Result<Vec<RemoteInfo>> {
 
 fn validate_remote_name(name: &str) -> Result<()> {
     if name.trim().is_empty() {
-        return Err(AppError::Protocol("remote name cannot be empty".into()));
+        return Err(AppError::protocol(
+            codes::git::REMOTE_NAME_EMPTY,
+            "remote name cannot be empty",
+        ));
     }
     Ok(())
 }
 
 fn validate_remote_url(url: &str) -> Result<()> {
     if url.trim().is_empty() {
-        return Err(AppError::Protocol("remote URL cannot be empty".into()));
+        return Err(AppError::protocol(
+            codes::git::REMOTE_URL_EMPTY,
+            "remote URL cannot be empty",
+        ));
     }
     Ok(())
 }
 
 fn remote_op_err(e: git2::Error) -> AppError {
     match e.code() {
-        git2::ErrorCode::NotFound => AppError::Protocol(format!("remote not found: {e}")),
-        git2::ErrorCode::Exists => AppError::Protocol(format!("remote already exists: {e}")),
-        _ => AppError::Unknown(format!("git remote: {e}")),
+        git2::ErrorCode::NotFound => AppError::protocol_with(
+            codes::git::REMOTE_NOT_FOUND,
+            format!("remote not found: {e}"),
+            &[("error", e.to_string())],
+        ),
+        git2::ErrorCode::Exists => AppError::protocol_with(
+            codes::git::REMOTE_EXISTS,
+            format!("remote already exists: {e}"),
+            &[("error", e.to_string())],
+        ),
+        _ => AppError::unknown_with(
+            codes::git::REMOTE_OP_FAILED,
+            format!("git remote: {e}"),
+            &[("error", e.to_string())],
+        ),
     }
 }
 
@@ -202,9 +251,11 @@ pub fn add_remote(repo: &Repository, name: &str, url: &str) -> Result<()> {
     validate_remote_name(name)?;
     validate_remote_url(url)?;
     if repo.find_remote(name.trim()).is_ok() {
-        return Err(AppError::Protocol(format!(
-            "remote '{name}' already exists"
-        )));
+        return Err(AppError::protocol_with(
+            codes::git::REMOTE_DUPLICATE,
+            format!("remote '{name}' already exists"),
+            &[("name", name.to_string())],
+        ));
     }
     repo.remote(name.trim(), url.trim())
         .map_err(remote_op_err)?;
@@ -258,8 +309,16 @@ pub fn delete_remote_branch(repo: &Repository, remote_name: &str, branch_name: &
     remote
         .push(&[refspec.as_str()], Some(&mut po))
         .map_err(|e| match e.code() {
-            git2::ErrorCode::Auth => AppError::Credential(format!("push auth: {e}")),
-            _ => AppError::Network(format!("delete remote branch failed: {e}")),
+            git2::ErrorCode::Auth => AppError::credential_with(
+                codes::git::PUSH_AUTH_FAILED,
+                format!("push auth: {e}"),
+                &[("error", e.to_string())],
+            ),
+            _ => AppError::network_with(
+                codes::git::DELETE_REMOTE_BRANCH_FAILED,
+                format!("delete remote branch failed: {e}"),
+                &[("error", e.to_string())],
+            ),
         })?;
     if let Ok(mut tracking) =
         repo.find_reference(&format!("refs/remotes/{remote_name}/{branch_name}"))
@@ -315,9 +374,11 @@ pub fn pull_with_options(
         Ok(()) => {
             if stashed {
                 crate::infrastructure::git::stash::pop_stash(repo, 0).map_err(|e| {
-                    AppError::Unknown(format!(
-                        "pull completed; stash re-apply failed, the stash was kept: {e}"
-                    ))
+                    AppError::unknown_with(
+                        codes::git::STASH_REAPPLY_FAILED,
+                        format!("pull completed; stash re-apply failed, the stash was kept: {e}"),
+                        &[("error", e.to_string())],
+                    )
                 })?;
             }
             Ok(())
@@ -326,9 +387,11 @@ pub fn pull_with_options(
             if stashed {
                 // Best-effort restore so a failed pull doesn't swallow changes.
                 if crate::infrastructure::git::stash::pop_stash(repo, 0).is_err() {
-                    return Err(AppError::Unknown(format!(
-                        "{e}; stash re-apply also failed, the stash was kept"
-                    )));
+                    return Err(AppError::unknown_with(
+                        codes::git::STASH_RESTORE_FAILED,
+                        format!("{e}; stash re-apply also failed, the stash was kept"),
+                        &[("error", e.to_string())],
+                    ));
                 }
             }
             Err(e)
@@ -346,7 +409,10 @@ fn pull_integrate(
 
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
-        return Err(AppError::Protocol("cannot pull with detached HEAD".into()));
+        return Err(AppError::protocol(
+            codes::git::PULL_DETACHED_HEAD,
+            "cannot pull with detached HEAD",
+        ));
     }
     let local_name = head.shorthand().unwrap_or("HEAD").to_string();
 
@@ -368,7 +434,13 @@ fn pull_integrate(
         .revparse_single(&target_ref)
         .and_then(|obj| obj.peel(git2::ObjectType::Commit))
         .map(|commit| commit.id())
-        .map_err(|e| AppError::Protocol(format!("cannot resolve '{target_ref}': {e}")))?;
+        .map_err(|e| {
+            AppError::protocol_with(
+                codes::git::CANNOT_RESOLVE_REF,
+                format!("cannot resolve '{target_ref}': {e}"),
+                &[("ref", target_ref.clone()), ("error", e.to_string())],
+            )
+        })?;
     let annotated = repo.find_annotated_commit(their_oid).map_err(map_git_err)?;
 
     let (analysis, _) = repo.merge_analysis(&[&annotated]).map_err(map_git_err)?;
@@ -383,8 +455,9 @@ fn pull_integrate(
     // overwritten"). The stash checkbox pre-cleans the worktree before we
     // get here, so this only fires when the user declined it.
     if !opts.stash && worktree_is_dirty(repo)? {
-        return Err(AppError::Protocol(
-            "pull needs a clean worktree; check 'Stash and reapply' or commit first".into(),
+        return Err(AppError::protocol(
+            codes::git::PULL_DIRTY_WORKTREE,
+            "pull needs a clean worktree; check 'Stash and reapply' or commit first",
         ));
     }
 
@@ -407,8 +480,9 @@ fn pull_integrate(
         let result = crate::infrastructure::git::rebase::rebase_branch(repo, &target_ref)?;
         match result.kind {
             crate::infrastructure::git::rebase::RebaseKind::Conflicts => {
-                return Err(AppError::VersionConflict(
-                    "pull --rebase hit conflicts; local commits were left untouched".into(),
+                return Err(AppError::version_conflict(
+                    codes::git::PULL_REBASE_CONFLICTS,
+                    "pull --rebase hit conflicts; local commits were left untouched",
                 ));
             }
             crate::infrastructure::git::rebase::RebaseKind::AlreadyUpToDate => return Ok(()),
@@ -422,7 +496,10 @@ fn pull_integrate(
                 // In-memory rebase leaves refs and the workdir untouched;
                 // land the rewritten head on the current branch here.
                 let new_head = result.new_head.ok_or_else(|| {
-                    AppError::Protocol("rebase finished without a new HEAD".into())
+                    AppError::protocol(
+                        codes::git::REBASE_NO_NEW_HEAD,
+                        "rebase finished without a new HEAD",
+                    )
                 })?;
                 crate::infrastructure::git::rebase::finalize_rebase(repo, &new_head)?;
                 return Ok(());
@@ -431,12 +508,16 @@ fn pull_integrate(
     }
 
     if analysis.is_normal() {
-        return Err(AppError::VersionConflict(
-            "pull would require a merge; enable Rebase or use Merge from Branches".into(),
+        return Err(AppError::version_conflict(
+            codes::git::PULL_NEEDS_MERGE,
+            "pull would require a merge; enable Rebase or use Merge from Branches",
         ));
     }
 
-    Err(AppError::Protocol("pull: unexpected merge analysis".into()))
+    Err(AppError::protocol(
+        codes::git::PULL_UNEXPECTED,
+        "pull: unexpected merge analysis",
+    ))
 }
 
 #[cfg(test)]

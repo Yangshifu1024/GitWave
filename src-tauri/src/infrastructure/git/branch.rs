@@ -8,6 +8,7 @@
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 /// Create a new branch pointing at `from_sha`. The branch is local and
 /// not checked out — call `checkout_branch` separately if you want to
@@ -29,9 +30,11 @@ pub fn delete_branch(repo: &Repository, name: &str) -> Result<()> {
         .find_branch(name, git2::BranchType::Local)
         .map_err(map_git_err)?;
     if branch.is_head() {
-        return Err(AppError::Protocol(format!(
-            "cannot delete checked-out branch: {name}"
-        )));
+        return Err(AppError::protocol_with(
+            codes::git::DELETE_CHECKED_OUT_BRANCH,
+            format!("cannot delete checked-out branch: {name}"),
+            &[("name", name.to_string())],
+        ));
     }
     branch.into_reference().delete().map_err(map_git_err)?;
     Ok(())
@@ -62,7 +65,11 @@ pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<()>
 }
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[cfg(test)]

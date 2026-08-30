@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { ArrowDown, ArrowDownUp, ArrowUp, Archive, FileDiff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import {
   addLocalRepo,
@@ -126,6 +127,7 @@ function deriveDestName(url: string): string {
 }
 
 export function ActionBar(): React.JSX.Element {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
   const startOp = useSyncStore((s) => s.startOp);
@@ -241,12 +243,12 @@ export function ActionBar(): React.JSX.Element {
     if (mode === "export") {
       if (!activeWorkspaceId) return;
       exportWorkspace(activeWorkspaceId, path)
-        .then(() => done(`Workspace exported to ${path}`))
+        .then(() => done(t("commits.workspace.exported", { path })))
         .catch((e) => setTransferError(formatAppError(e)));
     } else {
       importWorkspace(path, null)
         .then((ws) => {
-          done(`Workspace "${ws.name}" imported`);
+          done(t("commits.workspace.imported", { name: ws.name }));
           selectWorkspace(ws.id, ws.last_active_repo_id);
         })
         .catch((e) => setTransferError(formatAppError(e)));
@@ -396,7 +398,7 @@ export function ActionBar(): React.JSX.Element {
     const fromSha = wc.data?.sha;
     if (!name) return;
     if (!fromSha) {
-      setBranchError("No current branch tip to branch from");
+      setBranchError(t("commits.branch.noTipError"));
       return;
     }
     setBranchError(null);
@@ -441,7 +443,7 @@ export function ActionBar(): React.JSX.Element {
     startOp("stash");
     try {
       await saveStash(activeWorkspaceId, stashMessage.trim() || undefined, stashStage);
-      setStatus("Saved stash", "success");
+      setStatus(t("changes.stash.saved"), "success");
       void queryClient.invalidateQueries({ queryKey: ["stashes", activeWorkspaceId] });
       void queryClient.invalidateQueries({
         queryKey: ["working-copy", activeWorkspaceId, activeRepoId],
@@ -473,7 +475,7 @@ export function ActionBar(): React.JSX.Element {
     startOp("worktree");
     try {
       await addWorktree(activeWorkspaceId, name, location, name, true, wtStart || undefined);
-      setStatus(`Created worktree ${name}`, "success");
+      setStatus(t("commits.worktree.created", { name }), "success");
       void queryClient.invalidateQueries({ queryKey: ["repos", activeWorkspaceId] });
       setWorktreeCreateOpen(false);
       setWtName("");
@@ -604,16 +606,20 @@ export function ActionBar(): React.JSX.Element {
         <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<FileDiff size={14} />}
-            label={changeCount > 0 ? `Changes(${changeCount})` : "Changes"}
-            title="Local changes"
+            label={
+              changeCount > 0
+                ? t("changes.actionBar.changesWithCount", { total: changeCount })
+                : t("changes.actionBar.changes")
+            }
+            title={t("changes.actionBar.localChangesTitle")}
             tone={changeCount > 0 ? "warning" : "success"}
             disabled={localChangesDisabled}
             onClick={() => setWcModalOpen(true)}
           />
           <ActionBarButton
             icon={<Archive size={14} />}
-            label="Stash"
-            title="Stash local changes"
+            label={t("changes.stash.title")}
+            title={t("changes.stash.buttonTitle")}
             disabled={localChangesDisabled}
             onClick={() => setStashOpen(true)}
           />
@@ -622,21 +628,29 @@ export function ActionBar(): React.JSX.Element {
         <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDownUp size={14} />}
-            label="Fetch"
+            label={t("commits.sync.fetch")}
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
           />
           <ActionBarButton
             icon={<ArrowDown size={14} />}
-            label={wc.data && wc.data.behind > 0 ? `Pull (${wc.data.behind})` : "Pull"}
-            title="Pull"
+            label={
+              wc.data && wc.data.behind > 0
+                ? t("commits.sync.pullWithCount", { total: wc.data.behind })
+                : t("commits.sync.pull")
+            }
+            title={t("commits.sync.pullTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPullDialog}
           />
           <ActionBarButton
             icon={<ArrowUp size={14} />}
-            label={wc.data && wc.data.ahead > 0 ? `Push (${wc.data.ahead})` : "Push"}
-            title="Push"
+            label={
+              wc.data && wc.data.ahead > 0
+                ? t("commits.sync.pushWithCount", { total: wc.data.ahead })
+                : t("commits.sync.push")
+            }
+            title={t("commits.sync.pushTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPushDialog}
           />
@@ -663,7 +677,7 @@ export function ActionBar(): React.JSX.Element {
             setCreateError(null);
           }
         }}
-        title="New Workspace"
+        title={t("commits.workspace.createTitle")}
         size="sm"
         footer={
           <>
@@ -673,7 +687,7 @@ export function ActionBar(): React.JSX.Element {
               className="min-w-0 flex-[3]"
               onClick={() => setCreateOpen(false)}
             >
-              Cancel
+              {t("commits.action.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -682,7 +696,7 @@ export function ActionBar(): React.JSX.Element {
               onClick={submitCreate}
               disabled={!createName.trim() || createMut.isPending}
             >
-              Create
+              {t("commits.action.create")}
             </Button>
           </>
         }
@@ -695,7 +709,7 @@ export function ActionBar(): React.JSX.Element {
             onKeyDown={(e) => {
               if (e.key === "Enter") submitCreate();
             }}
-            placeholder="Workspace name"
+            placeholder={t("commits.workspace.namePlaceholder")}
             error={createError}
           />
         </div>
@@ -707,11 +721,15 @@ export function ActionBar(): React.JSX.Element {
         onOpenChange={(open) => {
           if (!open) setTransferOpen(null);
         }}
-        title={transferOpen === "export" ? "Export workspace" : "Import workspace"}
+        title={
+          transferOpen === "export"
+            ? t("commits.workspace.exportTitle")
+            : t("commits.workspace.importTitle")
+        }
         description={
           transferOpen === "export"
-            ? "Writes a .gitwave-workspace.json with the workspace name and repo paths. API keys are never included."
-            : "Reads a .gitwave-workspace.json, creates a new workspace and re-adds repos that exist on disk."
+            ? t("commits.workspace.exportDescription")
+            : t("commits.workspace.importDescription")
         }
         size="sm"
         footer={
@@ -722,7 +740,7 @@ export function ActionBar(): React.JSX.Element {
               className="min-w-0 flex-[3]"
               onClick={() => setTransferOpen(null)}
             >
-              Cancel
+              {t("commits.action.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -731,7 +749,7 @@ export function ActionBar(): React.JSX.Element {
               disabled={!transferPath.trim()}
               onClick={submitTransfer}
             >
-              {transferOpen === "export" ? "Export" : "Import"}
+              {transferOpen === "export" ? t("commits.action.export") : t("commits.action.import")}
             </Button>
           </>
         }
@@ -746,8 +764,8 @@ export function ActionBar(): React.JSX.Element {
             }}
             placeholder={
               transferOpen === "export"
-                ? "destination .json path"
-                : "source .gitwave-workspace.json path"
+                ? t("commits.workspace.exportPathPlaceholder")
+                : t("commits.workspace.importPathPlaceholder")
             }
             error={transferError}
           />
@@ -760,7 +778,11 @@ export function ActionBar(): React.JSX.Element {
         onOpenChange={(open) => {
           if (!open) setRenameOpen(false);
         }}
-        title={activeWorkspace ? `Rename "${activeWorkspace.name}"` : "Rename workspace"}
+        title={
+          activeWorkspace
+            ? t("commits.workspace.renameTitle", { name: activeWorkspace.name })
+            : t("commits.workspace.renameFallback")
+        }
         size="sm"
         footer={
           <>
@@ -770,7 +792,7 @@ export function ActionBar(): React.JSX.Element {
               className="min-w-0 flex-[3]"
               onClick={() => setRenameOpen(false)}
             >
-              Cancel
+              {t("commits.action.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -779,7 +801,7 @@ export function ActionBar(): React.JSX.Element {
               onClick={submitRename}
               disabled={!renameValue.trim() || renameMut.isPending}
             >
-              Save
+              {t("commits.action.save")}
             </Button>
           </>
         }
@@ -803,8 +825,12 @@ export function ActionBar(): React.JSX.Element {
         onOpenChange={(open) => {
           if (!open) setDeleteOpen(false);
         }}
-        title={activeWorkspace ? `Delete "${activeWorkspace.name}"?` : "Delete workspace?"}
-        description="This removes the workspace and its repo references from GitWave. It does not delete the local repositories themselves."
+        title={
+          activeWorkspace
+            ? t("commits.workspace.deleteTitle", { name: activeWorkspace.name })
+            : t("commits.workspace.deleteFallback")
+        }
+        description={t("commits.workspace.deleteDescription")}
         size="sm"
         footer={
           <>
@@ -814,7 +840,7 @@ export function ActionBar(): React.JSX.Element {
               className="min-w-0 flex-[3]"
               onClick={() => setDeleteOpen(false)}
             >
-              Cancel
+              {t("commits.action.cancel")}
             </Button>
             <Button
               variant="danger"
@@ -823,7 +849,7 @@ export function ActionBar(): React.JSX.Element {
               onClick={() => deleteMut.mutate(activeWorkspaceId!)}
               disabled={deleteMut.isPending}
             >
-              Delete
+              {t("commits.action.delete")}
             </Button>
           </>
         }
@@ -855,13 +881,13 @@ export function ActionBar(): React.JSX.Element {
           onOpenChange={(open) => {
             if (!open) endAdd();
           }}
-          title="Initialize new repo"
-          description="Create a fresh Git repository in an empty folder."
+          title={t("commits.repo.initTitle")}
+          description={t("commits.repo.initDescription")}
           size="sm"
           footer={
             <>
               <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={endAdd}>
-                Cancel
+                {t("commits.action.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -870,14 +896,14 @@ export function ActionBar(): React.JSX.Element {
                 onClick={() => initMut.mutate({ path: initPath.trim() })}
                 disabled={!initPath.trim() || initMut.isPending}
               >
-                Create
+                {t("commits.action.create")}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-1 rounded-xl bg-bg-primary p-3">
             <Label className="text-sm font-medium text-text-secondary" htmlFor="init-path">
-              Location
+              {t("commits.repo.location")}
             </Label>
             <PathInput
               id="init-path"
@@ -902,8 +928,8 @@ export function ActionBar(): React.JSX.Element {
           onOpenChange={(open) => {
             if (!open) endAdd();
           }}
-          title="Clone remote repo"
-          description="Copy a remote repository into a local folder."
+          title={t("commits.repo.cloneTitle")}
+          description={t("commits.repo.cloneDescription")}
           size="sm"
           footer={
             <>
@@ -914,7 +940,7 @@ export function ActionBar(): React.JSX.Element {
                 onClick={endAdd}
                 disabled={cloneMut.isPending}
               >
-                Cancel
+                {t("commits.action.cancel")}
               </Button>
               {cloneFailed ? (
                 <Button
@@ -930,7 +956,7 @@ export function ActionBar(): React.JSX.Element {
                   }
                   disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
                 >
-                  Retry
+                  {t("commits.action.retry")}
                 </Button>
               ) : (
                 <Button
@@ -940,7 +966,7 @@ export function ActionBar(): React.JSX.Element {
                   onClick={() => cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })}
                   disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
                 >
-                  {cloneMut.isPending ? "Cloning…" : "Clone"}
+                  {cloneMut.isPending ? t("commits.repo.cloning") : t("commits.action.clone")}
                 </Button>
               )}
             </>
@@ -949,7 +975,7 @@ export function ActionBar(): React.JSX.Element {
           <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <div className="flex flex-col gap-1">
               <Label className="text-sm font-medium text-text-secondary" htmlFor="clone-url">
-                URL
+                {t("commits.repo.urlLabel")}
               </Label>
               <Input
                 id="clone-url"
@@ -961,10 +987,10 @@ export function ActionBar(): React.JSX.Element {
                     cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() });
                   }
                 }}
-                placeholder="https://github.com/user/repo.git or git@github.com:user/repo.git"
+                placeholder={t("commits.repo.cloneUrlPlaceholder")}
               />
               <p className="text-xs text-text-muted">
-                Detected protocol:{" "}
+                {t("commits.repo.detectedProtocol")}{" "}
                 {cloneUrl
                   ? cloneUrl.startsWith("git@") || cloneUrl.startsWith("ssh://")
                     ? "ssh"
@@ -974,7 +1000,7 @@ export function ActionBar(): React.JSX.Element {
             </div>
             <div className="flex flex-col gap-1">
               <Label className="text-sm font-medium text-text-secondary" htmlFor="clone-dest">
-                Destination path
+                {t("commits.repo.destinationPath")}
               </Label>
               <PathInput
                 id="clone-dest"
@@ -1009,8 +1035,14 @@ export function ActionBar(): React.JSX.Element {
               </div>
               <p className="font-mono text-[11px] text-text-muted">
                 {cloneProgress
-                  ? `objects ${cloneProgress.receivedObjects}/${cloneProgress.totalObjects || "?"} · deltas ${cloneProgress.indexedDeltas}/${cloneProgress.totalDeltas || "?"} · ${Math.round(cloneProgress.receivedBytes / 1024)} KiB`
-                  : "Starting clone…"}
+                  ? t("commits.repo.cloneProgress", {
+                      received: cloneProgress.receivedObjects,
+                      total: cloneProgress.totalObjects || "?",
+                      deltas: cloneProgress.indexedDeltas,
+                      totalDeltas: cloneProgress.totalDeltas || "?",
+                      kib: Math.round(cloneProgress.receivedBytes / 1024),
+                    })
+                  : t("commits.repo.startingClone")}
               </p>
             </div>
           ) : null}
@@ -1024,13 +1056,13 @@ export function ActionBar(): React.JSX.Element {
           onOpenChange={(open) => {
             if (!open) endAdd();
           }}
-          title="Add existing local repo"
-          description="Register an existing Git working tree with this workspace."
+          title={t("commits.repo.addLocalTitle")}
+          description={t("commits.repo.addLocalDescription")}
           size="sm"
           footer={
             <>
               <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={endAdd}>
-                Cancel
+                {t("commits.action.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -1039,14 +1071,14 @@ export function ActionBar(): React.JSX.Element {
                 onClick={() => localMut.mutate({ path: localPath.trim() })}
                 disabled={!localPath.trim() || localMut.isPending}
               >
-                Add
+                {t("commits.action.add")}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-1 rounded-xl bg-bg-primary p-3">
             <Label className="text-sm font-medium text-text-secondary" htmlFor="add-local-path">
-              Location
+              {t("commits.repo.location")}
             </Label>
             <PathInput
               id="add-local-path"
@@ -1071,8 +1103,8 @@ export function ActionBar(): React.JSX.Element {
         onOpenChange={(open) => {
           if (!open) setBranchCreateOpen(false);
         }}
-        title={`New branch from "${wc.data?.branch ?? "?"}"`}
-        description="Creates a local branch at the current tip; the current branch stays checked out."
+        title={t("commits.branch.createTitle", { branch: wc.data?.branch ?? "?" })}
+        description={t("commits.branch.createDescription")}
         size="sm"
         footer={
           <>
@@ -1082,7 +1114,7 @@ export function ActionBar(): React.JSX.Element {
               className="min-w-0 flex-[3]"
               onClick={() => setBranchCreateOpen(false)}
             >
-              Cancel
+              {t("commits.action.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -1091,7 +1123,7 @@ export function ActionBar(): React.JSX.Element {
               onClick={submitBranchCreate}
               disabled={!branchName.trim() || branchCreateMut.isPending}
             >
-              Create
+              {t("commits.action.create")}
             </Button>
           </>
         }
@@ -1104,7 +1136,7 @@ export function ActionBar(): React.JSX.Element {
             onKeyDown={(e) => {
               if (e.key === "Enter") submitBranchCreate();
             }}
-            placeholder="feature/my-branch"
+            placeholder={t("commits.branch.namePlaceholder")}
             error={branchError}
           />
         </div>
@@ -1117,8 +1149,8 @@ export function ActionBar(): React.JSX.Element {
           onOpenChange={(open) => {
             if (!open) setPullDialog(null);
           }}
-          title="Pull"
-          description="Pull remote branches and merge them into your local branch"
+          title={t("commits.sync.pullTitle")}
+          description={t("commits.sync.pullDescription")}
           size="sm"
           footer={
             <>
@@ -1128,7 +1160,7 @@ export function ActionBar(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setPullDialog(null)}
               >
-                Cancel
+                {t("commits.action.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -1146,16 +1178,18 @@ export function ActionBar(): React.JSX.Element {
                   wc.pull(options);
                 }}
               >
-                Pull
+                {t("commits.sync.pull")}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <Label className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-sm text-text-secondary">Remote</span>
+              <span className="w-16 shrink-0 text-sm text-text-secondary">
+                {t("commits.sync.remote")}
+              </span>
               <Select
-                aria-label="Remote"
+                aria-label={t("commits.sync.remote")}
                 className="h-auto min-w-0 flex-1 bg-bg-primary border-border-subtle px-1.5 py-1.5 text-sm"
                 value={pullDialog.remote}
                 disabled={wc.isSyncBusy}
@@ -1164,9 +1198,11 @@ export function ActionBar(): React.JSX.Element {
               />
             </Label>
             <Label className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-sm text-text-secondary">Branch</span>
+              <span className="w-16 shrink-0 text-sm text-text-secondary">
+                {t("commits.sync.branch")}
+              </span>
               <Select
-                aria-label="Branch"
+                aria-label={t("commits.sync.branch")}
                 className="h-auto min-w-0 flex-1 bg-bg-primary border-border-subtle px-1.5 py-1.5 text-sm"
                 value={pullDialog.branch}
                 disabled={wc.isSyncBusy}
@@ -1178,7 +1214,9 @@ export function ActionBar(): React.JSX.Element {
               />
             </Label>
             <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-sm text-text-secondary">Into</span>
+              <span className="w-16 shrink-0 text-sm text-text-secondary">
+                {t("commits.sync.into")}
+              </span>
               <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                 {wc.data?.branch ?? "—"}
               </span>
@@ -1190,14 +1228,14 @@ export function ActionBar(): React.JSX.Element {
               disabled={wc.isSyncBusy}
               onChange={(rebase) => setPullDialog({ ...pullDialog, rebase })}
             >
-              Rebase instead of merge
+              {t("commits.sync.rebaseInstead")}
             </Checkbox>
             <Checkbox
               checked={pullDialog.stash}
               disabled={wc.isSyncBusy}
               onChange={(stash) => setPullDialog({ ...pullDialog, stash })}
             >
-              Stash and reapply local changes
+              {t("commits.sync.stashAndReapply")}
             </Checkbox>
           </div>
         </Modal>
@@ -1210,8 +1248,8 @@ export function ActionBar(): React.JSX.Element {
           onOpenChange={(open) => {
             if (!open) setPushDialog(null);
           }}
-          title="Push"
-          description="Push your local changes to remote repository"
+          title={t("commits.sync.pushTitle")}
+          description={t("commits.sync.pushDescription")}
           size="sm"
           footer={
             <>
@@ -1221,7 +1259,7 @@ export function ActionBar(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setPushDialog(null)}
               >
-                Cancel
+                {t("commits.action.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -1238,22 +1276,28 @@ export function ActionBar(): React.JSX.Element {
                   wc.push(options);
                 }}
               >
-                Push
+                {t("commits.sync.push")}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-sm text-text-secondary">Branch</span>
+              <span className="w-16 shrink-0 text-sm text-text-secondary">
+                {t("commits.sync.branch")}
+              </span>
               <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                 {wc.data?.branch ?? "—"}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-sm text-text-secondary">To</span>
+              <span className="w-16 shrink-0 text-sm text-text-secondary">
+                {t("commits.sync.to")}
+              </span>
               <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                default ({wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`})
+                {t("commits.sync.defaultTarget", {
+                  target: wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`,
+                })}
               </span>
             </div>
           </div>
@@ -1263,14 +1307,14 @@ export function ActionBar(): React.JSX.Element {
               disabled={wc.isSyncBusy}
               onChange={(tags) => setPushDialog({ ...pushDialog, tags })}
             >
-              Push all tags
+              {t("commits.sync.pushAllTags")}
             </Checkbox>
             <Checkbox
               checked={pushDialog.force}
               disabled={wc.isSyncBusy}
               onChange={(force) => setPushDialog({ ...pushDialog, force })}
             >
-              Force push
+              {t("commits.sync.forcePush")}
             </Checkbox>
           </div>
         </Modal>
@@ -1280,8 +1324,8 @@ export function ActionBar(): React.JSX.Element {
         <Modal
           open
           onOpenChange={(o) => !o && setStashOpen(false)}
-          title="Save stash"
-          description="Save your local changes to a new stash"
+          title={t("changes.stash.saveTitle")}
+          description={t("changes.stash.saveDescription")}
           size="sm"
           footer={
             <>
@@ -1291,7 +1335,7 @@ export function ActionBar(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setStashOpen(false)}
               >
-                Cancel
+                {t("changes.action.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -1300,7 +1344,7 @@ export function ActionBar(): React.JSX.Element {
                 disabled={stashSaving}
                 onClick={() => void handleSaveStash()}
               >
-                Save Stash
+                {t("changes.stash.saveButton")}
               </Button>
             </>
           }
@@ -1309,7 +1353,7 @@ export function ActionBar(): React.JSX.Element {
             <Input
               value={stashMessage}
               onChange={setStashMessage}
-              placeholder="Stash message (optional)"
+              placeholder={t("changes.stash.messagePlaceholder")}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !stashSaving) void handleSaveStash();
@@ -1324,9 +1368,9 @@ export function ActionBar(): React.JSX.Element {
               className="items-start text-text-primary"
             >
               <span className="flex flex-col">
-                <span>Stage new files</span>
+                <span>{t("changes.stash.stageNewFiles")}</span>
                 <span className="text-xs font-normal text-text-muted">
-                  By default stash ignores new files until you stage them
+                  {t("changes.stash.stageNewFilesHint")}
                 </span>
               </span>
             </Checkbox>
@@ -1338,8 +1382,8 @@ export function ActionBar(): React.JSX.Element {
         <Modal
           open
           onOpenChange={(o) => !o && setWorktreeCreateOpen(false)}
-          title="Create Worktree"
-          description="Create branch and check out it in a separate worktree"
+          title={t("commits.worktree.createTitle")}
+          description={t("commits.worktree.createDescription")}
           size="sm"
           footer={
             <>
@@ -1350,7 +1394,7 @@ export function ActionBar(): React.JSX.Element {
                 onClick={() => setWorktreeCreateOpen(false)}
                 disabled={wtBusy}
               >
-                Cancel
+                {t("commits.action.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -1359,34 +1403,34 @@ export function ActionBar(): React.JSX.Element {
                 disabled={wtBusy || !wtName.trim() || !wtLocation.trim()}
                 onClick={() => void handleCreateWorktree()}
               >
-                Create
+                {t("commits.action.create")}
               </Button>
             </>
           }
         >
           <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
-            <Label>Start from</Label>
+            <Label>{t("commits.worktree.startFrom")}</Label>
             <Select
-              aria-label="Start from"
+              aria-label={t("commits.worktree.startFrom")}
               className="h-8 bg-bg-primary border-border-subtle px-1.5 text-xs"
               value={wtStart}
               disabled={wtBusy}
               onChange={(v) => setWtStart(v)}
               options={wtBranchOptions.map((b) => ({ value: b, label: b }))}
             />
-            <Label>Branch name</Label>
+            <Label>{t("commits.worktree.branchName")}</Label>
             <Input
               value={wtName}
               onChange={setWtName}
-              placeholder="Enter branch name"
+              placeholder={t("commits.worktree.branchNamePlaceholder")}
               disabled={wtBusy}
             />
-            <Label>Location</Label>
+            <Label>{t("commits.repo.location")}</Label>
             <PathInput
               directory
               value={wtLocation}
               onChange={setWtLocation}
-              placeholder="Path for the new worktree"
+              placeholder={t("commits.worktree.locationPlaceholder")}
               disabled={wtBusy}
             />
           </div>

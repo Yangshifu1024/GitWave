@@ -1,0 +1,35 @@
+{
+  "status": {
+    "fetchComplete": "Fetch complete",
+    "createdBranch": "Created branch {{name}}",
+    "checkedOut": "Checked out {{name}}",
+    "createdTag": "Created tag {{name}}",
+    "changesStashed": "Changes stashed",
+    "sync": {
+      "fetch": "Fetch",
+      "pull": "Pull",
+      "push": "Push",
+      "fetchTooltip": "Fetch updates from the remote without merging",
+      "pullTooltip": "Pull and fast-forward the current branch",
+      "pushTooltip": "Push local commits to the remote",
+      "fetching": "Fetching from origin…",
+      "pulling": "Pulling changes…",
+      "pushing": "Pushing to origin…",
+      "checkingOut": "Checking out branch…",
+      "deletingBranch": "Deleting branch…",
+      "merging": "Merging branch…",
+      "rebasing": "Rebasing…",
+      "savingStash": "Saving stash…",
+      "creatingWorktree": "Creating worktree…",
+      "remoteOp": "Running remote operation…",
+      "fetched": "Fetched from origin",
+      "pulled": "Pulled from origin",
+      "pushed": "Pushed to origin",
+      "fetchFailed": "Fetch failed",
+      "pullFailed": "Pull failed",
+      "pushFailed": "Push failed",
+      "refreshing": "Refreshing…",
+      "refreshed": "Refreshed"
+    }
+  }
+}

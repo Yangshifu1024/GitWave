@@ -1,0 +1,31 @@
+{
+  "remotes": {
+    "title": "远程",
+    "empty": "暂无远程",
+    "noUrl": "（无 URL）",
+    "added": "已添加远程「{{name}}」",
+    "updated": "已更新远程「{{name}}」",
+    "fetched": "已从 {{name}} 获取",
+    "removed": "已移除远程「{{name}}」",
+    "actions": {
+      "add": "添加远程",
+      "fetch": "获取",
+      "edit": "编辑…"
+    },
+    "add": {
+      "title": "添加远程",
+      "namePlaceholder": "名称（如 origin）",
+      "urlPlaceholder": "URL（https:// 或 git@…）"
+    },
+    "edit": {
+      "title": "编辑远程「{{name}}」",
+      "namePlaceholder": "名称",
+      "fetchPlaceholder": "fetch URL",
+      "pushPlaceholder": "push URL（留空 = 与 fetch 相同）"
+    },
+    "delete": {
+      "title": "移除远程「{{name}}」？",
+      "description": "仅移除远程配置；本地分支和提交不受影响。"
+    }
+  }
+}

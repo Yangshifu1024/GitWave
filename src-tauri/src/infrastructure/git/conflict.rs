@@ -5,9 +5,14 @@ use std::path::Path;
 use git2::{ObjectType, Repository};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -107,12 +112,24 @@ pub fn get_conflict_sides(repo: &Repository, path: &str) -> Result<ConflictSides
 pub fn resolve_conflict(repo: &Repository, path: &str, content: &str) -> Result<()> {
     let wd = repo
         .workdir()
-        .ok_or_else(|| AppError::Protocol("bare repo has no workdir".into()))?;
+        .ok_or_else(|| AppError::protocol(codes::git::BARE_REPO, "bare repo has no workdir"))?;
     let full = wd.join(path);
     if let Some(parent) = full.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| AppError::Unknown(format!("mkdir: {e}")))?;
+        std::fs::create_dir_all(parent).map_err(|e| {
+            AppError::unknown_with(
+                codes::git::FS_ERROR,
+                format!("mkdir: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     }
-    std::fs::write(&full, content).map_err(|e| AppError::Unknown(format!("write: {e}")))?;
+    std::fs::write(&full, content).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::FS_ERROR,
+            format!("write: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
 
     let mut index = repo.index().map_err(map_git_err)?;
     let _ = index.conflict_remove(Path::new(path));

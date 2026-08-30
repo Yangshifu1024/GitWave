@@ -9,10 +9,15 @@ use std::path::PathBuf;
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::domain::hooks::HookInfo;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 /// Hooks the editor offers (the common client-side set).
@@ -28,9 +33,12 @@ pub const COMMON_HOOKS: [&str; 8] = [
 ];
 
 fn hooks_dir(repo: &Repository) -> Result<PathBuf> {
-    let workdir = repo
-        .workdir()
-        .ok_or_else(|| AppError::Protocol("bare repository has no working directory".into()))?;
+    let workdir = repo.workdir().ok_or_else(|| {
+        AppError::protocol(
+            codes::git::BARE_REPO,
+            "bare repository has no working directory",
+        )
+    })?;
     Ok(workdir.join(".git").join("hooks"))
 }
 
@@ -49,7 +57,11 @@ fn validate_name(name: &str) -> Result<()> {
     if ok {
         Ok(())
     } else {
-        Err(AppError::Protocol(format!("invalid hook name: {name}")))
+        Err(AppError::protocol_with(
+            codes::git::INVALID_HOOK_NAME,
+            format!("invalid hook name: {name}"),
+            &[("name", name.to_string())],
+        ))
     }
 }
 
@@ -90,7 +102,11 @@ pub fn read_hook(repo: &Repository, name: &str) -> Result<String> {
     match std::fs::read_to_string(&path) {
         Ok(content) => Ok(content),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-        Err(e) => Err(AppError::Unknown(format!("read hook: {e}"))),
+        Err(e) => Err(AppError::unknown_with(
+            codes::git::READ_HOOK,
+            format!("read hook: {e}"),
+            &[("error", e.to_string())],
+        )),
     }
 }
 
@@ -100,12 +116,23 @@ pub fn read_hook(repo: &Repository, name: &str) -> Result<String> {
 /// non-executable hook file is skipped by git.
 pub fn write_hook(repo: &Repository, name: &str, content: &str) -> Result<()> {
     let path = hook_path(repo, name)?;
-    std::fs::write(&path, content).map_err(|e| AppError::Unknown(format!("write hook: {e}")))?;
+    std::fs::write(&path, content).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::WRITE_HOOK,
+            format!("write hook: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
-            .map_err(|e| AppError::Unknown(format!("set hook permissions: {e}")))?;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).map_err(|e| {
+            AppError::unknown_with(
+                codes::git::HOOK_CHMOD,
+                format!("set hook permissions: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     }
     Ok(())
 }

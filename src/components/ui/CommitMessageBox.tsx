@@ -1,6 +1,7 @@
 import { type KeyboardEvent, useRef } from "react";
 import { InputGroup, TextField } from "@heroui/react";
 import { Loader2, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 
@@ -44,6 +45,7 @@ export function CommitMessageBox({
   disabled = false,
   className,
 }: CommitMessageBoxProps): React.JSX.Element {
+  const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -100,7 +102,7 @@ export function CommitMessageBox({
         onChange={onChange}
         isDisabled={disabled}
         className="w-full"
-        aria-label="Commit message"
+        aria-label={t("changes.messageBox.ariaLabel")}
       >
         <InputGroup
           fullWidth
@@ -109,7 +111,7 @@ export function CommitMessageBox({
           <InputGroup.TextArea
             ref={textareaRef}
             onKeyDown={handleKeyDown}
-            placeholder="feat: your commit message here…"
+            placeholder={t("changes.messageBox.placeholder")}
             rows={6}
             maxLength={500}
             className="w-full resize-none px-3 py-2 text-sm"
@@ -119,8 +121,11 @@ export function CommitMessageBox({
       {value.length > 0 && (value.length < 10 || firstLineLength > 72) ? (
         <p className="text-xs text-text-muted text-right -mt-1">
           {value.length < 10
-            ? `${value.length} chars`
-            : `${value.length} chars (first line > 72: ${firstLineLength})`}
+            ? t("changes.messageBox.charCount", { chars: value.length })
+            : t("changes.messageBox.charCountFirstLine", {
+                chars: value.length,
+                firstLine: firstLineLength,
+              })}
         </p>
       ) : null}
       <div className="flex items-center justify-end gap-2">
@@ -133,9 +138,9 @@ export function CommitMessageBox({
               onChange(amendMessage);
               textareaRef.current?.focus();
             }}
-            title="Prefill with last commit message"
+            title={t("changes.messageBox.amendTitle")}
           >
-            Amend
+            {t("changes.messageBox.amend")}
           </Button>
         )}
         {onAiGenerate ? (
@@ -144,19 +149,21 @@ export function CommitMessageBox({
             size="sm"
             disabled={disabled || aiLoading}
             onClick={onAiGenerate}
-            title="Generate commit message with AI"
-            aria-label="Generate commit message with AI"
+            title={t("changes.messageBox.generateTitle")}
+            aria-label={t("changes.messageBox.generateTitle")}
           >
             {aiLoading ? (
               <Loader2 size={14} className="animate-spin" aria-hidden="true" />
             ) : (
               <Sparkles size={14} />
             )}
-            {aiLoading ? "Generating…" : "Generate"}
+            {aiLoading ? t("changes.messageBox.generating") : t("changes.messageBox.generate")}
           </Button>
         ) : null}
         <Button variant="primary" size="sm" disabled={!canSubmit} onClick={onSubmit}>
-          {amendMessage != null ? "Amend commit" : "Commit"}
+          {amendMessage != null
+            ? t("changes.messageBox.amendCommit")
+            : t("changes.messageBox.commit")}
         </Button>
       </div>
     </div>

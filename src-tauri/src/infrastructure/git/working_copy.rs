@@ -6,12 +6,17 @@ use std::path::Path;
 use git2::{Repository, Status, StatusOptions};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::domain::working_copy::{FileChange, FileStatusKind, WorkingCopy};
 use crate::infrastructure::git::git2_adapter::commit_signature;
 use crate::infrastructure::git::history::ahead_behind;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 /// Build a `WorkingCopy` snapshot for `repo_id`.
@@ -200,7 +205,10 @@ pub fn stage_all(repo: &Repository) -> Result<()> {
 pub fn commit(repo: &Repository, message: &str) -> Result<String> {
     let trimmed = message.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Protocol("commit message cannot be empty".into()));
+        return Err(AppError::protocol(
+            codes::git::COMMIT_MESSAGE_EMPTY,
+            "commit message cannot be empty",
+        ));
     }
 
     let mut index = repo.index().map_err(map_git_err)?;
@@ -218,10 +226,16 @@ pub fn commit(repo: &Repository, message: &str) -> Result<String> {
     if let Some(ref parent) = parent_commit {
         let parent_tree = parent.tree().map_err(map_git_err)?;
         if parent_tree.id() == tree.id() {
-            return Err(AppError::Protocol("nothing to commit".into()));
+            return Err(AppError::protocol(
+                codes::git::NOTHING_TO_COMMIT,
+                "nothing to commit",
+            ));
         }
     } else if tree.is_empty() {
-        return Err(AppError::Protocol("nothing to commit".into()));
+        return Err(AppError::protocol(
+            codes::git::NOTHING_TO_COMMIT,
+            "nothing to commit",
+        ));
     }
 
     let parents: Vec<&git2::Commit<'_>> = parent_commit.iter().collect();
@@ -240,9 +254,9 @@ pub fn discard_worktree_changes(repo: &Repository, paths: &[String]) -> Result<(
         return Ok(());
     }
     let mut index = repo.index().map_err(map_git_err)?;
-    let workdir = repo
-        .workdir()
-        .ok_or_else(|| AppError::Protocol("bare repository has no worktree".into()))?;
+    let workdir = repo.workdir().ok_or_else(|| {
+        AppError::protocol(codes::git::BARE_REPO, "bare repository has no worktree")
+    })?;
 
     let mut tracked: Vec<String> = Vec::new();
     for path in paths {
@@ -250,27 +264,43 @@ pub fn discard_worktree_changes(repo: &Repository, paths: &[String]) -> Result<(
         // it: absolute paths replace the base in `PathBuf::join`, and both
         // it and libgit2's own checks treat `..` differently.
         if Path::new(path).is_absolute() || path.split(['/', '\\']).any(|seg| seg == "..") {
-            return Err(AppError::Protocol(format!("path escapes worktree: {path}")));
+            return Err(AppError::protocol_with(
+                codes::git::PATH_ESCAPES_WORKTREE,
+                format!("path escapes worktree: {path}"),
+                &[("path", path.clone())],
+            ));
         }
         let abs = workdir.join(path);
         if !abs.starts_with(workdir) {
-            return Err(AppError::Protocol(format!("path escapes worktree: {path}")));
+            return Err(AppError::protocol_with(
+                codes::git::PATH_ESCAPES_WORKTREE,
+                format!("path escapes worktree: {path}"),
+                &[("path", path.clone())],
+            ));
         }
 
         let status = repo.status_file(Path::new(path)).map_err(map_git_err)?;
         if status.contains(Status::CONFLICTED) {
             // Stage 0 is absent during a conflict — deleting here would
             // destroy one side of it.
-            return Err(AppError::Protocol(format!(
-                "resolve conflicts before discarding: {path}"
-            )));
+            return Err(AppError::protocol_with(
+                codes::git::DISCARD_CONFLICTED,
+                format!("resolve conflicts before discarding: {path}"),
+                &[("path", path.clone())],
+            ));
         }
         if status.contains(Status::WT_NEW) {
             match std::fs::remove_file(&abs) {
                 Ok(()) => {}
                 // Already gone — treat as discarded.
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => return Err(AppError::Unknown(format!("fs: {e}"))),
+                Err(e) => {
+                    return Err(AppError::unknown_with(
+                        codes::git::FS_ERROR,
+                        format!("fs: {e}"),
+                        &[("error", e.to_string())],
+                    ))
+                }
             }
         } else if !status.is_empty() {
             tracked.push(path.clone());
@@ -297,11 +327,14 @@ pub fn discard_worktree_changes(repo: &Repository, paths: &[String]) -> Result<(
 /// Note: `.gitignore` only affects untracked paths (standard Git behavior).
 pub fn ignore_path(repo: &Repository, pattern: &str) -> Result<()> {
     if pattern.trim().is_empty() || pattern.contains('\n') {
-        return Err(AppError::Protocol("invalid ignore pattern".into()));
+        return Err(AppError::protocol(
+            codes::git::INVALID_IGNORE_PATTERN,
+            "invalid ignore pattern",
+        ));
     }
-    let workdir = repo
-        .workdir()
-        .ok_or_else(|| AppError::Protocol("bare repository has no worktree".into()))?;
+    let workdir = repo.workdir().ok_or_else(|| {
+        AppError::protocol(codes::git::BARE_REPO, "bare repository has no worktree")
+    })?;
     let gitignore = workdir.join(".gitignore");
     // Missing file is the normal first-run case — treat as empty. Any other
     // read error (e.g. non-UTF-8 bytes) must abort rather than overwrite the
@@ -309,7 +342,13 @@ pub fn ignore_path(repo: &Repository, pattern: &str) -> Result<()> {
     let existing = match std::fs::read_to_string(&gitignore) {
         Ok(content) => content,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(e) => return Err(AppError::Unknown(format!("fs: read .gitignore: {e}"))),
+        Err(e) => {
+            return Err(AppError::unknown_with(
+                codes::git::READ_GITIGNORE,
+                format!("fs: read .gitignore: {e}"),
+                &[("error", e.to_string())],
+            ))
+        }
     };
 
     if existing.lines().any(|line| line == pattern) {
@@ -321,8 +360,13 @@ pub fn ignore_path(repo: &Repository, pattern: &str) -> Result<()> {
     }
     next.push_str(pattern);
     next.push('\n');
-    std::fs::write(&gitignore, next)
-        .map_err(|e| AppError::Unknown(format!("fs: write .gitignore: {e}")))?;
+    std::fs::write(&gitignore, next).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::WRITE_GITIGNORE,
+            format!("fs: write .gitignore: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     Ok(())
 }
 
@@ -509,16 +553,26 @@ mod tests {
 /// user-confirmed upstream; detached HEAD is refused because there is no
 /// branch to move.
 pub fn reset_head_hard(repo: &Repository, oid_str: &str) -> Result<()> {
-    let oid = git2::Oid::from_str(oid_str)
-        .map_err(|e| AppError::Protocol(format!("invalid oid: {e}")))?;
-    let target = repo
-        .find_commit(oid)
-        .map_err(|_| AppError::Protocol(format!("commit not found: {oid_str}")))?;
+    let oid = git2::Oid::from_str(oid_str).map_err(|e| {
+        AppError::protocol_with(
+            codes::git::INVALID_OID,
+            format!("invalid oid: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    let target = repo.find_commit(oid).map_err(|_| {
+        AppError::protocol_with(
+            codes::git::COMMIT_NOT_FOUND,
+            format!("commit not found: {oid_str}"),
+            &[("oid", oid_str.to_string())],
+        )
+    })?;
 
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
-        return Err(AppError::Protocol(
-            "detached HEAD — checkout a branch before resetting".into(),
+        return Err(AppError::protocol(
+            codes::git::RESET_DETACHED_HEAD,
+            "detached HEAD — checkout a branch before resetting",
         ));
     }
     repo.reset(&target.into_object(), git2::ResetType::Hard, None)

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import type { DiffSummary } from "@/lib/api";
 import {
   applyStash,
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Archive, Eye, Play, Trash2, Upload } from "lucide-react";
 
 export function StashPanel({ compact = false }: { compact?: boolean }): React.JSX.Element {
+  const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
@@ -71,7 +73,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
   const collapsible = hasEntries || Boolean(listError);
 
   return (
-    <SidebarSection title="Stash" collapsible={collapsible}>
+    <SidebarSection title={t("changes.stash.title")} collapsible={collapsible}>
       {listError ? (
         <p className="px-3 py-1.5 text-xs text-danger">{formatAppError(listError)}</p>
       ) : null}
@@ -86,7 +88,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
               compact ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-center text-sm",
             )}
           >
-            No stashes
+            {t("changes.stash.noStashes")}
           </p>
         ) : (
           entries.map((e) => (
@@ -105,7 +107,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
                       size="sm"
                       className="p-1"
                       disabled={busy}
-                      title="View diff"
+                      title={t("changes.stash.viewDiff")}
                       onClick={(ev) => {
                         ev.stopPropagation();
                         void handleDiff(e.oid);
@@ -119,7 +121,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
                     size="sm"
                     className="p-1"
                     disabled={busy}
-                    title="Apply"
+                    title={t("changes.stash.apply")}
                     onClick={(ev) => {
                       ev.stopPropagation();
                       void run(async () => applyStash(workspaceId!, e.index));
@@ -132,7 +134,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
                     size="sm"
                     className="p-1"
                     disabled={busy}
-                    title="Pop"
+                    title={t("changes.stash.pop")}
                     onClick={(ev) => {
                       ev.stopPropagation();
                       void run(async () => popStash(workspaceId!, e.index));
@@ -145,7 +147,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
                     size="sm"
                     className="p-1 text-danger hover:bg-danger/10"
                     disabled={busy}
-                    title="Drop"
+                    title={t("changes.stash.drop")}
                     onClick={(ev) => {
                       ev.stopPropagation();
                       void run(async () => dropStash(workspaceId!, e.index));
@@ -158,7 +160,7 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
             >
               <div className="flex flex-col min-w-0">
                 <span className={cn("text-text-primary truncate", compact ? "text-xs" : "text-sm")}>
-                  {`stash@{${e.index}}`} · {e.message || "(no message)"}
+                  {`stash@{${e.index}}`} · {e.message || t("changes.stash.noMessage")}
                 </span>
                 <span className="text-[10px] text-text-muted font-mono">{e.oid.slice(0, 7)}</span>
               </div>
@@ -169,11 +171,15 @@ export function StashPanel({ compact = false }: { compact?: boolean }): React.JS
         {!compact ? (
           <div className="w-80 shrink-0 overflow-auto p-3">
             {!diff ? (
-              <p className="text-xs text-text-muted">Select a stash to preview its diff.</p>
+              <p className="text-xs text-text-muted">{t("changes.stash.selectToPreview")}</p>
             ) : (
               <div className="space-y-2">
                 <p className="text-xs text-text-secondary">
-                  {diff.files.length} file(s) · +{diff.total_additions} −{diff.total_deletions}
+                  {t("changes.stash.diffSummary", {
+                    files: diff.files.length,
+                    additions: diff.total_additions,
+                    deletions: diff.total_deletions,
+                  })}
                 </p>
                 {diff.files.map((f) => (
                   <div

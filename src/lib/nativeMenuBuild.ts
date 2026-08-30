@@ -2,8 +2,10 @@
 // native menu options. Imports from @tauri-apps/api/menu are type-only, so
 // this module stays runtime-dependency-free and unit-testable in plain
 // node. The macOS hook (useNativeAppMenu.ts) owns the actual Menu.new /
-// setAsAppMenu lifecycle.
+// setAsAppMenu lifecycle. Spec labels arrive already translated; the
+// app-menu strings below translate here via i18next.
 
+import i18next from "i18next";
 import type {
   MenuItemOptions,
   MenuOptions,
@@ -50,17 +52,22 @@ function submenuOptions(menu: AppMenuSpec, handler: AppMenuItemHandler): Submenu
 // Predefined items get muda-provided titles ("Quit GitWave", ⌘Q, "Hide
 // GitWave", …).
 function appMenuEntries(handler: AppMenuItemHandler): NativeItem[] {
+  const t = i18next.t.bind(i18next);
   return [
-    { id: "about", text: "About GitWave", action: () => dispatchAppMenuItem("about", handler) },
+    {
+      id: "about",
+      text: t("menu.app.aboutGitWave"),
+      action: () => dispatchAppMenuItem("about", handler),
+    },
     {
       id: "check-updates",
-      text: "Check for Updates…",
+      text: t("menu.app.checkUpdates"),
       action: () => dispatchAppMenuItem("check-updates", handler),
     },
     separator(),
     {
       id: "settings",
-      text: "Settings…",
+      text: t("menu.app.settings"),
       accelerator: "CmdOrCtrl+,",
       action: () => dispatchAppMenuItem("settings", handler),
     },
@@ -114,14 +121,15 @@ export function buildNativeAppMenuOptions(
   spec: AppMenuSpec[],
   handler: AppMenuItemHandler,
 ): MenuOptions {
+  const t = i18next.t.bind(i18next);
   return {
     id: "gitwave-app-menu",
     items: [
       { id: "app", text: "GitWave", items: appMenuEntries(handler) },
-      { id: "edit", text: "Edit", items: editMenuEntries() },
+      { id: "edit", text: t("menu.menus.edit"), items: editMenuEntries() },
       // The File spec menu is skipped: its items live in the app menu.
       ...spec.filter((menu) => menu.id !== "file").map((menu) => submenuOptions(menu, handler)),
-      { id: "window", text: "Window", items: windowMenuEntries() },
+      { id: "window", text: t("menu.menus.window"), items: windowMenuEntries() },
     ],
   };
 }

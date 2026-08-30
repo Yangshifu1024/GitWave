@@ -8,6 +8,7 @@ use git2::Repository;
 
 use crate::domain::branch::{BranchInfo, BranchKind};
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::domain::history::{
     CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary, PrCommit,
 };
@@ -640,7 +641,11 @@ fn branch_tip_time(repo: &Repository, sha: &str) -> i64 {
 }
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[cfg(test)]

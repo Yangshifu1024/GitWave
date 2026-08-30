@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import type { WorktreeInfo } from "@/lib/api";
 import {
   addLocalRepo,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { FolderTree, Trash2, ArrowRightLeft } from "lucide-react";
 
 export function WorktreePanel({ compact = false }: { compact?: boolean }): React.JSX.Element {
+  const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
@@ -76,12 +78,12 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
   const collapsible = !loading && items.length > 0;
 
   return (
-    <SidebarSection title="Worktrees" collapsible={collapsible}>
+    <SidebarSection title={t("repo.worktrees.title")} collapsible={collapsible}>
       {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
       <div className={cn("min-h-0 overflow-auto", compact ? "max-h-52" : "flex-1")}>
         {items.length === 0 ? (
-          <p className="px-3 py-1.5 text-xs text-text-muted">No worktrees</p>
+          <p className="px-3 py-1.5 text-xs text-text-muted">{t("repo.worktrees.empty")}</p>
         ) : (
           items.map((wt) => (
             <ListItem
@@ -96,7 +98,7 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
                         size="sm"
                         className="p-1"
                         disabled={busy}
-                        title="Switch: add path to Workspace and activate"
+                        title={t("repo.worktrees.switchTitle")}
                         onClick={() => handleSwitch(wt)}
                       >
                         <ArrowRightLeft size={12} />
@@ -106,14 +108,16 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
                         size="sm"
                         className="p-1 text-danger hover:bg-danger/10"
                         disabled={busy}
-                        title="Remove worktree"
+                        title={t("repo.worktrees.removeTitle")}
                         onClick={() => void run(async () => removeWorktree(workspaceId!, wt.name))}
                       >
                         <Trash2 size={12} />
                       </Button>
                     </>
                   ) : (
-                    <span className="text-[10px] text-accent font-medium">main</span>
+                    <span className="text-[10px] text-accent font-medium">
+                      {t("repo.worktrees.main")}
+                    </span>
                   )}
                 </div>
               }

@@ -1,0 +1,63 @@
+{
+  "ai": {
+    "title": "AI provider",
+    "titleWithWorkspace": "AI provider · {{name}}",
+    "description": "Workspace-scoped. Cloud keys use OS keychain (BYOK). AI never auto-commits.",
+    "saved": "AI settings saved (key stays in OS keychain)",
+    "repoRules": {
+      "prefix": "Per-repo AI rules active — ",
+      "suffix": " ({{chars}} chars) is appended to every AI prompt for the active repo."
+    },
+    "provider": {
+      "label": "Provider",
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "ollama": "Ollama (local)"
+    },
+    "modelPlaceholder": "Model",
+    "baseUrlPlaceholder": "API base URL",
+    "baseUrlHint": {
+      "openai": "Default: https://api.openai.com (compatible /v1/chat/completions)",
+      "anthropic": "Default: https://api.anthropic.com",
+      "ollama": "Default: http://127.0.0.1:11434"
+    },
+    "detectOllama": "Detect Ollama",
+    "ollamaFound": "Found {{num}} local model(s)",
+    "ollamaNoModels": "Ollama reachable but no models listed",
+    "apiKey": "API key",
+    "apiKeyKeep": "API key (leave blank to keep existing)",
+    "apiKeyCleared": "API key cleared",
+    "clearStoredKey": "Clear stored key",
+    "offlineMode": "Offline mode — disable all cloud AI calls (Ollama still allowed)",
+    "fallback": {
+      "label": "Fallback providers",
+      "hint": "Tried in order when the provider above fails with a network error. Cloud entries need their own API key (stored per provider in the OS keychain).",
+      "ariaLabel": "Fallback provider {{num}}",
+      "modelPlaceholder": "Model (default)",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "remove": "Remove",
+      "add": "Add fallback"
+    },
+    "templates": {
+      "show": "Prompt templates (commit / conflict / PR)",
+      "hide": "Hide prompt templates",
+      "hint": "Each field replaces the built-in system prompt for that task — the diff, conflict sides, and repo context are appended automatically. Leave empty to use the built-in default. Per-repo rules (",
+      "hintTail": ") are added on top of whichever prompt runs.",
+      "commitLabel": "Commit message",
+      "commitPlaceholder": "Override the built-in commit-message system prompt",
+      "conflictLabel": "Conflict explanation",
+      "conflictPlaceholder": "Override the built-in conflict-explanation system prompt",
+      "prLabel": "PR description",
+      "prPlaceholder": "System prompt for AI PR description generation",
+      "reflogLabel": "Recovery assistant (reflog)",
+      "reflogPlaceholder": "Override the recovery-assistant system prompt",
+      "healthLabel": "Health summarizer",
+      "healthPlaceholder": "Override the health-report system prompt"
+    },
+    "actions": {
+      "close": "Close",
+      "save": "Save"
+    }
+  }
+}

@@ -5,9 +5,14 @@ use git2::{Diff, DiffDelta, DiffOptions, Oid, Repository};
 
 use crate::domain::diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 /// Summary of a diff with aggregate add/delete counts.

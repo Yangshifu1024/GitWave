@@ -1,4 +1,5 @@
 import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ConflictSides } from "@/lib/api";
 import { explainConflict, formatAppError, getConflictSides, resolveConflict } from "@/lib/api";
 import { classifyConflictLine, findConflictRegions, lineStartOffset } from "@/lib/conflictMarkers";
@@ -28,6 +29,7 @@ export function ConflictPanel({
   onClose,
   merge,
 }: ConflictPanelProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
@@ -193,20 +195,20 @@ export function ConflictPanel({
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} className="text-warning" />
             <h2 className="text-sm font-semibold text-text-primary">
-              Merge conflicts ({files.length})
+              {t("conflicts.title", { total: files.length })}
             </h2>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="danger" size="sm" disabled={busy} onClick={handleAbort}>
               <XCircle size={14} />
-              Abort merge
+              {t("conflicts.abortMerge")}
             </Button>
             <Button
               variant="ghost"
               size="sm"
               className="p-1"
-              aria-label="Close"
-              title="Close"
+              aria-label={t("conflicts.close")}
+              title={t("conflicts.close")}
               onClick={requestClose}
             >
               <X size={14} />
@@ -219,15 +221,13 @@ export function ConflictPanel({
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <div
             role="listbox"
-            aria-label="Conflicted files"
+            aria-label={t("conflicts.fileListAria")}
             className="w-64 shrink-0 border-r border-border-subtle overflow-auto select-none px-1 py-1"
           >
             {files.length === 0 ? (
               // Transient only — the auto-close effect hides the panel right
               // after the list empties; kept as a defensive empty state.
-              <p className="p-3 text-xs text-text-muted">
-                No conflicted paths left. Commit the merge from Working Copy when ready.
-              </p>
+              <p className="p-3 text-xs text-text-muted">{t("conflicts.emptyList")}</p>
             ) : (
               files.map((f) => {
                 // Row style mirrors the commit modal's unstaged list
@@ -259,7 +259,7 @@ export function ConflictPanel({
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
             {!sides ? (
               <div className="flex-1 flex items-center justify-center text-sm text-text-muted">
-                Select a conflicted file
+                {t("conflicts.selectFile")}
               </div>
             ) : (
               <>
@@ -275,8 +275,8 @@ export function ConflictPanel({
                     variant="ghost"
                     size="sm"
                     className="p-1"
-                    aria-label="Previous conflict"
-                    title="Previous conflict"
+                    aria-label={t("conflicts.prev")}
+                    title={t("conflicts.prev")}
                     disabled={regions.length === 0 || currentHunk <= 0}
                     onClick={() => gotoHunk(currentHunk - 1)}
                   >
@@ -289,15 +289,15 @@ export function ConflictPanel({
                     )}
                   >
                     {regions.length === 0
-                      ? "No conflicts"
-                      : `${regions.length} conflict${regions.length === 1 ? "" : "s"}`}
+                      ? t("conflicts.noConflicts")
+                      : t("conflicts.conflictCount", { count: regions.length })}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="p-1"
-                    aria-label="Next conflict"
-                    title="Next conflict"
+                    aria-label={t("conflicts.next")}
+                    title={t("conflicts.next")}
                     disabled={regions.length === 0 || currentHunk >= regions.length - 1}
                     onClick={() => gotoHunk(currentHunk + 1)}
                   >
@@ -316,7 +316,7 @@ export function ConflictPanel({
                       setEditor(sides.ours ?? "");
                     }}
                   >
-                    Use ours
+                    {t("conflicts.useOurs")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -327,7 +327,7 @@ export function ConflictPanel({
                       setEditor(sides.theirs ?? "");
                     }}
                   >
-                    Use theirs
+                    {t("conflicts.useTheirs")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -343,7 +343,7 @@ export function ConflictPanel({
                           setExplain(res.text);
                           if (res.used_fallback) {
                             setStatus(
-                              `Primary AI provider failed — response served by ${res.provider_used}`,
+                              t("conflicts.explainFallback", { provider: res.provider_used }),
                               "info",
                             );
                           }
@@ -354,10 +354,10 @@ export function ConflictPanel({
                         }
                       })();
                     }}
-                    title="AI explain (advice only)"
+                    title={t("conflicts.explainTitle")}
                   >
                     <Sparkles size={14} />
-                    Explain
+                    {t("conflicts.explain")}
                   </Button>
                   <Button
                     variant="primary"
@@ -381,16 +381,16 @@ export function ConflictPanel({
                       })();
                     }}
                   >
-                    Mark resolved
+                    {t("conflicts.markResolved")}
                   </Button>
                 </div>
 
                 <div className="grid grid-cols-3 gap-px bg-border-subtle shrink-0 max-h-36 overflow-hidden border-b border-border-subtle">
                   {(
                     [
-                      ["Ours", sides.ours],
-                      ["Base", sides.base],
-                      ["Theirs", sides.theirs],
+                      [t("conflicts.sides.ours"), sides.ours],
+                      [t("conflicts.sides.base"), sides.base],
+                      [t("conflicts.sides.theirs"), sides.theirs],
                     ] as const
                   ).map(([label, text]) => (
                     <div key={label} className="bg-bg-secondary overflow-auto p-2">
@@ -398,7 +398,7 @@ export function ConflictPanel({
                         {label}
                       </p>
                       <pre className="text-[10px] font-mono text-text-secondary whitespace-pre-wrap">
-                        {text ?? "(missing)"}
+                        {text ?? t("conflicts.sides.missing")}
                       </pre>
                     </div>
                   ))}
@@ -427,14 +427,14 @@ export function ConflictPanel({
                       onScroll={syncScroll}
                       wrap="off"
                       spellCheck={false}
-                      aria-label="Resolved file content"
+                      aria-label={t("conflicts.editorAria")}
                       className="absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-3 py-2 font-mono text-xs leading-5 text-transparent caret-text-primary outline-none border-0"
                     />
                   </div>
                   {explain ? (
                     <div className="w-80 shrink-0 border-l border-border-subtle overflow-auto p-3 bg-bg-secondary">
                       <p className="text-xs font-medium text-text-secondary mb-2">
-                        AI explanation (reference only — not applied)
+                        {t("conflicts.explainHeading")}
                       </p>
                       <p className="text-xs text-text-primary whitespace-pre-wrap">{explain}</p>
                     </div>
@@ -449,13 +449,13 @@ export function ConflictPanel({
       <Modal
         open={discardPrompt}
         onOpenChange={(o) => !o && setDiscardPrompt(false)}
-        title="Discard unresolved edits?"
-        description="The editor content differs from the version it was seeded with. Closing now discards manual edits — use Mark resolved to keep them."
+        title={t("conflicts.discard.title")}
+        description={t("conflicts.discard.description")}
         size="sm"
       >
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={() => setDiscardPrompt(false)}>
-            Keep editing
+            {t("conflicts.discard.keepEditing")}
           </Button>
           <Button
             variant="danger"
@@ -465,7 +465,7 @@ export function ConflictPanel({
               onClose();
             }}
           >
-            Discard edits
+            {t("conflicts.discard.confirm")}
           </Button>
         </div>
       </Modal>

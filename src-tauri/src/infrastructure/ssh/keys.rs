@@ -8,6 +8,7 @@ use std::process::Stdio;
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::process::hidden_command;
 
 /// One SSH key currently loaded in the agent.
@@ -36,7 +37,13 @@ pub fn list_loaded() -> Result<Vec<SshKey>> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| AppError::Unknown(format!("ssh-add: {e}")))?;
+        .map_err(|e| {
+            AppError::unknown_with(
+                codes::infra::SSH_ADD_FAILED,
+                format!("ssh-add: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
 
     if !output.status.success() {
         // ssh-add without agent or with no keys exits 1. Treat as empty.
@@ -74,32 +81,48 @@ pub fn add(path: &Path) -> Result<()> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| AppError::Unknown(format!("ssh-add: {e}")))?;
+        .map_err(|e| {
+            AppError::unknown_with(
+                codes::infra::SSH_ADD_FAILED,
+                format!("ssh-add: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
         if stderr.contains("incorrect passphrase")
             || stderr.contains("passphrase")
             || stderr.contains("permission denied")
         {
-            return Err(AppError::Protocol(
+            return Err(AppError::protocol(
+                codes::infra::KEY_PASSPHRASE,
                 "this key is protected by a passphrase, which cannot be entered here. \
                  Load it once from a terminal (ssh-add <key>) so the agent caches it \
-                 decrypted, or use a key without a passphrase"
-                    .into(),
+                 decrypted, or use a key without a passphrase",
             ));
         }
         if stderr.contains("could not open a connection") || stderr.contains("no agent") {
-            return Err(AppError::Protocol(
+            return Err(AppError::protocol(
+                codes::infra::AGENT_NOT_RUNNING,
                 "ssh-agent is not running — start it (on Windows: the \"OpenSSH Agent\" \
-                 service; on macOS/Linux: eval $(ssh-agent)) and try again"
-                    .into(),
+                 service; on macOS/Linux: eval $(ssh-agent)) and try again",
             ));
         }
-        return Err(AppError::Unknown(format!(
-            "ssh-add failed (exit {}): {}",
-            status_code_text(&output.status),
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
+        return Err(AppError::unknown_with(
+            codes::infra::SSH_ADD_EXIT,
+            format!(
+                "ssh-add failed (exit {}): {}",
+                status_code_text(&output.status),
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+            &[
+                ("exit", status_code_text(&output.status)),
+                (
+                    "stderr",
+                    String::from_utf8_lossy(&output.stderr).trim().to_string(),
+                ),
+            ],
+        ));
     }
     Ok(())
 }
@@ -121,12 +144,19 @@ pub fn delete(path: &Path) -> Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .status()
-        .map_err(|e| AppError::Unknown(format!("ssh-add: {e}")))?;
+        .map_err(|e| {
+            AppError::unknown_with(
+                codes::infra::SSH_ADD_FAILED,
+                format!("ssh-add: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     if !status.success() {
-        return Err(AppError::Unknown(format!(
-            "ssh-add -d failed (exit {})",
-            status.code().unwrap_or(-1)
-        )));
+        return Err(AppError::unknown_with(
+            codes::infra::SSH_DELETE_FAILED,
+            format!("ssh-add -d failed (exit {})", status.code().unwrap_or(-1)),
+            &[("exit", status.code().unwrap_or(-1).to_string())],
+        ));
     }
     Ok(())
 }
@@ -148,7 +178,13 @@ pub fn test_connection(host: &str, user: &str) -> Result<SshTestResult> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| AppError::Unknown(format!("ssh: {e}")))?;
+        .map_err(|e| {
+            AppError::unknown_with(
+                codes::infra::SSH_SPAWN_FAILED,
+                format!("ssh: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();

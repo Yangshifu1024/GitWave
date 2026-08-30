@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import i18next from "i18next";
 import { fetchRemote, formatAppError } from "@/lib/api";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -59,8 +60,11 @@ export function useRefreshRepo(): () => void {
   const queryClient = useQueryClient();
 
   return useCallback(() => {
+    // Status messages are finalized when emitted (not replayed on language
+    // switch), so they translate at the generation point.
+    const t = i18next.t.bind(i18next);
     const setStatus = useStatusAreaStore.getState().setStatus;
-    setStatus("Refreshing…", "info");
+    setStatus(t("status.sync.refreshing"), "info");
 
     const refreshLocal = async (): Promise<void> => {
       useWorkspaceUiStore.getState().bumpHistoryEpoch();
@@ -73,7 +77,7 @@ export function useRefreshRepo(): () => void {
         const { activeWorkspaceId } = useWorkspaceUiStore.getState();
         const sync = useSyncStore.getState();
         if (!activeWorkspaceId || sync.isBusy()) {
-          setStatus("Refreshed");
+          setStatus(t("status.sync.refreshed"));
           return;
         }
         sync.startOp("fetch");
@@ -81,7 +85,7 @@ export function useRefreshRepo(): () => void {
           await fetchRemote(activeWorkspaceId);
           // Fetched tips landed in the repo — re-read so they show up now.
           await refreshLocal();
-          setStatus("Refreshed");
+          setStatus(t("status.sync.refreshed"));
         } catch (e) {
           // Local refresh already applied; report the fetch problem.
           setStatus(formatAppError(e), "danger");

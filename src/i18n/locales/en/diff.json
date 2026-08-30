@@ -1,0 +1,32 @@
+{
+  "diff": {
+    "file": {
+      "expand": "Expand file diff",
+      "collapse": "Collapse file diff",
+      "blame": "Blame",
+      "noHunkDetail": "(no hunk detail)",
+      "noChanges": "No changes"
+    },
+    "chip": {
+      "staged": "Staged",
+      "unstaged": "Unstaged"
+    },
+    "empty": {
+      "noStaged": "No staged diff for {{path}}",
+      "noUnstaged": "No unstaged diff for {{path}}",
+      "noForPath": "No diff for {{path}}",
+      "noUncommitted": "No uncommitted changes",
+      "noAvailable": "No diff available"
+    },
+    "toolbar": {
+      "filesChanged_one": "{{count}} file changed",
+      "filesChanged_other": "{{count}} files changed",
+      "expandAll": "Expand all files",
+      "collapseAll": "Collapse all files",
+      "splitView": "Switch to split view",
+      "unifiedView": "Switch to unified view",
+      "restorePanel": "Restore panel",
+      "expandPanel": "Expand panel"
+    }
+  }
+}

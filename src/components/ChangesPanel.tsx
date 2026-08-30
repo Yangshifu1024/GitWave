@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, EyeOff, FolderOpen, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
   ContextMenu,
@@ -83,6 +84,7 @@ function FileSection({
 }): React.JSX.Element {
   const bar = layout === "bar";
   const fixed = bar || layout === "modal";
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -143,7 +145,7 @@ function FileSection({
       <div className={cn("shrink-0 flex items-center gap-1", fixed ? "px-2 py-1" : "pr-1")}>
         {fixed ? (
           <h3 className="flex-1 min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-            {title} ({files.length})
+            {t("changes.fileSection.titleWithCount", { title, total: files.length })}
           </h3>
         ) : (
           <Button
@@ -160,7 +162,7 @@ function FileSection({
             )}
           >
             {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            {title} ({files.length})
+            {t("changes.fileSection.titleWithCount", { title, total: files.length })}
           </Button>
         )}
         {allActionLabel && onAllAction ? (
@@ -174,7 +176,7 @@ function FileSection({
               event.stopPropagation();
               onAllAction();
             }}
-            title={`${allActionLabel} files`}
+            title={t("changes.fileSection.allFilesTooltip", { action: allActionLabel })}
           >
             {allActionLabel}
           </Button>
@@ -186,7 +188,7 @@ function FileSection({
           className={cn("shrink-0 min-w-[4.5rem]", bar ? "" : "mx-1.5")}
           disabled={selectedInSection.length === 0}
           onClick={handleBulk}
-          title={`${actionLabel} selected files`}
+          title={t("changes.fileSection.selectedFilesTooltip", { action: actionLabel })}
         >
           {actionLabel}
         </Button>
@@ -201,7 +203,7 @@ function FileSection({
               event.stopPropagation();
               onAllDangerAction();
             }}
-            title={`${allDangerActionLabel} files`}
+            title={t("changes.fileSection.allFilesTooltip", { action: allDangerActionLabel })}
           >
             {allDangerActionLabel}
           </Button>
@@ -214,7 +216,7 @@ function FileSection({
             className="shrink-0"
             disabled={selectedInSection.length === 0}
             onClick={handleDangerBulk}
-            title={`${dangerActionLabel} selected files`}
+            title={t("changes.fileSection.selectedFilesTooltip", { action: dangerActionLabel })}
           >
             {dangerActionLabel}
           </Button>
@@ -252,8 +254,8 @@ function FileSection({
               const canIgnore = file.kind === "untracked" && file.path !== ".gitignore";
               const ignoreDisabledReason =
                 file.path === ".gitignore"
-                  ? "Ignoring .gitignore itself is not allowed"
-                  : "Only untracked files can be ignored";
+                  ? t("changes.ignore.ignoreGitignoreDisabled")
+                  : t("changes.ignore.onlyUntrackedDisabled");
               return (
                 <ContextMenu key={key}>
                   {/* Radix asChild clones this plain <div> to attach the
@@ -268,11 +270,11 @@ function FileSection({
                     <ContextMenuItem
                       destructive
                       disabled={!canDiscard}
-                      title={canDiscard ? undefined : "Renamed files cannot be discarded yet"}
+                      title={canDiscard ? undefined : t("changes.discard.renamedDisabled")}
                       onSelect={() => file.kind !== "renamed" && onDiscardFile?.(file)}
                     >
                       <Trash2 size={14} />
-                      Discard changes…
+                      {t("changes.discard.menu")}
                     </ContextMenuItem>
                     <ContextMenuItem
                       disabled={!canIgnore}
@@ -284,7 +286,7 @@ function FileSection({
                       }
                     >
                       <EyeOff size={14} />
-                      Add to .gitignore…
+                      {t("changes.ignore.menu")}
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
@@ -304,6 +306,7 @@ export function ChangesPanel({
   layout = "stacked",
   onCommitted,
 }: ChangesPanelProps): React.JSX.Element {
+  const { t } = useTranslation();
   const bar = layout === "bar";
   const modal = layout === "modal";
   const {
@@ -359,7 +362,7 @@ export function ChangesPanel({
       .then((res) => {
         setMessage(res.text);
         if (res.used_fallback) {
-          setStatus(`Primary AI provider failed — response served by ${res.provider_used}`, "info");
+          setStatus(t("changes.ai.fallbackNotice", { provider: res.provider_used }), "info");
         }
       })
       .catch((e) => setActionError(formatAppError(e)))
@@ -382,8 +385,8 @@ export function ChangesPanel({
       <Modal
         open={aiPromptOpen}
         onOpenChange={setAiPromptOpen}
-        title="AI provider not configured"
-        description="This workspace has no AI provider. Would you like to configure one now?"
+        title={t("changes.ai.notConfiguredTitle")}
+        description={t("changes.ai.notConfiguredDescription")}
         size="sm"
         footer={
           <>
@@ -393,7 +396,7 @@ export function ChangesPanel({
               className="min-w-0 flex-[3]"
               onClick={() => setAiPromptOpen(false)}
             >
-              Not now
+              {t("changes.action.notNow")}
             </Button>
             <Button
               variant="primary"
@@ -404,7 +407,7 @@ export function ChangesPanel({
                 setAiSettingsOpen(true);
               }}
             >
-              Configure
+              {t("changes.action.configure")}
             </Button>
           </>
         }
@@ -423,16 +426,15 @@ export function ChangesPanel({
     return (
       <EmptyState
         icon={<FolderOpen size={24} />}
-        title="No repository selected"
-        description="Select a repository to see uncommitted changes."
+        title={t("changes.noRepoTitle")}
+        description={t("changes.noRepoDescription")}
         className="py-8"
       />
     );
   }
 
   const wcAlert =
-    actionError ??
-    (isError ? (error ? formatAppError(error) : "Failed to load working copy") : null);
+    actionError ?? (isError ? (error ? formatAppError(error) : t("changes.loadFailed")) : null);
 
   const gitignoreEntry = !bar ? (
     <div className="flex justify-end px-2">
@@ -443,7 +445,7 @@ export function ChangesPanel({
         className="h-auto px-1 py-0.5 text-[11px] text-text-muted"
         onClick={() => setGitignoreOpen(true)}
       >
-        Edit .gitignore
+        {t("changes.editGitignore")}
       </Button>
     </div>
   ) : null;
@@ -492,7 +494,7 @@ export function ChangesPanel({
               : "flex-1 flex items-center justify-center",
           )}
         >
-          <span className="text-xs text-text-muted italic">Loading…</span>
+          <span className="text-xs text-text-muted italic">{t("changes.loading")}</span>
         </div>
         {gitignoreEntry}
         {commitBox}
@@ -504,13 +506,13 @@ export function ChangesPanel({
 
   const unstagedSection = (
     <FileSection
-      title="Unstaged"
-      actionLabel="Stage"
+      title={t("changes.section.unstaged")}
+      actionLabel={t("changes.action.stage")}
       actionVariant="secondary"
-      allActionLabel="Stage All"
+      allActionLabel={t("changes.action.stageAll")}
       allActionVariant="primary"
       files={unstagedFiles}
-      emptyLabel="No unstaged changes"
+      emptyLabel={t("changes.section.noUnstaged")}
       selectedPath={selectedPath}
       selectedStaged={selectedStaged}
       onSelectFile={onSelectFile}
@@ -521,9 +523,9 @@ export function ChangesPanel({
       onIgnoreFile={(file) => setPendingAction({ type: "ignore", file })}
       {...(modal
         ? {
-            allDangerActionLabel: "Discard All",
+            allDangerActionLabel: t("changes.action.discardAll"),
             onAllDangerAction: () => requestDiscard(unstagedFiles),
-            dangerActionLabel: "Discard",
+            dangerActionLabel: t("changes.action.discard"),
             onDangerAction: (paths: string[]) =>
               requestDiscard(unstagedFiles.filter((file) => paths.includes(file.path))),
           }
@@ -534,13 +536,13 @@ export function ChangesPanel({
 
   const stagedSection = (
     <FileSection
-      title="Staged"
-      actionLabel="Unstage"
+      title={t("changes.section.staged")}
+      actionLabel={t("changes.action.unstage")}
       actionVariant="secondary"
-      allActionLabel="Unstage All"
+      allActionLabel={t("changes.action.unstageAll")}
       allActionVariant="primary"
       files={stagedFiles}
-      emptyLabel="No staged changes"
+      emptyLabel={t("changes.section.noStaged")}
       selectedPath={selectedPath}
       selectedStaged={selectedStaged}
       onSelectFile={onSelectFile}
@@ -599,6 +601,7 @@ function DiscardConfirmModal({
   onCancel: () => void;
   onConfirm: () => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const single = files.length === 1;
   const first = files[0];
   const untracked = single && first?.kind === "untracked";
@@ -607,15 +610,15 @@ function DiscardConfirmModal({
   let title: string;
   let description: string;
   if (single && first) {
-    title = `Discard changes in "${first.path}"?`;
+    title = t("changes.discard.singleTitle", { path: first.path });
     description = untracked
-      ? `"${first.path}" is not tracked by git — discarding deletes the file from disk permanently.`
-      : `Uncommitted changes in "${first.path}" will be restored to the last staged version. This cannot be undone.`;
+      ? t("changes.discard.singleUntrackedDescription", { path: first.path })
+      : t("changes.discard.singleTrackedDescription", { path: first.path });
   } else {
-    title = `Discard changes in ${files.length} files?`;
+    title = t("changes.discard.multiTitle", { files: files.length });
     description = hasUntracked
-      ? `${files.length} files will be discarded: tracked files are restored to their last staged version and untracked files are deleted from disk permanently. This cannot be undone.`
-      : `Uncommitted changes in ${files.length} files will be restored to their last staged version. This cannot be undone.`;
+      ? t("changes.discard.multiUntrackedDescription", { files: files.length })
+      : t("changes.discard.multiTrackedDescription", { files: files.length });
   }
 
   return (
@@ -628,10 +631,14 @@ function DiscardConfirmModal({
       footer={
         <>
           <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onCancel}>
-            Cancel
+            {t("changes.action.cancel")}
           </Button>
           <Button variant="danger" size="sm" className="min-w-0 flex-[7]" onClick={onConfirm}>
-            {single ? (untracked ? "Delete file" : "Discard") : `Discard ${files.length} files`}
+            {single
+              ? untracked
+                ? t("changes.discard.deleteFile")
+                : t("changes.action.discard")
+              : t("changes.discard.multiConfirm", { files: files.length })}
           </Button>
         </>
       }
@@ -649,11 +656,12 @@ function IgnoreScopeModal({
   onCancel: () => void;
   onAdd: (pattern: string) => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const patterns = deriveIgnorePatterns(file.path);
   const options = [
-    { value: patterns.full, label: "File path" },
-    ...(patterns.dir ? [{ value: patterns.dir, label: "Directory" }] : []),
-    ...(patterns.ext ? [{ value: patterns.ext, label: "Extension" }] : []),
+    { value: patterns.full, label: t("changes.ignore.filePath") },
+    ...(patterns.dir ? [{ value: patterns.dir, label: t("changes.ignore.directory") }] : []),
+    ...(patterns.ext ? [{ value: patterns.ext, label: t("changes.ignore.extension") }] : []),
   ];
   const [choice, setChoice] = useState(patterns.full);
 
@@ -661,13 +669,13 @@ function IgnoreScopeModal({
     <Modal
       open
       onOpenChange={(open) => !open && onCancel()}
-      title="Add to .gitignore"
-      description={`Appends the chosen pattern to the repo-root .gitignore (shared with collaborators). The file stays on disk but leaves the change list if untracked.`}
+      title={t("changes.ignore.title")}
+      description={t("changes.ignore.description")}
       size="sm"
       footer={
         <>
           <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onCancel}>
-            Cancel
+            {t("changes.action.cancel")}
           </Button>
           <Button
             variant="primary"
@@ -675,7 +683,7 @@ function IgnoreScopeModal({
             className="min-w-0 flex-[7]"
             onClick={() => onAdd(choice)}
           >
-            Add
+            {t("changes.action.add")}
           </Button>
         </>
       }
@@ -684,7 +692,7 @@ function IgnoreScopeModal({
         <RadioGroup
           value={choice}
           onChange={setChoice}
-          aria-label="Ignore scope"
+          aria-label={t("changes.ignore.scopeLabel")}
           className="flex w-full flex-col gap-1 [&_[data-slot=radio]]:mt-0"
         >
           {options.map((option) => (

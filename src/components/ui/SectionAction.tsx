@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -65,17 +66,18 @@ export function FetchButton({
   disabled = false,
   inProgress = false,
 }: FetchButtonProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   if (!onFetch) return null;
   return (
     <SectionAction
       onClick={onFetch}
       disabled={disabled}
       inProgress={inProgress}
-      tooltip="Fetch updates from the remote without merging"
-      title="Fetch"
-      aria-label="Fetch"
+      tooltip={t("status.sync.fetchTooltip")}
+      title={t("status.sync.fetch")}
+      aria-label={t("status.sync.fetch")}
     >
-      Fetch
+      {t("status.sync.fetch")}
     </SectionAction>
   );
 }
@@ -101,6 +103,7 @@ export function BranchSyncButtons({
   inProgress = {},
   syncBusy = false,
 }: BranchSyncButtonsProps): React.JSX.Element {
+  const { t } = useTranslation();
   return (
     <>
       {onPull ? (
@@ -108,11 +111,11 @@ export function BranchSyncButtons({
           onClick={onPull}
           disabled={syncBusy || (pullDisabled ?? behind === 0)}
           inProgress={inProgress.pull}
-          tooltip="Pull and fast-forward the current branch"
-          title="Pull"
-          aria-label="Pull"
+          tooltip={t("status.sync.pullTooltip")}
+          title={t("status.sync.pull")}
+          aria-label={t("status.sync.pull")}
         >
-          Pull
+          {t("status.sync.pull")}
           {behind > 0 && !inProgress.pull ? (
             <span className="text-branch-behind normal-case">↓{behind}</span>
           ) : null}
@@ -123,11 +126,11 @@ export function BranchSyncButtons({
           onClick={onPush}
           disabled={syncBusy || (pushDisabled ?? ahead === 0)}
           inProgress={inProgress.push}
-          tooltip="Push local commits to the remote"
-          title="Push"
-          aria-label="Push"
+          tooltip={t("status.sync.pushTooltip")}
+          title={t("status.sync.push")}
+          aria-label={t("status.sync.push")}
         >
-          Push
+          {t("status.sync.push")}
           {ahead > 0 && !inProgress.push ? (
             <span className="text-branch-ahead normal-case">↑{ahead}</span>
           ) : null}

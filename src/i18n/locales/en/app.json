@@ -1,0 +1,18 @@
+{
+  "app": {
+    "sidebar": {
+      "health": "Health",
+      "recovery": "Recovery"
+    },
+    "emptyState": {
+      "noWorkspaceTitle": "No workspace selected",
+      "noWorkspaceDescription": "Choose or create a workspace in the sidebar.",
+      "selectWorkspaceTitle": "Select a workspace",
+      "selectWorkspaceDescription": "Choose or create a workspace in the sidebar to open repositories.",
+      "noRepoTitle": "No repository selected",
+      "noRepoDescription": "Select a repository from the sidebar to view history and diffs.",
+      "noCommitTitle": "No commit selected",
+      "noCommitDescription": "Click a commit in the history graph to see its diff."
+    }
+  }
+}

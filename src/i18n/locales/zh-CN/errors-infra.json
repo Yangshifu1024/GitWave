@@ -1,0 +1,73 @@
+{
+  "errors": {
+    "ai": {
+      "provider_http": "Provider {{provider}} 返回 HTTP {{status}}：{{detail}}",
+      "all_attempts_failed": "全部 {{total}} 次 AI provider 尝试均失败，且未捕获到错误信息",
+      "unsupported_provider": "不支持的 AI provider：{{provider}}（可使用 openai、anthropic 或 ollama）",
+      "openai": {
+        "key_missing": "尚未配置 OpenAI API key",
+        "request_failed": "OpenAI 请求失败：{{error}}",
+        "json_failed": "OpenAI 返回了无效的响应：{{error}}",
+        "empty_content": "OpenAI 返回了空内容"
+      },
+      "anthropic": {
+        "key_missing": "尚未配置 Anthropic API key",
+        "request_failed": "Anthropic 请求失败：{{error}}",
+        "json_failed": "Anthropic 返回了无效的响应：{{error}}",
+        "max_tokens": "Anthropic：模型在仍在推理时达到 max_tokens 上限，未能生成提交信息——请重试或改用非推理模型",
+        "no_text": "Anthropic 响应中没有文本内容（stop_reason：{{stop_reason}}，content：{{content}}）"
+      },
+      "ollama": {
+        "unreachable": "无法连接 Ollama：{{error}}",
+        "probe_failed": "Ollama 探测失败：HTTP {{status}}",
+        "request_failed": "Ollama 请求失败：{{error}}",
+        "json_failed": "Ollama 返回了无效的响应：{{error}}",
+        "empty_content": "Ollama 返回了空内容"
+      },
+      "keychain": {
+        "error": "钥匙串错误：{{error}}",
+        "set_failed": "API key 写入钥匙串失败：{{error}}",
+        "get_failed": "从钥匙串读取 API key 失败：{{error}}",
+        "delete_failed": "从钥匙串删除 API key 失败：{{error}}"
+      },
+      "key": {
+        "empty": "API key 不能为空"
+      }
+    },
+    "persist": {
+      "workspace": {
+        "not_found": "工作区不存在：{{id}}"
+      },
+      "repo": {
+        "not_found": "仓库不存在：{{repo_id}}",
+        "not_found_in_workspace": "仓库不存在：{{repo_id}}（工作区 {{workspace_id}}）",
+        "reorder_mismatch": "排序 id 与工作区 {{workspace_id}} 的仓库列表不匹配"
+      },
+      "sqlite": {
+        "error": "数据库错误：{{error}}"
+      },
+      "serde": {
+        "error": "数据序列化错误：{{error}}"
+      },
+      "data_dir": {
+        "resolve": "无法确定用户数据目录",
+        "create": "无法创建目录 {{dir}}：{{error}}"
+      },
+      "migration": {
+        "failed": "数据库迁移失败：{{error}}"
+      }
+    },
+    "ssh": {
+      "add_failed": "无法运行 ssh-add：{{error}}",
+      "add_exit_failed": "ssh-add 执行失败（退出码 {{exit}}）：{{stderr}}",
+      "delete_failed": "ssh-add -d 执行失败（退出码 {{exit}}）",
+      "spawn_failed": "无法运行 ssh：{{error}}",
+      "key": {
+        "passphrase": "该密钥由 passphrase 保护，无法在此输入。请先在终端执行一次 ssh-add <key> 让 agent 缓存解密后的密钥，或改用不带 passphrase 的密钥"
+      },
+      "agent": {
+        "not_running": "ssh-agent 未运行——请先启动（Windows：启动「OpenSSH Agent」服务；macOS/Linux：执行 eval $(ssh-agent)）后重试"
+      }
+    }
+  }
+}

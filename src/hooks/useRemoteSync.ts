@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
+import i18next from "i18next";
 
 import {
   fetchRemote,
@@ -16,17 +17,19 @@ import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 /** Short result lines written to the ActionBar status area; the area keeps
- * showing the last one until the next operation overwrites it. */
-const SUCCESS_LABELS = {
-  fetch: "Fetched from origin",
-  pull: "Pulled from origin",
-  push: "Pushed to origin",
+ * showing the last one until the next operation overwrites it. Translated at
+ * the generation point: status messages are finalized when emitted and are
+ * not replayed on language switch. */
+const SUCCESS_KEYS = {
+  fetch: "status.sync.fetched",
+  pull: "status.sync.pulled",
+  push: "status.sync.pushed",
 } as const;
 
-const FAILURE_LABELS = {
-  fetch: "Fetch failed",
-  pull: "Pull failed",
-  push: "Push failed",
+const FAILURE_KEYS = {
+  fetch: "status.sync.fetchFailed",
+  pull: "status.sync.pullFailed",
+  push: "status.sync.pushFailed",
 } as const;
 
 let syncListenerReady = false;
@@ -54,6 +57,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   const queryClient = useQueryClient();
   const activeOp = useSyncStore((s) => s.activeOp);
   const fading = useSyncStore((s) => s.fading);
+  const t = i18next.t.bind(i18next);
 
   useEffect(() => {
     ensureSyncProgressListener();
@@ -65,7 +69,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   const handleError = (e: unknown, op: "fetch" | "pull" | "push") => {
     useSyncStore.getState().endOp(op);
-    useStatusAreaStore.getState().setStatus(FAILURE_LABELS[op], "danger");
+    useStatusAreaStore.getState().setStatus(t(FAILURE_KEYS[op]), "danger");
     onError?.(formatAppError(e));
   };
 
@@ -73,7 +77,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     mutationFn: () => fetchRemote(workspaceId!),
     onMutate: () => useSyncStore.getState().startOp("fetch"),
     onSuccess: () => {
-      useStatusAreaStore.getState().setStatus(SUCCESS_LABELS.fetch, "success");
+      useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.fetch), "success");
       invalidate();
       bumpHistory();
     },
@@ -85,7 +89,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     mutationFn: (options: PullOptions | undefined) => pullRemote(workspaceId!, options),
     onMutate: () => useSyncStore.getState().startOp("pull"),
     onSuccess: () => {
-      useStatusAreaStore.getState().setStatus(SUCCESS_LABELS.pull, "success");
+      useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.pull), "success");
       invalidate();
       bumpHistory();
     },
@@ -97,7 +101,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
     onMutate: () => useSyncStore.getState().startOp("push"),
     onSuccess: () => {
-      useStatusAreaStore.getState().setStatus(SUCCESS_LABELS.push, "success");
+      useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.push), "success");
       invalidate();
       bumpHistory();
     },

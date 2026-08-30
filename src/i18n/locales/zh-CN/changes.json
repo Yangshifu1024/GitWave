@@ -1,0 +1,103 @@
+{
+  "changes": {
+    "section": {
+      "unstaged": "未暂存",
+      "staged": "已暂存",
+      "noUnstaged": "暂无未暂存的变更",
+      "noStaged": "暂无已暂存的变更"
+    },
+    "fileSection": {
+      "titleWithCount": "{{title}}（{{total}}）",
+      "allFilesTooltip": "{{action}}文件",
+      "selectedFilesTooltip": "{{action}}所选文件"
+    },
+    "action": {
+      "stage": "暂存",
+      "stageAll": "暂存全部",
+      "unstage": "取消暂存",
+      "unstageAll": "取消暂存全部",
+      "discard": "丢弃",
+      "discardAll": "丢弃全部",
+      "cancel": "取消",
+      "add": "添加",
+      "notNow": "暂不",
+      "configure": "配置"
+    },
+    "ai": {
+      "notConfiguredTitle": "未配置 AI 服务商",
+      "notConfiguredDescription": "此工作区尚未配置 AI 服务商。要现在配置吗？",
+      "fallbackNotice": "主 AI 服务商请求失败——响应由 {{provider}} 提供"
+    },
+    "noRepoTitle": "未选择仓库",
+    "noRepoDescription": "选择一个仓库以查看未提交的变更。",
+    "loadFailed": "工作副本加载失败",
+    "loading": "加载中…",
+    "editGitignore": "编辑 .gitignore",
+    "discard": {
+      "menu": "丢弃变更…",
+      "renamedDisabled": "暂不支持丢弃重命名的文件",
+      "singleTitle": "丢弃“{{path}}”中的变更？",
+      "singleUntrackedDescription": "“{{path}}”未被 git 跟踪——丢弃将把该文件从磁盘永久删除。",
+      "singleTrackedDescription": "“{{path}}”中未提交的变更将恢复到上次暂存的版本。此操作无法撤销。",
+      "multiTitle": "丢弃 {{files}} 个文件中的变更？",
+      "multiUntrackedDescription": "将丢弃 {{files}} 个文件：被跟踪的文件恢复到上次暂存的版本，未被跟踪的文件将从磁盘永久删除。此操作无法撤销。",
+      "multiTrackedDescription": "{{files}} 个文件中未提交的变更将恢复到上次暂存的版本。此操作无法撤销。",
+      "deleteFile": "删除文件",
+      "multiConfirm": "丢弃 {{files}} 个文件"
+    },
+    "ignore": {
+      "menu": "添加到 .gitignore…",
+      "title": "添加到 .gitignore",
+      "description": "将所选模式追加到仓库根目录的 .gitignore（与协作者共享）。文件仍保留在磁盘上；若未被跟踪，将从变更列表中移除。",
+      "scopeLabel": "忽略范围",
+      "filePath": "文件路径",
+      "directory": "目录",
+      "extension": "扩展名",
+      "ignoreGitignoreDisabled": "不允许忽略 .gitignore 本身",
+      "onlyUntrackedDisabled": "只能忽略未跟踪的文件"
+    },
+    "messageBox": {
+      "ariaLabel": "提交信息",
+      "placeholder": "feat: 在此输入提交信息…",
+      "charCount": "{{chars}} 字符",
+      "charCountFirstLine": "{{chars}} 字符（首行超过 72：{{firstLine}}）",
+      "amend": "修正",
+      "amendTitle": "预填上一次提交信息",
+      "amendCommit": "修正提交",
+      "commit": "提交",
+      "generate": "生成",
+      "generating": "生成中…",
+      "generateTitle": "用 AI 生成提交信息"
+    },
+    "stash": {
+      "title": "贮藏",
+      "buttonTitle": "贮藏本地变更",
+      "noStashes": "暂无贮藏",
+      "noMessage": "（无消息）",
+      "viewDiff": "查看 diff",
+      "apply": "应用",
+      "pop": "弹出",
+      "drop": "删除",
+      "selectToPreview": "选择一个贮藏以预览其 diff。",
+      "diffSummary": "{{files}} 个文件 · +{{additions}} −{{deletions}}",
+      "saveTitle": "保存贮藏",
+      "saveDescription": "将本地变更保存为新的贮藏",
+      "saveButton": "保存贮藏",
+      "messagePlaceholder": "贮藏消息（可选）",
+      "stageNewFiles": "暂存新文件",
+      "stageNewFilesHint": "默认情况下，stash 会忽略新文件，直到你暂存它们",
+      "saved": "已保存贮藏"
+    },
+    "actionBar": {
+      "changes": "变更",
+      "changesWithCount": "变更({{total}})",
+      "localChangesTitle": "本地变更"
+    },
+    "panel": {
+      "title": "本地变更",
+      "statusSummary": "未暂存 {{unstaged}} 项 · 已暂存 {{staged}} 项",
+      "noFileSelected": "未选择文件",
+      "noFileSelectedDescription": "点击左侧文件以查看其 diff。"
+    }
+  }
+}

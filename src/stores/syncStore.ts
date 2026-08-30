@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import i18next from "i18next";
 import type { SyncOperation, SyncProgress } from "@/lib/api";
 
 /** Fade-out window before an ended op clears; SyncStatusArea's
@@ -23,30 +24,33 @@ const UI_OPERATIONS: readonly ActiveOperation[] = [
   "remote-op",
 ];
 
-/** Human label for an in-flight operation ("Pulling changes…"). */
+/** Human label for an in-flight operation ("Pulling changes…"). Translated at
+ * the generation point: in-flight labels are finalized when the op starts and
+ * are not replayed on language switch. */
 export function operationLabel(op: ActiveOperation | null): string | null {
   if (!op) return null;
+  const t = i18next.t.bind(i18next);
   switch (op) {
     case "fetch":
-      return "Fetching from origin…";
+      return t("status.sync.fetching");
     case "pull":
-      return "Pulling changes…";
+      return t("status.sync.pulling");
     case "push":
-      return "Pushing to origin…";
+      return t("status.sync.pushing");
     case "checkout":
-      return "Checking out branch…";
+      return t("status.sync.checkingOut");
     case "delete":
-      return "Deleting branch…";
+      return t("status.sync.deletingBranch");
     case "merge":
-      return "Merging branch…";
+      return t("status.sync.merging");
     case "rebase":
-      return "Rebasing…";
+      return t("status.sync.rebasing");
     case "stash":
-      return "Saving stash…";
+      return t("status.sync.savingStash");
     case "worktree":
-      return "Creating worktree…";
+      return t("status.sync.creatingWorktree");
     case "remote-op":
-      return "Running remote operation…";
+      return t("status.sync.remoteOp");
   }
 }
 

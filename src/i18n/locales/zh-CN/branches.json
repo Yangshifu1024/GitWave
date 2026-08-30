@@ -1,0 +1,113 @@
+{
+  "branches": {
+    "title": "分支",
+    "cancel": "取消",
+    "ok": "确定",
+    "delete": "删除",
+    "time": {
+      "justNow": "刚刚",
+      "minutesAgo": "{{n}} 分钟前",
+      "hoursAgo": "{{n}} 小时前",
+      "daysAgo": "{{n}} 天前"
+    },
+    "menu": {
+      "new": "新建",
+      "mergeIntoCurrent": "合并到当前分支",
+      "rebaseCurrentOntoThis": "将当前分支变基到此分支",
+      "interactiveRebase": "交互式变基"
+    },
+    "row": {
+      "current": "当前"
+    },
+    "checkout": {
+      "stashMessage": "切换到 {{name}}",
+      "success": "已检出 {{name}}",
+      "withStash": "已检出 {{name}} 并重新应用贮藏",
+      "stashFailed": "已检出 {{name}}。重新应用贮藏失败，贮藏已保留。"
+    },
+    "list": {
+      "selectWorkspace": "选择工作区以查看分支",
+      "selectRepo": "选择仓库以查看分支",
+      "empty": "未找到分支",
+      "localGroup": "本地"
+    },
+    "switch": {
+      "dirtyTitle": "切换到 {{name}}？",
+      "dirtyDescription_one": "工作副本中有 {{count}} 个未提交文件。你可以丢弃它们，或者贮藏、切换分支后再重新应用贮藏。",
+      "dirtyDescription_other": "工作副本中有 {{count}} 个未提交文件。你可以丢弃它们，或者贮藏、切换分支后再重新应用贮藏。",
+      "discard": "丢弃",
+      "stashAndSwitch": "贮藏并切换",
+      "blockedTitle": "无法切换到 {{name}}"
+    },
+    "newBranch": {
+      "title": "从「{{name}}」新建分支",
+      "description": "在此顶端（tip）创建本地分支；当前分支保持检出状态。",
+      "placeholder": "feature/my-branch",
+      "create": "创建",
+      "created": "已从 {{base}} 创建分支 {{name}}"
+    },
+    "deleteDialog": {
+      "title": "删除分支",
+      "description": "从仓库中删除本地分支",
+      "branchLabel": "分支",
+      "alsoDeleteRemote": "同时删除对应的远程分支",
+      "deleted": "已删除 {{name}}",
+      "deletedWithRemote": "已删除 {{name}} 及其对应的远程分支"
+    },
+    "merge": {
+      "title": "合并分支",
+      "description": "将 {{name}} 合并到 {{current}}。",
+      "sourceLabel": "合并",
+      "targetLabel": "目标",
+      "optionLabel": "选项",
+      "optionAria": "合并选项",
+      "optionAuto": "自动——尽可能快进 (Fast-forward)",
+      "optionNoFf": "不快进——始终创建合并提交",
+      "confirm": "合并",
+      "checking": "正在检查合并…",
+      "upToDate": "已是最新的",
+      "mayConflict_one": "可能在 {{count}} 个文件中产生冲突（合并后解决）",
+      "mayConflict_other": "可能在 {{count}} 个文件中产生冲突（合并后解决）",
+      "noConflicts": "合并不会产生冲突",
+      "withConflicts": "已合并 {{name}}，有 {{n}} 处冲突：{{files}}",
+      "success": "已合并 {{name}}（{{kind}}）"
+    },
+    "rebase": {
+      "hitConflicts": "变基到 {{name}} 时遇到冲突：{{files}}",
+      "hitConflictsPlain": "变基到 {{name}} 时遇到冲突",
+      "success": "已变基到 {{name}}（{{kind}}）"
+    },
+    "irebase": {
+      "title": "交互式变基到 {{name}}",
+      "start": "开始变基",
+      "hint": "拖动可调整顺序。操作：pick / reword / edit / squash / fixup / drop。不会自动 push。",
+      "loading": "正在加载提交…",
+      "upToDate": "已与 {{name}} 保持一致。",
+      "actionAria": "变基操作",
+      "rewordPlaceholder": "新的提交信息",
+      "squashPlaceholder": "合并后的提交信息（可选）",
+      "conflictError": "变基冲突",
+      "paused": "已在 {{name}} 上应用一个提交并暂停以供编辑。请通过工作副本（Working Copy）修补（amend）提交，再从「分支」面板继续。",
+      "done": "交互式变基到 {{name}}（{{kind}}）",
+      "continue": "继续变基",
+      "discardPause": "放弃暂停",
+      "continueConflicts": "继续变基时遇到冲突：{{files}}",
+      "stillPaused": "仍处于编辑暂停状态——请先修补（amend）提交，再点击「继续变基」。",
+      "continued": "交互式变基已继续（{{kind}}）",
+      "pauseCleared": "已清除交互式变基的暂停状态"
+    },
+    "graph": {
+      "selectWorkspaceTitle": "选择工作区",
+      "selectWorkspaceDesc": "在工具栏中选择一个工作区以查看提交历史。",
+      "selectRepoTitle": "选择仓库",
+      "selectRepoDesc": "从侧边栏选择一个仓库以查看提交历史。",
+      "loading": "正在加载历史…",
+      "noMatch": "没有匹配“{{filter}}”的提交",
+      "clearSearch": "清除搜索",
+      "empty": "暂无提交",
+      "searchPlaceholder": "搜索提交（消息或作者）",
+      "loadingOlder": "正在加载更早的提交…",
+      "endOfHistory": "已到历史末尾 · 共 {{total}} 个提交"
+    }
+  }
+}

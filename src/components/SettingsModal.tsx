@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { KeyRound, Monitor, Moon, Palette as PaletteIcon, Settings2, Sun } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useAutoUpdateSetting, useCheckForUpdates } from "@/hooks/useUpdater";
@@ -17,6 +18,15 @@ import {
 } from "@/lib/fonts";
 import { PALETTE_META, type Palette } from "@/lib/palette";
 import { Radio, RadioGroup } from "@heroui/react";
+import {
+  AI_LANGUAGES,
+  AI_LANGUAGE_NATIVE_NAMES,
+  readStoredAiLanguage,
+  setAiLanguage,
+  type AiLanguage,
+} from "@/i18n/aiLanguage";
+import { changeUiLanguage, UI_LANGUAGES, type UiLanguage } from "@/i18n";
+import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { Button } from "@/components/ui/Button";
@@ -26,11 +36,22 @@ import { cn } from "@/lib/utils";
 
 type SettingsSection = "general" | "appearance" | "ssh";
 
-const SECTIONS: { id: SettingsSection; label: string; icon: typeof PaletteIcon }[] = [
-  { id: "general", label: "General", icon: Settings2 },
-  { id: "appearance", label: "Appearance", icon: PaletteIcon },
-  { id: "ssh", label: "SSH Keys", icon: KeyRound },
+const SECTION_KEY: Record<SettingsSection, string> = {
+  general: "settings.sections.general",
+  appearance: "settings.sections.appearance",
+  ssh: "settings.sections.ssh",
+};
+
+const SECTIONS: { id: SettingsSection; icon: typeof PaletteIcon }[] = [
+  { id: "general", icon: Settings2 },
+  { id: "appearance", icon: PaletteIcon },
+  { id: "ssh", icon: KeyRound },
 ];
+
+const UI_LANGUAGE_LABEL: Record<UiLanguage, string> = {
+  en: "English",
+  "zh-CN": "中文",
+};
 
 interface SettingsModalProps {
   open: boolean;
@@ -38,6 +59,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React.JSX.Element {
+  const { t } = useTranslation();
   const [section, setSection] = useState<SettingsSection>("general");
 
   // Reopening always lands on the first section instead of resuming the
@@ -47,13 +69,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
   }, [open]);
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Settings" size="lg">
+    <Modal open={open} onOpenChange={onOpenChange} title={t("settings.title")} size="lg">
       <div className="flex h-[60vh] min-h-0">
         <nav
-          aria-label="Settings sections"
+          aria-label={t("settings.title")}
           className="flex w-44 shrink-0 flex-col gap-0.5 border-r border-border-subtle pr-2"
         >
-          {SECTIONS.map(({ id, label, icon: Icon }) => (
+          {SECTIONS.map(({ id, icon: Icon }) => (
             <Button
               key={id}
               type="button"
@@ -69,7 +91,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
               )}
             >
               <Icon size={15} className="shrink-0" />
-              {label}
+              {t(SECTION_KEY[id])}
             </Button>
           ))}
         </nav>
@@ -87,27 +109,67 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
 // ─── General ──────────────────────────────────────────────────────────────
 
 function GeneralSection(): React.JSX.Element {
+  const { t } = useTranslation();
   const { autoRefresh, setAutoRefresh } = useAutoRefresh();
   return (
     <div className="flex flex-col gap-5">
+      <LanguageSection />
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
-          Auto refresh
+          {t("settings.general.autoRefresh")}
         </h3>
         <Checkbox checked={autoRefresh} onChange={setAutoRefresh} className="text-sm">
-          Refresh repository data every minute
+          {t("settings.general.autoRefreshCheckbox")}
         </Checkbox>
-        <p className="text-xs text-text-muted">
-          Refreshes commits, branches and panels, and fetches from the remote. Never pulls or
-          pushes.
-        </p>
+        <p className="text-xs text-text-muted">{t("settings.general.autoRefreshHint")}</p>
       </section>
       <UpdatesSection />
     </div>
   );
 }
 
+function LanguageSection(): React.JSX.Element {
+  const { t, i18n } = useTranslation();
+  const [aiLanguage, setAiLanguageState] = useState<AiLanguage>(readStoredAiLanguage);
+  const currentUi = (UI_LANGUAGES as readonly string[]).includes(i18n.language)
+    ? (i18n.language as UiLanguage)
+    : "en";
+
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <Select
+          aria-label={t("settings.general.uiLanguage")}
+          className="w-full"
+          value={currentUi}
+          onChange={(value) => changeUiLanguage(value as UiLanguage)}
+          options={UI_LANGUAGES.map((lang) => ({ value: lang, label: UI_LANGUAGE_LABEL[lang] }))}
+        />
+        <p className="text-xs text-text-muted">{t("settings.general.uiLanguageHint")}</p>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Select
+          aria-label={t("settings.general.aiLanguage")}
+          className="w-full"
+          value={aiLanguage}
+          onChange={(value) => {
+            const next = value as AiLanguage;
+            setAiLanguage(next);
+            setAiLanguageState(next);
+          }}
+          options={AI_LANGUAGES.map((lang) => ({
+            value: lang,
+            label: AI_LANGUAGE_NATIVE_NAMES[lang],
+          }))}
+        />
+        <p className="text-xs text-text-muted">{t("settings.general.aiLanguageHint")}</p>
+      </div>
+    </section>
+  );
+}
+
 function UpdatesSection(): React.JSX.Element {
+  const { t } = useTranslation();
   const { autoUpdate, setAutoUpdate } = useAutoUpdateSetting();
   const { check, busy } = useCheckForUpdates();
   const phase = useUpdaterStore((s) => s.phase);
@@ -128,31 +190,31 @@ function UpdatesSection(): React.JSX.Element {
     phase === "downloading" ||
     phase === "ready";
   const statusText = busy
-    ? "Checking…"
+    ? t("settings.general.checking")
     : phase === "up-to-date"
-      ? "You're up to date"
+      ? t("settings.general.upToDate")
       : found
-        ? `v${newVersion ?? "?"} available`
+        ? t("settings.general.available", { version: `v${newVersion ?? "?"}` })
         : phase === "error"
-          ? (error ?? "Check failed")
+          ? (error ?? t("settings.general.checkFailed"))
           : null;
 
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">Updates</h3>
+      <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
+        {t("settings.general.updates")}
+      </h3>
       <Checkbox checked={autoUpdate} onChange={setAutoUpdate} className="text-sm">
-        Automatically check for updates on startup
+        {t("settings.general.autoUpdateCheckbox")}
       </Checkbox>
-      <p className="text-xs text-text-muted">
-        Checks GitHub Releases for a newer version. Nothing is downloaded without your confirmation.
-      </p>
+      <p className="text-xs text-text-muted">{t("settings.general.updatesHint")}</p>
       <div className="flex items-center gap-3">
         <Button variant="secondary" size="sm" disabled={busy} onClick={() => void check()}>
-          Check for updates
+          {t("settings.general.checkForUpdates")}
         </Button>
         {found ? (
           <Button variant="secondary" size="sm" onClick={() => setModalOpen(true)}>
-            View update
+            {t("settings.general.viewUpdate")}
           </Button>
         ) : null}
         <span aria-live="polite" className="text-xs text-text-muted">
@@ -166,13 +228,14 @@ function UpdatesSection(): React.JSX.Element {
 
 // ─── Appearance ───────────────────────────────────────────────────────────
 
-const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
+const THEME_OPTIONS: { value: Theme; labelKey: string; icon: typeof Sun }[] = [
+  { value: "light", labelKey: "settings.appearance.themeLight", icon: Sun },
+  { value: "dark", labelKey: "settings.appearance.themeDark", icon: Moon },
+  { value: "system", labelKey: "settings.appearance.themeSystem", icon: Monitor },
 ];
 
 function AppearanceSection(): React.JSX.Element {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const { palette, setPalette } = usePalette();
   const { fonts, saveFonts } = useFonts();
@@ -202,16 +265,18 @@ function AppearanceSection(): React.JSX.Element {
   return (
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-2">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">Theme</h3>
+        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          {t("settings.appearance.theme")}
+        </h3>
         <RadioGroup
           value={theme}
           onChange={(value) => setTheme(value as Theme)}
-          aria-label="Theme"
+          aria-label={t("settings.appearance.theme")}
           className="grid grid-cols-3 gap-2 [&_[data-slot=radio]]:mt-0"
           style={{ display: "grid" }}
         >
-          {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-            <CardOption key={value} value={value} selected={theme === value} label={label}>
+          {THEME_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
+            <CardOption key={value} value={value} selected={theme === value} label={t(labelKey)}>
               <Icon size={18} className={theme === value ? "text-accent" : "text-text-secondary"} />
             </CardOption>
           ))}
@@ -220,12 +285,12 @@ function AppearanceSection(): React.JSX.Element {
 
       <section className="flex flex-col gap-2">
         <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
-          Color palette
+          {t("settings.appearance.colorPalette")}
         </h3>
         <RadioGroup
           value={palette}
           onChange={(value) => setPalette(value as Palette)}
-          aria-label="Color palette"
+          aria-label={t("settings.appearance.colorPalette")}
           className="grid grid-cols-2 gap-2 [&_[data-slot=radio]]:mt-0"
           style={{ display: "grid" }}
         >
@@ -238,27 +303,29 @@ function AppearanceSection(): React.JSX.Element {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">Fonts</h3>
+        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          {t("settings.appearance.fonts")}
+        </h3>
         <FontField
           slot="sans"
-          label="UI font"
-          hint="Interface text. Leads the platform fallback chain; CJK fallbacks stay active."
+          label={t("settings.appearance.uiFont")}
+          hint={t("settings.appearance.uiFontHint")}
           value={draft.sans}
           onChange={(value) => setDraftSlot("sans", value)}
         />
         <FontField
           slot="mono"
-          label="Mono font"
-          hint="Diff, blame, graph, commit message and other code surfaces."
+          label={t("settings.appearance.monoFont")}
+          hint={t("settings.appearance.monoFontHint")}
           value={draft.mono}
           onChange={(value) => setDraftSlot("mono", value)}
         />
         <div className="flex items-center gap-3">
           <Button variant="primary" size="sm" disabled={!dirty} onClick={handleSave}>
-            Save
+            {t("common.save")}
           </Button>
           <span aria-live="polite" className="text-xs text-text-muted">
-            {justSaved ? "Saved — applied app-wide" : null}
+            {justSaved ? t("settings.appearance.saved") : null}
           </span>
         </div>
       </section>
@@ -281,13 +348,14 @@ function FontField({
   value: string;
   onChange: (value: string) => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const sanitized = sanitizeFontList(value);
   return (
     <div className="flex flex-col gap-1.5">
       <Input
         label={label}
         description={hint}
-        placeholder={`${DEFAULT_FONT_LEADS[slot]} (default)`}
+        placeholder={`${DEFAULT_FONT_LEADS[slot]} (${t("common.default")})`}
         value={value}
         onChange={onChange}
       />
@@ -300,7 +368,7 @@ function FontField({
         </p>
         {value === "" ? null : (
           <Button variant="ghost" size="sm" onClick={() => onChange("")}>
-            Reset
+            {t("common.reset")}
           </Button>
         )}
       </div>

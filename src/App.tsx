@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { Toolbar } from "@/components/Toolbar";
@@ -35,6 +36,7 @@ import { useTitlebarActivation } from "@/hooks/useTitlebar";
 import { cn } from "@/lib/utils";
 
 function App(): React.JSX.Element {
+  const { t } = useTranslation();
   /** Commit selection scoped to the repo it was made in — avoids stale OID after switch. */
   const [commitSelection, setCommitSelection] = useState<{
     repoId: string;
@@ -138,7 +140,7 @@ function App(): React.JSX.Element {
             <aside className="flex flex-col h-full gap-1.5 px-2 py-2 bg-bg-panel overflow-hidden select-none pane-edge-right">
               {activeWorkspaceId ? (
                 <>
-                  <SidebarSection title="Health" defaultOpen={false}>
+                  <SidebarSection title={t("app.sidebar.health")} defaultOpen={false}>
                     <HealthPanel />
                   </SidebarSection>
                   <BranchList onBranchSelect={handleBranchSelect} />
@@ -147,15 +149,15 @@ function App(): React.JSX.Element {
                   <RemotesPanel />
                   <WorktreePanel compact />
                   <SubmodulesPanel />
-                  <SidebarSection title="Recovery" defaultOpen={false}>
+                  <SidebarSection title={t("app.sidebar.recovery")} defaultOpen={false}>
                     <ReflogPanel />
                   </SidebarSection>
                 </>
               ) : (
                 <EmptyState
                   icon={<FolderOpen size={22} />}
-                  title="No workspace selected"
-                  description="Choose or create a workspace in the sidebar."
+                  title={t("app.emptyState.noWorkspaceTitle")}
+                  description={t("app.emptyState.noWorkspaceDescription")}
                   className="flex-1"
                 />
               )}
@@ -192,6 +194,7 @@ function MainContent({
 }: {
   selectedCommitOid: string | null;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
 
@@ -200,8 +203,8 @@ function MainContent({
       <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-panel pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
-          title="Select a workspace"
-          description="Choose or create a workspace in the sidebar to open repositories."
+          title={t("app.emptyState.selectWorkspaceTitle")}
+          description={t("app.emptyState.selectWorkspaceDescription")}
           className="py-16"
         />
       </main>
@@ -213,8 +216,8 @@ function MainContent({
       <main className="flex flex-col h-full min-h-0 items-center justify-center bg-bg-panel pane-edge-left">
         <EmptyState
           icon={<FolderOpen size={28} />}
-          title="No repository selected"
-          description="Select a repository from the sidebar to view history and diffs."
+          title={t("app.emptyState.noRepoTitle")}
+          description={t("app.emptyState.noRepoDescription")}
           className="py-16"
         />
       </main>
@@ -233,8 +236,8 @@ function MainContent({
       ) : (
         <EmptyState
           icon={<GitCommitHorizontal size={28} />}
-          title="No commit selected"
-          description="Click a commit in the history graph to see its diff."
+          title={t("app.emptyState.noCommitTitle")}
+          description={t("app.emptyState.noCommitDescription")}
           className="h-full"
         />
       )}

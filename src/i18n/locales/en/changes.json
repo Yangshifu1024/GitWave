@@ -1,0 +1,103 @@
+{
+  "changes": {
+    "section": {
+      "unstaged": "Unstaged",
+      "staged": "Staged",
+      "noUnstaged": "No unstaged changes",
+      "noStaged": "No staged changes"
+    },
+    "fileSection": {
+      "titleWithCount": "{{title}} ({{total}})",
+      "allFilesTooltip": "{{action}} files",
+      "selectedFilesTooltip": "{{action}} selected files"
+    },
+    "action": {
+      "stage": "Stage",
+      "stageAll": "Stage All",
+      "unstage": "Unstage",
+      "unstageAll": "Unstage All",
+      "discard": "Discard",
+      "discardAll": "Discard All",
+      "cancel": "Cancel",
+      "add": "Add",
+      "notNow": "Not now",
+      "configure": "Configure"
+    },
+    "ai": {
+      "notConfiguredTitle": "AI provider not configured",
+      "notConfiguredDescription": "This workspace has no AI provider. Would you like to configure one now?",
+      "fallbackNotice": "Primary AI provider failed — response served by {{provider}}"
+    },
+    "noRepoTitle": "No repository selected",
+    "noRepoDescription": "Select a repository to see uncommitted changes.",
+    "loadFailed": "Failed to load working copy",
+    "loading": "Loading…",
+    "editGitignore": "Edit .gitignore",
+    "discard": {
+      "menu": "Discard changes…",
+      "renamedDisabled": "Renamed files cannot be discarded yet",
+      "singleTitle": "Discard changes in \"{{path}}\"?",
+      "singleUntrackedDescription": "\"{{path}}\" is not tracked by git — discarding deletes the file from disk permanently.",
+      "singleTrackedDescription": "Uncommitted changes in \"{{path}}\" will be restored to the last staged version. This cannot be undone.",
+      "multiTitle": "Discard changes in {{files}} files?",
+      "multiUntrackedDescription": "{{files}} files will be discarded: tracked files are restored to their last staged version and untracked files are deleted from disk permanently. This cannot be undone.",
+      "multiTrackedDescription": "Uncommitted changes in {{files}} files will be restored to their last staged version. This cannot be undone.",
+      "deleteFile": "Delete file",
+      "multiConfirm": "Discard {{files}} files"
+    },
+    "ignore": {
+      "menu": "Add to .gitignore…",
+      "title": "Add to .gitignore",
+      "description": "Appends the chosen pattern to the repo-root .gitignore (shared with collaborators). The file stays on disk but leaves the change list if untracked.",
+      "scopeLabel": "Ignore scope",
+      "filePath": "File path",
+      "directory": "Directory",
+      "extension": "Extension",
+      "ignoreGitignoreDisabled": "Ignoring .gitignore itself is not allowed",
+      "onlyUntrackedDisabled": "Only untracked files can be ignored"
+    },
+    "messageBox": {
+      "ariaLabel": "Commit message",
+      "placeholder": "feat: your commit message here…",
+      "charCount": "{{chars}} chars",
+      "charCountFirstLine": "{{chars}} chars (first line > 72: {{firstLine}})",
+      "amend": "Amend",
+      "amendTitle": "Prefill with last commit message",
+      "amendCommit": "Amend commit",
+      "commit": "Commit",
+      "generate": "Generate",
+      "generating": "Generating…",
+      "generateTitle": "Generate commit message with AI"
+    },
+    "stash": {
+      "title": "Stash",
+      "buttonTitle": "Stash local changes",
+      "noStashes": "No stashes",
+      "noMessage": "(no message)",
+      "viewDiff": "View diff",
+      "apply": "Apply",
+      "pop": "Pop",
+      "drop": "Drop",
+      "selectToPreview": "Select a stash to preview its diff.",
+      "diffSummary": "{{files}} file(s) · +{{additions}} −{{deletions}}",
+      "saveTitle": "Save stash",
+      "saveDescription": "Save your local changes to a new stash",
+      "saveButton": "Save Stash",
+      "messagePlaceholder": "Stash message (optional)",
+      "stageNewFiles": "Stage new files",
+      "stageNewFilesHint": "By default stash ignores new files until you stage them",
+      "saved": "Saved stash"
+    },
+    "actionBar": {
+      "changes": "Changes",
+      "changesWithCount": "Changes({{total}})",
+      "localChangesTitle": "Local changes"
+    },
+    "panel": {
+      "title": "Local Changes",
+      "statusSummary": "{{unstaged}} unstaged · {{staged}} staged",
+      "noFileSelected": "No file selected",
+      "noFileSelectedDescription": "Click a file on the left to see its diff."
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "ok": "OK",
+    "save": "Save",
+    "saveChanges": "Save changes",
+    "close": "Close",
+    "delete": "Delete",
+    "edit": "Edit",
+    "rename": "Rename",
+    "reset": "Reset",
+    "copy": "Copy",
+    "copied": "Copied",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "error": "Error",
+    "none": "None",
+    "default": "Default",
+    "add": "Add",
+    "remove": "Remove",
+    "open": "Open",
+    "done": "Done",
+    "apply": "Apply",
+    "search": "Search",
+    "learnMore": "Learn more"
+  }
+}

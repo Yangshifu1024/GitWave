@@ -1,0 +1,9 @@
+{
+  "about": {
+    "title": "关于 GitWave",
+    "appIconAlt": "GitWave 应用图标",
+    "slogan": "本地优先、支持 AI 协作的 Git 客户端。",
+    "appData": "应用数据",
+    "github": "GitHub"
+  }
+}
