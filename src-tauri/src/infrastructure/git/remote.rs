@@ -529,6 +529,15 @@ mod tests {
         let (server_path, server) = build_linear_repo(1);
         let local_path = server_path.with_extension("clone");
         let local = Repository::clone(server_path.to_str().unwrap(), &local_path).unwrap();
+        // Clone doesn't copy the server's repo config, so on Windows runners
+        // the global `core.autocrlf=true` would make checkouts write CRLF
+        // and break the exact-content assertions below (same reason
+        // test_helpers::configure_user pins it on fresh repos).
+        local
+            .config()
+            .unwrap()
+            .set_str("core.autocrlf", "false")
+            .unwrap();
         (server_path, local_path, server, local)
     }
 
