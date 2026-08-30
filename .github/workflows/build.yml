@@ -74,8 +74,10 @@ jobs:
             case "$a" in --timestamp*) exec "$REAL" "$@" ;; esac
           done
           TSA=""
+          # ts.ssl.com is excluded on purpose: reachable and fast, but Apple
+          # notarization rejects its tokens ("signature does not include a
+          # secure timestamp", job b0ffb9cd-c1d6) — reachability is not trust
           for u in \
-            http://ts.ssl.com \
             http://timestamp.sectigo.com \
             http://timestamp.apple.com/ts01 \
             https://timestamp.digicert.com; do
