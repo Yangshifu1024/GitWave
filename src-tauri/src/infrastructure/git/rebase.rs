@@ -11,8 +11,11 @@ use crate::infrastructure::git::git2_adapter::commit_signature;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RebaseKind {
-    /// Nothing to do (already up to date with upstream).
+    /// Nothing to do: HEAD already contains everything in `upstream`
+    /// (same commit, or upstream is an ancestor of HEAD).
     AlreadyUpToDate,
+    /// HEAD was strictly behind upstream, so the branch fast-forwarded.
+    FastForward,
     /// HEAD was rewritten onto upstream; no conflicts.
     Clean,
     /// Rebase was aborted because at least one commit conflicted.
@@ -22,10 +25,10 @@ pub enum RebaseKind {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct RebaseResult {
     pub kind: RebaseKind,
-    /// Paths with conflicts (empty if `kind` is Clean or AlreadyUpToDate).
+    /// Paths with conflicts (empty unless `kind` is Conflicts).
     pub conflicts: Vec<String>,
-    /// The new HEAD commit Oid after a Clean rebase. None for the
-    /// other two variants.
+    /// The new HEAD commit Oid after a Clean rebase or a FastForward.
+    /// None for the other two variants.
     pub new_head: Option<String>,
 }
 
@@ -33,6 +36,11 @@ pub struct RebaseResult {
 ///
 /// On AlreadyUpToDate: HEAD already contains everything in `upstream`,
 /// so nothing happens.
+///
+/// On FastForward: HEAD had no commits not in `upstream`, so there was
+/// nothing to rewrite; the current branch was fast-forwarded to
+/// `upstream` instead (what `git rebase` does). Callers must have
+/// refused a dirty worktree — the landing force-checks out.
 ///
 /// On Clean: each commit in HEAD that is not in `upstream` is
 /// cherry-picked (rewritten) onto `upstream`. The result is a new
@@ -52,23 +60,28 @@ pub fn rebase_branch(repo: &Repository, upstream: &str) -> Result<RebaseResult> 
     // and grab the Oid.
     let upstream_oid = upstream_obj.peel(git2::ObjectType::Commit)?.id();
 
-    if our_oid == upstream_oid {
+    let (ahead, behind) = repo
+        .graph_ahead_behind(our_oid, upstream_oid)
+        .map_err(map_git_err)?;
+    if behind == 0 {
+        // HEAD contains every commit of upstream (same commit, or
+        // upstream is an ancestor of HEAD): nothing to rebase.
         return Ok(RebaseResult {
             kind: RebaseKind::AlreadyUpToDate,
             conflicts: Vec::new(),
             new_head: None,
         });
     }
-
-    let (ahead, _behind) = repo
-        .graph_ahead_behind(our_oid, upstream_oid)
-        .map_err(map_git_err)?;
     if ahead == 0 {
-        // HEAD is a descendant of upstream; nothing to rebase.
+        // HEAD is strictly behind upstream: a rebase has no commits to
+        // rewrite, and `git rebase` fast-forwards. Land upstream on the
+        // current branch here; callers refuse a dirty worktree before
+        // this, so the force checkout inside cannot drop changes.
+        finalize_rebase(repo, &upstream_oid.to_string())?;
         return Ok(RebaseResult {
-            kind: RebaseKind::AlreadyUpToDate,
+            kind: RebaseKind::FastForward,
             conflicts: Vec::new(),
-            new_head: None,
+            new_head: Some(upstream_oid.to_string()),
         });
     }
 
@@ -204,24 +217,88 @@ mod tests {
     }
 
     #[test]
-    fn rebase_fast_forward_when_already_descendant() {
-        // Create a branch at i=0, then rebase onto it -> already
-        // up to date (ahead == 0).
+    fn rebase_onto_ancestor_is_up_to_date() {
+        // Rebase onto a branch that is an ancestor of HEAD: HEAD fully
+        // contains it (behind == 0), so nothing happens.
         let (path, repo) = build_linear_repo(3);
-        let old = repo.head().unwrap().peel_to_commit().unwrap().id();
-        repo.branch("feature", &repo.find_commit(old).unwrap(), false)
+        let first = repo
+            .revparse_single("main~2")
+            .unwrap()
+            .peel_to_commit()
             .unwrap();
-        // HEAD (i=2) is a descendant of feature (i=0), so ahead == 0.
+        repo.branch("feature", &first, false).unwrap();
         let res = rebase_branch(&repo, "feature").unwrap();
         assert_eq!(res.kind, RebaseKind::AlreadyUpToDate);
         cleanup(&path);
     }
 
     #[test]
+    fn rebase_strictly_behind_fast_forwards() {
+        // HEAD on a branch strictly behind `main`: a rebase has no picks,
+        // so it must fast-forward and land (branch ref, HEAD, workdir),
+        // not report a silent "already up to date".
+        let (path, repo) = build_linear_repo(3);
+        let first = repo
+            .revparse_single("main~2")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("behind", &first, false).unwrap();
+        repo.set_head("refs/heads/behind").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        let main_tip = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        assert!(
+            !path.join("file2.txt").exists(),
+            "precondition: behind workdir"
+        );
+
+        let res = rebase_branch(&repo, "main").unwrap();
+        assert_eq!(res.kind, RebaseKind::FastForward);
+        assert_eq!(res.new_head.as_deref(), Some(main_tip.as_str()));
+
+        assert_eq!(
+            repo.head()
+                .unwrap()
+                .peel_to_commit()
+                .unwrap()
+                .id()
+                .to_string(),
+            main_tip,
+            "HEAD must move to upstream"
+        );
+        assert_eq!(
+            repo.find_reference("refs/heads/behind")
+                .unwrap()
+                .target()
+                .unwrap()
+                .to_string(),
+            main_tip,
+            "the current branch ref must fast-forward"
+        );
+        assert_eq!(
+            fs::read_to_string(path.join("file2.txt")).unwrap(),
+            "v2\n",
+            "the fast-forwarded content must be checked out"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
     fn finalize_rebase_moves_branch_and_checks_out() {
+        use crate::infrastructure::git::test_helpers::{make_commit, write_and_stage};
+
+        // Diverged: `old` gains its own commit after branching, so rebasing
+        // main onto old truly rewrites main's tip in memory (a strictly
+        // linear "rebase onto parent" would just be up to date). finalize
+        // must land the rewritten commit on the branch.
         let (path, repo) = build_linear_repo(2);
-        // "old" sits at commit 0; rebasing HEAD (commit 1) onto it rewrites
-        // commit 1 in memory. finalize must land it on the branch.
         let first = repo
             .revparse_single("main~1")
             .unwrap()
@@ -229,9 +306,28 @@ mod tests {
             .unwrap();
         repo.branch("old", &first, false).unwrap();
 
+        repo.set_head("refs/heads/old").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        let tree = write_and_stage(&repo, "file_old.txt", "old\n");
+        make_commit(&repo, &sig, "commit old", tree, &[first.id()]);
+
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        let main_tip = repo
+            .revparse_single("main")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+
         let res = rebase_branch(&repo, "old").unwrap();
         assert_eq!(res.kind, RebaseKind::Clean);
         let new_head = res.new_head.clone().unwrap();
+        assert_ne!(new_head, main_tip, "the rewrite must produce a new commit");
 
         finalize_rebase(&repo, &new_head).unwrap();
 
@@ -257,7 +353,12 @@ mod tests {
         assert_eq!(
             fs::read_to_string(path.join("file1.txt")).unwrap(),
             "v1\n",
-            "the result must be checked out"
+            "the rewritten commit's changes must be checked out"
+        );
+        assert_eq!(
+            fs::read_to_string(path.join("file_old.txt")).unwrap(),
+            "old\n",
+            "the new base's content must be checked out"
         );
         cleanup(&path);
     }
