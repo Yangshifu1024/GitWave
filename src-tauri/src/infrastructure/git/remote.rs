@@ -538,6 +538,12 @@ mod tests {
             .unwrap()
             .set_str("core.autocrlf", "false")
             .unwrap();
+        // The clone's own checkout already ran under the global config and
+        // left CRLF files behind — re-checkout with the pin in effect so the
+        // worktree is LF and `worktree_is_dirty` sees it as clean.
+        local
+            .checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
         (server_path, local_path, server, local)
     }
 
