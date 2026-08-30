@@ -68,6 +68,7 @@ jobs:
       - name: Tauri build
         uses: tauri-apps/tauri-action@action-v1.0.0
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           # certificate + notarization are handled inside the action/bundler
           # (temp keychain import, codesign, notarytool, staple)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -117,6 +118,7 @@ jobs:
       - name: Tauri build
         uses: tauri-apps/tauri-action@action-v1.0.0
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
@@ -143,6 +145,7 @@ jobs:
       - name: Tauri build
         uses: tauri-apps/tauri-action@action-v1.0.0
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
