@@ -11,8 +11,10 @@ concurrency:
 jobs:
   build-macos:
     name: Build (macOS)
-    # macos-latest (macOS 26 pool) egress to timestamp.apple.com is broken; try the macOS 15 pool
-    runs-on: macos-15
+    # Apple TSA (timestamp.apple.com) intermittently throttles GitHub shared egress
+    # to unusable latency; codesign takes any RFC3161 TSA, so the wrapper below
+    # forces DigiCert's instead.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -53,63 +55,14 @@ jobs:
             echo "::error::APPLE_API_KEY_P8 缺少 '-----END PRIVATE KEY-----' 行，内容已损坏。用 gh secret set APPLE_API_KEY_P8 < AuthKey_XXX.p8 重新设置"
             exit 1
           }
-      - name: Probe Apple TSA (fail fast before compile)
+      - name: Install codesign TSA wrapper (DigiCert)
         run: |
-          security find-identity -v -p codesigning build.keychain || true
-          probe() { curl -sS -o /dev/null --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; }
-          if probe; then echo "TSA reachable directly"; exit 0; fi
-          echo "--- proxy env ---"
-          env | grep -iE "^(http_proxy|https_proxy|all_proxy|no_proxy)=" || echo "(no proxy env vars)"
-          echo "--- system resolve of timestamp.apple.com ---"
-          dscacheutil -q host -a name timestamp.apple.com || true
-          echo "--- curl -v full output (443) ---"
-          curl -v --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 -o /dev/null 2>&1 || true
-          echo "--- curl -v full output (80) ---"
-          curl -v --connect-timeout 10 --max-time 20 http://timestamp.apple.com/ -o /dev/null 2>&1 || true
-          echo "--- TSA endpoint reachability: 80 vs 443 ---"
-          curl -sS -o /dev/null -w "http  ts01 POST: HTTP %{http_code} in %{time_total}s\n" -X POST -H "Content-Type: application/timestamp-query" --data-binary "probe" --connect-timeout 10 --max-time 20 http://timestamp.apple.com/ts01 || echo "http  ts01: failed"
-          curl -sS -o /dev/null -w "https ts01 POST: HTTP %{http_code} in %{time_total}s\n" -X POST -H "Content-Type: application/timestamp-query" --data-binary "probe" --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01 || echo "https ts01: failed"
-          echo "--- curl --resolve forced to 17.157.80.35 ---"
-          if curl -sS -o /dev/null --resolve timestamp.apple.com:443:17.157.80.35 --connect-timeout 10 --max-time 20 https://timestamp.apple.com/ts01; then
-            echo "RESOLVED-IP PATH WORKS"
-          else
-            echo "resolved-IP path also blocked"
-          fi
-          echo "Pinning /etc/hosts and retrying"
-          echo "17.157.80.35 timestamp.apple.com" | sudo tee -a /etc/hosts >/dev/null
-          dscacheutil -flushcache || true
-          killall -HUP mDNSResponder 2>/dev/null || true
-          ok=0
-          for i in 1 2 3; do
-            if probe; then ok=1; break; fi
-            echo "TSA attempt $i failed; sleeping 20s before retry"
-            sleep 20
-          done
-          if [ "$ok" = 1 ]; then
-            echo "TSA reachable via pinned IP 17.157.80.35"
-            exit 0
-          fi
-          echo "HTTPS TSA unreachable; checking HTTP TSA fallback (ts01 over port 80)"
-          if ! curl -sS -o /dev/null --connect-timeout 10 --max-time 20 -X POST -H "Content-Type: application/timestamp-query" --data-binary "probe" http://timestamp.apple.com/ts01; then
-            echo "::error::Apple TSA unreachable over both HTTPS and HTTP — codesign cannot take a timestamp. Failing fast before the 20-min compile."
-            exit 1
-          fi
-          echo "--- smoke test: real codesign with HTTP timestamp URL (60s limit) ---"
-          cp /bin/echo /tmp/gw_sig_test
-          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '$1 ~ /^[0-9]+\)$/ {print $2; exit}')
-          echo "identity hash: $id_hash"
-          if perl -e 'alarm shift; exec @ARGV' 60 codesign --force --timestamp=http://timestamp.apple.com/ts01 -s "$id_hash" --options runtime /tmp/gw_sig_test; then
-            echo "codesign HTTP TSA smoke test PASSED"
-          else
-            echo "::error::codesign cannot take a timestamp over HTTP either (curl works but codesign hangs). See job log."
-            exit 1
-          fi
           mkdir -p "$HOME/.local/bin"
           cat > "$HOME/.local/bin/codesign" <<'WRAPPER'
           #!/bin/bash
           if [ -x /usr/bin/codesign.real ]; then REAL=/usr/bin/codesign.real; else REAL=/usr/bin/codesign; fi
           echo "[codesign-wrapper] real=$REAL args=$*" >&2
-          out=(--timestamp=http://timestamp.apple.com/ts01)
+          out=(--timestamp=http://timestamp.digicert.com)
           skip=0
           for a in "$@"; do
             if [ "$skip" = 1 ]; then skip=0; continue; fi
@@ -135,30 +88,12 @@ jobs:
           else
             sudo cp "$HOME/.local/bin/codesign" /usr/bin/codesign
           fi
-          echo "codesign wrappers installed: timestamp forced to http://timestamp.apple.com/ts01"
       - name: frontend build
         run: npm run build
       - name: cargo build (compile phase)
         run: cargo build --manifest-path src-tauri/Cargo.toml --release
-      - name: Big-binary HTTP TSA signing experiment
-        run: |
-          bin=src-tauri/target/release/gitwave
-          ls -la "$bin"
-          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '$1 ~ /^[0-9]+\)$/ {print $2; exit}')
-          echo "--- a) HTTP TSA on real binary (120s limit) ---"
-          if perl -e 'alarm shift; exec @ARGV' 120 codesign --force --timestamp=http://timestamp.apple.com/ts01 -s "$id_hash" --options runtime "$bin"; then
-            echo "HTTP TSA big-binary: PASSED"
-          else
-            echo "HTTP TSA big-binary: FAILED/hung"
-          fi
-          echo "--- b) no-timestamp control (120s limit) ---"
-          if perl -e 'alarm shift; exec @ARGV' 120 codesign --force --timestamp=none -s "$id_hash" --options runtime "$bin"; then
-            echo "no-timestamp control: PASSED"
-          else
-            echo "no-timestamp control: FAILED/hung"
-          fi
       - name: tauri build (bundle + sign + notarize, verbose)
-        run: perl -e 'alarm shift; exec @ARGV' 2100 npm run tauri -- build --verbose
+        run: perl -e 'alarm shift; exec @ARGV' 900 npm run tauri -- build --verbose
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
