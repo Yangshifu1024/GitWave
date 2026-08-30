@@ -67,13 +67,27 @@ jobs:
           if [ -x /usr/bin/codesign.real ]; then REAL=/usr/bin/codesign.real; else REAL=/usr/bin/codesign; fi
           echo "[codesign-wrapper] real=$REAL args=$*" >&2
           # pass explicit --timestamp through untouched (allows --timestamp=none
-          # diagnostics); inject DigiCert RFC3161 only when codesign would use
-          # its default Apple TSA, which GitHub egress throttles intermittently
+          # diagnostics); otherwise pick the first RFC3161 TSA that answers —
+          # Apple's is intermittently throttled from GitHub egress, and any
+          # single third-party endpoint can flap, so probe a few each time
           for a in "$@"; do
             case "$a" in --timestamp*) exec "$REAL" "$@" ;; esac
           done
-          echo "[codesign-wrapper] out=--timestamp=https://timestamp.digicert.com $*" >&2
-          exec "$REAL" --timestamp=https://timestamp.digicert.com "$@"
+          TSA=""
+          for u in \
+            http://ts.ssl.com \
+            http://timestamp.sectigo.com \
+            http://timestamp.apple.com/ts01 \
+            https://timestamp.digicert.com; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 \
+              -X POST -H 'Content-Type: application/timestamp-query' \
+              --data-binary 'probe' "$u" 2>/dev/null) || code=000
+            if [ "$code" != "000" ]; then TSA="$u"; break; fi
+            echo "[codesign-wrapper] $u unreachable, trying next" >&2
+          done
+          [ -n "$TSA" ] || TSA=http://timestamp.apple.com/ts01
+          echo "[codesign-wrapper] out=--timestamp=$TSA $*" >&2
+          exec "$REAL" --timestamp="$TSA" "$@"
           WRAPPER
           chmod +x "$HOME/.local/bin/codesign"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -92,9 +106,9 @@ jobs:
           cp /bin/echo /tmp/gw_sig_test
           id_hash=$(security find-identity -v -p codesigning build.keychain | awk '$1 ~ /^[0-9]+\)$/ {print $2; exit}')
           if perl -e 'alarm shift; exec @ARGV' 30 "$HOME/.local/bin/codesign" --force -s "$id_hash" --options runtime /tmp/gw_sig_test; then
-            echo "codesign + DigiCert TSA smoke test PASSED"
+            echo "codesign + TSA smoke test PASSED"
           else
-            echo "::error::codesign could not complete via DigiCert TSA within 30s — TSA/network issue (keychain is unlocked and set no-timeout)"
+            echo "::error::codesign could not complete a timestamped signature within 30s — all TSA candidates failed (keychain is unlocked and set no-timeout)"
             exit 1
           fi
       - name: frontend build
