@@ -35,6 +35,8 @@
       "uiFontHint": "界面文本。作为平台回退链的首选；CJK 回退保持生效。",
       "monoFont": "等宽字体",
       "monoFontHint": "用于 diff、blame、提交图、commit message 及其他代码界面。",
+      "size": "大小",
+      "resetSize": "重置大小",
       "saved": "已保存——全局生效"
     }
   }

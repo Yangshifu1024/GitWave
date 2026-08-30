@@ -71,7 +71,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             placeholder={placeholder}
             autoFocus={autoFocus}
             onKeyDown={onKeyDown}
-            className="h-8 px-3 py-1 text-sm"
+            /* min-w-0 lets the input shrink inside narrow groups — without it
+             * the intrinsic width overflows the group border and pushes the
+             * suffix outside it. */
+            className="h-8 min-w-0 px-3 py-1 text-sm"
             {...props}
           />
           {suffix != null ? (
