@@ -267,8 +267,6 @@ function CommitRow({
 
       <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
         {commit.author} &middot; {formatTime(commit.time)}
-        {commit.parents.length > 1 ? <span className="ml-1 text-accent">merge</span> : null}
-        {isHead ? <span className="ml-1 text-accent font-medium">HEAD</span> : null}
       </span>
     </Surface>
   );
