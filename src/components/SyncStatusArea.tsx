@@ -34,6 +34,7 @@ const BAR_COLOR: Record<AreaState, string> = {
 
 export function SyncStatusArea(): React.JSX.Element {
   const activeOp = useSyncStore((s) => s.activeOp);
+  const activeRemote = useSyncStore((s) => s.activeRemote);
   const fading = useSyncStore((s) => s.fading);
   const status = useStatusAreaStore((s) => s.status);
   const wc = useWorkingCopy();
@@ -42,7 +43,7 @@ export function SyncStatusArea(): React.JSX.Element {
   // before the result state swaps in.
   const syncing = activeOp !== null;
   const state: AreaState = syncing ? "sync" : status ? status.variant : "idle";
-  const label = syncing ? operationLabel(activeOp) : null;
+  const label = syncing ? operationLabel(activeOp, activeRemote) : null;
   const text = syncing ? label : (status?.text ?? wc.data?.branch ?? "No repository selected");
   const fadeClass = fading ? "opacity-0" : "opacity-100";
 
@@ -57,13 +58,14 @@ export function SyncStatusArea(): React.JSX.Element {
     >
       <div
         className={cn(
-          "flex h-full items-center justify-center gap-2 text-xs truncate",
+          "flex h-full items-center justify-center gap-2 text-xs",
           "transition-opacity duration-150",
           TEXT_COLOR[state],
           fadeClass,
         )}
       >
-        <span className="truncate">{text}</span>
+        {/* Long labels (interpolated remote names) wrap; at most two lines. */}
+        <span className="line-clamp-2">{text}</span>
       </div>
       {state === "sync" ? (
         <ProgressBar

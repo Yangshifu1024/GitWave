@@ -28,4 +28,4 @@ pub mod working_copy;
 pub mod worktree;
 
 #[cfg(test)]
-mod test_helpers;
+pub(crate) mod test_helpers;

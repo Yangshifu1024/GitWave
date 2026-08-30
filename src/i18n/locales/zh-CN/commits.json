@@ -92,7 +92,6 @@
       "branch": "分支",
       "into": "合并到",
       "to": "推送到",
-      "defaultTarget": "默认 ({{target}})",
       "rebaseInstead": "变基而不是合并",
       "stashAndReapply": "贮藏并重新应用本地变更",
       "pushAllTags": "推送所有标签",

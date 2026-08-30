@@ -92,7 +92,6 @@
       "branch": "Branch",
       "into": "Into",
       "to": "To",
-      "defaultTarget": "default ({{target}})",
       "rebaseInstead": "Rebase instead of merge",
       "stashAndReapply": "Stash and reapply local changes",
       "pushAllTags": "Push all tags",
