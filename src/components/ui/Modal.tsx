@@ -1,6 +1,5 @@
 import { Modal as HeroModal, Description } from "@heroui/react";
 import { type ReactNode } from "react";
-import { cn } from "@/lib/utils";
 
 export interface ModalProps {
   open: boolean;
@@ -10,6 +9,9 @@ export interface ModalProps {
   size?: "sm" | "md" | "lg" | "xl";
   /** @deprecated Destructive styling — not yet implemented */
   destructive?: boolean;
+  /** Actions rendered in HeroUI's Modal.Footer (right-aligned, mt-5 below
+   *  the body). Omit to keep actions inside the body flow. */
+  footer?: ReactNode;
   children: ReactNode;
 }
 
@@ -29,6 +31,7 @@ export function Modal({
   title,
   description,
   size = "md",
+  footer,
   children,
 }: ModalProps): React.JSX.Element {
   return (
@@ -39,33 +42,30 @@ export function Modal({
       className="z-modal bg-bg-overlay backdrop-blur-sm"
     >
       <HeroModal.Container placement="center" className="z-modal">
-        <HeroModal.Dialog
-          className={cn(
-            "rounded-xl p-6 bg-bg-elevated shadow-modal focus:outline-none",
-            sizeClasses[size],
-          )}
-        >
+        {/* No chrome overrides: HeroUI's .modal__dialog already ships the
+            official surface — bg-overlay, shadow-overlay, p-6 and radius
+            min(32px, --radius-3xl). These classes only constrain the width. */}
+        <HeroModal.Dialog className={sizeClasses[size]}>
           {({ close }) => (
-            <div className="flex flex-col gap-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                  <HeroModal.Heading className="text-md font-semibold text-text-primary">
-                    {title}
-                  </HeroModal.Heading>
-                  {description ? (
-                    <Description className="text-sm text-text-secondary break-words">
-                      {description}
-                    </Description>
-                  ) : null}
-                </div>
-                <HeroModal.CloseTrigger className="shrink-0" onPress={close} />
-              </div>
+            <>
+              {/* Official anatomy: the close button floats at end-4 top-4
+                  (.modal__close-trigger), outside the header flow. */}
+              <HeroModal.CloseTrigger onPress={close} />
+              <HeroModal.Header className="pe-10">
+                <HeroModal.Heading>{title}</HeroModal.Heading>
+                {description ? (
+                  <Description className="text-sm text-text-secondary break-words">
+                    {description}
+                  </Description>
+                ) : null}
+              </HeroModal.Header>
               {/* No p-0 here: HeroUI's .modal__body ships -m-[3px] + p-[3px]
                   so focus rings on first/last fields have clip room inside
                   the overflow-y-auto scroll box. p-0 made the ring flush with
                   the clip edge and got it cut off (top/left/right). */}
               <HeroModal.Body className="flex flex-col gap-3">{children}</HeroModal.Body>
-            </div>
+              {footer ? <HeroModal.Footer>{footer}</HeroModal.Footer> : null}
+            </>
           )}
         </HeroModal.Dialog>
       </HeroModal.Container>

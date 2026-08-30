@@ -1094,7 +1094,6 @@ export function ActionBar(): React.JSX.Element {
               checked={pullDialog.rebase}
               disabled={wc.isSyncBusy}
               onChange={(rebase) => setPullDialog({ ...pullDialog, rebase })}
-              className="text-text-primary"
             >
               Rebase instead of merge
             </Checkbox>
@@ -1102,7 +1101,6 @@ export function ActionBar(): React.JSX.Element {
               checked={pullDialog.stash}
               disabled={wc.isSyncBusy}
               onChange={(stash) => setPullDialog({ ...pullDialog, stash })}
-              className="text-text-primary"
             >
               Stash and reapply local changes
             </Checkbox>
@@ -1142,58 +1140,56 @@ export function ActionBar(): React.JSX.Element {
           title="Push"
           description="Push your local changes to remote repository"
           size="sm"
+          footer={
+            <>
+              <Button variant="secondary" size="sm" onClick={() => setPushDialog(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={wc.isSyncBusy}
+                onClick={() => {
+                  const options = {
+                    remote: "origin",
+                    tags: pushDialog.tags,
+                    force: pushDialog.force,
+                  };
+                  setPushDialog(null);
+                  wc.push(options);
+                }}
+              >
+                Push
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
-              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
-                {wc.data?.branch ?? "—"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">To</span>
-              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
-                default ({wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`})
-              </span>
-            </div>
-            <Checkbox
-              checked={pushDialog.tags}
-              disabled={wc.isSyncBusy}
-              onChange={(tags) => setPushDialog({ ...pushDialog, tags })}
-              className="text-text-primary"
-            >
-              Push all tags
-            </Checkbox>
-            <Checkbox
-              checked={pushDialog.force}
-              disabled={wc.isSyncBusy}
-              onChange={(force) => setPushDialog({ ...pushDialog, force })}
-              className="text-text-primary"
-            >
-              Force push
-            </Checkbox>
+          <div className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-sm text-text-secondary">Branch</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-sm text-text-primary">
+              {wc.data?.branch ?? "—"}
+            </span>
           </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setPushDialog(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={wc.isSyncBusy}
-              onClick={() => {
-                const options = {
-                  remote: "origin",
-                  tags: pushDialog.tags,
-                  force: pushDialog.force,
-                };
-                setPushDialog(null);
-                wc.push(options);
-              }}
-            >
-              Push
-            </Button>
+          <div className="flex items-center gap-2">
+            <span className="w-16 shrink-0 text-sm text-text-secondary">To</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-sm text-text-primary">
+              default ({wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`})
+            </span>
           </div>
+          <Checkbox
+            checked={pushDialog.tags}
+            disabled={wc.isSyncBusy}
+            onChange={(tags) => setPushDialog({ ...pushDialog, tags })}
+          >
+            Push all tags
+          </Checkbox>
+          <Checkbox
+            checked={pushDialog.force}
+            disabled={wc.isSyncBusy}
+            onChange={(force) => setPushDialog({ ...pushDialog, force })}
+          >
+            Force push
+          </Checkbox>
         </Modal>
       ) : null}
 
