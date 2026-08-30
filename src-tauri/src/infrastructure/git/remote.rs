@@ -412,6 +412,12 @@ fn pull_integrate(
                 ));
             }
             crate::infrastructure::git::rebase::RebaseKind::AlreadyUpToDate => return Ok(()),
+            crate::infrastructure::git::rebase::RebaseKind::FastForward => {
+                // rebase_branch lands a strictly-behind result itself.
+                // Unreachable in practice: the fast-forward block above
+                // returns first, and this arm only exists for exhaustiveness.
+                return Ok(());
+            }
             crate::infrastructure::git::rebase::RebaseKind::Clean => {
                 // In-memory rebase leaves refs and the workdir untouched;
                 // land the rewritten head on the current branch here.

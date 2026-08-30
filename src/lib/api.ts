@@ -433,7 +433,7 @@ export interface MergeResult {
   new_head: string;
 }
 
-export type RebaseKind = "already_up_to_date" | "clean" | "conflicts";
+export type RebaseKind = "already_up_to_date" | "fast_forward" | "clean" | "conflicts";
 
 export interface RebaseResult {
   kind: RebaseKind;
