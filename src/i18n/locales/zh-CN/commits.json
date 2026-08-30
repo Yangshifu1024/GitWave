@@ -95,6 +95,7 @@
       "rebaseInstead": "变基而不是合并",
       "stashAndReapply": "贮藏并重新应用本地变更",
       "pushAllTags": "推送所有标签",
+      "pushAllTagsWithTip": "推送所有标签({{tag}})",
       "forcePush": "强制推送"
     },
     "branch": {

@@ -26,6 +26,7 @@ import {
   getBranches,
   initRepo,
   listRemotes,
+  listTags,
   listWorkspaces,
   renameWorkspace,
   saveStash,
@@ -435,6 +436,20 @@ export function ActionBar(): React.JSX.Element {
     enabled: (pullDialog !== null || pushDialog !== null) && Boolean(activeWorkspaceId),
   });
   const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data]);
+
+  // Tags pointing at the branch tip (the newest commit a push would send),
+  // shown in parentheses next to "Push all tags". Shares the TagsPanel /
+  // CommitInfoHeader cache and only runs while the push dialog is open.
+  const pushTagsQuery = useQuery({
+    queryKey: ["tags", activeWorkspaceId],
+    queryFn: () => listTags(activeWorkspaceId!),
+    enabled: pushDialog !== null && Boolean(activeWorkspaceId),
+  });
+  const headTagNames = useMemo(() => {
+    const sha = wc.data?.sha;
+    if (!sha) return [];
+    return (pushTagsQuery.data ?? []).filter((t) => t.sha === sha).map((t) => t.name);
+  }, [pushTagsQuery.data, wc.data?.sha]);
 
   const openPullDialog = () => {
     const d = wc.data;
@@ -1337,7 +1352,9 @@ export function ActionBar(): React.JSX.Element {
               disabled={wc.isSyncBusy}
               onChange={(tags) => setPushDialog({ ...pushDialog, tags })}
             >
-              {t("commits.sync.pushAllTags")}
+              {headTagNames.length > 0
+                ? t("commits.sync.pushAllTagsWithTip", { tag: headTagNames.join(", ") })
+                : t("commits.sync.pushAllTags")}
             </Checkbox>
             <Checkbox
               checked={pushDialog.force}

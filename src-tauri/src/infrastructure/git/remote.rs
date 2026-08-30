@@ -84,7 +84,11 @@ fn attach_transfer_progress(
     callbacks
 }
 
-/// Fetch from `remote_name` (typically `origin`). Does not update the working tree.
+/// Fetch from `remote_name` (typically `origin`). Does not update the working
+/// tree. Prunes the remote's own tracking refs (`refs/remotes/<name>/*`) that
+/// no longer exist upstream; tags stay add-only (`AutotagOption::Auto` never
+/// deletes — the shared `refs/tags/*` namespace makes per-fetch tag pruning
+/// unsafe with multiple remotes, cf. git's opt-in `--prune-tags`).
 pub fn fetch(
     repo: &Repository,
     remote_name: &str,
@@ -98,6 +102,7 @@ pub fn fetch(
     let cb = attach_transfer_progress(creds.callbacks(), operation, on_progress);
     fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
+    fo.prune(git2::FetchPrune::On);
     remote
         .fetch(&[] as &[&str], Some(&mut fo), None)
         .map_err(|e| match e.code() {
@@ -595,6 +600,40 @@ mod tests {
         let err = fetch(&repo, "origin", SyncOperation::Fetch, None).expect_err("no origin");
         let _ = fs::remove_dir_all(&path);
         assert_eq!(err.category(), "Unknown");
+    }
+
+    #[test]
+    fn fetch_prunes_tracking_refs_deleted_on_remote() {
+        let (server_path, local_path, server, local) = cloned_from_server();
+        // A `feature` branch appears on the server and is fetched, so local
+        // grows a refs/remotes/origin/feature tracking ref...
+        server
+            .reference(
+                "refs/heads/feature",
+                head_oid(&server),
+                true,
+                "create feature",
+            )
+            .unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None).unwrap();
+        assert!(local.find_reference("refs/remotes/origin/feature").is_ok());
+
+        // ...then it is deleted upstream: the next fetch must prune the
+        // stale tracking ref. Namespaced refs are unaffected.
+        server
+            .find_reference("refs/heads/feature")
+            .unwrap()
+            .delete()
+            .unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None).unwrap();
+        assert!(
+            local.find_reference("refs/remotes/origin/feature").is_err(),
+            "stale tracking ref must be pruned"
+        );
+        assert!(local.find_reference("refs/remotes/origin/main").is_ok());
+
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
     }
 
     // ─── pull --rebase regressions ───────────────────────────────────────

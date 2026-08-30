@@ -45,6 +45,19 @@
 - Rust 单测：两个 remote 时 `fetch(None)` 全部更新；无 remote 不报错；全量 `cargo test` 全绿
 - 前端：`tsc` + `lint` + 既有测试
 
+## 追加（同分支）：推送所有标签括号提示
+
+push 弹窗「推送所有标签」后追加括号，内为当前分支顶端（即本次推送最新 commit）上的 tag 名：
+
+- ActionBar：push 弹窗打开时查询 `["tags", workspaceId]`（与 TagsPanel/CommitInfoHeader 共享缓存），过滤 `sha === wc.data.sha` 的标签；无标签不加括号，多个用 ", " 连接
+- i18n 新增 `commits.sync.pushAllTagsWithTip`：en `Push all tags ({{tag}})`、zh-CN `推送所有标签({{tag}})`，括号风格对齐既有 `pushWithCount`
+
+## 追加（同分支）：fetch prune 已删远端分支的追踪引用
+
+问题：fetch 不移除远端已删除的 tag。原因：`AutotagOption::Auto` 只增不删，且 fetch refspec 仅覆盖分支；裸 `git fetch` 同样从不删 tag（`--prune-tags` 才会，且是 opt-in footgun）。`refs/tags/*` 是多 remote 共享命名空间，按 fetch 自动 prune tag 会误删（origin 独有 tag 被拉 gitlab 时清掉），故不做。
+
+采取稳妥方案（remote.rs `fetch`）：`FetchOptions.prune(On)` —— 只清理各 remote 自己命名空间 `refs/remotes/<name>/*` 中已在上游消失的追踪引用，tag 命名空间不受影响。新增回归测试 `fetch_prunes_tracking_refs_deleted_on_remote`。
+
 ## 验收清单（用户真机）
 
 1. 仅有 gitlab remote 的仓库能从 push 弹窗推送成功

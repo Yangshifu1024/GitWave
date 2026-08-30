@@ -95,6 +95,7 @@
       "rebaseInstead": "Rebase instead of merge",
       "stashAndReapply": "Stash and reapply local changes",
       "pushAllTags": "Push all tags",
+      "pushAllTagsWithTip": "Push all tags ({{tag}})",
       "forcePush": "Force push"
     },
     "branch": {
