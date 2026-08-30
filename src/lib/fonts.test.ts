@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFontOverride, previewFontFamily, sanitizeFontList } from "./fonts";
+import { buildFontOverride, previewFontFamily, sanitizeFontList, sanitizeSizeInput } from "./fonts";
 
 describe("sanitizeFontList", () => {
   it("trims and joins comma-separated names", () => {
@@ -62,5 +62,33 @@ describe("previewFontFamily", () => {
 
   it("delegates to buildFontOverride for non-blank drafts", () => {
     expect(previewFontFamily("Fira Code", "mono")).toBe('"Fira Code", var(--font-mono-fallback)');
+  });
+});
+
+describe("sanitizeSizeInput", () => {
+  const min = 12;
+  const max = 20;
+
+  it("keeps valid in-range values as canonical strings", () => {
+    expect(sanitizeSizeInput("14", min, max)).toBe("14");
+  });
+
+  it("returns empty for blank or non-numeric input", () => {
+    expect(sanitizeSizeInput("", min, max)).toBe("");
+    expect(sanitizeSizeInput("   ", min, max)).toBe("");
+    expect(sanitizeSizeInput("abc", min, max)).toBe("");
+    expect(sanitizeSizeInput("px", min, max)).toBe("");
+  });
+
+  it("clamps values outside the range", () => {
+    expect(sanitizeSizeInput("5", min, max)).toBe("12");
+    expect(sanitizeSizeInput("-4", min, max)).toBe("12");
+    expect(sanitizeSizeInput("99", min, max)).toBe("20");
+  });
+
+  it("parses leading integers and drops the rest", () => {
+    expect(sanitizeSizeInput("016", min, max)).toBe("16");
+    expect(sanitizeSizeInput("16.7", min, max)).toBe("16");
+    expect(sanitizeSizeInput("14px", min, max)).toBe("14");
   });
 });

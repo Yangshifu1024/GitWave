@@ -712,3 +712,22 @@
     );
   }
 }
+
+/* ─── Mono font-size scaling (settings → appearance → mono size) ──────────
+ * src/lib/fonts.ts sets --font-mono-scale on <html> (monoSize / 12; 12px is
+ * the leading mono size, text-xs). Enumerates every size utility that
+ * co-occurs with .font-mono in the codebase — unlayered so it beats the
+ * Tailwind utilities. When adding mono text with a new size class, extend
+ * this list. */
+.font-mono.text-xs {
+  font-size: calc(0.75rem * var(--font-mono-scale, 1));
+}
+.font-mono.text-sm {
+  font-size: calc(0.875rem * var(--font-mono-scale, 1));
+}
+.font-mono.text-\[10px\] {
+  font-size: calc(10px * var(--font-mono-scale, 1));
+}
+.font-mono.text-\[11px\] {
+  font-size: calc(11px * var(--font-mono-scale, 1));
+}

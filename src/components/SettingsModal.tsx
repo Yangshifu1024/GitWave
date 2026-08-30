@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { KeyRound, Monitor, Moon, Palette as PaletteIcon, Settings2, Sun } from "lucide-react";
+import {
+  KeyRound,
+  Monitor,
+  Moon,
+  Palette as PaletteIcon,
+  RotateCcw,
+  Settings2,
+  Sun,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -11,8 +19,10 @@ import { getAppVersion } from "@/lib/api";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import {
   DEFAULT_FONT_LEADS,
+  FONT_SIZE_DEFAULTS,
   previewFontFamily,
   sanitizeFontList,
+  sanitizeSlotSize,
   type FontPreferences,
   type FontSlot,
 } from "@/lib/fonts";
@@ -27,6 +37,7 @@ import {
 } from "@/i18n/aiLanguage";
 import { changeUiLanguage, UI_LANGUAGES, type UiLanguage } from "@/i18n";
 import { Select } from "@/components/ui/Select";
+import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
 import { SshKeyManager } from "@/components/SshKeyManager";
 import { Button } from "@/components/ui/Button";
@@ -138,30 +149,36 @@ function LanguageSection(): React.JSX.Element {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-col gap-1">
-        <Select
-          aria-label={t("settings.general.uiLanguage")}
-          className="w-full"
-          value={currentUi}
-          onChange={(value) => changeUiLanguage(value as UiLanguage)}
-          options={UI_LANGUAGES.map((lang) => ({ value: lang, label: UI_LANGUAGE_LABEL[lang] }))}
-        />
+        <Label className="text-xs text-text-secondary">
+          {t("settings.general.uiLanguage")}
+          <Select
+            aria-label={t("settings.general.uiLanguage")}
+            className="mt-1 w-full"
+            value={currentUi}
+            onChange={(value) => changeUiLanguage(value as UiLanguage)}
+            options={UI_LANGUAGES.map((lang) => ({ value: lang, label: UI_LANGUAGE_LABEL[lang] }))}
+          />
+        </Label>
         <p className="text-xs text-text-muted">{t("settings.general.uiLanguageHint")}</p>
       </div>
       <div className="flex flex-col gap-1">
-        <Select
-          aria-label={t("settings.general.aiLanguage")}
-          className="w-full"
-          value={aiLanguage}
-          onChange={(value) => {
-            const next = value as AiLanguage;
-            setAiLanguage(next);
-            setAiLanguageState(next);
-          }}
-          options={AI_LANGUAGES.map((lang) => ({
-            value: lang,
-            label: AI_LANGUAGE_NATIVE_NAMES[lang],
-          }))}
-        />
+        <Label className="text-xs text-text-secondary">
+          {t("settings.general.aiLanguage")}
+          <Select
+            aria-label={t("settings.general.aiLanguage")}
+            className="mt-1 w-full"
+            value={aiLanguage}
+            onChange={(value) => {
+              const next = value as AiLanguage;
+              setAiLanguage(next);
+              setAiLanguageState(next);
+            }}
+            options={AI_LANGUAGES.map((lang) => ({
+              value: lang,
+              label: AI_LANGUAGE_NATIVE_NAMES[lang],
+            }))}
+          />
+        </Label>
         <p className="text-xs text-text-muted">{t("settings.general.aiLanguageHint")}</p>
       </div>
     </section>
@@ -239,7 +256,7 @@ function AppearanceSection(): React.JSX.Element {
   const { theme, setTheme } = useTheme();
   const { palette, setPalette } = usePalette();
   const { fonts, saveFonts } = useFonts();
-  // Draft edits stay local; nothing is applied until Save.
+  // Draft edits stay local; Enter or blur on any field commits them.
   const [draft, setDraft] = useState<FontPreferences>(fonts);
   const [justSaved, setJustSaved] = useState(false);
 
@@ -249,17 +266,33 @@ function AppearanceSection(): React.JSX.Element {
     return () => window.clearTimeout(timer);
   }, [justSaved]);
 
-  const dirty =
-    sanitizeFontList(draft.sans) !== fonts.sans || sanitizeFontList(draft.mono) !== fonts.mono;
+  // Commits only when the draft differs from the applied preferences after
+  // sanitization — blurs with no change stay silent.
+  const commit = (candidate: FontPreferences): void => {
+    if (
+      sanitizeFontList(candidate.sans) === fonts.sans &&
+      sanitizeFontList(candidate.mono) === fonts.mono &&
+      sanitizeSlotSize("sans", candidate.sansSize) === fonts.sansSize &&
+      sanitizeSlotSize("mono", candidate.monoSize) === fonts.monoSize
+    ) {
+      return;
+    }
+    setDraft(saveFonts(candidate)); // realign with sanitized values
+    setJustSaved(true);
+  };
 
   const setDraftSlot = (slot: FontSlot, value: string): void => {
     setDraft((prev) => ({ ...prev, [slot]: value }));
     setJustSaved(false);
   };
 
-  const handleSave = (): void => {
-    setDraft(saveFonts(draft)); // realign with sanitized values
-    setJustSaved(true);
+  const setDraftSize = (slot: FontSlot, value: string): void => {
+    setDraft((prev) => ({ ...prev, [slot === "sans" ? "sansSize" : "monoSize"]: value }));
+    setJustSaved(false);
+  };
+
+  const commitField = (field: keyof FontPreferences, value: string): void => {
+    commit({ ...draft, [field]: value });
   };
 
   return (
@@ -302,7 +335,7 @@ function AppearanceSection(): React.JSX.Element {
         </RadioGroup>
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-3">
         <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
           {t("settings.appearance.fonts")}
         </h3>
@@ -310,24 +343,33 @@ function AppearanceSection(): React.JSX.Element {
           slot="sans"
           label={t("settings.appearance.uiFont")}
           hint={t("settings.appearance.uiFontHint")}
+          sizeLabel={t("settings.appearance.size")}
+          resetSizeLabel={t("settings.appearance.resetSize")}
           value={draft.sans}
+          sizeValue={draft.sansSize}
           onChange={(value) => setDraftSlot("sans", value)}
+          onSizeChange={(value) => setDraftSize("sans", value)}
+          onCommit={() => commit(draft)}
+          onReset={() => commitField("sans", "")}
+          onResetSize={() => commitField("sansSize", "")}
         />
         <FontField
           slot="mono"
           label={t("settings.appearance.monoFont")}
           hint={t("settings.appearance.monoFontHint")}
+          sizeLabel={t("settings.appearance.size")}
+          resetSizeLabel={t("settings.appearance.resetSize")}
           value={draft.mono}
+          sizeValue={draft.monoSize}
           onChange={(value) => setDraftSlot("mono", value)}
+          onSizeChange={(value) => setDraftSize("mono", value)}
+          onCommit={() => commit(draft)}
+          onReset={() => commitField("mono", "")}
+          onResetSize={() => commitField("monoSize", "")}
         />
-        <div className="flex items-center gap-3">
-          <Button variant="primary" size="sm" disabled={!dirty} onClick={handleSave}>
-            {t("common.save")}
-          </Button>
-          <span aria-live="polite" className="text-xs text-text-muted">
-            {justSaved ? t("settings.appearance.saved") : null}
-          </span>
-        </div>
+        <span aria-live="polite" className="text-xs text-text-muted">
+          {justSaved ? t("settings.appearance.saved") : null}
+        </span>
       </section>
     </div>
   );
@@ -335,43 +377,114 @@ function AppearanceSection(): React.JSX.Element {
 
 const FONT_PREVIEW_SAMPLE = "Aa Bb 0123 — The quick brown fox · 中文字体预览 0O1lI";
 
+/** Icon-only reset button living in an input's suffix slot (PathInput style). */
+function ResetIcon({ label, onClick }: { label: string; onClick: () => void }): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex size-6 items-center justify-center rounded text-text-muted transition-colors hover:bg-bg-secondary hover:text-text-primary"
+    >
+      <RotateCcw size={14} />
+    </button>
+  );
+}
+
 function FontField({
   slot,
   label,
   hint,
+  sizeLabel,
+  resetSizeLabel,
   value,
+  sizeValue,
   onChange,
+  onSizeChange,
+  onCommit,
+  onReset,
+  onResetSize,
 }: {
   slot: FontSlot;
   label: string;
   hint: string;
+  sizeLabel: string;
+  resetSizeLabel: string;
   value: string;
+  sizeValue: string;
   onChange: (value: string) => void;
+  onSizeChange: (value: string) => void;
+  /** Commit the current draft — fires on Enter and blur of either input. */
+  onCommit: () => void;
+  onReset: () => void;
+  onResetSize: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
   const sanitized = sanitizeFontList(value);
+  const previewSize = sanitizeSlotSize(slot, sizeValue);
+  // Unset sizes preview at their effective defaults: sans inherits (follows
+  // the live UI scale), mono sits at its fixed 12px default.
+  const previewFontSize =
+    previewSize !== ""
+      ? `${previewSize}px`
+      : slot === "mono"
+        ? `${FONT_SIZE_DEFAULTS.mono}px`
+        : undefined;
+  const commitOnEnter = (e: React.KeyboardEvent): void => {
+    if (e.key === "Enter") onCommit();
+  };
   return (
     <div className="flex flex-col gap-1.5">
-      <Input
-        label={label}
-        description={hint}
-        placeholder={`${DEFAULT_FONT_LEADS[slot]} (${t("common.default")})`}
-        value={value}
-        onChange={onChange}
-      />
-      <div className="flex items-center justify-between gap-2">
-        <p
-          className="min-w-0 flex-1 truncate text-sm text-text-secondary"
-          style={{ fontFamily: previewFontFamily(sanitized, slot) }}
-        >
-          {FONT_PREVIEW_SAMPLE}
-        </p>
-        {value === "" ? null : (
-          <Button variant="ghost" size="sm" onClick={() => onChange("")}>
-            {t("common.reset")}
-          </Button>
-        )}
+      <div className="flex items-start gap-3">
+        {/* Flex-1 wrapper: the row flex item is the field's outer TextField,
+         * which otherwise sizes to the description text's max-content and
+         * makes the two rows' inputs different widths. */}
+        <div className="min-w-0 flex-1">
+          <Input
+            label={label}
+            description={hint}
+            placeholder={`${DEFAULT_FONT_LEADS[slot]} (${t("common.default")})`}
+            value={value}
+            onChange={onChange}
+            onBlur={onCommit}
+            onKeyDown={commitOnEnter}
+            suffix={
+              value === "" ? undefined : <ResetIcon label={t("common.reset")} onClick={onReset} />
+            }
+          />
+        </div>
+        {/* Sized wrapper: InputGroup's --full-width class beats a width utility
+         * on the group itself, so narrow inputs must be constrained here. */}
+        <div className="w-28 shrink-0">
+          <Input
+            label={sizeLabel}
+            inputMode="numeric"
+            placeholder={String(FONT_SIZE_DEFAULTS[slot])}
+            value={sizeValue}
+            onChange={onSizeChange}
+            onBlur={onCommit}
+            onKeyDown={commitOnEnter}
+            suffix={
+              <div className="flex items-center gap-0.5">
+                <span className="text-xs text-text-muted">px</span>
+                {sizeValue === "" ? null : (
+                  <ResetIcon label={resetSizeLabel} onClick={onResetSize} />
+                )}
+              </div>
+            }
+          />
+        </div>
       </div>
+      <p
+        className="min-w-0 truncate text-text-secondary"
+        style={{
+          fontFamily: previewFontFamily(sanitized, slot),
+          fontSize: previewFontSize,
+        }}
+      >
+        {FONT_PREVIEW_SAMPLE}
+      </p>
     </div>
   );
 }

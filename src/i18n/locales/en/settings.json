@@ -35,6 +35,8 @@
       "uiFontHint": "Interface text. Leads the platform fallback chain; CJK fallbacks stay active.",
       "monoFont": "Mono font",
       "monoFontHint": "Diff, blame, graph, commit message and other code surfaces.",
+      "size": "Size",
+      "resetSize": "Reset size",
       "saved": "Saved — applied app-wide"
     }
   }
