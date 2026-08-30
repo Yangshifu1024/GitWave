@@ -26,6 +26,7 @@ import {
   Package,
   Pencil,
   Power,
+  RefreshCw,
   Settings,
   Sparkles,
   Trash2,
@@ -42,6 +43,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { useAppMenuGating } from "@/hooks/useAppMenuGating";
 import { quitApp } from "@/lib/api";
+import { runUpdateCheck } from "@/hooks/useUpdater";
 import {
   buildAppMenuSpec,
   dispatchAppMenuItem,
@@ -59,6 +61,7 @@ type MenuId = AppMenuSpec["id"];
 const ITEM_ICONS: Record<AppMenuItemId, LucideIcon> = {
   settings: Settings,
   about: Info,
+  "check-updates": RefreshCw,
   quit: Power,
   "workspace:new": FolderPlus,
   "workspace:rename": Pencil,
@@ -166,6 +169,12 @@ export function AppMenuBar({ onAbout }: { onAbout: () => void }): React.JSX.Elem
       requestMenuAction,
       openSettings: () => setSettingsOpen(true),
       openAbout: onAbout,
+      // Settings opens with the check so "up to date" has a visible landing
+      // spot; a found release pops the update modal on top of it.
+      checkUpdates: () => {
+        setSettingsOpen(true);
+        runUpdateCheck();
+      },
       quit: () => {
         quitApp().catch(() => undefined);
       },

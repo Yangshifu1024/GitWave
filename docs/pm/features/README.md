@@ -59,6 +59,8 @@
 | [F005](./F005-repo-tab-drag-reorder.md) | Repository Tab 拖动排序 | 接受 | v0.2.x |
 | [F006](./F006-font-settings.md) | 字体设置（UI 字体 + Mono 字体） | 接受 | v0.2.x |
 | [F007](./F007-macos-native-menu.md) | macOS 原生系统菜单 | 接受 | v0.3.x |
+| [F008](./F008-website.md) | 项目官网（GitHub Pages + 自定义域名） | 接受 | v0.4.x |
+| [F009](./F009-auto-update.md) | 应用内检查更新与自动更新 | 接受 | v0.5.0 |
 
 ## 相关文档
 

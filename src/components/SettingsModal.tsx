@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { KeyRound, Monitor, Moon, Palette as PaletteIcon, Settings2, Sun } from "lucide-react";
 
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useAutoUpdateSetting, useCheckForUpdates } from "@/hooks/useUpdater";
 import { useFonts } from "@/hooks/useFonts";
 import { usePalette } from "@/hooks/usePalette";
 import { useTheme, type Theme } from "@/hooks/useTheme";
+import { getAppVersion } from "@/lib/api";
+import { useUpdaterStore } from "@/stores/updaterStore";
 import {
   DEFAULT_FONT_LEADS,
   previewFontFamily,
@@ -99,7 +102,65 @@ function GeneralSection(): React.JSX.Element {
           pushes.
         </p>
       </section>
+      <UpdatesSection />
     </div>
+  );
+}
+
+function UpdatesSection(): React.JSX.Element {
+  const { autoUpdate, setAutoUpdate } = useAutoUpdateSetting();
+  const { check, busy } = useCheckForUpdates();
+  const phase = useUpdaterStore((s) => s.phase);
+  const newVersion = useUpdaterStore((s) => s.newVersion);
+  const error = useUpdaterStore((s) => s.error);
+  const setModalOpen = useUpdaterStore((s) => s.setModalOpen);
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAppVersion()
+      .then(setVersion)
+      .catch(() => setVersion(null));
+  }, []);
+
+  const found =
+    phase === "available" ||
+    phase === "manual-download" ||
+    phase === "downloading" ||
+    phase === "ready";
+  const statusText = busy
+    ? "Checking…"
+    : phase === "up-to-date"
+      ? "You're up to date"
+      : found
+        ? `v${newVersion ?? "?"} available`
+        : phase === "error"
+          ? (error ?? "Check failed")
+          : null;
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">Updates</h3>
+      <Checkbox checked={autoUpdate} onChange={setAutoUpdate} className="text-sm">
+        Automatically check for updates on startup
+      </Checkbox>
+      <p className="text-xs text-text-muted">
+        Checks GitHub Releases for a newer version. Nothing is downloaded without your confirmation.
+      </p>
+      <div className="flex items-center gap-3">
+        <Button variant="secondary" size="sm" disabled={busy} onClick={() => void check()}>
+          Check for updates
+        </Button>
+        {found ? (
+          <Button variant="secondary" size="sm" onClick={() => setModalOpen(true)}>
+            View update
+          </Button>
+        ) : null}
+        <span aria-live="polite" className="text-xs text-text-muted">
+          {version ? `v${version}` : null}
+          {statusText ? ` · ${statusText}` : ""}
+        </span>
+      </div>
+    </section>
   );
 }
 

@@ -164,6 +164,8 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ github.workspace }}/AuthKey.p8
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - uses: actions/upload-artifact@v7
         with:
           name: gitwave-macos
@@ -204,6 +206,9 @@ jobs:
         run: npm ci
       - name: tauri build
         run: npm run tauri -- build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - uses: actions/upload-artifact@v7
         with:
           name: gitwave-linux
@@ -230,6 +235,9 @@ jobs:
         run: npm ci
       - name: tauri build
         run: npm run tauri -- build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - uses: actions/upload-artifact@v7
         with:
           name: gitwave-windows
@@ -245,9 +253,71 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v7
         with:
           path: artifacts
+      - name: Build updater manifest (latest.json)
+        run: |
+          node - <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+
+          // One updater manifest per release: maps each auto-updatable
+          // platform to its signed artifact. Exactly one .sig per platform
+          // is required — zero means the build didn't sign, two means the
+          // glob caught junk; both would silently break clients.
+          const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+          const tag = process.env.GITHUB_REF_NAME;
+          // The manifest's version drives the client-side "is this newer"
+          // comparison while the URLs serve the tag's assets; a mismatch
+          // between the two is a silent dead update channel for everyone.
+          if (tag !== `v${version}`) {
+            throw new Error(
+              `tag ${tag} does not match package.json version ${version} (expected v${version})`,
+            );
+          }
+          const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}`;
+
+          const readSig = (file) => {
+            const s = fs.readFileSync(file, "utf8").trim();
+            if (!s) throw new Error(`empty signature file: ${file}`);
+            return s;
+          };
+          const findSig = (dir, re) => {
+            const hits = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => re.test(f)) : [];
+            if (hits.length !== 1) {
+              throw new Error(`expected exactly one ${re} in ${dir}, got ${hits.length}`);
+            }
+            return path.join(dir, hits[0]);
+          };
+
+          const macSig = findSig("artifacts/gitwave-macos/macos", /^GitWave\.app\.tar\.gz\.sig$/);
+          const linuxSig = findSig("artifacts/gitwave-linux/appimage", /\.AppImage\.sig$/);
+          const winSig = findSig("artifacts/gitwave-windows", /-setup\.exe\.sig$/);
+
+          const manifest = {
+            version,
+            notes: `GitWave ${tag}`,
+            pub_date: new Date().toISOString(),
+            platforms: {
+              "darwin-aarch64": {
+                signature: readSig(macSig),
+                url: `${base}/${path.basename(macSig).replace(/\.sig$/, "")}`,
+              },
+              "linux-x86_64": {
+                signature: readSig(linuxSig),
+                url: `${base}/${path.basename(linuxSig).replace(/\.sig$/, "")}`,
+              },
+              "windows-x86_64": {
+                signature: readSig(winSig),
+                url: `${base}/${path.basename(winSig).replace(/\.sig$/, "")}`,
+              },
+            },
+          };
+          fs.writeFileSync("artifacts/latest.json", `${JSON.stringify(manifest, null, 2)}\n`);
+          console.log(manifest);
+          NODE
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -256,7 +326,10 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             artifacts/gitwave-macos/dmg/*.dmg
+            artifacts/gitwave-macos/macos/*.app.tar.gz
+            artifacts/gitwave-macos/macos/*.app.tar.gz.sig
             artifacts/gitwave-linux/deb/*
             artifacts/gitwave-linux/rpm/*
             artifacts/gitwave-linux/appimage/*
             artifacts/gitwave-windows/*
+            artifacts/latest.json

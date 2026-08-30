@@ -8,7 +8,7 @@
 import type { AppMenuAction } from "@/stores/uiStore";
 
 /** Self-handled entries that do not route through the action bus. */
-export type AppMenuSpecialId = "settings" | "about" | "quit";
+export type AppMenuSpecialId = "settings" | "about" | "quit" | "check-updates";
 
 export type AppMenuItemId = AppMenuAction | AppMenuSpecialId;
 
@@ -17,6 +17,7 @@ export function isAppMenuAction(id: AppMenuItemId): id is AppMenuAction {
     case "settings":
     case "about":
     case "quit":
+    case "check-updates":
       return false;
     default: {
       // Compile-time exhaustiveness: a new AppMenuSpecialId without a case
@@ -33,6 +34,8 @@ export interface AppMenuItemHandler {
   requestMenuAction: (action: AppMenuAction) => void;
   openSettings: () => void;
   openAbout: () => void;
+  /** Runs a manual update check; Settings opens so the outcome is visible. */
+  checkUpdates: () => void;
   /** In-app bar quits the app; the native menu's Quit is OS-handled (no-op). */
   quit: () => void;
 }
@@ -42,6 +45,7 @@ export function dispatchAppMenuItem(id: AppMenuItemId, handler: AppMenuItemHandl
   if (isAppMenuAction(id)) handler.requestMenuAction(id);
   else if (id === "settings") handler.openSettings();
   else if (id === "about") handler.openAbout();
+  else if (id === "check-updates") handler.checkUpdates();
   else handler.quit();
 }
 
@@ -99,6 +103,7 @@ export function buildAppMenuSpec(gating: MenuGating): AppMenuSpec[] {
       entries: [
         item("settings", "Settings", "Settings", true),
         item("about", "About", "About", true),
+        item("check-updates", "Check for updates", "Check for Updates", true),
         sep,
         item("quit", "Exit", "Exit", true),
       ],

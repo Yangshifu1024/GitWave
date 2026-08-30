@@ -116,6 +116,11 @@ export function getAppVersion(): Promise<string> {
   return invoke<string>("get_app_version");
 }
 
+/** Whether the app runs from an AppImage bundle (updater can self-replace it). */
+export function isAppimage(): Promise<boolean> {
+  return invoke<boolean>("is_appimage");
+}
+
 /** Open the platform state directory (SQLite home) in the OS file manager. */
 export function openDataDir(): Promise<void> {
   return invoke<void>("open_data_dir");

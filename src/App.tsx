@@ -11,6 +11,8 @@ import { SidebarSection } from "@/components/ui/SidebarSection";
 import { FolderOpen, GitCommitHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { useAutoRefreshLoop } from "@/hooks/useAutoRefresh";
+import { useStartupUpdateCheck } from "@/hooks/useUpdater";
+import { UpdateModal } from "@/components/UpdateModal";
 import type { BranchInfo } from "@/lib/api";
 import { listWorkspaces } from "@/lib/api";
 import type { LocateRequest } from "@/lib/commitLocate";
@@ -52,6 +54,7 @@ function App(): React.JSX.Element {
   const titlebarMode = useTitlebarActivation();
   useTheme();
   useAutoRefreshLoop();
+  useStartupUpdateCheck();
 
   useEffect(() => {
     setInspectorMaximized(false);
@@ -178,6 +181,8 @@ function App(): React.JSX.Element {
       />
 
       <CommandPalette requestLocate={handlePaletteLocate} />
+
+      <UpdateModal />
     </div>
   );
 }

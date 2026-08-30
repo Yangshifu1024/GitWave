@@ -20,6 +20,7 @@ const NOOP_HANDLER: AppMenuItemHandler = {
   requestMenuAction: () => undefined,
   openSettings: () => undefined,
   openAbout: () => undefined,
+  checkUpdates: () => undefined,
   quit: () => undefined,
 };
 
@@ -55,12 +56,12 @@ describe("buildNativeAppMenuOptions", () => {
     expect(topTexts).toEqual(["GitWave", "Edit", "Workspace", "Repository", "Branch", "Window"]);
   });
 
-  it("builds the app menu with About, Settings ⌘, and OS-provided tail items", () => {
+  it("builds the app menu with About, Check for Updates, Settings ⌘, and OS tail items", () => {
     const entries = submenuAt(top, 0).items ?? [];
     const texts = entries.filter(isItem).map((item) => item.text);
-    expect(texts).toEqual(["About GitWave", "Settings…"]);
+    expect(texts).toEqual(["About GitWave", "Check for Updates…", "Settings…"]);
 
-    const settings = entries.filter(isItem)[1];
+    const settings = entries.filter(isItem)[2];
     expect(settings?.accelerator).toBe("CmdOrCtrl+,");
     expect(typeof settings?.action).toBe("function");
 

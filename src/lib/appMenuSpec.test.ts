@@ -115,7 +115,12 @@ describe("buildAppMenuSpec", () => {
     for (const item of items(menus.file)) {
       expect(item.enabled, item.id).toBe(true);
     }
-    expect(items(menus.file).map((item) => item.id)).toEqual(["settings", "about", "quit"]);
+    expect(items(menus.file).map((item) => item.id)).toEqual([
+      "settings",
+      "about",
+      "check-updates",
+      "quit",
+    ]);
   });
 });
 
@@ -128,6 +133,7 @@ describe("dispatchAppMenuItem", () => {
         requestMenuAction: (action: string): void => void routed.push(action),
         openSettings: (): void => void routed.push("settings"),
         openAbout: (): void => void routed.push("about"),
+        checkUpdates: (): void => void routed.push("check-updates"),
         quit: (): void => void routed.push("quit"),
       },
     };
@@ -138,8 +144,9 @@ describe("dispatchAppMenuItem", () => {
     dispatchAppMenuItem("repo:clone", handler);
     dispatchAppMenuItem("settings", handler);
     dispatchAppMenuItem("about", handler);
+    dispatchAppMenuItem("check-updates", handler);
     dispatchAppMenuItem("quit", handler);
-    expect(routed).toEqual(["repo:clone", "settings", "about", "quit"]);
+    expect(routed).toEqual(["repo:clone", "settings", "about", "check-updates", "quit"]);
   });
 
   it("routes every spec id somewhere without throwing", () => {
@@ -149,7 +156,7 @@ describe("dispatchAppMenuItem", () => {
         dispatchAppMenuItem(item.id, handler);
       }
     }
-    // Every entry produced exactly one route (17 actions + 3 File specials).
-    expect(routed).toHaveLength(20);
+    // Every entry produced exactly one route (17 actions + 4 File specials).
+    expect(routed).toHaveLength(21);
   });
 });
