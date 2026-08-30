@@ -11,6 +11,9 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   label?: ReactNode;
   /** Helper text below the input (hidden while `error` is shown) */
   description?: ReactNode;
+  /** Trailing control rendered inside the field's right edge (HeroUI
+   *  InputGroup.Suffix) — e.g. PathInput's browse button. */
+  suffix?: ReactNode;
   /** Visual style variant */
   variant?: "text" | "search";
   /**
@@ -28,6 +31,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       error,
       label,
       description,
+      suffix,
       id,
       onChange,
       disabled,
@@ -70,6 +74,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             className="h-8 px-3 py-1 text-sm"
             {...props}
           />
+          {suffix != null ? (
+            <InputGroup.Suffix className="pr-1 text-text-muted">{suffix}</InputGroup.Suffix>
+          ) : null}
         </InputGroup>
         {error ? (
           <FieldError className="text-xs text-danger">{error}</FieldError>

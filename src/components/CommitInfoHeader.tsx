@@ -241,21 +241,28 @@ export function CommitInfoHeader({
               : `Applies "${subject}" onto the current branch as a new commit (original author preserved). The working copy must be clean.`
           }
           size="sm"
-        >
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setPending(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant={pending === "revert" ? "danger" : "primary"}
-              size="sm"
-              disabled={busy}
-              onClick={() => run(pending)}
-            >
-              {pending === "revert" ? "Revert" : "Cherry-pick"}
-            </Button>
-          </div>
-        </Modal>
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setPending(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant={pending === "revert" ? "danger" : "primary"}
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy}
+                onClick={() => run(pending)}
+              >
+                {pending === "revert" ? "Revert" : "Cherry-pick"}
+              </Button>
+            </>
+          }
+        />
       ) : null}
     </div>
   );
@@ -315,66 +322,72 @@ function TagManagerModal({
       onOpenChange={(open) => !open && onClose()}
       title={`Tags on ${sha.slice(0, 7)}`}
       size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onClose}>
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            className="min-w-0 flex-[7]"
+            disabled={busy || !name.trim()}
+            onClick={create}
+          >
+            Create tag
+          </Button>
+        </>
+      }
     >
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          {here.length === 0 ? (
-            <p className="text-xs text-text-muted italic">No tags on this commit.</p>
-          ) : (
-            here.map((t) => (
-              <div
-                key={t.name}
-                className="flex items-center gap-2 rounded-md border border-border-subtle px-2 py-1.5"
+      <div className="flex flex-col gap-1.5 rounded-xl bg-bg-primary p-3">
+        {here.length === 0 ? (
+          <p className="text-xs text-text-muted italic">No tags on this commit.</p>
+        ) : (
+          here.map((t) => (
+            <div
+              key={t.name}
+              className="flex items-center gap-2 rounded-md border border-border-subtle px-2 py-1.5"
+            >
+              <TagIcon size={13} className="shrink-0 text-text-muted" />
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">
+                {t.name}
+                {t.annotation ? (
+                  <span className="ml-1 font-normal text-text-muted" title={t.annotation}>
+                    (annotated)
+                  </span>
+                ) : null}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1 text-text-muted hover:text-danger"
+                aria-label={`Delete tag ${t.name}`}
+                title={`Delete ${t.name}`}
+                disabled={busy}
+                onClick={() => remove(t.name)}
               >
-                <TagIcon size={13} className="shrink-0 text-text-muted" />
-                <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">
-                  {t.name}
-                  {t.annotation ? (
-                    <span className="ml-1 font-normal text-text-muted" title={t.annotation}>
-                      (annotated)
-                    </span>
-                  ) : null}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-1 text-text-muted hover:text-danger"
-                  aria-label={`Delete tag ${t.name}`}
-                  title={`Delete ${t.name}`}
-                  disabled={busy}
-                  onClick={() => remove(t.name)}
-                >
-                  <Trash2 size={13} />
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border-subtle pt-3">
-          <Input
-            value={name}
-            onChange={setName}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") create();
-            }}
-            placeholder="tag name (e.g. v1.2.0)"
-            autoFocus
-          />
-          <Textarea
-            value={message}
-            onChange={setMessage}
-            placeholder="Annotation (optional — leave empty for a lightweight tag)"
-            rows={2}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={onClose}>
-              Close
-            </Button>
-            <Button variant="primary" size="sm" disabled={busy || !name.trim()} onClick={create}>
-              Create tag
-            </Button>
-          </div>
-        </div>
+                <Trash2 size={13} />
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
+        <Input
+          value={name}
+          onChange={setName}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") create();
+          }}
+          placeholder="tag name (e.g. v1.2.0)"
+          autoFocus
+        />
+        <Textarea
+          value={message}
+          onChange={setMessage}
+          placeholder="Annotation (optional — leave empty for a lightweight tag)"
+          rows={2}
+        />
       </div>
     </Modal>
   );

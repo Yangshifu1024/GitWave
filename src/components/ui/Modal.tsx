@@ -12,7 +12,7 @@ export interface ModalProps {
   /** Actions rendered in HeroUI's Modal.Footer (right-aligned, mt-5 below
    *  the body). Omit to keep actions inside the body flow. */
   footer?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 const sizeClasses = {

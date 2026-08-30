@@ -99,6 +99,21 @@ export function InteractiveRebaseDialog({
       }}
       title={`Interactive rebase onto ${upstream}`}
       size="lg"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={busy || loading || todos.length === 0}
+            onClick={run}
+          >
+            Start rebase
+          </Button>
+        </>
+      }
     >
       <div className="flex flex-col gap-3 max-h-[60vh]">
         <p className="text-xs text-text-muted">
@@ -165,19 +180,6 @@ export function InteractiveRebaseDialog({
             ))}
           </ul>
         )}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="sm" disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={busy || loading || todos.length === 0}
-            onClick={run}
-          >
-            Start rebase
-          </Button>
-        </div>
       </div>
     </Modal>
   );

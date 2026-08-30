@@ -218,21 +218,28 @@ export function SubmodulesPanel(): React.JSX.Element {
             title={`Deinit submodule ${pendingDeinit}?`}
             description="Unregisters it from .git/config. The checkout is left untouched; the entry stays in .gitmodules. Run Init to reactivate."
             size="sm"
-          >
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setPendingDeinit(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                disabled={busy !== null}
-                onClick={() => void confirmDeinit()}
-              >
-                Deinit
-              </Button>
-            </div>
-          </Modal>
+            footer={
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="min-w-0 flex-[3]"
+                  onClick={() => setPendingDeinit(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  className="min-w-0 flex-[7]"
+                  disabled={busy !== null}
+                  onClick={() => void confirmDeinit()}
+                >
+                  Deinit
+                </Button>
+              </>
+            }
+          />
         ) : null}
       </div>
     </SidebarSection>

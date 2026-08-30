@@ -234,8 +234,29 @@ export function RemotesPanel(): React.JSX.Element {
         onOpenChange={(o) => !o && setAddOpen(false)}
         title="Add remote"
         size="sm"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-w-0 flex-[3]"
+              onClick={() => setAddOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-w-0 flex-[7]"
+              disabled={busy !== null || !addName.trim() || !addUrl.trim()}
+              onClick={submitAdd}
+            >
+              Add
+            </Button>
+          </>
+        }
       >
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
           <Input value={addName} onChange={setAddName} placeholder="name (e.g. origin)" autoFocus />
           <Input
             value={addUrl}
@@ -245,19 +266,6 @@ export function RemotesPanel(): React.JSX.Element {
               if (e.key === "Enter") submitAdd();
             }}
           />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setAddOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy !== null || !addName.trim() || !addUrl.trim()}
-              onClick={submitAdd}
-            >
-              Add
-            </Button>
-          </div>
         </div>
       </Modal>
 
@@ -267,8 +275,29 @@ export function RemotesPanel(): React.JSX.Element {
           onOpenChange={(o) => !o && setEdit(null)}
           title={`Edit remote "${edit.name}"`}
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setEdit(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy !== null || !editNewName.trim() || !editFetchUrl.trim()}
+                onClick={submitEdit}
+              >
+                Save
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <Input value={editNewName} onChange={setEditNewName} placeholder="name" />
             <Input value={editFetchUrl} onChange={setEditFetchUrl} placeholder="fetch URL" />
             <Input
@@ -276,19 +305,6 @@ export function RemotesPanel(): React.JSX.Element {
               onChange={setEditPushUrl}
               placeholder="push URL (empty = same as fetch)"
             />
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setEdit(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={busy !== null || !editNewName.trim() || !editFetchUrl.trim()}
-                onClick={submitEdit}
-              >
-                Save
-              </Button>
-            </div>
           </div>
         </Modal>
       ) : null}
@@ -300,31 +316,38 @@ export function RemotesPanel(): React.JSX.Element {
           title={`Remove remote "${deleteTarget.name}"?`}
           description="The remote configuration is removed. Local branches and commits are not touched."
           size="sm"
-        >
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={busy !== null}
-              onClick={() => {
-                const name = deleteTarget.name;
-                void run(
-                  `remove-${name}`,
-                  async () => {
-                    await removeRemote(workspaceId, name);
-                    setDeleteTarget(null);
-                  },
-                  `Remote "${name}" removed`,
-                );
-              }}
-            >
-              Remove
-            </Button>
-          </div>
-        </Modal>
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy !== null}
+                onClick={() => {
+                  const name = deleteTarget.name;
+                  void run(
+                    `remove-${name}`,
+                    async () => {
+                      await removeRemote(workspaceId, name);
+                      setDeleteTarget(null);
+                    },
+                    `Remote "${name}" removed`,
+                  );
+                }}
+              >
+                Remove
+              </Button>
+            </>
+          }
+        />
       ) : null}
     </>
   );

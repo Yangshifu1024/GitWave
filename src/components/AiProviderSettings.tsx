@@ -192,6 +192,21 @@ export function AiProviderSettings({
       title={workspaceName ? `AI provider · ${workspaceName}` : "AI provider"}
       description="Workspace-scoped. Cloud keys use OS keychain (BYOK). AI never auto-commits."
       size="md"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={saveMut.isPending}
+            onClick={() => saveMut.mutate()}
+          >
+            Save
+          </Button>
+        </>
+      }
     >
       <div className="flex flex-col gap-3">
         {repoRules ? (
@@ -394,20 +409,6 @@ export function AiProviderSettings({
 
         {error ? <p className="text-xs text-danger">{error}</p> : null}
         {notice ? <p className="text-xs text-text-secondary">{notice}</p> : null}
-
-        <div className="flex justify-end gap-2 mt-2">
-          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={saveMut.isPending}
-            onClick={() => saveMut.mutate()}
-          >
-            Save
-          </Button>
-        </div>
       </div>
     </Modal>
   );

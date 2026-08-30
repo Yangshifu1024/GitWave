@@ -178,29 +178,39 @@ export function WorkspaceSwitcher(): React.JSX.Element {
           }}
           title="New Workspace"
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setShowCreate(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                onClick={submitCreate}
+                disabled={!createName.trim() || createMut.isPending}
+              >
+                Create
+              </Button>
+            </>
+          }
         >
-          <Input
-            autoFocus
-            value={createName}
-            onChange={setCreateName}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submitCreate();
-            }}
-            placeholder="Workspace name"
-            error={createError}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={submitCreate}
-              disabled={!createName.trim() || createMut.isPending}
-            >
-              Create
-            </Button>
+          <div className="rounded-xl bg-bg-primary p-3">
+            <Input
+              autoFocus
+              value={createName}
+              onChange={setCreateName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitCreate();
+              }}
+              placeholder="Workspace name"
+              error={createError}
+            />
           </div>
         </Modal>
       )}
@@ -214,27 +224,37 @@ export function WorkspaceSwitcher(): React.JSX.Element {
           }}
           title={`Rename "${renaming.name}"`}
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setRenaming(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                onClick={submitRename}
+                disabled={!renameValue.trim() || renameMut.isPending}
+              >
+                Save
+              </Button>
+            </>
+          }
         >
-          <Input
-            autoFocus
-            value={renameValue}
-            onChange={setRenameValue}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submitRename();
-            }}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setRenaming(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={submitRename}
-              disabled={!renameValue.trim() || renameMut.isPending}
-            >
-              Save
-            </Button>
+          <div className="rounded-xl bg-bg-primary p-3">
+            <Input
+              autoFocus
+              value={renameValue}
+              onChange={setRenameValue}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitRename();
+              }}
+            />
           </div>
         </Modal>
       )}
@@ -249,21 +269,28 @@ export function WorkspaceSwitcher(): React.JSX.Element {
           title={`Delete "${deleting.name}"?`}
           description="This removes the workspace and its repo references from GitWave. It does not delete the local repositories themselves."
           size="sm"
-        >
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setDeleting(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => deleteMut.mutate(deleting.id)}
-              disabled={deleteMut.isPending}
-            >
-              Delete
-            </Button>
-          </div>
-        </Modal>
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setDeleting(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                onClick={() => deleteMut.mutate(deleting.id)}
+                disabled={deleteMut.isPending}
+              >
+                Delete
+              </Button>
+            </>
+          }
+        />
       )}
     </div>
   );

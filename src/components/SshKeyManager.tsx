@@ -114,7 +114,7 @@ export function SshKeyManager(): React.JSX.Element {
           Escape is swallowed here so it closes only the form, not the dialog. */}
       {adding && (
         <div
-          className="mb-3 flex flex-col gap-3 rounded-md border border-border-default p-3"
+          className="mb-3 flex flex-col gap-3 rounded-xl bg-bg-primary p-3"
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault();
