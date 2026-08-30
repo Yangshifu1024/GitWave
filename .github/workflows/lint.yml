@@ -2,7 +2,7 @@ name: lint
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
     paths-ignore:
       - "site/**"
       - "docs/**"
