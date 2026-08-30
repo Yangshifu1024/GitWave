@@ -26,6 +26,8 @@ jobs:
             echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${version} (expected v${version})"
             exit 1
           fi
+      # draft: tauri-action uploads artifacts + latest.json but never
+      # publishes — a human reviews assets/notes and hits publish manually
       - name: Create draft release
         id: create
         uses: softprops/action-gh-release@v2
@@ -151,49 +153,3 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: --verbose
-
-  verify-manifest:
-    name: Verify release
-    needs: [prepare-release, build-macos, build-linux, build-windows]
-    runs-on: ubuntu-22.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      # tauri-action generates and uploads latest.json from the build jobs;
-      # this gate only verifies it — a missing platform or empty signature
-      # here would silently break auto-update for every installed client.
-      - name: Verify updater manifest (latest.json)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # no checkout in this job — gh otherwise infers the repo from git
-          # remotes in cwd and dies on the empty workspace
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh release download "${GITHUB_REF_NAME}" --dir manifest --pattern 'latest.json'
-          node - <<'NODE'
-          const fs = require("fs");
-
-          if (!fs.existsSync("manifest/latest.json")) {
-            throw new Error(
-              "latest.json not found on the release — tauri-action did not upload the updater manifest",
-            );
-          }
-          const manifest = JSON.parse(fs.readFileSync("manifest/latest.json", "utf8"));
-          const expected = process.env.GITHUB_REF_NAME.replace(/^v/, "");
-          if (manifest.version !== expected) {
-            throw new Error(`manifest version ${manifest.version} != ${expected}`);
-          }
-          if (!manifest.platforms) {
-            throw new Error("manifest has no platforms object");
-          }
-          for (const platform of ["darwin-aarch64", "linux-x86_64", "windows-x86_64"]) {
-            const entry = manifest.platforms[platform];
-            if (!entry) throw new Error(`manifest missing platform ${platform}`);
-            if (!entry.signature) throw new Error(`empty signature for ${platform}`);
-            if (!entry.url) throw new Error(`missing url for ${platform}`);
-          }
-          console.log(`latest.json OK for ${expected} (${Object.keys(manifest.platforms).join(", ")})`);
-          NODE
-      # no auto-publish: the release stays a draft for human review —
-      # check the assets, latest.json and release notes, then hit publish

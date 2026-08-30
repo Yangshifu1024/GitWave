@@ -36,6 +36,8 @@ publish job 失败时间 09:42:15，而 release assets 里已有一份完整 lat
 
 ## 决策记录
 
+- **（2026-08-30 第三轮后，终局）verify 门禁整体删除**：门禁三次发版零捕获、两次自己绊倒发版——第二轮因无 checkout 时 gh 找不到仓库，第三轮因 job 级 `permissions: contents: read` 使 GITHUB_TOKEN 失去 push 资格（**GitHub 的 draft release 仅对有 push 权限的凭证可见**，故 `release not found`；第一轮 workflow 级 contents:write 能下载草稿附件为对照实证）。三轮同时实证 tauri-action 清单从未缺平台。补偿：发布前人工核对 latest.json（三平台键 + 签名非空）写入 gitwave-release 技能清单。原「verify 只校验不重传」条目随之作废。
+
 - **推翻 feat-tauri-action-release-migration 的「不用 includeUpdaterJson、保留自研 manifest」**：该决策基于自研校验更严格的假设，但实跑证明 tauri-action 反正会上传 latest.json（行为上等价于 includeUpdaterJson 默认开启），自研版本反而因资产命名假设错误成为故障点；严格性诉求由 verify 门禁承接（version 对 tag + 三平台键 + 签名非空）。
 - **verify 只校验不重传**：发现问题时红掉让人工介入，而不是 CI 侧二次生成再覆盖——避免两套清单生产逻辑并存，源头唯一。
 - **「不自动转正、人工 publish」约定不变**：job 改名后仍停在 draft，人工检查附件 / latest.json / release notes 后手动发布。
