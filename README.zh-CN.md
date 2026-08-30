@@ -4,7 +4,7 @@
 
 > 本地优先、AI 协作的 Git 客户端。官网：**[gitwave.work](https://gitwave.work)** · 产品范围见 `docs/pm/core/01-features.md`，工程决策见 `docs/tech/`。
 
-**状态：** v0.5.0 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供。当前范围见 `docs/pm/core/03-roadmap.md`。
+**状态：** v0.6.0 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供，界面完整支持中文 / English 双语，AI 回复语言可选。
 
 ## 下载
 

@@ -33,8 +33,8 @@ description: GitWave 版本升级与发布同步流程。每当用户要升级/b
 
 ### 4. 更新 site/index.html（官网，push main 后自动部署 GitHub Pages）
 
-- hero 徽标：`<div class="badge">vX.Y.Z · macOS builds signed &amp; notarized</div>`
-- 下载区：`Latest release: vX.Y.Z`
+- hero 徽标：`<div class="badge">vX.Y.Z · <发版当日日期></div>`——内容为**当前版本号 + 当前年月日**（不再写平台签名文案）。日期格式：en 页用 `YYYY-MM-DD`（如 `2026-08-30`），zh-CN 页用 `YYYY年M月D日`（如 `2026年8月30日`）。两页都要改。
+- 下载区：`Latest release: vX.Y.Z`（zh 页「最新版本：vX.Y.Z」）
 - 功能卡片：新功能视体量补进对应卡片文案（如小能力可追加进 "Batteries included" 清单，避免为单点功能新开卡片破坏 6 卡网格节奏）。
 
 ### 5. 验证

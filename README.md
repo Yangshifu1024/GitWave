@@ -4,7 +4,7 @@ English | [简体中文](./README.zh-CN.md)
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)** · See `docs/pm/core/01-features.md` for product scope and `docs/tech/` for engineering decisions.
 
-**Status:** v0.5.0 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized and in-app auto-updates served from GitHub Releases. Current scope per `docs/pm/core/03-roadmap.md` (v0.3: three platforms + collaboration + AI intelligence).
+**Status:** v0.6.0 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized, in-app auto-updates served from GitHub Releases, and a fully bilingual (Chinese / English) UI with selectable AI reply language. Current scope per `docs/pm/core/03-roadmap.md`.
 
 ## Download
 
@@ -18,10 +18,10 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **History** — commit graph with fork-style edges, commit details, blame, reflog, tags
 - **Diff viewer** — side-by-side and unified views, Shiki syntax highlighting, per-hunk operations
 - **Advanced Git** — stash, interactive rebase, worktrees, submodules, LFS, remotes, .gitignore editor, Git hooks panel, repo health checks
-- **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider
+- **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider. AI replies in Chinese / Japanese / Korean / English per your preference
 - **Automatic updates** — in-app check for updates with signed downloads and one-click install (macOS / Windows / AppImage); deb / rpm installs get update prompts pointing at the releases page
 - **SSH key management** — generate / import keys, per-repo SSH configuration
-- **Platform UX** — command palette, menu bar app mode, themes and font settings
+- **Platform UX** — command palette, menu bar app mode, themes and font settings, Chinese / English interface with instant switching
 
 ## Tech stack
 
