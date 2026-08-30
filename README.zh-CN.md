@@ -4,7 +4,7 @@
 
 > 本地优先、AI 协作的 Git 客户端。官网：**[gitwave.work](https://gitwave.work)** · 产品范围见 `docs/pm/core/01-features.md`，工程决策见 `docs/tech/`。
 
-**状态：** v0.6.1 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供，多远端同步（推送可选目标 remote、fetch 覆盖全部远端），界面完整支持中文 / English 双语，AI 回复语言可选。
+**状态：** v0.6.2 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供，多远端同步（推送可选目标 remote、fetch 覆盖全部远端），界面完整支持中文 / English 双语，AI 回复语言可选，界面 / 等宽字体大小独立可调。
 
 ## 下载
 
@@ -21,7 +21,7 @@ macOS（Apple silicon，已签名公证）、Windows（NSIS）与 Linux（deb / 
 - **AI 协作** —— BYOK 供应商配置、commit 解释、AI 起草 PR 描述；除非你主动发送给所选供应商，diff 不离开本机
 - **自动更新** —— 应用内检查更新、签名下载、一键安装（macOS / Windows / AppImage）；deb / rpm 安装提示前往 releases 页面更新
 - **SSH 密钥管理** —— 生成 / 导入密钥、按仓库配置 SSH
-- **平台体验** —— 命令面板、菜单栏应用模式、主题与字体设置、界面中英双语、AI 回复语言（中 / 日 / 韩 / 英）
+- **平台体验** —— 命令面板、菜单栏应用模式、主题与字体设置（界面 / 等宽字体的字族与大小独立可调）、界面中英双语、AI 回复语言（中 / 日 / 韩 / 英）
 
 ## 技术栈
 

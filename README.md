@@ -4,7 +4,7 @@ English | [简体中文](./README.zh-CN.md)
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)** · See `docs/pm/core/01-features.md` for product scope and `docs/tech/` for engineering decisions.
 
-**Status:** v0.6.1 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized, in-app auto-updates served from GitHub Releases, multi-remote-aware sync (push to any configured remote, fetch across all of them), and a fully bilingual (Chinese / English) UI with selectable AI reply language. Current scope per `docs/pm/core/03-roadmap.md`.
+**Status:** v0.6.2 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized, in-app auto-updates served from GitHub Releases, multi-remote-aware sync (push to any configured remote, fetch across all of them), and a fully bilingual (Chinese / English) UI with selectable AI reply language and adjustable UI / monospace font sizes. Current scope per `docs/pm/core/03-roadmap.md`.
 
 ## Download
 
@@ -21,7 +21,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider. AI replies in Chinese / Japanese / Korean / English per your preference
 - **Automatic updates** — in-app check for updates with signed downloads and one-click install (macOS / Windows / AppImage); deb / rpm installs get update prompts pointing at the releases page
 - **SSH key management** — generate / import keys, per-repo SSH configuration
-- **Platform UX** — command palette, menu bar app mode, themes and font settings, Chinese / English interface with instant switching
+- **Platform UX** — command palette, menu bar app mode, themes plus UI / monospace font family and size settings, Chinese / English interface with instant switching
 
 ## Tech stack
 
