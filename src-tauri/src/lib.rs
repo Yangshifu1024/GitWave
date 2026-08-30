@@ -74,6 +74,14 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Whether the app runs from an AppImage bundle (Linux). The updater plugin
+/// can only self-replace an AppImage; deb/rpm installs degrade to an
+/// "open releases page" flow, so the frontend needs this to pick the UI.
+#[tauri::command]
+fn is_appimage() -> bool {
+    std::env::var("APPIMAGE").is_ok()
+}
+
 /// Opens the platform state directory (holds the SQLite database) in the OS
 /// file manager. Runs on the Rust side via the opener plugin: the plugin's
 /// `open_path` IPC permission has no usable default scope, so calling it
@@ -1211,12 +1219,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_decoration::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_os::init())
         .manage(ctx)
         .invoke_handler(tauri::generate_handler![
             activate_and_show,
             toggle_instant_zoom,
             quit_app,
             get_app_version,
+            is_appimage,
             open_data_dir,
             cmd_list_workspaces,
             cmd_create_workspace,

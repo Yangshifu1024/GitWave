@@ -52,6 +52,11 @@ function submenuOptions(menu: AppMenuSpec, handler: AppMenuItemHandler): Submenu
 function appMenuEntries(handler: AppMenuItemHandler): NativeItem[] {
   return [
     { id: "about", text: "About GitWave", action: () => dispatchAppMenuItem("about", handler) },
+    {
+      id: "check-updates",
+      text: "Check for Updates…",
+      action: () => dispatchAppMenuItem("check-updates", handler),
+    },
     separator(),
     {
       id: "settings",

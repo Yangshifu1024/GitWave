@@ -14,6 +14,7 @@ import { Menu } from "@tauri-apps/api/menu";
 import { buildAppMenuSpec, type AppMenuItemHandler, type MenuGating } from "@/lib/appMenuSpec";
 import { buildNativeAppMenuOptions } from "@/lib/nativeMenuBuild";
 import { isMacOS } from "@/lib/platform";
+import { runUpdateCheck } from "@/hooks/useUpdater";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { readLastActive } from "@/stores/workspaceStore";
 import { useAppMenuGating } from "./useAppMenuGating";
@@ -30,6 +31,12 @@ function handlerFrom(callbacks: RefObject<LatestCallbacks>): AppMenuItemHandler 
     requestMenuAction: (action) => callbacks.current.requestMenuAction(action),
     openSettings: () => callbacks.current.setSettingsOpen(true),
     openAbout: () => callbacks.current.onAbout(),
+    // Settings opens with the check so "up to date" has a visible landing
+    // spot; a found release pops the update modal on top of it.
+    checkUpdates: () => {
+      callbacks.current.setSettingsOpen(true);
+      runUpdateCheck();
+    },
     // The native Quit is the predefined OS item — macOS handles it and this
     // route never fires; kept explicit so both surfaces route alike.
     quit: () => undefined,
@@ -81,6 +88,7 @@ export function installNativeAppMenuEarly(): void {
         // Unreachable pre-mount (the window is hidden until React triggers
         // activate_and_show); this transient install is replaced on mount.
         openAbout: () => undefined,
+        checkUpdates: () => undefined,
         quit: () => undefined,
       };
       await installMenu(gating, handler);

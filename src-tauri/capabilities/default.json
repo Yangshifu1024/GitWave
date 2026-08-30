@@ -10,6 +10,9 @@
     "opener:default",
     "dialog:default",
     "decoration:default",
+    "updater:default",
+    "process:allow-restart",
+    "os:allow-platform",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize"
   ]

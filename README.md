@@ -81,6 +81,8 @@ Workflows live in `.github/workflows/`:
    git push origin main v0.x.0
    ```
 3. When CI is green, find the draft under Releases, review the notes, and publish
+   - Publishing the draft also publishes `latest.json` — the manifest the in-app updater polls; existing installs pick the new version up from there
+   - Updater artifacts (`.app.tar.gz` / `.sig` / `-setup.exe.sig` / `latest.json`) are produced by CI; local `tauri build` now requires `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key is encrypted) exported in the shell: `export TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/gitwave.key)`
 
 Per AGENTS.md, **AI agents must not commit / push / merge** — humans gate every change to `main`.
 
