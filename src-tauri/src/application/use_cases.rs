@@ -2177,9 +2177,41 @@ pub fn fetch(
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
+    let Some(remote) = remote else {
+        // No name given means "fetch every configured remote" (toolbar
+        // Fetch, command palette and auto-refresh all pass None). Each
+        // remote is attempted even if one fails; the first error wins.
+        let names = infra_list_remotes(&repo)?;
+        // The progress closure is not Clone; share it behind a Mutex and
+        // re-box per remote so transfer events keep flowing for each fetch.
+        // (Arc<Mutex<_>> is Send+Sync, so the per-remote wrapper stays Send.)
+        let shared = on_progress.map(|f| Arc::new(Mutex::new(f)));
+        let mut first_err: Option<AppError> = None;
+        for name in names {
+            let cb = shared.clone().map(|f| {
+                Box::new(move |p: SyncProgress| {
+                    (f.lock().unwrap())(p);
+                }) as Box<dyn Fn(SyncProgress) + Send>
+            });
+            if let Err(e) = infra_fetch(
+                &repo,
+                &name,
+                crate::infrastructure::git::remote::SyncOperation::Fetch,
+                cb,
+            ) {
+                if first_err.is_none() {
+                    first_err = Some(e);
+                }
+            }
+        }
+        return match first_err {
+            Some(e) => Err(e),
+            None => Ok(()),
+        };
+    };
     infra_fetch(
         &repo,
-        remote.as_deref().unwrap_or("origin"),
+        &remote,
         crate::infrastructure::git::remote::SyncOperation::Fetch,
         on_progress,
     )
@@ -2864,5 +2896,133 @@ mod tests {
         for c in &log {
             assert!(!c.sha.is_empty());
         }
+    }
+
+    // ─── fetch: remote=None fans out to every configured remote ─────────
+
+    use crate::infrastructure::git::test_helpers::{
+        build_linear_repo, make_commit, write_and_stage,
+    };
+
+    fn uc_sig() -> git2::Signature<'static> {
+        git2::Signature::now("Test", "test@local").unwrap()
+    }
+
+    #[test]
+    fn fetch_without_remote_updates_every_remote() {
+        let (origin_path, origin) = build_linear_repo(1);
+        let (gitlab_path, gitlab) = build_linear_repo(1);
+        let local_path = origin_path.with_extension("clone");
+        let local = git2::Repository::clone(origin_path.to_str().unwrap(), &local_path).unwrap();
+        crate::infrastructure::git::remote::add_remote(
+            &local,
+            "gitlab",
+            gitlab_path.to_str().unwrap(),
+        )
+        .unwrap();
+
+        // A new commit on origin (child of what local cloned) plus gitlab's
+        // own unrelated tip; neither is known to local before the fetch.
+        let base = local.head().unwrap().peel_to_commit().unwrap().id();
+        let tree = write_and_stage(&origin, "from-origin.txt", "o\n");
+        let origin_tip = make_commit(&origin, &uc_sig(), "origin tip", tree, &[base]);
+        let gitlab_tip = gitlab.head().unwrap().peel_to_commit().unwrap().id();
+
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        let repo_ref = add_local_repo(
+            &ctx,
+            ws.id.clone(),
+            local_path.to_string_lossy().to_string(),
+        )
+        .expect("add_local_repo");
+        set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
+
+        fetch(&ctx, &ws.id, None, None).expect("fetch without a remote name");
+
+        let local = git2::Repository::open(&local_path).unwrap();
+        assert_eq!(
+            local
+                .find_reference("refs/remotes/origin/main")
+                .unwrap()
+                .target()
+                .unwrap(),
+            origin_tip,
+            "origin's remote-tracking ref must advance"
+        );
+        assert_eq!(
+            local
+                .find_reference("refs/remotes/gitlab/main")
+                .unwrap()
+                .target()
+                .unwrap(),
+            gitlab_tip,
+            "the second remote (gitlab) must be fetched too"
+        );
+
+        let _ = fs::remove_dir_all(&origin_path);
+        let _ = fs::remove_dir_all(&gitlab_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn fetch_without_remote_succeeds_on_repo_without_remotes() {
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        let tmp = std::env::temp_dir().join(format!("gitwave-uc-noremote-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        crate::infrastructure::git::repo_adapter::init(&tmp).expect("init");
+        let repo_ref = add_local_repo(&ctx, ws.id.clone(), tmp.to_string_lossy().to_string())
+            .expect("add_local_repo");
+        set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
+
+        fetch(&ctx, &ws.id, None, None).expect("no remotes means a silent no-op");
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn fetch_without_remote_tries_all_and_reports_first_failure() {
+        let (origin_path, origin) = build_linear_repo(1);
+        let local_path = origin_path.with_extension("clone");
+        let local = git2::Repository::clone(origin_path.to_str().unwrap(), &local_path).unwrap();
+        // A remote whose URL is not a repository, listed before origin.
+        crate::infrastructure::git::remote::add_remote(
+            &local,
+            "bad",
+            local_path.with_extension("missing").to_str().unwrap(),
+        )
+        .unwrap();
+
+        let base = local.head().unwrap().peel_to_commit().unwrap().id();
+        let tree = write_and_stage(&origin, "still.txt", "o\n");
+        let origin_tip = make_commit(&origin, &uc_sig(), "origin tip", tree, &[base]);
+
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        let repo_ref = add_local_repo(
+            &ctx,
+            ws.id.clone(),
+            local_path.to_string_lossy().to_string(),
+        )
+        .expect("add_local_repo");
+        set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
+
+        let err = fetch(&ctx, &ws.id, None, None).expect_err("bad remote must fail the batch");
+        assert_eq!(err.category(), "Network");
+
+        // Best-effort semantics: origin was still fetched despite "bad".
+        let local = git2::Repository::open(&local_path).unwrap();
+        assert_eq!(
+            local
+                .find_reference("refs/remotes/origin/main")
+                .unwrap()
+                .target()
+                .unwrap(),
+            origin_tip,
+            "remaining remotes must still be fetched after a failure"
+        );
+
+        let _ = fs::remove_dir_all(&origin_path);
+        let _ = fs::remove_dir_all(&local_path);
     }
 }

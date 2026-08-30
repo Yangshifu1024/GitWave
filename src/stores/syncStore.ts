@@ -26,8 +26,10 @@ const UI_OPERATIONS: readonly ActiveOperation[] = [
 
 /** Human label for an in-flight operation ("Pulling changes…"). Translated at
  * the generation point: in-flight labels are finalized when the op starts and
- * are not replayed on language switch. */
-export function operationLabel(op: ActiveOperation | null): string | null {
+ * are not replayed on language switch. `remote` interpolates into labels that
+ * name their target ("Pushing to {remote}…"); ops without one (fetch-all,
+ * UI operations) ignore it. */
+export function operationLabel(op: ActiveOperation | null, remote?: string | null): string | null {
   if (!op) return null;
   const t = i18next.t.bind(i18next);
   switch (op) {
@@ -36,7 +38,7 @@ export function operationLabel(op: ActiveOperation | null): string | null {
     case "pull":
       return t("status.sync.pulling");
     case "push":
-      return t("status.sync.pushing");
+      return remote ? t("status.sync.pushing", { remote }) : t("status.sync.remoteOp");
     case "checkout":
       return t("status.sync.checkingOut");
     case "delete":
@@ -56,11 +58,13 @@ export function operationLabel(op: ActiveOperation | null): string | null {
 
 interface SyncStoreState {
   activeOp: ActiveOperation | null;
+  /** Remote name attached to the in-flight op, for label interpolation. */
+  activeRemote: string | null;
   receivedObjects: number;
   totalObjects: number;
   receivedBytes: number;
   fading: boolean;
-  startOp: (op: ActiveOperation) => void;
+  startOp: (op: ActiveOperation, remote?: string | null) => void;
   updateProgress: (progress: SyncProgress) => void;
   /** End the matching op; a no-op if another op took over the slot. */
   endOp: (op: ActiveOperation) => void;
@@ -69,13 +73,15 @@ interface SyncStoreState {
 
 export const useSyncStore = create<SyncStoreState>((set, get) => ({
   activeOp: null,
+  activeRemote: null,
   receivedObjects: 0,
   totalObjects: 0,
   receivedBytes: 0,
   fading: false,
-  startOp: (op) =>
+  startOp: (op, remote = null) =>
     set({
       activeOp: op,
+      activeRemote: remote,
       receivedObjects: 0,
       totalObjects: 0,
       receivedBytes: 0,
@@ -101,6 +107,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       if (get().fading && get().activeOp === op) {
         set({
           activeOp: null,
+          activeRemote: null,
           receivedObjects: 0,
           totalObjects: 0,
           receivedBytes: 0,

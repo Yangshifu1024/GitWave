@@ -117,9 +117,13 @@ describe("syncStore op lifecycle", () => {
 
 describe("operationLabel", () => {
   it("labels backend sync ops and UI operations", () => {
-    expect(operationLabel("fetch")).toBe("Fetching from origin…");
+    expect(operationLabel("fetch")).toBe("Fetching…");
     expect(operationLabel("checkout")).toBe("Checking out branch…");
     expect(operationLabel("remote-op")).toBe("Running remote operation…");
     expect(operationLabel(null)).toBeNull();
+  });
+
+  it("interpolates the remote name into push labels", () => {
+    expect(operationLabel("push", "gitlab")).toBe("Pushing to gitlab…");
   });
 });

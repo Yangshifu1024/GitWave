@@ -369,7 +369,11 @@ export function ActionBar(): React.JSX.Element {
   const [branchName, setBranchName] = useState("");
   const [branchError, setBranchError] = useState<string | null>(null);
   const [pullDialog, setPullDialog] = useState<PullDialogState | null>(null);
-  const [pushDialog, setPushDialog] = useState<{ tags: boolean; force: boolean } | null>(null);
+  const [pushDialog, setPushDialog] = useState<{
+    remote: string;
+    tags: boolean;
+    force: boolean;
+  } | null>(null);
   const [prOpen, setPrOpen] = useState(false);
   const [lfsOpen, setLfsOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
@@ -414,13 +418,21 @@ export function ActionBar(): React.JSX.Element {
   }
 
   function openPushDialog(): void {
-    setPushDialog({ tags: false, force: false });
+    // Seed from the branch's tracking remote ("{remote}/{branch}"), falling
+    // back to "origin" until the fetched remote list corrects it.
+    const upstream = wc.data?.upstream ?? "";
+    const slash = upstream.indexOf("/");
+    setPushDialog({
+      remote: slash > 0 ? upstream.slice(0, slash) : "origin",
+      tags: false,
+      force: false,
+    });
   }
 
   const remotesQuery = useQuery({
     queryKey: ["remotes", activeWorkspaceId],
     queryFn: () => listRemotes(activeWorkspaceId!),
-    enabled: pullDialog !== null && Boolean(activeWorkspaceId),
+    enabled: (pullDialog !== null || pushDialog !== null) && Boolean(activeWorkspaceId),
   });
   const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data]);
 
@@ -490,13 +502,20 @@ export function ActionBar(): React.JSX.Element {
 
   // The fetched remote list wins over the seeded default once it arrives.
   useEffect(() => {
-    if (!pullDialog || remotes.length === 0) return;
-    if (!remotes.includes(pullDialog.remote)) {
+    if (remotes.length === 0) return;
+    if (pullDialog && !remotes.includes(pullDialog.remote)) {
       setPullDialog({ ...pullDialog, remote: remotes[0]! });
     }
   }, [pullDialog, remotes]);
+  useEffect(() => {
+    if (remotes.length === 0) return;
+    if (pushDialog && !remotes.includes(pushDialog.remote)) {
+      setPushDialog({ ...pushDialog, remote: remotes[0]! });
+    }
+  }, [pushDialog, remotes]);
 
-  const remoteOptions = remotes.length > 0 ? remotes : [pullDialog?.remote ?? "origin"];
+  const remoteOptions =
+    remotes.length > 0 ? remotes : [pullDialog?.remote ?? pushDialog?.remote ?? "origin"];
 
   // "Start from" choices for the Create Worktree dialog: local branches.
   const wtBranchOptions = worktreeCreateOpen
@@ -1268,7 +1287,7 @@ export function ActionBar(): React.JSX.Element {
                 disabled={wc.isSyncBusy}
                 onClick={() => {
                   const options = {
-                    remote: "origin",
+                    remote: pushDialog.remote,
                     tags: pushDialog.tags,
                     force: pushDialog.force,
                   };
@@ -1282,6 +1301,19 @@ export function ActionBar(): React.JSX.Element {
           }
         >
           <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
+            <Label className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-sm text-text-secondary">
+                {t("commits.sync.remote")}
+              </span>
+              <Select
+                aria-label={t("commits.sync.remote")}
+                className="h-auto min-w-0 flex-1 bg-bg-primary border-border-subtle px-1.5 py-1.5 text-sm"
+                value={pushDialog.remote}
+                disabled={wc.isSyncBusy}
+                onChange={(remote) => setPushDialog({ ...pushDialog, remote })}
+                options={remoteOptions.map((r) => ({ value: r, label: r }))}
+              />
+            </Label>
             <div className="flex items-center gap-2">
               <span className="w-16 shrink-0 text-sm text-text-secondary">
                 {t("commits.sync.branch")}
@@ -1295,9 +1327,7 @@ export function ActionBar(): React.JSX.Element {
                 {t("commits.sync.to")}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
-                {t("commits.sync.defaultTarget", {
-                  target: wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`,
-                })}
+                {pushDialog.remote}/{wc.data?.branch ?? ""}
               </span>
             </div>
           </div>

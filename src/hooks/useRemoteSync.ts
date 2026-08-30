@@ -87,9 +87,11 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   const pullMut = useMutation({
     mutationFn: (options: PullOptions | undefined) => pullRemote(workspaceId!, options),
-    onMutate: () => useSyncStore.getState().startOp("pull"),
-    onSuccess: () => {
-      useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.pull), "success");
+    onMutate: (options) => useSyncStore.getState().startOp("pull", options?.remote),
+    onSuccess: (_data, options) => {
+      useStatusAreaStore
+        .getState()
+        .setStatus(t(SUCCESS_KEYS.pull, { remote: options?.remote }), "success");
       invalidate();
       bumpHistory();
     },
@@ -99,9 +101,11 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   const pushMut = useMutation({
     mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
-    onMutate: () => useSyncStore.getState().startOp("push"),
-    onSuccess: () => {
-      useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.push), "success");
+    onMutate: (options) => useSyncStore.getState().startOp("push", options?.remote),
+    onSuccess: (_data, options) => {
+      useStatusAreaStore
+        .getState()
+        .setStatus(t(SUCCESS_KEYS.push, { remote: options?.remote }), "success");
       invalidate();
       bumpHistory();
     },
