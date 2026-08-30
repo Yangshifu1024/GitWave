@@ -285,7 +285,7 @@ pub struct PullOptions {
 }
 
 /// Whether the worktree (including untracked files) has any entry.
-fn worktree_is_dirty(repo: &Repository) -> Result<bool> {
+pub(crate) fn worktree_is_dirty(repo: &Repository) -> Result<bool> {
     let mut opts = StatusOptions::new();
     opts.include_untracked(true).recurse_untracked_dirs(true);
     let statuses = repo.statuses(Some(&mut opts)).map_err(map_git_err)?;
@@ -377,16 +377,20 @@ fn pull_integrate(
         return Ok(());
     }
 
-    if opts.rebase {
-        let result = crate::infrastructure::git::rebase::rebase_branch(repo, &target_ref)?;
-        if result.kind == crate::infrastructure::git::rebase::RebaseKind::Conflicts {
-            return Err(AppError::VersionConflict(
-                "pull --rebase hit conflicts; local commits were left untouched".into(),
-            ));
-        }
-        return Ok(());
+    // Both landing paths (fast-forward and the rebase finalize) end in a
+    // force checkout that would silently drop uncommitted changes in files
+    // they touch — refuse like git does ("your local changes would be
+    // overwritten"). The stash checkbox pre-cleans the worktree before we
+    // get here, so this only fires when the user declined it.
+    if !opts.stash && worktree_is_dirty(repo)? {
+        return Err(AppError::Protocol(
+            "pull needs a clean worktree; check 'Stash and reapply' or commit first".into(),
+        ));
     }
 
+    // Fast-forward before the rebase branch: `git pull --rebase`
+    // fast-forwards too when local has no unique commits, and the previous
+    // order let the rebase path swallow this case as a silent no-op.
     if analysis.is_fast_forward() {
         let refname = format!("refs/heads/{local_name}");
         let mut reference = repo.find_reference(&refname).map_err(map_git_err)?;
@@ -397,6 +401,27 @@ fn pull_integrate(
         repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
             .map_err(map_git_err)?;
         return Ok(());
+    }
+
+    if opts.rebase {
+        let result = crate::infrastructure::git::rebase::rebase_branch(repo, &target_ref)?;
+        match result.kind {
+            crate::infrastructure::git::rebase::RebaseKind::Conflicts => {
+                return Err(AppError::VersionConflict(
+                    "pull --rebase hit conflicts; local commits were left untouched".into(),
+                ));
+            }
+            crate::infrastructure::git::rebase::RebaseKind::AlreadyUpToDate => return Ok(()),
+            crate::infrastructure::git::rebase::RebaseKind::Clean => {
+                // In-memory rebase leaves refs and the workdir untouched;
+                // land the rewritten head on the current branch here.
+                let new_head = result.new_head.ok_or_else(|| {
+                    AppError::Protocol("rebase finished without a new HEAD".into())
+                })?;
+                crate::infrastructure::git::rebase::finalize_rebase(repo, &new_head)?;
+                return Ok(());
+            }
+        }
     }
 
     if analysis.is_normal() {
@@ -483,5 +508,210 @@ mod tests {
         let err = fetch(&repo, "origin", SyncOperation::Fetch, None).expect_err("no origin");
         let _ = fs::remove_dir_all(&path);
         assert_eq!(err.category(), "Unknown");
+    }
+
+    // ─── pull --rebase regressions ───────────────────────────────────────
+    // The rebase branch of `pull_integrate` used to drop the in-memory
+    // rebase's `new_head` and return Ok, reporting success while the
+    // branch never moved.
+
+    use crate::infrastructure::git::test_helpers::{make_commit, write_and_stage};
+    use git2::Signature;
+
+    /// Server repo at commit 0 plus a clone of it (`origin` → server path,
+    /// local branch `main`). Caller removes both paths.
+    fn cloned_from_server() -> (
+        std::path::PathBuf,
+        std::path::PathBuf,
+        Repository,
+        Repository,
+    ) {
+        let (server_path, server) = build_linear_repo(1);
+        let local_path = server_path.with_extension("clone");
+        let local = Repository::clone(server_path.to_str().unwrap(), &local_path).unwrap();
+        (server_path, local_path, server, local)
+    }
+
+    fn sig() -> Signature<'static> {
+        Signature::now("Test", "test@local").unwrap()
+    }
+
+    fn head_oid(repo: &Repository) -> git2::Oid {
+        repo.head().unwrap().peel_to_commit().unwrap().id()
+    }
+
+    /// One commit on each side of the clone: local adds `local.txt`,
+    /// server adds `file1.txt`.
+    fn diverge(server: &Repository, local: &Repository) -> git2::Oid {
+        let local_tree = write_and_stage(local, "local.txt", "local\n");
+        let _local_tip = make_commit(
+            local,
+            &sig(),
+            "local commit",
+            local_tree,
+            &[head_oid(local)],
+        );
+        let server_tree = write_and_stage(server, "file1.txt", "v1\n");
+        make_commit(server, &sig(), "commit 1", server_tree, &[head_oid(server)])
+    }
+
+    fn rebase_opts(stash: bool) -> PullOptions {
+        PullOptions {
+            branch: Some("main".into()),
+            rebase: true,
+            stash,
+        }
+    }
+
+    #[test]
+    fn pull_rebase_fast_forwards_when_local_is_behind() {
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        let tree = write_and_stage(&server, "file1.txt", "v1\n");
+        let server_tip = make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
+
+        pull_with_options(&mut local, "origin", rebase_opts(false), None).unwrap();
+
+        assert_eq!(
+            head_oid(&local),
+            server_tip,
+            "rebase pull must fast-forward"
+        );
+        assert_eq!(
+            fs::read_to_string(local_path.join("file1.txt")).unwrap(),
+            "v1\n"
+        );
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn pull_rebase_rewrites_diverged_local_commits() {
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        let _local_tip = head_oid(&local);
+        let server_tip = diverge(&server, &local);
+
+        pull_with_options(&mut local, "origin", rebase_opts(false), None).unwrap();
+
+        let head = local.head().unwrap().peel_to_commit().unwrap();
+        assert_eq!(
+            head.parent(0).unwrap().id(),
+            server_tip,
+            "the local commit must sit on the server tip"
+        );
+        assert_ne!(head.id(), _local_tip, "the local commit must be rewritten");
+        assert_eq!(
+            fs::read_to_string(local_path.join("local.txt")).unwrap(),
+            "local\n"
+        );
+        assert_eq!(
+            fs::read_to_string(local_path.join("file1.txt")).unwrap(),
+            "v1\n"
+        );
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn pull_rebase_refuses_dirty_worktree() {
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        diverge(&server, &local);
+        fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
+        let before = head_oid(&local);
+
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None)
+            .expect_err("dirty worktree must refuse");
+
+        assert_eq!(err.category(), "Protocol");
+        assert_eq!(head_oid(&local), before, "HEAD must not move");
+        assert_eq!(
+            fs::read_to_string(local_path.join("local.txt")).unwrap(),
+            "dirty\n"
+        );
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn pull_rebase_refuses_dirty_worktree_even_when_fast_forwardable() {
+        // Regression for the guard order: a fast-forwardable pull with
+        // rebase checked must refuse before its force checkout, not clobber
+        // the dirty file.
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        let tree = write_and_stage(&server, "file1.txt", "v1\n");
+        make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
+        fs::write(local.workdir().unwrap().join("file0.txt"), "dirty\n").unwrap();
+        let before = head_oid(&local);
+
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None)
+            .expect_err("dirty worktree must refuse even when fast-forwardable");
+
+        assert_eq!(err.category(), "Protocol");
+        assert_eq!(head_oid(&local), before, "HEAD must not move");
+        assert_eq!(
+            fs::read_to_string(local_path.join("file0.txt")).unwrap(),
+            "dirty\n"
+        );
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn pull_fast_forward_refuses_dirty_worktree() {
+        // Plain pull shares the guard: a fast-forward's force checkout must
+        // not drop uncommitted changes either.
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        let tree = write_and_stage(&server, "file1.txt", "v1\n");
+        make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
+        fs::write(local.workdir().unwrap().join("file0.txt"), "dirty\n").unwrap();
+        let before = head_oid(&local);
+
+        let opts = PullOptions {
+            branch: Some("main".into()),
+            rebase: false,
+            stash: false,
+        };
+        let err = pull_with_options(&mut local, "origin", opts, None)
+            .expect_err("dirty worktree must refuse plain pull too");
+
+        assert_eq!(err.category(), "Protocol");
+        assert_eq!(head_oid(&local), before, "HEAD must not move");
+        assert_eq!(
+            fs::read_to_string(local_path.join("file0.txt")).unwrap(),
+            "dirty\n"
+        );
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn pull_rebase_with_stash_keeps_local_changes() {
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        let server_tip = diverge(&server, &local);
+        fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
+
+        pull_with_options(&mut local, "origin", rebase_opts(true), None).unwrap();
+
+        assert_eq!(
+            local
+                .head()
+                .unwrap()
+                .peel_to_commit()
+                .unwrap()
+                .parent(0)
+                .unwrap()
+                .id(),
+            server_tip
+        );
+        assert_eq!(
+            fs::read_to_string(local_path.join("local.txt")).unwrap(),
+            "dirty\n",
+            "stashed change must be reapplied"
+        );
+        assert_eq!(
+            fs::read_to_string(local_path.join("file1.txt")).unwrap(),
+            "v1\n"
+        );
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
     }
 }

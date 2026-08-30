@@ -62,7 +62,10 @@ use crate::infrastructure::git::merge::{
     merge_branch as infra_merge_branch, merge_preview as infra_merge_preview, MergePreview,
     MergeResult,
 };
-use crate::infrastructure::git::rebase::{rebase_branch as infra_rebase_branch, RebaseResult};
+use crate::infrastructure::git::rebase::{
+    finalize_rebase as infra_finalize_rebase, rebase_branch as infra_rebase_branch, RebaseKind,
+    RebaseResult,
+};
 use crate::infrastructure::git::reflog::{list_reflog as infra_list_reflog, ReflogEntry};
 use crate::infrastructure::git::remote::{
     add_remote as infra_add_remote, list_remote_details as infra_list_remote_details,
@@ -73,7 +76,8 @@ use crate::infrastructure::git::remote::{
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
-    push_with_options as infra_push_with_options, PullOptions, PushRequest, SyncProgress,
+    push_with_options as infra_push_with_options, worktree_is_dirty, PullOptions, PushRequest,
+    SyncProgress,
 };
 use crate::infrastructure::git::revert::{
     cherry_pick_commit as infra_cherry_pick_commit, revert_commit as infra_revert_commit,
@@ -1485,7 +1489,26 @@ fn subject_of(repo: &git2::Repository, oid: &str) -> String {
 pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Result<RebaseResult> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_rebase_branch(&repo, upstream)
+    // The in-memory rewrite finalizes with a force checkout — refuse a
+    // dirty worktree instead of clobbering local changes (git refuses the
+    // same way).
+    if worktree_is_dirty(&repo)? {
+        return Err(AppError::Protocol(
+            "rebase needs a clean worktree; commit or stash your changes first".into(),
+        ));
+    }
+    let result = infra_rebase_branch(&repo, upstream)?;
+    if result.kind == RebaseKind::Clean {
+        // In-memory rebase leaves refs and the workdir untouched; land the
+        // rewritten head on the current branch here. Clone keeps `new_head`
+        // in the returned result — its contract promises it on Clean.
+        let new_head = result
+            .new_head
+            .clone()
+            .ok_or_else(|| AppError::Protocol("rebase finished without a new HEAD".into()))?;
+        infra_finalize_rebase(&repo, &new_head)?;
+    }
+    Ok(result)
 }
 
 /// Revert a single commit on the current branch (user-initiated; creates a
