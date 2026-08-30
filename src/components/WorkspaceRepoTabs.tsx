@@ -293,31 +293,43 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
           }}
           title={`Relink "${relinking.path}"`}
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setRelinking(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                onClick={() =>
+                  relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() })
+                }
+                disabled={!relinkPath.trim() || relinkMut.isPending}
+              >
+                Relink
+              </Button>
+            </>
+          }
         >
-          <PathInput
-            autoFocus
-            directory
-            value={relinkPath}
-            onChange={setRelinkPath}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && relinkPath.trim())
-                relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() });
-            }}
-            placeholder="New path to a valid git working tree"
-            error={actionError}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setRelinking(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() })}
-              disabled={!relinkPath.trim() || relinkMut.isPending}
-            >
-              Relink
-            </Button>
+          <div className="rounded-xl bg-bg-primary p-3">
+            <PathInput
+              autoFocus
+              directory
+              value={relinkPath}
+              onChange={setRelinkPath}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && relinkPath.trim())
+                  relinkMut.mutate({ repoId: relinking.id, newPath: relinkPath.trim() });
+              }}
+              placeholder="New path to a valid git working tree"
+              error={actionError}
+            />
           </div>
         </Modal>
       )}
@@ -332,24 +344,32 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
           title={`Remove "${basename(removing.path)}"?`}
           description={`Path: ${removing.path}`}
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setRemoving(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                onClick={() => removeMut.mutate(removing.id)}
+                disabled={removeMut.isPending}
+              >
+                Remove
+              </Button>
+            </>
+          }
         >
           <p className="text-sm text-text-secondary">Removes the workspace reference.</p>
           <p className="text-sm text-text-secondary">
             The local directory and its .git/ folder are not touched.
           </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setRemoving(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => removeMut.mutate(removing.id)}
-              disabled={removeMut.isPending}
-            >
-              Remove
-            </Button>
-          </div>
         </Modal>
       )}
       <ErrorAlert

@@ -1,12 +1,12 @@
-// PathInput — Input + Browse button that opens a native file/directory
-// picker via @tauri-apps/plugin-dialog. Replaces manual path typing
-// throughout the UI (init repo / clone dest / add local / relink / ssh key).
+// PathInput — Input + trailing browse control (inside the field's right
+// edge) that opens a native file/directory picker via
+// @tauri-apps/plugin-dialog. Replaces manual path typing throughout the UI
+// (init repo / clone dest / add local / worktree / relink / ssh key).
 
 import type { KeyboardEvent } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { File, FolderOpen } from "lucide-react";
 
-import { Button } from "./Button";
 import { Input } from "./Input";
 
 export interface PathInputProps {
@@ -57,30 +57,28 @@ export function PathInput({
   }
 
   return (
-    <div className="flex gap-2">
-      <Input
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        error={error}
-        disabled={disabled}
-        autoFocus={autoFocus}
-        onKeyDown={onKeyDown}
-        id={id}
-        className="flex-1 min-w-0"
-      />
-      <Button
-        type="button"
-        variant="secondary"
-        size="md"
-        onClick={() => void browse()}
-        disabled={disabled}
-        className="shrink-0 px-2"
-        aria-label={directory ? "Browse for directory" : "Browse for file"}
-        title={directory ? "Browse for directory" : "Browse for file"}
-      >
-        {directory ? <FolderOpen size={14} /> : <File size={14} />}
-      </Button>
-    </div>
+    <Input
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      error={error}
+      disabled={disabled}
+      autoFocus={autoFocus}
+      onKeyDown={onKeyDown}
+      id={id}
+      className="w-full"
+      suffix={
+        <button
+          type="button"
+          onClick={() => void browse()}
+          disabled={disabled}
+          aria-label={directory ? "Browse for directory" : "Browse for file"}
+          title={directory ? "Browse for directory" : "Browse for file"}
+          className="flex size-6 items-center justify-center rounded text-text-muted transition-colors hover:bg-bg-secondary hover:text-text-primary disabled:cursor-default disabled:opacity-50"
+        >
+          {directory ? <FolderOpen size={14} /> : <File size={14} />}
+        </button>
+      }
+    />
   );
 }

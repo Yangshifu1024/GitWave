@@ -264,20 +264,30 @@ export function ReflogPanel(): React.JSX.Element {
           title="Create recovery branch"
           description={`Branch ${recoversOld ? "the previous position" : "the current state"} at ${branchModal.oid.slice(0, 7)} so the commits stay reachable.`}
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setBranchModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy || !branchName_.trim()}
+                onClick={submitRecoveryBranch}
+              >
+                Create branch
+              </Button>
+            </>
+          }
         >
-          <Input value={branchName_} onChange={setBranchName_} autoFocus />
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setBranchModal(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy || !branchName_.trim()}
-              onClick={submitRecoveryBranch}
-            >
-              Create branch
-            </Button>
+          <div className="rounded-xl bg-bg-primary p-3">
+            <Input value={branchName_} onChange={setBranchName_} autoFocus />
           </div>
         </Modal>
       ) : null}
@@ -289,16 +299,28 @@ export function ReflogPanel(): React.JSX.Element {
           title={`Reset "${branchName || "current branch"}" to ${resetModal.oid.slice(0, 7)}?`}
           description="Hard reset: the branch moves and uncommitted changes are discarded. This cannot be undone automatically — the reflog keeps a record."
           size="sm"
-        >
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setResetModal(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" size="sm" disabled={busy} onClick={submitReset}>
-              Reset — discard changes
-            </Button>
-          </div>
-        </Modal>
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setResetModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy}
+                onClick={submitReset}
+              >
+                Reset — discard changes
+              </Button>
+            </>
+          }
+        />
       ) : null}
     </div>
   );

@@ -665,29 +665,39 @@ export function ActionBar(): React.JSX.Element {
         }}
         title="New Workspace"
         size="sm"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-w-0 flex-[3]"
+              onClick={() => setCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-w-0 flex-[7]"
+              onClick={submitCreate}
+              disabled={!createName.trim() || createMut.isPending}
+            >
+              Create
+            </Button>
+          </>
+        }
       >
-        <Input
-          autoFocus
-          value={createName}
-          onChange={setCreateName}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submitCreate();
-          }}
-          placeholder="Workspace name"
-          error={createError}
-        />
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setCreateOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={submitCreate}
-            disabled={!createName.trim() || createMut.isPending}
-          >
-            Create
-          </Button>
+        <div className="rounded-xl bg-bg-primary p-3">
+          <Input
+            autoFocus
+            value={createName}
+            onChange={setCreateName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitCreate();
+            }}
+            placeholder="Workspace name"
+            error={createError}
+          />
         </div>
       </Modal>
 
@@ -704,33 +714,43 @@ export function ActionBar(): React.JSX.Element {
             : "Reads a .gitwave-workspace.json, creates a new workspace and re-adds repos that exist on disk."
         }
         size="sm"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-w-0 flex-[3]"
+              onClick={() => setTransferOpen(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-w-0 flex-[7]"
+              disabled={!transferPath.trim()}
+              onClick={submitTransfer}
+            >
+              {transferOpen === "export" ? "Export" : "Import"}
+            </Button>
+          </>
+        }
       >
-        <Input
-          autoFocus
-          value={transferPath}
-          onChange={setTransferPath}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submitTransfer();
-          }}
-          placeholder={
-            transferOpen === "export"
-              ? "destination .json path"
-              : "source .gitwave-workspace.json path"
-          }
-          error={transferError}
-        />
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setTransferOpen(null)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!transferPath.trim()}
-            onClick={submitTransfer}
-          >
-            {transferOpen === "export" ? "Export" : "Import"}
-          </Button>
+        <div className="rounded-xl bg-bg-primary p-3">
+          <Input
+            autoFocus
+            value={transferPath}
+            onChange={setTransferPath}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitTransfer();
+            }}
+            placeholder={
+              transferOpen === "export"
+                ? "destination .json path"
+                : "source .gitwave-workspace.json path"
+            }
+            error={transferError}
+          />
         </div>
       </Modal>
 
@@ -742,28 +762,38 @@ export function ActionBar(): React.JSX.Element {
         }}
         title={activeWorkspace ? `Rename "${activeWorkspace.name}"` : "Rename workspace"}
         size="sm"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-w-0 flex-[3]"
+              onClick={() => setRenameOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-w-0 flex-[7]"
+              onClick={submitRename}
+              disabled={!renameValue.trim() || renameMut.isPending}
+            >
+              Save
+            </Button>
+          </>
+        }
       >
-        <Input
-          autoFocus
-          value={renameValue}
-          onChange={setRenameValue}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submitRename();
-          }}
-          error={renameError}
-        />
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setRenameOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={submitRename}
-            disabled={!renameValue.trim() || renameMut.isPending}
-          >
-            Save
-          </Button>
+        <div className="rounded-xl bg-bg-primary p-3">
+          <Input
+            autoFocus
+            value={renameValue}
+            onChange={setRenameValue}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitRename();
+            }}
+            error={renameError}
+          />
         </div>
       </Modal>
 
@@ -776,21 +806,28 @@ export function ActionBar(): React.JSX.Element {
         title={activeWorkspace ? `Delete "${activeWorkspace.name}"?` : "Delete workspace?"}
         description="This removes the workspace and its repo references from GitWave. It does not delete the local repositories themselves."
         size="sm"
-      >
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setDeleteOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => deleteMut.mutate(activeWorkspaceId!)}
-            disabled={deleteMut.isPending}
-          >
-            Delete
-          </Button>
-        </div>
-      </Modal>
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-w-0 flex-[3]"
+              onClick={() => setDeleteOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              className="min-w-0 flex-[7]"
+              onClick={() => deleteMut.mutate(activeWorkspaceId!)}
+              disabled={deleteMut.isPending}
+            >
+              Delete
+            </Button>
+          </>
+        }
+      />
 
       <AiProviderSettings
         workspaceId={activeWorkspaceId}
@@ -821,9 +858,25 @@ export function ActionBar(): React.JSX.Element {
           title="Initialize new repo"
           description="Create a fresh Git repository in an empty folder."
           size="sm"
+          footer={
+            <>
+              <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={endAdd}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                onClick={() => initMut.mutate({ path: initPath.trim() })}
+                disabled={!initPath.trim() || initMut.isPending}
+              >
+                Create
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs font-medium text-text-secondary" htmlFor="init-path">
+          <div className="flex flex-col gap-1 rounded-xl bg-bg-primary p-3">
+            <Label className="text-sm font-medium text-text-secondary" htmlFor="init-path">
               Location
             </Label>
             <PathInput
@@ -839,19 +892,6 @@ export function ActionBar(): React.JSX.Element {
               error={actionError}
             />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={endAdd}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => initMut.mutate({ path: initPath.trim() })}
-              disabled={!initPath.trim() || initMut.isPending}
-            >
-              Create
-            </Button>
-          </div>
         </Modal>
       )}
 
@@ -865,10 +905,50 @@ export function ActionBar(): React.JSX.Element {
           title="Clone remote repo"
           description="Copy a remote repository into a local folder."
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={endAdd}
+                disabled={cloneMut.isPending}
+              >
+                Cancel
+              </Button>
+              {cloneFailed ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="min-w-0 flex-[7]"
+                  onClick={() =>
+                    cloneMut.mutate({
+                      url: cloneUrl.trim(),
+                      dest: cloneDest.trim(),
+                      replaceDest: true,
+                    })
+                  }
+                  disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
+                >
+                  Retry
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="min-w-0 flex-[7]"
+                  onClick={() => cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })}
+                  disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
+                >
+                  {cloneMut.isPending ? "Cloning…" : "Clone"}
+                </Button>
+              )}
+            </>
+          }
         >
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <div className="flex flex-col gap-1">
-              <Label className="text-xs font-medium text-text-secondary" htmlFor="clone-url">
+              <Label className="text-sm font-medium text-text-secondary" htmlFor="clone-url">
                 URL
               </Label>
               <Input
@@ -893,7 +973,7 @@ export function ActionBar(): React.JSX.Element {
               </p>
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs font-medium text-text-secondary" htmlFor="clone-dest">
+              <Label className="text-sm font-medium text-text-secondary" htmlFor="clone-dest">
                 Destination path
               </Label>
               <PathInput
@@ -904,66 +984,36 @@ export function ActionBar(): React.JSX.Element {
                 placeholder="./repo"
               />
             </div>
-            {actionError && <p className="text-xs text-danger">{actionError}</p>}
-            {cloneMut.isPending || cloneProgress ? (
-              <div className="flex flex-col gap-1">
-                <div className="h-1.5 rounded bg-bg-secondary overflow-hidden">
-                  <div
-                    className="h-full bg-accent transition-[width] duration-base"
-                    style={{
-                      width: `${
-                        cloneProgress && cloneProgress.totalObjects > 0
-                          ? Math.min(
-                              100,
-                              Math.round(
-                                (100 * cloneProgress.receivedObjects) / cloneProgress.totalObjects,
-                              ),
-                            )
-                          : cloneMut.isPending
-                            ? 8
-                            : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-                <p className="text-[11px] text-text-muted font-mono">
-                  {cloneProgress
-                    ? `objects ${cloneProgress.receivedObjects}/${cloneProgress.totalObjects || "?"} · deltas ${cloneProgress.indexedDeltas}/${cloneProgress.totalDeltas || "?"} · ${Math.round(cloneProgress.receivedBytes / 1024)} KiB`
-                    : "Starting clone…"}
-                </p>
+          </div>
+          {actionError && <p className="text-xs text-danger">{actionError}</p>}
+          {cloneMut.isPending || cloneProgress ? (
+            <div className="flex flex-col gap-1">
+              <div className="h-1.5 overflow-hidden rounded bg-bg-secondary">
+                <div
+                  className="h-full bg-accent transition-[width] duration-base"
+                  style={{
+                    width: `${
+                      cloneProgress && cloneProgress.totalObjects > 0
+                        ? Math.min(
+                            100,
+                            Math.round(
+                              (100 * cloneProgress.receivedObjects) / cloneProgress.totalObjects,
+                            ),
+                          )
+                        : cloneMut.isPending
+                          ? 8
+                          : 0
+                    }%`,
+                  }}
+                />
               </div>
-            ) : null}
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={endAdd} disabled={cloneMut.isPending}>
-              Cancel
-            </Button>
-            {cloneFailed ? (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() =>
-                  cloneMut.mutate({
-                    url: cloneUrl.trim(),
-                    dest: cloneDest.trim(),
-                    replaceDest: true,
-                  })
-                }
-                disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
-              >
-                Retry
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => cloneMut.mutate({ url: cloneUrl.trim(), dest: cloneDest.trim() })}
-                disabled={!cloneUrl.trim() || !cloneDest.trim() || cloneMut.isPending}
-              >
-                {cloneMut.isPending ? "Cloning…" : "Clone"}
-              </Button>
-            )}
-          </div>
+              <p className="font-mono text-[11px] text-text-muted">
+                {cloneProgress
+                  ? `objects ${cloneProgress.receivedObjects}/${cloneProgress.totalObjects || "?"} · deltas ${cloneProgress.indexedDeltas}/${cloneProgress.totalDeltas || "?"} · ${Math.round(cloneProgress.receivedBytes / 1024)} KiB`
+                  : "Starting clone…"}
+              </p>
+            </div>
+          ) : null}
         </Modal>
       )}
 
@@ -977,9 +1027,25 @@ export function ActionBar(): React.JSX.Element {
           title="Add existing local repo"
           description="Register an existing Git working tree with this workspace."
           size="sm"
+          footer={
+            <>
+              <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={endAdd}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                onClick={() => localMut.mutate({ path: localPath.trim() })}
+                disabled={!localPath.trim() || localMut.isPending}
+              >
+                Add
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs font-medium text-text-secondary" htmlFor="add-local-path">
+          <div className="flex flex-col gap-1 rounded-xl bg-bg-primary p-3">
+            <Label className="text-sm font-medium text-text-secondary" htmlFor="add-local-path">
               Location
             </Label>
             <PathInput
@@ -996,19 +1062,6 @@ export function ActionBar(): React.JSX.Element {
               error={actionError}
             />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={endAdd}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => localMut.mutate({ path: localPath.trim() })}
-              disabled={!localPath.trim() || localMut.isPending}
-            >
-              Add
-            </Button>
-          </div>
         </Modal>
       )}
 
@@ -1021,29 +1074,39 @@ export function ActionBar(): React.JSX.Element {
         title={`New branch from "${wc.data?.branch ?? "?"}"`}
         description="Creates a local branch at the current tip; the current branch stays checked out."
         size="sm"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-w-0 flex-[3]"
+              onClick={() => setBranchCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-w-0 flex-[7]"
+              onClick={submitBranchCreate}
+              disabled={!branchName.trim() || branchCreateMut.isPending}
+            >
+              Create
+            </Button>
+          </>
+        }
       >
-        <Input
-          autoFocus
-          value={branchName}
-          onChange={setBranchName}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submitBranchCreate();
-          }}
-          placeholder="feature/my-branch"
-          error={branchError}
-        />
-        <div className="mt-3 flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setBranchCreateOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={submitBranchCreate}
-            disabled={!branchName.trim() || branchCreateMut.isPending}
-          >
-            Create
-          </Button>
+        <div className="rounded-xl bg-bg-primary p-3">
+          <Input
+            autoFocus
+            value={branchName}
+            onChange={setBranchName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitBranchCreate();
+            }}
+            placeholder="feature/my-branch"
+            error={branchError}
+          />
         </div>
       </Modal>
 
@@ -1057,13 +1120,43 @@ export function ActionBar(): React.JSX.Element {
           title="Pull"
           description="Pull remote branches and merge them into your local branch"
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setPullDialog(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={wc.isSyncBusy}
+                onClick={() => {
+                  const options = {
+                    remote: pullDialog.remote,
+                    branch: pullDialog.branch,
+                    rebase: pullDialog.rebase,
+                    stash: pullDialog.stash,
+                  };
+                  setPullDialog(null);
+                  wc.pull(options);
+                }}
+              >
+                Pull
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <Label className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Remote</span>
+              <span className="w-16 shrink-0 text-sm text-text-secondary">Remote</span>
               <Select
                 aria-label="Remote"
-                className="h-auto flex-1 min-w-0 bg-bg-primary border-border-subtle px-1.5 py-1 text-xs"
+                className="h-auto min-w-0 flex-1 bg-bg-primary border-border-subtle px-1.5 py-1.5 text-sm"
                 value={pullDialog.remote}
                 disabled={wc.isSyncBusy}
                 onChange={(remote) => setPullDialog({ ...pullDialog, remote })}
@@ -1071,10 +1164,10 @@ export function ActionBar(): React.JSX.Element {
               />
             </Label>
             <Label className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
+              <span className="w-16 shrink-0 text-sm text-text-secondary">Branch</span>
               <Select
                 aria-label="Branch"
-                className="h-auto flex-1 min-w-0 bg-bg-primary border-border-subtle px-1.5 py-1 text-xs"
+                className="h-auto min-w-0 flex-1 bg-bg-primary border-border-subtle px-1.5 py-1.5 text-sm"
                 value={pullDialog.branch}
                 disabled={wc.isSyncBusy}
                 onChange={(branch) => setPullDialog({ ...pullDialog, branch })}
@@ -1085,16 +1178,17 @@ export function ActionBar(): React.JSX.Element {
               />
             </Label>
             <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Into</span>
-              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
+              <span className="w-16 shrink-0 text-sm text-text-secondary">Into</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                 {wc.data?.branch ?? "—"}
               </span>
             </div>
+          </div>
+          <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <Checkbox
               checked={pullDialog.rebase}
               disabled={wc.isSyncBusy}
               onChange={(rebase) => setPullDialog({ ...pullDialog, rebase })}
-              className="text-text-primary"
             >
               Rebase instead of merge
             </Checkbox>
@@ -1102,32 +1196,9 @@ export function ActionBar(): React.JSX.Element {
               checked={pullDialog.stash}
               disabled={wc.isSyncBusy}
               onChange={(stash) => setPullDialog({ ...pullDialog, stash })}
-              className="text-text-primary"
             >
               Stash and reapply local changes
             </Checkbox>
-          </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setPullDialog(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={wc.isSyncBusy}
-              onClick={() => {
-                const options = {
-                  remote: pullDialog.remote,
-                  branch: pullDialog.branch,
-                  rebase: pullDialog.rebase,
-                  stash: pullDialog.stash,
-                };
-                setPullDialog(null);
-                wc.pull(options);
-              }}
-            >
-              Pull
-            </Button>
           </div>
         </Modal>
       ) : null}
@@ -1142,25 +1213,55 @@ export function ActionBar(): React.JSX.Element {
           title="Push"
           description="Push your local changes to remote repository"
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setPushDialog(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={wc.isSyncBusy}
+                onClick={() => {
+                  const options = {
+                    remote: "origin",
+                    tags: pushDialog.tags,
+                    force: pushDialog.force,
+                  };
+                  setPushDialog(null);
+                  wc.push(options);
+                }}
+              >
+                Push
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
-              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
+              <span className="w-16 shrink-0 text-sm text-text-secondary">Branch</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                 {wc.data?.branch ?? "—"}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-16 shrink-0 text-right text-xs text-text-secondary">To</span>
-              <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary">
+              <span className="w-16 shrink-0 text-sm text-text-secondary">To</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
                 default ({wc.data?.upstream ?? `origin/${wc.data?.branch ?? ""}`})
               </span>
             </div>
+          </div>
+          <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <Checkbox
               checked={pushDialog.tags}
               disabled={wc.isSyncBusy}
               onChange={(tags) => setPushDialog({ ...pushDialog, tags })}
-              className="text-text-primary"
             >
               Push all tags
             </Checkbox>
@@ -1168,31 +1269,9 @@ export function ActionBar(): React.JSX.Element {
               checked={pushDialog.force}
               disabled={wc.isSyncBusy}
               onChange={(force) => setPushDialog({ ...pushDialog, force })}
-              className="text-text-primary"
             >
               Force push
             </Checkbox>
-          </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setPushDialog(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={wc.isSyncBusy}
-              onClick={() => {
-                const options = {
-                  remote: "origin",
-                  tags: pushDialog.tags,
-                  force: pushDialog.force,
-                };
-                setPushDialog(null);
-                wc.push(options);
-              }}
-            >
-              Push
-            </Button>
           </div>
         </Modal>
       ) : null}
@@ -1204,8 +1283,29 @@ export function ActionBar(): React.JSX.Element {
           title="Save stash"
           description="Save your local changes to a new stash"
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setStashOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={stashSaving}
+                onClick={() => void handleSaveStash()}
+              >
+                Save Stash
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-2">
+          <div className="rounded-xl bg-bg-primary p-3">
             <Input
               value={stashMessage}
               onChange={setStashMessage}
@@ -1215,6 +1315,8 @@ export function ActionBar(): React.JSX.Element {
                 if (e.key === "Enter" && !stashSaving) void handleSaveStash();
               }}
             />
+          </div>
+          <div className="rounded-xl bg-bg-primary p-3">
             <Checkbox
               checked={stashStage}
               disabled={stashSaving}
@@ -1228,19 +1330,6 @@ export function ActionBar(): React.JSX.Element {
                 </span>
               </span>
             </Checkbox>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setStashOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={stashSaving}
-                onClick={() => void handleSaveStash()}
-              >
-                Save Stash
-              </Button>
-            </div>
           </div>
         </Modal>
       ) : null}
@@ -1252,8 +1341,30 @@ export function ActionBar(): React.JSX.Element {
           title="Create Worktree"
           description="Create branch and check out it in a separate worktree"
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setWorktreeCreateOpen(false)}
+                disabled={wtBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={wtBusy || !wtName.trim() || !wtLocation.trim()}
+                onClick={() => void handleCreateWorktree()}
+              >
+                Create
+              </Button>
+            </>
+          }
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <Label>Start from</Label>
             <Select
               aria-label="Start from"
@@ -1278,24 +1389,6 @@ export function ActionBar(): React.JSX.Element {
               placeholder="Path for the new worktree"
               disabled={wtBusy}
             />
-            <div className="mt-1 flex justify-end gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setWorktreeCreateOpen(false)}
-                disabled={wtBusy}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                disabled={wtBusy || !wtName.trim() || !wtLocation.trim()}
-                onClick={() => void handleCreateWorktree()}
-              >
-                Create
-              </Button>
-            </div>
           </div>
         </Modal>
       ) : null}

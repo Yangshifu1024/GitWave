@@ -54,22 +54,26 @@ export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.
       title="Edit .gitignore"
       description="One pattern per line, relative to the repository root."
       size="md"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" disabled={saving || loading} onClick={save}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </>
+      }
     >
-      <Textarea
-        value={loading ? "Loading…" : content}
-        disabled={loading}
-        onChange={setContent}
-        rows={14}
-        spellCheck={false}
-        className="rounded-md px-2.5 py-2 font-mono leading-5"
-      />
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="sm" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" size="sm" disabled={saving || loading} onClick={save}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
+      <div className="rounded-xl bg-bg-primary p-3">
+        <Textarea
+          value={loading ? "Loading…" : content}
+          disabled={loading}
+          onChange={setContent}
+          rows={14}
+          spellCheck={false}
+          className="rounded-md px-2.5 py-2 font-mono leading-5"
+        />
       </div>
     </Modal>
   );

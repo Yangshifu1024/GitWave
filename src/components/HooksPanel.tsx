@@ -72,6 +72,16 @@ export function HooksPanel({
       title="Git hooks"
       description="Edit hook scripts in .git/hooks. GitWave only edits them — it never runs hooks for you."
       size="lg"
+      footer={
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!selected || saveMut.isPending || (!dirty && !error)}
+          onClick={() => saveMut.mutate()}
+        >
+          Save {selected ?? ""}
+        </Button>
+      }
     >
       <div className="flex gap-3">
         <div className="w-44 shrink-0 flex flex-col gap-0.5">
@@ -135,17 +145,6 @@ export function HooksPanel({
           )}
 
           {error ? <p className="text-xs text-danger">{error}</p> : null}
-
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={!selected || saveMut.isPending || (!dirty && !error)}
-              onClick={() => saveMut.mutate()}
-            >
-              Save {selected ?? ""}
-            </Button>
-          </div>
         </div>
       </div>
     </Modal>

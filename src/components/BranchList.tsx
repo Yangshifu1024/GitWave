@@ -22,6 +22,7 @@ import {
   popStash,
   rebaseBranch,
   saveStash,
+  createBranch,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { gateCheckout } from "@/lib/checkoutGate";
 import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -99,6 +101,7 @@ interface BranchRowProps {
   onMerge: (name: string) => void;
   onRebaseOnto: (name: string) => void;
   onInteractiveRebase: (name: string) => void;
+  onNewBranch: (name: string, sha: string | null) => void;
 }
 
 function BranchRow({
@@ -113,8 +116,11 @@ function BranchRow({
   onMerge,
   onRebaseOnto,
   onInteractiveRebase,
+  onNewBranch,
 }: BranchRowProps): React.JSX.Element {
-  const hasActions = !branch.is_current && branch.kind === "local";
+  // Every local branch gets a context menu — the current branch's menu is
+  // New-only (merge / rebase / delete don't apply to HEAD).
+  const hasActions = branch.kind === "local";
 
   const row = (
     <ListItem
@@ -187,23 +193,34 @@ function BranchRow({
       <ContextMenuContent className="max-w-[240px]">
         <ContextMenuLabel title={branch.name}>{branch.name}</ContextMenuLabel>
         <ContextMenuSeparator />
-        <ContextMenuItem disabled={busy} onSelect={() => onMerge(branch.name)}>
-          <GitMerge size={14} />
-          Merge into current
+        <ContextMenuItem
+          disabled={busy || !branch.last_commit_sha}
+          onSelect={() => onNewBranch(branch.name, branch.last_commit_sha)}
+        >
+          <GitBranch size={14} />
+          New
         </ContextMenuItem>
-        <ContextMenuItem disabled={busy} onSelect={() => onRebaseOnto(branch.name)}>
-          <GitPullRequestArrow size={14} />
-          Rebase current onto this
-        </ContextMenuItem>
-        <ContextMenuItem disabled={busy} onSelect={() => onInteractiveRebase(branch.name)}>
-          <ListOrdered size={14} />
-          Interactive rebase
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem destructive disabled={busy} onSelect={() => onDelete(branch.name)}>
-          <Trash2 size={14} />
-          Delete
-        </ContextMenuItem>
+        {!branch.is_current ? (
+          <>
+            <ContextMenuItem disabled={busy} onSelect={() => onMerge(branch.name)}>
+              <GitMerge size={14} />
+              Merge into current
+            </ContextMenuItem>
+            <ContextMenuItem disabled={busy} onSelect={() => onRebaseOnto(branch.name)}>
+              <GitPullRequestArrow size={14} />
+              Rebase current onto this
+            </ContextMenuItem>
+            <ContextMenuItem disabled={busy} onSelect={() => onInteractiveRebase(branch.name)}>
+              <ListOrdered size={14} />
+              Interactive rebase
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem destructive disabled={busy} onSelect={() => onDelete(branch.name)}>
+              <Trash2 size={14} />
+              Delete
+            </ContextMenuItem>
+          </>
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -232,6 +249,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   );
   /** Fork-style confirmation before "Merge into current" executes. */
   const [mergeDialog, setMergeDialog] = useState<{ name: string } | null>(null);
+  const [newBranchBase, setNewBranchBase] = useState<{ name: string; sha: string } | null>(null);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [newBranchError, setNewBranchError] = useState<string | null>(null);
   const [switchDialog, setSwitchDialog] = useState<
     | { kind: "dirty"; name: string; fileCount: number }
     | { kind: "blocked"; name: string; message: string }
@@ -406,6 +426,31 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const handleMerge = (name: string) => setMergeDialog({ name });
 
+  const openNewBranch = (name: string, sha: string | null): void => {
+    if (!sha) return;
+    setNewBranchName("");
+    setNewBranchError(null);
+    setNewBranchBase({ name, sha });
+  };
+
+  const submitNewBranch = async (): Promise<void> => {
+    const name = newBranchName.trim();
+    if (!newBranchBase || !name || !activeWorkspaceId) return;
+    setBusy(true);
+    setNewBranchError(null);
+    try {
+      await createBranch(activeWorkspaceId, name, newBranchBase.sha);
+      setNewBranchBase(null);
+      setNewBranchName("");
+      refresh();
+      showNotice(`Created branch ${name} from ${newBranchBase.name}`);
+    } catch (e) {
+      setNewBranchError(formatAppError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleMergeConfirmed = (name: string, noFf: boolean) =>
     void run("merge", async () => {
       const result = await mergeBranch(activeWorkspaceId!, name, noFf);
@@ -517,6 +562,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           onMerge={handleMerge}
           onRebaseOnto={handleRebaseOnto}
           onInteractiveRebase={(name) => setIrebaseOnto(name)}
+          onNewBranch={openNewBranch}
         />
       ));
     return (
@@ -635,37 +681,45 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           title={`Switch to ${switchDialog.name}?`}
           description={`Working copy has ${switchDialog.fileCount} uncommitted file${switchDialog.fileCount === 1 ? "" : "s"}. Discard them, or stash, switch, and re-apply the stash on the new branch.`}
           size="sm"
-        >
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setSwitchDialog(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                const target = switchDialog.name;
-                setSwitchDialog(null);
-                void run("checkout", () => checkoutOnto(target, "force"));
-              }}
-            >
-              Discard
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                const target = switchDialog.name;
-                setSwitchDialog(null);
-                void run("checkout", () => checkoutOnto(target, "stash"));
-              }}
-            >
-              Stash & switch
-            </Button>
-          </div>
-        </Modal>
+          footer={
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setSwitchDialog(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                disabled={busy}
+                onClick={() => {
+                  const target = switchDialog.name;
+                  setSwitchDialog(null);
+                  void run("checkout", () => checkoutOnto(target, "force"));
+                }}
+              >
+                Discard
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[4]"
+                disabled={busy}
+                onClick={() => {
+                  const target = switchDialog.name;
+                  setSwitchDialog(null);
+                  void run("checkout", () => checkoutOnto(target, "stash"));
+                }}
+              >
+                Stash & switch
+              </Button>
+            </>
+          }
+        />
       ) : null}
 
       {switchDialog?.kind === "blocked" ? (
@@ -677,11 +731,61 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           title={`Cannot switch to ${switchDialog.name}`}
           description={switchDialog.message}
           size="sm"
-        >
-          <div className="flex justify-end">
-            <Button variant="primary" size="sm" onClick={() => setSwitchDialog(null)}>
+          footer={
+            <Button
+              variant="primary"
+              size="sm"
+              className="w-full"
+              onClick={() => setSwitchDialog(null)}
+            >
               OK
             </Button>
+          }
+        />
+      ) : null}
+
+      {newBranchBase ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setNewBranchBase(null);
+          }}
+          title={`New branch from "${newBranchBase.name}"`}
+          description="Creates a local branch at this tip; the current branch stays checked out."
+          size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setNewBranchBase(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy || !newBranchName.trim()}
+                onClick={() => void submitNewBranch()}
+              >
+                Create
+              </Button>
+            </>
+          }
+        >
+          <div className="rounded-xl bg-bg-primary p-3">
+            <Input
+              autoFocus
+              value={newBranchName}
+              onChange={setNewBranchName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newBranchName.trim()) void submitNewBranch();
+              }}
+              placeholder="feature/my-branch"
+              error={newBranchError}
+            />
           </div>
         </Modal>
       ) : null}
@@ -695,34 +799,46 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           title="Delete Branch"
           description="Delete local branch from your repository"
           size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setDeleteDialog(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy}
+                onClick={handleConfirmDelete}
+              >
+                Delete
+              </Button>
+            </>
+          }
         >
-          <div className="flex items-center gap-2">
-            <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Branch</span>
-            <span className="flex min-w-0 items-center gap-1 text-xs font-mono text-text-primary">
+          <div className="flex items-center gap-2 rounded-xl bg-bg-primary p-3">
+            <span className="w-16 shrink-0 text-sm text-text-secondary">Branch</span>
+            <span className="flex min-w-0 items-center gap-1 text-sm text-text-primary">
               <GitBranch size={12} className="shrink-0 text-accent" />
               <span className="truncate" title={deleteDialog.name}>
                 {deleteDialog.name}
               </span>
             </span>
           </div>
-          <Checkbox
-            checked={deleteDialog.deleteRemote}
-            disabled={busy || deleteCounterparts.length === 0}
-            onChange={(deleteRemote) => setDeleteDialog({ ...deleteDialog, deleteRemote })}
-            className={cn(
-              "mt-3",
-              deleteCounterparts.length > 0 ? "text-text-primary" : "text-text-muted",
-            )}
-          >
-            Also delete corresponding remote branch
-          </Checkbox>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setDeleteDialog(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" size="sm" disabled={busy} onClick={handleConfirmDelete}>
-              Delete
-            </Button>
+          <div className="rounded-xl bg-bg-primary p-3">
+            <Checkbox
+              checked={deleteDialog.deleteRemote}
+              disabled={busy || deleteCounterparts.length === 0}
+              onChange={(deleteRemote) => setDeleteDialog({ ...deleteDialog, deleteRemote })}
+              className={cn(deleteCounterparts.length === 0 && "text-text-muted")}
+            >
+              Also delete corresponding remote branch
+            </Checkbox>
           </div>
         </Modal>
       ) : null}
@@ -793,32 +909,44 @@ function MergeConfirmDialog({
       title="Merge branch"
       description={`Merge ${name} into ${currentBranch}.`}
       size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            className="min-w-0 flex-[7]"
+            disabled={upToDate}
+            onClick={() => onConfirm(noFf)}
+          >
+            Merge
+          </Button>
+        </>
+      }
     >
-      <div className="flex flex-col gap-1.5 text-sm">
+      <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
         <div className="flex items-center gap-2">
-          <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Merge</span>
+          <span className="w-16 shrink-0 text-sm text-text-secondary">Merge</span>
           <GitBranch size={13} className="shrink-0 text-text-muted" />
-          <span className="min-w-0 truncate font-mono text-xs text-text-primary" title={name}>
+          <span className="min-w-0 truncate text-sm text-text-primary" title={name}>
             {name}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-16 shrink-0 text-right text-xs text-text-secondary">Into</span>
+          <span className="w-16 shrink-0 text-sm text-text-secondary">Into</span>
           <GitBranch size={13} className="shrink-0 text-text-muted" />
-          <span className="min-w-0 truncate font-mono text-xs text-text-primary">
-            {currentBranch}
-          </span>
+          <span className="min-w-0 truncate text-sm text-text-primary">{currentBranch}</span>
         </div>
         <div className="flex items-center gap-2">
-          <Label
-            className="w-16 shrink-0 text-right text-xs text-text-secondary"
-            htmlFor="merge-option"
-          >
+          <Label className="w-16 shrink-0 text-sm text-text-secondary" htmlFor="merge-option">
             Option
           </Label>
           <Select
             id="merge-option"
             aria-label="Merge option"
+            className="h-auto min-w-0 flex-1 bg-bg-primary border-border-subtle px-1.5 py-1.5 text-sm"
             value={noFf ? "no_ff" : "auto"}
             onChange={(next) => setNoFf(next === "no_ff")}
             options={[
@@ -828,34 +956,26 @@ function MergeConfirmDialog({
           />
         </div>
       </div>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5 text-xs text-text-muted">
         {isLoading ? (
-          <span className="text-xs text-text-muted">Checking merge…</span>
+          <span>Checking merge…</span>
         ) : upToDate ? (
-          <span className="flex items-center gap-1.5 text-xs text-text-muted">
+          <span className="flex items-center gap-1.5">
             <CircleX size={14} className="shrink-0" />
             Already up to date
           </span>
         ) : conflictCount > 0 ? (
-          <span className="flex items-center gap-1.5 text-xs text-danger">
+          <span className="flex items-center gap-1.5 text-danger">
             <CircleX size={14} className="shrink-0" />
             May conflict in {conflictCount} file{conflictCount === 1 ? "" : "s"} (resolve after
             merge)
           </span>
         ) : (
-          <span className="flex items-center gap-1.5 text-xs text-success">
+          <span className="flex items-center gap-1.5 text-success">
             <CircleCheck size={14} className="shrink-0" />
             Merge can be done without conflicts
           </span>
         )}
-        <span className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" size="sm" disabled={upToDate} onClick={() => onConfirm(noFf)}>
-            Merge
-          </Button>
-        </span>
       </div>
     </Modal>
   );

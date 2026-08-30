@@ -385,23 +385,30 @@ export function ChangesPanel({
         title="AI provider not configured"
         description="This workspace has no AI provider. Would you like to configure one now?"
         size="sm"
-      >
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setAiPromptOpen(false)}>
-            Not now
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setAiPromptOpen(false);
-              setAiSettingsOpen(true);
-            }}
-          >
-            Configure
-          </Button>
-        </div>
-      </Modal>
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-w-0 flex-[3]"
+              onClick={() => setAiPromptOpen(false)}
+            >
+              Not now
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-w-0 flex-[7]"
+              onClick={() => {
+                setAiPromptOpen(false);
+                setAiSettingsOpen(true);
+              }}
+            >
+              Configure
+            </Button>
+          </>
+        }
+      />
       <GitignoreEditor open={gitignoreOpen} onClose={() => setGitignoreOpen(false)} />
       <AiProviderSettings
         workspaceId={workspaceId}
@@ -468,6 +475,7 @@ export function ChangesPanel({
           });
         }}
         onAiGenerate={handleAiGenerate}
+        aiLoading={aiBusy}
         disabled={stagedFiles.length === 0 || commitPending || aiBusy}
         className={bar ? "h-full" : undefined}
       />
@@ -617,16 +625,17 @@ function DiscardConfirmModal({
       title={title}
       description={description}
       size="sm"
-    >
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button variant="danger" size="sm" onClick={onConfirm}>
-          {single ? (untracked ? "Delete file" : "Discard") : `Discard ${files.length} files`}
-        </Button>
-      </div>
-    </Modal>
+      footer={
+        <>
+          <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="danger" size="sm" className="min-w-0 flex-[7]" onClick={onConfirm}>
+            {single ? (untracked ? "Delete file" : "Discard") : `Discard ${files.length} files`}
+          </Button>
+        </>
+      }
+    />
   );
 }
 
@@ -655,38 +664,47 @@ function IgnoreScopeModal({
       title="Add to .gitignore"
       description={`Appends the chosen pattern to the repo-root .gitignore (shared with collaborators). The file stays on disk but leaves the change list if untracked.`}
       size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            className="min-w-0 flex-[7]"
+            onClick={() => onAdd(choice)}
+          >
+            Add
+          </Button>
+        </>
+      }
     >
-      <RadioGroup
-        value={choice}
-        onChange={setChoice}
-        aria-label="Ignore scope"
-        className="flex w-full flex-col gap-1 [&_[data-slot=radio]]:mt-0"
-      >
-        {options.map((option) => (
-          <Radio key={option.value} value={option.value} className="w-full">
-            <Radio.Content
-              className={cn(
-                "h-auto w-full flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors",
-                choice === option.value
-                  ? "border-accent bg-accent/5 ring-accent/30 ring-1"
-                  : "border-border-default hover:border-border-strong",
-              )}
-            >
-              <span className="shrink-0 text-sm text-text-primary">{option.label}</span>
-              <code className="min-w-0 truncate font-mono text-xs text-text-secondary">
-                {option.value}
-              </code>
-            </Radio.Content>
-          </Radio>
-        ))}
-      </RadioGroup>
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button variant="primary" size="sm" onClick={() => onAdd(choice)}>
-          Add
-        </Button>
+      <div className="rounded-xl bg-bg-primary p-3">
+        <RadioGroup
+          value={choice}
+          onChange={setChoice}
+          aria-label="Ignore scope"
+          className="flex w-full flex-col gap-1 [&_[data-slot=radio]]:mt-0"
+        >
+          {options.map((option) => (
+            <Radio key={option.value} value={option.value} className="w-full">
+              <Radio.Content
+                className={cn(
+                  "h-auto w-full flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors",
+                  choice === option.value
+                    ? "border-accent bg-accent/5 ring-accent/30 ring-1"
+                    : "border-border-default hover:border-border-strong",
+                )}
+              >
+                <span className="shrink-0 text-sm text-text-primary">{option.label}</span>
+                <code className="min-w-0 truncate font-mono text-xs text-text-secondary">
+                  {option.value}
+                </code>
+              </Radio.Content>
+            </Radio>
+          ))}
+        </RadioGroup>
       </div>
     </Modal>
   );

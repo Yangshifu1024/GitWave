@@ -107,56 +107,58 @@ export function LfsPanel({
           )
         ) : null}
 
-        <div className="flex flex-col gap-1">
-          {status?.patterns.length ? (
-            status.patterns.map((p) => (
-              <div
-                key={p}
-                className="flex items-center gap-2 rounded-md border border-border-subtle px-2 py-1"
-              >
-                <span className="min-w-0 flex-1 truncate font-mono text-xs">{p}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-1 text-text-muted hover:text-danger"
-                  aria-label={`Stop tracking ${p}`}
-                  title="Stop tracking"
-                  disabled={busy}
-                  onClick={() => untrackMut.mutate(p)}
+        <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
+          <div className="flex flex-col gap-1">
+            {status?.patterns.length ? (
+              status.patterns.map((p) => (
+                <div
+                  key={p}
+                  className="flex items-center gap-2 rounded-md border border-border-subtle px-2 py-1"
                 >
-                  <X size={13} />
-                </Button>
-              </div>
-            ))
-          ) : (
-            <p className="text-xs text-text-muted italic">No LFS patterns tracked yet.</p>
-          )}
-        </div>
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs">{p}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="p-1 text-text-muted hover:text-danger"
+                    aria-label={`Stop tracking ${p}`}
+                    title="Stop tracking"
+                    disabled={busy}
+                    onClick={() => untrackMut.mutate(p)}
+                  >
+                    <X size={13} />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-text-muted italic">No LFS patterns tracked yet.</p>
+            )}
+          </div>
 
-        <form
-          className="flex items-center gap-1.5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (pattern.trim()) trackMut.mutate();
-          }}
-        >
-          <Input
-            value={pattern}
-            onChange={setPattern}
-            placeholder="Pattern, e.g. *.psd or assets/**"
-            disabled={busy}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (pattern.trim()) trackMut.mutate();
-              }
+          <form
+            className="flex items-center gap-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (pattern.trim()) trackMut.mutate();
             }}
-          />
-          <Button type="submit" variant="secondary" size="sm" disabled={busy || !pattern.trim()}>
-            <Plus size={13} />
-            Track
-          </Button>
-        </form>
+          >
+            <Input
+              value={pattern}
+              onChange={setPattern}
+              placeholder="Pattern, e.g. *.psd or assets/**"
+              disabled={busy}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (pattern.trim()) trackMut.mutate();
+                }
+              }}
+            />
+            <Button type="submit" variant="secondary" size="sm" disabled={busy || !pattern.trim()}>
+              <Plus size={13} />
+              Track
+            </Button>
+          </form>
+        </div>
 
         {error ? <p className="text-xs text-danger">{error}</p> : null}
       </div>

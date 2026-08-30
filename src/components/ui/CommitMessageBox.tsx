@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useRef } from "react";
 import { InputGroup, TextField } from "@heroui/react";
-import { Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 
@@ -9,6 +9,9 @@ export interface CommitMessageBoxProps {
   onChange: (value: string) => void;
   onSubmit: () => void;
   onAiGenerate?: () => void;
+  /** True while AI message generation is in flight — the Generate button
+   *  shows a spinner and locks. */
+  aiLoading?: boolean;
   amendMessage?: string | null;
   disabled?: boolean;
   className?: string;
@@ -36,6 +39,7 @@ export function CommitMessageBox({
   onChange,
   onSubmit,
   onAiGenerate,
+  aiLoading = false,
   amendMessage = null,
   disabled = false,
   className,
@@ -138,13 +142,17 @@ export function CommitMessageBox({
           <Button
             variant="ghost"
             size="sm"
-            className="p-1"
-            disabled={disabled}
+            disabled={disabled || aiLoading}
             onClick={onAiGenerate}
             title="Generate commit message with AI"
             aria-label="Generate commit message with AI"
           >
-            <Sparkles size={14} />
+            {aiLoading ? (
+              <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            {aiLoading ? "Generating…" : "Generate"}
           </Button>
         ) : null}
         <Button variant="primary" size="sm" disabled={!canSubmit} onClick={onSubmit}>
