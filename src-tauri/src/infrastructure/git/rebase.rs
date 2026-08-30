@@ -152,6 +152,32 @@ pub fn rebase_branch(repo: &Repository, upstream: &str) -> Result<RebaseResult> 
     })
 }
 
+/// Point the current branch at `oid` and check the result out.
+///
+/// [`rebase_branch`] runs in memory (refs, index and workdir are never
+/// touched), so a `Clean` result only exists as rewritten commits until the
+/// caller finalizes with this — same landing sequence as pull's
+/// fast-forward block.
+pub fn finalize_rebase(repo: &Repository, oid: &str) -> Result<()> {
+    let oid = git2::Oid::from_str(oid).map_err(map_git_err)?;
+    let head = repo.head().map_err(map_git_err)?;
+    if !head.is_branch() {
+        return Err(AppError::Protocol(
+            "cannot finalize rebase on detached HEAD".into(),
+        ));
+    }
+    let refname = head
+        .name()
+        .ok_or_else(|| AppError::Protocol("branch ref has no name".into()))?
+        .to_string();
+    let mut reference = repo.find_reference(&refname).map_err(map_git_err)?;
+    reference.set_target(oid, "rebase").map_err(map_git_err)?;
+    repo.set_head(&refname).map_err(map_git_err)?;
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+        .map_err(map_git_err)?;
+    Ok(())
+}
+
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::Unknown(format!("git: {e}"))
 }
@@ -188,6 +214,51 @@ mod tests {
         // HEAD (i=2) is a descendant of feature (i=0), so ahead == 0.
         let res = rebase_branch(&repo, "feature").unwrap();
         assert_eq!(res.kind, RebaseKind::AlreadyUpToDate);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn finalize_rebase_moves_branch_and_checks_out() {
+        let (path, repo) = build_linear_repo(2);
+        // "old" sits at commit 0; rebasing HEAD (commit 1) onto it rewrites
+        // commit 1 in memory. finalize must land it on the branch.
+        let first = repo
+            .revparse_single("main~1")
+            .unwrap()
+            .peel_to_commit()
+            .unwrap();
+        repo.branch("old", &first, false).unwrap();
+
+        let res = rebase_branch(&repo, "old").unwrap();
+        assert_eq!(res.kind, RebaseKind::Clean);
+        let new_head = res.new_head.clone().unwrap();
+
+        finalize_rebase(&repo, &new_head).unwrap();
+
+        assert_eq!(
+            repo.head()
+                .unwrap()
+                .peel_to_commit()
+                .unwrap()
+                .id()
+                .to_string(),
+            new_head,
+            "HEAD must point at the rewritten commit"
+        );
+        assert_eq!(
+            repo.find_reference("refs/heads/main")
+                .unwrap()
+                .target()
+                .unwrap()
+                .to_string(),
+            new_head,
+            "the branch ref must move to the rewritten commit"
+        );
+        assert_eq!(
+            fs::read_to_string(path.join("file1.txt")).unwrap(),
+            "v1\n",
+            "the result must be checked out"
+        );
         cleanup(&path);
     }
 }
