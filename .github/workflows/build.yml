@@ -72,8 +72,8 @@ jobs:
           for a in "$@"; do
             case "$a" in --timestamp*) exec "$REAL" "$@" ;; esac
           done
-          echo "[codesign-wrapper] out=--timestamp=http://timestamp.digicert.com $*" >&2
-          exec "$REAL" --timestamp=http://timestamp.digicert.com "$@"
+          echo "[codesign-wrapper] out=--timestamp=https://timestamp.digicert.com $*" >&2
+          exec "$REAL" --timestamp=https://timestamp.digicert.com "$@"
           WRAPPER
           chmod +x "$HOME/.local/bin/codesign"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
