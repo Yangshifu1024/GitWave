@@ -8,13 +8,36 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
+  prepare-release:
+    name: Prepare release
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify tag matches package.json version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${version} (expected v${version})"
+            exit 1
+          fi
+      - name: Create draft release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+
   build-macos:
     name: Build (macOS)
-    # Apple TSA (timestamp.apple.com) intermittently throttles GitHub shared egress
-    # to unusable latency; codesign takes any RFC3161 TSA, so the wrapper below
-    # forces DigiCert's instead.
+    needs: prepare-release
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -29,23 +52,6 @@ jobs:
           cache: npm
       - name: npm ci
         run: npm ci
-      - name: Import signing certificate
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          # create-keychain defaults to ~300s auto-lock; a locked keychain makes
-          # codesign block on an unlock prompt no headless CI can answer
-          # (tauri-action#941). Extend the window to cover the whole build.
-          security set-keychain-settings -t 36000 -u build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-          rm certificate.p12
       - name: Write App Store Connect API key
         env:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
@@ -59,88 +65,28 @@ jobs:
             echo "::error::APPLE_API_KEY_P8 缺少 '-----END PRIVATE KEY-----' 行，内容已损坏。用 gh secret set APPLE_API_KEY_P8 < AuthKey_XXX.p8 重新设置"
             exit 1
           }
-      - name: Install codesign TSA wrapper (DigiCert)
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          cat > "$HOME/.local/bin/codesign" <<'WRAPPER'
-          #!/bin/bash
-          if [ -x /usr/bin/codesign.real ]; then REAL=/usr/bin/codesign.real; else REAL=/usr/bin/codesign; fi
-          echo "[codesign-wrapper] real=$REAL args=$*" >&2
-          # pass explicit --timestamp through untouched (allows --timestamp=none
-          # diagnostics); otherwise pick the first RFC3161 TSA that answers —
-          # Apple's is intermittently throttled from GitHub egress, and any
-          # single third-party endpoint can flap, so probe a few each time
-          for a in "$@"; do
-            case "$a" in --timestamp*) exec "$REAL" "$@" ;; esac
-          done
-          TSA=""
-          # ts.ssl.com is excluded on purpose: reachable and fast, but Apple
-          # notarization rejects its tokens ("signature does not include a
-          # secure timestamp", job b0ffb9cd-c1d6) — reachability is not trust
-          for u in \
-            http://timestamp.sectigo.com \
-            http://timestamp.apple.com/ts01 \
-            https://timestamp.digicert.com; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 \
-              -X POST -H 'Content-Type: application/timestamp-query' \
-              --data-binary 'probe' "$u" 2>/dev/null) || code=000
-            if [ "$code" != "000" ]; then TSA="$u"; break; fi
-            echo "[codesign-wrapper] $u unreachable, trying next" >&2
-          done
-          [ -n "$TSA" ] || TSA=http://timestamp.apple.com/ts01
-          echo "[codesign-wrapper] out=--timestamp=$TSA $*" >&2
-          exec "$REAL" --timestamp="$TSA" "$@"
-          WRAPPER
-          chmod +x "$HOME/.local/bin/codesign"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          # also replace /usr/bin/codesign when the volume allows, to cover absolute-path invocations
-          if [ ! -e /usr/bin/codesign.real ]; then
-            sudo mount -uw / 2>/dev/null || true
-            if sudo mv /usr/bin/codesign /usr/bin/codesign.real 2>/dev/null && sudo cp "$HOME/.local/bin/codesign" /usr/bin/codesign; then
-              echo "/usr/bin/codesign replaced (covers absolute-path calls)"
-            else
-              echo "/usr/bin/codesign replace failed — relying on PATH wrapper"
-            fi
-          else
-            sudo cp "$HOME/.local/bin/codesign" /usr/bin/codesign
-          fi
-          # fail fast: exercise the wrapper + DigiCert TSA before the long compile
-          cp /bin/echo /tmp/gw_sig_test
-          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '$1 ~ /^[0-9]+\)$/ {print $2; exit}')
-          if perl -e 'alarm shift; exec @ARGV' 30 "$HOME/.local/bin/codesign" --force -s "$id_hash" --options runtime /tmp/gw_sig_test; then
-            echo "codesign + TSA smoke test PASSED"
-          else
-            echo "::error::codesign could not complete a timestamped signature within 30s — all TSA candidates failed (keychain is unlocked and set no-timeout)"
-            exit 1
-          fi
-      - name: frontend build
-        run: npm run build
-      - name: cargo build (compile phase)
-        run: cargo build --manifest-path src-tauri/Cargo.toml --release
-      - name: tauri build (bundle + sign + notarize, verbose)
-        run: |
-          # belt and braces: the keychain must be unlocked when signing starts
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          perl -e 'alarm shift; exec @ARGV' 900 npm run tauri -- build --verbose
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@action-v1.0.0
         env:
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          # certificate + notarization are handled inside the action/bundler
+          # (temp keychain import, codesign, notarytool, staple)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ github.workspace }}/AuthKey.p8
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      - uses: actions/upload-artifact@v7
         with:
-          name: gitwave-macos
-          path: |
-            src-tauri/target/release/bundle/macos/*
-            src-tauri/target/release/bundle/dmg/*
-          if-no-files-found: error
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          args: --verbose
 
   build-linux:
     name: Build (Linux)
+    needs: prepare-release
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -168,23 +114,20 @@ jobs:
             patchelf
       - name: npm ci
         run: npm ci
-      - name: tauri build
-        run: npm run tauri -- build
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@action-v1.0.0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      - uses: actions/upload-artifact@v7
         with:
-          name: gitwave-linux
-          path: |
-            src-tauri/target/release/bundle/deb/*
-            src-tauri/target/release/bundle/rpm/*
-            src-tauri/target/release/bundle/appimage/*
-          if-no-files-found: error
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          args: --verbose
 
   build-windows:
     name: Build (Windows)
+    needs: prepare-release
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -197,30 +140,25 @@ jobs:
           cache: npm
       - name: npm ci
         run: npm ci
-      - name: tauri build
-        run: npm run tauri -- build
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@action-v1.0.0
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-      - uses: actions/upload-artifact@v7
         with:
-          name: gitwave-windows
-          path: |
-            src-tauri/target/release/bundle/nsis/*
-          if-no-files-found: error
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          args: --verbose
 
-  release:
-    name: Release
-    needs: [build-macos, build-linux, build-windows]
-    if: startsWith(github.ref, 'refs/tags/')
+  publish:
+    name: Publish release
+    needs: [prepare-release, build-macos, build-linux, build-windows]
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v7
-        with:
-          path: artifacts
+      - name: Download updater signatures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${GITHUB_REF_NAME}" --dir sigs --pattern '*.sig'
       - name: Build updater manifest (latest.json)
         run: |
           node - <<'NODE'
@@ -233,14 +171,6 @@ jobs:
           // glob caught junk; both would silently break clients.
           const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
           const tag = process.env.GITHUB_REF_NAME;
-          // The manifest's version drives the client-side "is this newer"
-          // comparison while the URLs serve the tag's assets; a mismatch
-          // between the two is a silent dead update channel for everyone.
-          if (tag !== `v${version}`) {
-            throw new Error(
-              `tag ${tag} does not match package.json version ${version} (expected v${version})`,
-            );
-          }
           const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}`;
 
           const readSig = (file) => {
@@ -248,17 +178,17 @@ jobs:
             if (!s) throw new Error(`empty signature file: ${file}`);
             return s;
           };
-          const findSig = (dir, re) => {
-            const hits = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => re.test(f)) : [];
+          const findSig = (re) => {
+            const hits = fs.readdirSync("sigs").filter((f) => re.test(f));
             if (hits.length !== 1) {
-              throw new Error(`expected exactly one ${re} in ${dir}, got ${hits.length}`);
+              throw new Error(`expected exactly one ${re} in sigs/, got ${hits.length}`);
             }
-            return path.join(dir, hits[0]);
+            return path.join("sigs", hits[0]);
           };
 
-          const macSig = findSig("artifacts/gitwave-macos/macos", /^GitWave\.app\.tar\.gz\.sig$/);
-          const linuxSig = findSig("artifacts/gitwave-linux/appimage", /\.AppImage\.sig$/);
-          const winSig = findSig("artifacts/gitwave-windows", /-setup\.exe\.sig$/);
+          const macSig = findSig(/^GitWave\.app\.tar\.gz\.sig$/);
+          const linuxSig = findSig(/\.AppImage\.sig$/);
+          const winSig = findSig(/-setup\.exe\.sig$/);
 
           const manifest = {
             version,
@@ -279,21 +209,12 @@ jobs:
               },
             },
           };
-          fs.writeFileSync("artifacts/latest.json", `${JSON.stringify(manifest, null, 2)}\n`);
+          fs.writeFileSync("latest.json", `${JSON.stringify(manifest, null, 2)}\n`);
           console.log(manifest);
           NODE
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            artifacts/gitwave-macos/dmg/*.dmg
-            artifacts/gitwave-macos/macos/*.app.tar.gz
-            artifacts/gitwave-macos/macos/*.app.tar.gz.sig
-            artifacts/gitwave-linux/deb/*
-            artifacts/gitwave-linux/rpm/*
-            artifacts/gitwave-linux/appimage/*
-            artifacts/gitwave-windows/*
-            artifacts/latest.json
+      - name: Upload updater manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" latest.json --clobber
+      # no auto-publish: the release stays a draft for human review —
+      # check the assets, latest.json and release notes, then hit publish
