@@ -40,7 +40,15 @@
     },
     "tags": {
       "title": "标签",
-      "empty": "暂无标签"
+      "empty": "暂无标签",
+      "menu": {
+        "delete": "删除标签"
+      },
+      "deleteDialog": {
+        "title": "删除标签",
+        "description": "将从仓库中删除标签「{{name}}」。提交本身不受影响，仅移除标签引用。",
+        "deleted": "已删除标签 {{name}}"
+      }
     },
     "reflog": {
       "empty": "暂无 reflog 记录",
