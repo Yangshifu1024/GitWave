@@ -78,6 +78,20 @@ PR #9 合入后重打 tag 首跑，Verify release 挂：`failed to run git: fata
 
 **教训（供后续 review 检查单）**：删 checkout / 改 job 工作区布局时，必须过一遍所有 step 工具的隐式假设——cwd 内容、git remote、env、镜像预装，缺一即显式补齐。
 
+## 复发记录 · 终局（2026-08-30 · 第三轮）
+
+**现象**：run 33307123595（sha 0ab5cd4，PR #10 修复后）三平台构建全绿，Verify release 报 `release not found`。
+
+**真根因**：第二轮审查修复时按 🟢 建议加的 job 级 `permissions: contents: read`——GitHub 规定 **draft release 仅对有 push 权限的凭证可见**，`contents: read` 让 GITHUB_TOKEN 失去该资格，`gh release download` 找不到草稿。对照实证：第一轮旧 publish job 用 workflow 级 `contents: write` 时能正常下载草稿附件。
+
+**误判更正**：此前一度怀疑「verify 在 builds 结束前抢跑、needs 被违反」。API 精确时间戳证伪：builds 10:42:39–10:47:42（缓存全热后每平台仅 3–5 分钟），verify 10:47:44 启动——最后一个 build 完成后 2 秒，needs 语义正常。教训：下结论前先取 API 的 per-job started_at/completed_at，不要用相对推算；同理 `git rev-parse <tag>` 对 annotated tag 返回的是 tag 对象 SHA（62cd601）而非 commit，不是异常。
+
+**决定**：verify-manifest job 整体删除（用户确认方向）。门禁三轮零捕获、两次绊倒发版，且理论收益（tauri-action 并发合并窗口缺平台）从未兑现；tauri-action 清单三轮全部完整。补偿：gitwave-release 技能发版链路加入「publish 前核对 latest.json 三平台键 + 签名非空」的人工步骤。
+
+**验证**：build.yml 删除后 js-yaml 解析 4 job 结构正确、prettier 全绿、全仓无 verify-manifest 残留；现有 draft v0.5.0（12 assets + latest.json，构建自 main 顶端）的清单本地核验通过，直接人工发布，无需第四轮 CI。
+
+**教训（review 检查单追加）**：① 权限收紧类改动必须核对被访问资源的可见性规则（draft release ↔ push 权限）；② 删 checkout 后逐工具排查隐式依赖（第二轮教训）；③ CI 结论以 API 时间戳为准，不以推测拼时间线。
+
 ## 📝 总体结论
 
 **CLEAN**（无 🔴；1 个 🟡、5 个 🟢）。
