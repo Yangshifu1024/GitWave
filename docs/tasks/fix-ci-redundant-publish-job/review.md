@@ -70,6 +70,14 @@
 
 其余一致性核对均通过：SKILL.md 两处措辞与 workflow 实际行为及「草稿转正后 `releases/latest/download/latest.json` 路由才生效」（latest 路由不含 draft）逐点吻合；plan.md 引用 `tauri.conf.json:59` 行号精确，endpoint 资产名与 tauri-action 写死的 `latest.json` 文件名一致；`createUpdaterArtifacts: true`（tauri.conf.json:46）确证 build job 会产出清单。
 
+## 复发记录（2026-08-30 · 第二轮）
+
+PR #9 合入后重打 tag 首跑，Verify release 挂：`failed to run git: fatal: not a git repository`。根因是 review 漏网：**无 checkout 的 job 里 `gh` 靠 cwd 的 git remote 推断仓库**，空工作区无 `.git` 直接死。审查时核对了 gh/node 预装与 token 权限，没推演「删 checkout 后工具对工作区的隐式依赖」这一层。
+
+修复：step env 加 `GH_REPO: ${{ github.repository }}`（显式指定，一行）。修复后新草稿 v0.5.0 的 latest.json 已用与 CI 逐字相同的门禁脚本本地验证通过。
+
+**教训（供后续 review 检查单）**：删 checkout / 改 job 工作区布局时，必须过一遍所有 step 工具的隐式假设——cwd 内容、git remote、env、镜像预装，缺一即显式补齐。
+
 ## 📝 总体结论
 
 **CLEAN**（无 🔴；1 个 🟡、5 个 🟢）。
