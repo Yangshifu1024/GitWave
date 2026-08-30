@@ -40,7 +40,15 @@
     },
     "tags": {
       "title": "Tags",
-      "empty": "No tags yet"
+      "empty": "No tags yet",
+      "menu": {
+        "delete": "Delete tag"
+      },
+      "deleteDialog": {
+        "title": "Delete Tag",
+        "description": "Delete tag \"{{name}}\" from your repository. The commit stays — only the tag reference is removed.",
+        "deleted": "Deleted tag {{name}}"
+      }
     },
     "reflog": {
       "empty": "No reflog entries",
