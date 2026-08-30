@@ -39,6 +39,10 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          # create-keychain defaults to ~300s auto-lock; a locked keychain makes
+          # codesign block on an unlock prompt no headless CI can answer
+          # (tauri-action#941). Extend the window to cover the whole build.
+          security set-keychain-settings -t 36000 -u build.keychain
           security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           rm certificate.p12
@@ -62,18 +66,14 @@ jobs:
           #!/bin/bash
           if [ -x /usr/bin/codesign.real ]; then REAL=/usr/bin/codesign.real; else REAL=/usr/bin/codesign; fi
           echo "[codesign-wrapper] real=$REAL args=$*" >&2
-          out=(--timestamp=http://timestamp.digicert.com)
-          skip=0
+          # pass explicit --timestamp through untouched (allows --timestamp=none
+          # diagnostics); inject DigiCert RFC3161 only when codesign would use
+          # its default Apple TSA, which GitHub egress throttles intermittently
           for a in "$@"; do
-            if [ "$skip" = 1 ]; then skip=0; continue; fi
-            case "$a" in
-              --timestamp=*) ;;
-              --timestamp) skip=1 ;;
-              *) out+=("$a") ;;
-            esac
+            case "$a" in --timestamp*) exec "$REAL" "$@" ;; esac
           done
-          echo "[codesign-wrapper] out=${out[*]}" >&2
-          exec "$REAL" "${out[@]}"
+          echo "[codesign-wrapper] out=--timestamp=http://timestamp.digicert.com $*" >&2
+          exec "$REAL" --timestamp=http://timestamp.digicert.com "$@"
           WRAPPER
           chmod +x "$HOME/.local/bin/codesign"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -88,13 +88,26 @@ jobs:
           else
             sudo cp "$HOME/.local/bin/codesign" /usr/bin/codesign
           fi
+          # fail fast: exercise the wrapper + DigiCert TSA before the long compile
+          cp /bin/echo /tmp/gw_sig_test
+          id_hash=$(security find-identity -v -p codesigning build.keychain | awk '$1 ~ /^[0-9]+\)$/ {print $2; exit}')
+          if perl -e 'alarm shift; exec @ARGV' 30 "$HOME/.local/bin/codesign" --force -s "$id_hash" --options runtime /tmp/gw_sig_test; then
+            echo "codesign + DigiCert TSA smoke test PASSED"
+          else
+            echo "::error::codesign could not complete via DigiCert TSA within 30s — TSA/network issue (keychain is unlocked and set no-timeout)"
+            exit 1
+          fi
       - name: frontend build
         run: npm run build
       - name: cargo build (compile phase)
         run: cargo build --manifest-path src-tauri/Cargo.toml --release
       - name: tauri build (bundle + sign + notarize, verbose)
-        run: perl -e 'alarm shift; exec @ARGV' 900 npm run tauri -- build --verbose
+        run: |
+          # belt and braces: the keychain must be unlocked when signing starts
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          perl -e 'alarm shift; exec @ARGV' 900 npm run tauri -- build --verbose
         env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
