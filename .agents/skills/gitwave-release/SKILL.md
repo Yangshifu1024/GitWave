@@ -7,7 +7,7 @@ description: GitWave 版本升级与发布同步流程。每当用户要升级/b
 
 将 GitWave 升级到新版本，并保持所有用户可见面一致。
 
-版本号硬编码在 4 处，同步不是洁癖而是**发版链路的硬约束**：CI 生成 updater 清单 latest.json 时断言 `tag === "v" + package.json 的 version`，不一致则 release job 直接失败。README 的 "Cutting a release" 小节是发版清单的 source of truth，动手前可对照。
+版本号硬编码在 4 处，同步不是洁癖而是**发版链路的硬约束**：CI 断言 `tag === "v" + package.json 的 version`（prepare job 门禁）；updater 清单 latest.json 由 tauri-action 在构建时生成上传，末尾 verify job 只校验不生成（version 对 tag、三平台键、signature/url 非空），任一不符则 job 失败。README 的 "Cutting a release" 小节是发版清单的 source of truth，动手前可对照。
 
 ## 步骤
 
@@ -49,4 +49,4 @@ cargo check --manifest-path src-tauri/Cargo.toml    # 锁文件同步 + 编译�
 ## 约束（来自 AGENTS.md，不可越过）
 
 - **改完即止**：禁止 commit / push / tag，这些由用户执行；提醒用户文件留在当前分支未提交即可。
-- 发版链路提醒（用户操作）：commit → 合入 main → `git tag -a vX.Y.Z && git push origin main vX.Y.Z` → CI 三平台构建出草稿 release → 手动 publish（publish 同时发布 latest.json，装了 updater 的老客户端即开始收到更新）。
+- 发版链路提醒（用户操作）：commit → 合入 main → `git tag -a vX.Y.Z && git push origin main vX.Y.Z` → CI 三平台构建出草稿 release（tauri-action 构建时生成并上传 latest.json，verify job 校验后停在 draft）→ 手动 publish（草稿转正后 latest.json 对 updater 生效，装了 updater 的老客户端即开始收到更新）。

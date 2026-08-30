@@ -152,72 +152,45 @@ jobs:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: --verbose
 
-  publish:
-    name: Publish release
+  verify-manifest:
+    name: Verify release
     needs: [prepare-release, build-macos, build-linux, build-windows]
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
-      - name: Download updater signatures
+      # tauri-action generates and uploads latest.json from the build jobs;
+      # this gate only verifies it — a missing platform or empty signature
+      # here would silently break auto-update for every installed client.
+      - name: Verify updater manifest (latest.json)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "${GITHUB_REF_NAME}" --dir sigs --pattern '*.sig'
-      - name: Build updater manifest (latest.json)
         run: |
+          gh release download "${GITHUB_REF_NAME}" --dir manifest --pattern 'latest.json'
           node - <<'NODE'
           const fs = require("fs");
-          const path = require("path");
 
-          // One updater manifest per release: maps each auto-updatable
-          // platform to its signed artifact. Exactly one .sig per platform
-          // is required — zero means the build didn't sign, two means the
-          // glob caught junk; both would silently break clients.
-          const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
-          const tag = process.env.GITHUB_REF_NAME;
-          const base = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${tag}`;
-
-          const readSig = (file) => {
-            const s = fs.readFileSync(file, "utf8").trim();
-            if (!s) throw new Error(`empty signature file: ${file}`);
-            return s;
-          };
-          const findSig = (re) => {
-            const hits = fs.readdirSync("sigs").filter((f) => re.test(f));
-            if (hits.length !== 1) {
-              throw new Error(`expected exactly one ${re} in sigs/, got ${hits.length}`);
-            }
-            return path.join("sigs", hits[0]);
-          };
-
-          const macSig = findSig(/^GitWave\.app\.tar\.gz\.sig$/);
-          const linuxSig = findSig(/\.AppImage\.sig$/);
-          const winSig = findSig(/-setup\.exe\.sig$/);
-
-          const manifest = {
-            version,
-            notes: `GitWave ${tag}`,
-            pub_date: new Date().toISOString(),
-            platforms: {
-              "darwin-aarch64": {
-                signature: readSig(macSig),
-                url: `${base}/${path.basename(macSig).replace(/\.sig$/, "")}`,
-              },
-              "linux-x86_64": {
-                signature: readSig(linuxSig),
-                url: `${base}/${path.basename(linuxSig).replace(/\.sig$/, "")}`,
-              },
-              "windows-x86_64": {
-                signature: readSig(winSig),
-                url: `${base}/${path.basename(winSig).replace(/\.sig$/, "")}`,
-              },
-            },
-          };
-          fs.writeFileSync("latest.json", `${JSON.stringify(manifest, null, 2)}\n`);
-          console.log(manifest);
+          if (!fs.existsSync("manifest/latest.json")) {
+            throw new Error(
+              "latest.json not found on the release — tauri-action did not upload the updater manifest",
+            );
+          }
+          const manifest = JSON.parse(fs.readFileSync("manifest/latest.json", "utf8"));
+          const expected = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+          if (manifest.version !== expected) {
+            throw new Error(`manifest version ${manifest.version} != ${expected}`);
+          }
+          if (!manifest.platforms) {
+            throw new Error("manifest has no platforms object");
+          }
+          for (const platform of ["darwin-aarch64", "linux-x86_64", "windows-x86_64"]) {
+            const entry = manifest.platforms[platform];
+            if (!entry) throw new Error(`manifest missing platform ${platform}`);
+            if (!entry.signature) throw new Error(`empty signature for ${platform}`);
+            if (!entry.url) throw new Error(`missing url for ${platform}`);
+          }
+          console.log(`latest.json OK for ${expected} (${Object.keys(manifest.platforms).join(", ")})`);
           NODE
-      - name: Upload updater manifest
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" latest.json --clobber
       # no auto-publish: the release stays a draft for human review —
       # check the assets, latest.json and release notes, then hit publish
