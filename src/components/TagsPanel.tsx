@@ -75,15 +75,17 @@ export function TagsPanel({
                       leading={<TagIcon size={12} />}
                       className="px-2"
                     >
-                      <span
-                        className="min-w-0 flex-1 truncate text-xs text-text-secondary"
-                        title={tag.annotation ?? tag.name}
-                      >
-                        {tag.name}
-                      </span>
-                      <span className="shrink-0 font-mono text-[11px] text-text-muted tabular-nums">
-                        {tag.sha.slice(0, 7)}
-                      </span>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span
+                          className="min-w-0 flex-1 truncate text-xs text-text-secondary"
+                          title={tag.annotation ?? tag.name}
+                        >
+                          {tag.name}
+                        </span>
+                        <span className="shrink-0 font-mono text-[11px] text-text-muted tabular-nums">
+                          ({tag.sha.slice(0, 7)})
+                        </span>
+                      </div>
                     </ListItem>
                   </div>
                 </ContextMenuTrigger>
