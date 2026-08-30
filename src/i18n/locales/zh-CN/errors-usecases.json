@@ -1,0 +1,80 @@
+{
+  "errors": {
+    "usecases": {
+      "repo": {
+        "open_failed": "打开仓库失败：{{error}}",
+        "no_active": "工作区中没有活动仓库",
+        "not_found": "仓库不存在：{{id}}"
+      },
+      "workspace": {
+        "name_empty": "工作区名称不能为空",
+        "not_found": "工作区不存在：{{id}}"
+      },
+      "clone": {
+        "dest_clear_failed": "清理目标目录失败：{{error}}"
+      },
+      "ai": {
+        "provider_unsupported": "不支持的 AI 提供商：{{provider}}",
+        "failover_provider_unsupported": "不支持的 AI 故障转移提供商：{{provider}}",
+        "provider_not_configured": "此工作区未配置 AI 提供商",
+        "offline_mode": "离线模式已开启——云端 AI 调用已禁用（请使用 Ollama 或在 AI 设置中关闭）",
+        "api_key_missing": "未配置 {{provider}} 的 API key",
+        "all_providers_failed": "所有提供商均失败——{{errors}}"
+      },
+      "health": {
+        "serialize_failed": "序列化健康报告失败：{{error}}"
+      },
+      "commit": {
+        "no_staged": "没有已暂存的变更——生成 commit message 前请先暂存文件",
+        "oid_invalid": "无效的 commit OID：{{error}}"
+      },
+      "file_diff": {
+        "from_oid_invalid": "无效的起始 OID：{{error}}",
+        "to_oid_invalid": "无效的目标 OID：{{error}}"
+      },
+      "branch": {
+        "not_found_after_create": "branch {{name}} 创建后未找到"
+      },
+      "pr": {
+        "no_base_branch": "未找到可用的 base branch（已尝试 origin/main、origin/master、main、master）——请显式选择 base branch",
+        "no_commits_yet": "仓库还没有任何 commit——没有可描述的内容",
+        "no_common_ancestor": "HEAD 与 {{base_name}} 之间没有共同祖先",
+        "no_commits_ahead": "没有领先于 {{base_name}} 的 commit——没有可描述的内容"
+      },
+      "palette": {
+        "empty_request": "Palette 请求为空",
+        "no_json": "AI 未返回 JSON action——请尝试换一种表述",
+        "malformed_json": "AI 返回了格式错误的 JSON——请重试",
+        "action_forbidden": "{{hinted}}——commit、push、merge、rebase 永远不会由 palette 驱动",
+        "param_missing": "AI action「{{action}}」缺少参数「{{key}}」",
+        "context_serialize_failed": "序列化 palette 上下文失败：{{error}}"
+      },
+      "rebase": {
+        "dirty_worktree": "rebase 需要干净的 worktree——请先 commit 或 stash 你的更改",
+        "no_new_head": "rebase 完成后没有新的 HEAD"
+      },
+      "lfs": {
+        "not_installed": "未安装 git lfs——请安装 Git LFS（https://git-lfs.com）并重启 GitWave"
+      },
+      "gitignore": {
+        "read_failed": "读取 .gitignore 失败：{{error}}",
+        "write_failed": "写入 .gitignore 失败：{{error}}"
+      },
+      "transfer": {
+        "read_failed": "读取传输文件失败：{{error}}",
+        "invalid": "无效的传输文件：{{error}}",
+        "version_unsupported": "不支持的传输文件版本：{{version}}",
+        "serialize_failed": "序列化工作区失败：{{error}}",
+        "write_failed": "写入传输文件失败：{{error}}",
+        "workspace_vanished": "导入的工作区已消失"
+      },
+      "test": {
+        "network": "网络错误（测试）",
+        "protocol": "协议错误（测试）",
+        "credential": "凭证错误（测试）",
+        "unknown": "未知错误（测试）",
+        "keychain_unavailable": "钥匙串不可用"
+      }
+    }
+  }
+}

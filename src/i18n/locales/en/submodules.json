@@ -1,0 +1,27 @@
+{
+  "submodules": {
+    "title": "Submodules",
+    "empty": "No submodules",
+    "actions": {
+      "init": "Init",
+      "update": "Update",
+      "sync": "Sync",
+      "deinit": "Deinit"
+    },
+    "status": {
+      "initialized": "Submodule {{name}} initialized",
+      "updated": "Submodule {{name}} updated",
+      "added": "Submodule added at {{path}} — staged, ready to commit",
+      "deactivated": "Submodule {{name}} deactivated"
+    },
+    "add": {
+      "button": "Add submodule",
+      "urlPlaceholder": "Submodule URL",
+      "pathPlaceholder": "Path, e.g. libs/util"
+    },
+    "deinit": {
+      "title": "Deinit submodule {{name}}?",
+      "description": "Unregisters it from .git/config. The checkout is left untouched; the entry stays in .gitmodules. Run Init to reactivate."
+    }
+  }
+}

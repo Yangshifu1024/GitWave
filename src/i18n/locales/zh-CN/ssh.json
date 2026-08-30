@@ -1,0 +1,30 @@
+{
+  "ssh": {
+    "actions": {
+      "testConnection": "测试 SSH 连接",
+      "addKey": "添加 SSH 密钥",
+      "cancel": "取消",
+      "add": "添加",
+      "close": "关闭"
+    },
+    "add": {
+      "keyPath": "密钥路径",
+      "hint": "将密钥添加到 ssh-agent（ssh-add）。如果密钥设有口令保护，agent 可能会通过终端提示输入。"
+    },
+    "test": {
+      "host": "主机",
+      "user": "用户",
+      "success": "成功",
+      "failed": "失败",
+      "testing": "测试中…",
+      "run": "运行测试"
+    },
+    "loading": "正在加载密钥…",
+    "loadFailed": "加载失败：{{message}}",
+    "empty": {
+      "title": "ssh-agent 中没有密钥",
+      "description": "添加密钥以启用 SSH 克隆和推送。"
+    },
+    "removeKey": "移除 {{path}}"
+  }
+}

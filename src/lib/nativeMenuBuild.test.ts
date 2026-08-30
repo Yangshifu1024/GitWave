@@ -5,8 +5,16 @@ import type {
   SubmenuOptions,
 } from "@tauri-apps/api/menu";
 
+import { initI18n } from "@/i18n";
+
 import { buildAppMenuSpec, type AppMenuItemHandler, type MenuGating } from "./appMenuSpec";
 import { buildNativeAppMenuOptions } from "./nativeMenuBuild";
+
+// Labels translate at spec-build time; these assertions pin the English set.
+// Top-level await keeps the locale deterministic regardless of the host's
+// system language.
+const i18n = initI18n();
+if (i18n.language !== "en") await i18n.changeLanguage("en");
 
 const ACTIVE: MenuGating = {
   noWorkspace: false,

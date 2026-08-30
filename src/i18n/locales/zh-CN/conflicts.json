@@ -1,0 +1,35 @@
+{
+  "conflicts": {
+    "title": "合并冲突（{{total}}）",
+    "abortMerge": "中止合并",
+    "close": "关闭",
+    "fileListAria": "冲突文件列表",
+    "emptyList": "没有待解决的冲突路径。就绪后请在工作副本（Working Copy）中提交这次合并。",
+    "selectFile": "请选择一个冲突文件",
+    "prev": "上一个冲突",
+    "next": "下一个冲突",
+    "noConflicts": "无冲突",
+    "conflictCount_one": "{{count}} 个冲突",
+    "conflictCount_other": "{{count}} 个冲突",
+    "useOurs": "使用我方",
+    "useTheirs": "使用对方",
+    "explain": "AI 解释",
+    "explainTitle": "AI 解释（仅作建议）",
+    "explainFallback": "主 AI 提供方调用失败——响应由 {{provider}} 提供",
+    "markResolved": "标记为已解决",
+    "sides": {
+      "ours": "我方",
+      "base": "基准",
+      "theirs": "对方",
+      "missing": "（缺失）"
+    },
+    "editorAria": "解决后的文件内容",
+    "explainHeading": "AI 解释（仅供参考，不会自动应用）",
+    "discard": {
+      "title": "丢弃未解决的编辑？",
+      "description": "编辑器中的内容与初始载入的版本不一致。现在关闭将丢弃手动编辑——如需保留，请使用「标记为已解决」。",
+      "keepEditing": "继续编辑",
+      "confirm": "丢弃编辑"
+    }
+  }
+}

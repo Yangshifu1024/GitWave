@@ -1,0 +1,35 @@
+{
+  "conflicts": {
+    "title": "Merge conflicts ({{total}})",
+    "abortMerge": "Abort merge",
+    "close": "Close",
+    "fileListAria": "Conflicted files",
+    "emptyList": "No conflicted paths left. Commit the merge from Working Copy when ready.",
+    "selectFile": "Select a conflicted file",
+    "prev": "Previous conflict",
+    "next": "Next conflict",
+    "noConflicts": "No conflicts",
+    "conflictCount_one": "{{count}} conflict",
+    "conflictCount_other": "{{count}} conflicts",
+    "useOurs": "Use ours",
+    "useTheirs": "Use theirs",
+    "explain": "Explain",
+    "explainTitle": "AI explain (advice only)",
+    "explainFallback": "Primary AI provider failed — response served by {{provider}}",
+    "markResolved": "Mark resolved",
+    "sides": {
+      "ours": "Ours",
+      "base": "Base",
+      "theirs": "Theirs",
+      "missing": "(missing)"
+    },
+    "editorAria": "Resolved file content",
+    "explainHeading": "AI explanation (reference only — not applied)",
+    "discard": {
+      "title": "Discard unresolved edits?",
+      "description": "The editor content differs from the version it was seeded with. Closing now discards manual edits — use Mark resolved to keep them.",
+      "keepEditing": "Keep editing",
+      "confirm": "Discard edits"
+    }
+  }
+}

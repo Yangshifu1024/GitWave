@@ -1,0 +1,27 @@
+{
+  "submodules": {
+    "title": "子模块",
+    "empty": "暂无子模块",
+    "actions": {
+      "init": "初始化",
+      "update": "更新",
+      "sync": "同步",
+      "deinit": "停用"
+    },
+    "status": {
+      "initialized": "已初始化子模块 {{name}}",
+      "updated": "已更新子模块 {{name}}",
+      "added": "已在 {{path}} 添加子模块 —— 已暂存，可以提交",
+      "deactivated": "已停用子模块 {{name}}"
+    },
+    "add": {
+      "button": "添加子模块",
+      "urlPlaceholder": "子模块 URL",
+      "pathPlaceholder": "路径，如 libs/util"
+    },
+    "deinit": {
+      "title": "停用子模块 {{name}}？",
+      "description": "会将其从 .git/config 中注销；已检出的内容保持不变，.gitmodules 中的条目也会保留。执行初始化即可重新启用。"
+    }
+  }
+}

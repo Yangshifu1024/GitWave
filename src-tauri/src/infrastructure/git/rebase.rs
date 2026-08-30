@@ -6,6 +6,7 @@
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -54,7 +55,7 @@ pub fn rebase_branch(repo: &Repository, upstream: &str) -> Result<RebaseResult> 
         .head()
         .map_err(map_git_err)?
         .target()
-        .ok_or_else(|| AppError::Protocol("HEAD is unborn".into()))?;
+        .ok_or_else(|| AppError::protocol(codes::git::HEAD_UNBORN, "HEAD is unborn"))?;
     let upstream_obj = repo.revparse_single(upstream).map_err(map_git_err)?;
     // `Object::from` doesn't exist on Object; peel to the commit form
     // and grab the Oid.
@@ -115,9 +116,9 @@ pub fn rebase_branch(repo: &Repository, upstream: &str) -> Result<RebaseResult> 
                     Err(e) => {
                         // Conflict; try to extract the conflicted path
                         // from the current index.
-                        let wd = repo
-                            .workdir()
-                            .ok_or_else(|| AppError::Unknown("repo has no workdir".into()))?;
+                        let wd = repo.workdir().ok_or_else(|| {
+                            AppError::protocol(codes::git::BARE_REPO, "repo has no workdir")
+                        })?;
                         let idx = git2::Repository::open(wd)
                             .map_err(map_git_err)?
                             .index()
@@ -175,13 +176,14 @@ pub fn finalize_rebase(repo: &Repository, oid: &str) -> Result<()> {
     let oid = git2::Oid::from_str(oid).map_err(map_git_err)?;
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
-        return Err(AppError::Protocol(
-            "cannot finalize rebase on detached HEAD".into(),
+        return Err(AppError::protocol(
+            codes::git::FINALIZE_DETACHED_HEAD,
+            "cannot finalize rebase on detached HEAD",
         ));
     }
     let refname = head
         .name()
-        .ok_or_else(|| AppError::Protocol("branch ref has no name".into()))?
+        .ok_or_else(|| AppError::protocol(codes::git::REF_NO_NAME, "branch ref has no name"))?
         .to_string();
     let mut reference = repo.find_reference(&refname).map_err(map_git_err)?;
     reference.set_target(oid, "rebase").map_err(map_git_err)?;
@@ -192,7 +194,11 @@ pub fn finalize_rebase(repo: &Repository, oid: &str) -> Result<()> {
 }
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[cfg(test)]

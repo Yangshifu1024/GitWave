@@ -1,0 +1,24 @@
+{
+  "updater": {
+    "title": {
+      "available": "Update available",
+      "check": "Update check",
+      "installed": "Update installed"
+    },
+    "availableSuffix": " is available.",
+    "runningVersion": "You are running v{{version}}.",
+    "viewReleaseNotes": "View release notes",
+    "manualDownloadNote": "This copy was installed from a .deb/.rpm package, which cannot replace itself. Please grab the new package from the releases page — the AppImage build updates in-app.",
+    "downloadingAria": "Downloading update",
+    "restartToApply": "Restart GitWave to finish applying the update.",
+    "actions": {
+      "later": "Later",
+      "downloadInstall": "Download & Install",
+      "openReleases": "Open Releases Page",
+      "hide": "Hide",
+      "restartNow": "Restart Now",
+      "close": "Close",
+      "tryAgain": "Try Again"
+    }
+  }
+}

@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { initI18n } from "@/i18n";
+
 import { operationLabel, useSyncStore } from "./syncStore";
+
+// Labels translate at read time; these assertions pin the English set.
+// Top-level await keeps the locale deterministic regardless of the host's
+// system language.
+const i18n = initI18n();
+if (i18n.language !== "en") await i18n.changeLanguage("en");
 
 describe("syncStore op lifecycle", () => {
   beforeEach(() => {

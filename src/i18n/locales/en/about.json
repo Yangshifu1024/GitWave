@@ -1,0 +1,9 @@
+{
+  "about": {
+    "title": "About GitWave",
+    "appIconAlt": "GitWave app icon",
+    "slogan": "Local-first Git client with AI collaboration.",
+    "appData": "App Data",
+    "github": "GitHub"
+  }
+}

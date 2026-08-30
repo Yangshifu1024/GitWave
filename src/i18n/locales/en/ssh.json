@@ -1,0 +1,30 @@
+{
+  "ssh": {
+    "actions": {
+      "testConnection": "Test SSH connection",
+      "addKey": "Add SSH key",
+      "cancel": "Cancel",
+      "add": "Add",
+      "close": "Close"
+    },
+    "add": {
+      "keyPath": "Key path",
+      "hint": "Adds the key to ssh-agent (ssh-add). For passphrase-protected keys, the agent may prompt via terminal."
+    },
+    "test": {
+      "host": "Host",
+      "user": "User",
+      "success": "Success",
+      "failed": "Failed",
+      "testing": "Testing…",
+      "run": "Run test"
+    },
+    "loading": "Loading keys…",
+    "loadFailed": "Failed to load: {{message}}",
+    "empty": {
+      "title": "No keys in ssh-agent",
+      "description": "Add a key to enable SSH clone and push."
+    },
+    "removeKey": "Remove {{path}}"
+  }
+}

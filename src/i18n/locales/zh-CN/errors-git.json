@@ -1,0 +1,109 @@
+{
+  "errors": {
+    "git": {
+      "raw": "Git 错误：{{detail}}",
+      "error": "Git 操作失败：{{error}}",
+      "auth_failed": "认证失败：{{error}}",
+      "fetch_auth_failed": "获取认证失败：{{error}}",
+      "fetch_failed": "获取失败：{{error}}",
+      "push_auth_failed": "推送认证失败：{{error}}",
+      "push_failed": "推送失败：{{error}}",
+      "delete_remote_branch_failed": "删除远程分支失败：{{error}}",
+      "remote_no_url": "远程「{{name}}」没有配置 URL",
+      "remote": {
+        "not_found": "远程不存在：{{error}}"
+      },
+      "remote_exists": "远程已存在：{{error}}",
+      "remote_duplicate": "远程「{{name}}」已存在",
+      "remote_name_empty": "远程名不能为空",
+      "remote_url_empty": "远程 URL 不能为空",
+      "remote_op_failed": "远程操作失败：{{error}}",
+      "push_detached_head": "HEAD 处于 detached 状态，无法推送——请先检出分支",
+      "pull_detached_head": "HEAD 处于 detached 状态，无法拉取——请先检出分支",
+      "stash_reapply_failed": "拉取已完成，但贮藏未能重新应用，已保留该贮藏：{{error}}",
+      "stash_restore_failed": "{{error}}；贮藏恢复同样失败，已保留该贮藏",
+      "cannot_resolve_ref": "无法解析「{{ref}}」：{{error}}",
+      "pull_dirty_worktree": "拉取需要干净的工作区——请勾选「贮藏并重新应用」，或先提交更改",
+      "pull_rebase_conflicts": "拉取（变基方式）遇到冲突；本地提交未被改动",
+      "pull_needs_merge": "拉取需要合并——请启用变基（Rebase），或在分支面板使用合并",
+      "pull_unexpected": "拉取进入了意外的合并状态",
+      "rebase_no_new_head": "变基结束但没有产生新 HEAD",
+      "commit_message_empty": "提交信息不能为空",
+      "nothing_to_commit": "没有可提交的内容",
+      "path_escapes_worktree": "路径越出了工作区：{{path}}",
+      "discard_conflicted": "存在冲突，请先解决再丢弃：{{path}}",
+      "invalid_ignore_pattern": "忽略规则无效",
+      "read_gitignore": "读取 .gitignore 失败：{{error}}",
+      "write_gitignore": "写入 .gitignore 失败：{{error}}",
+      "reset_detached_head": "HEAD 处于 detached 状态——请先检出分支再重置",
+      "bare_repo": "这是一个裸仓库，没有工作区",
+      "invalid_oid": "提交 id 无效：{{error}}",
+      "commit_not_found": "提交不存在：{{oid}}",
+      "fs_error": "文件系统错误：{{error}}",
+      "head_unborn": "HEAD 还没有任何提交",
+      "dirty_worktree": "工作区不干净——请先提交或贮藏更改",
+      "read_gitattributes": "读取 .gitattributes 失败：{{error}}",
+      "write_gitattributes": "写入 .gitattributes 失败：{{error}}",
+      "revert_merge_commit": "不支持 revert merge commit——请使用显式的反向合并",
+      "revert_conflicts": "revert 在以下路径遇到冲突：{{conflicts}}",
+      "cherry_pick_conflicts": "cherry-pick 在以下路径遇到冲突：{{conflicts}}",
+      "cherry_pick_no_changes": "cherry-pick 没有产生变更——该提交已包含在当前分支中",
+      "bad_oid": "提交 id 无效 {{oid}}：{{error}}",
+      "apply_conflict": "应用 {{commit}} 时发生冲突：{{conflicts}}",
+      "pause_serialize": "暂停状态序列化失败：{{error}}",
+      "pause_write": "暂停状态写入失败：{{error}}",
+      "pause_parse": "暂停状态解析失败：{{error}}",
+      "not_paused": "当前没有处于 edit 暂停中的交互式变基",
+      "squash_first_commit": "不能对 todo 列表的第一个提交执行 squash / fixup",
+      "finalize_detached_head": "HEAD 处于 detached 状态，无法完成变基",
+      "ref_no_name": "分支引用没有名称",
+      "ref_not_found": "引用不存在：{{reference}}",
+      "reflog_empty": "该引用没有 reflog 记录：{{reference}}",
+      "branch_no_target": "分支 {{branch}} 没有指向任何提交",
+      "not_a_repo": "不是 git 仓库：{{path}}",
+      "open_failed": "打开仓库失败：{{path}}：{{error}}",
+      "lfs": {
+        "invalid_pattern": "LFS 跟踪模式无效",
+        "pattern_spaces": "LFS 模式不能包含空格——请使用形如 *.psd 或 assets/** 的 glob",
+        "pattern_comment": "LFS 模式不能以「#」开头（那是 .gitattributes 的注释）",
+        "cli_failed": "git lfs 命令执行失败：{{error}}",
+        "install_failed": "git lfs install 失败：{{stderr}}"
+      },
+      "submodule": {
+        "not_found": "子模块不存在：{{name}}",
+        "args_required": "子模块 URL 与路径均为必填",
+        "path_invalid": "子模块路径必须是仓库内的相对路径",
+        "add_failed": "添加子模块失败：{{error}}",
+        "clone_failed": "子模块克隆失败：{{error}}——已删除克隆到一半的目录，但 .gitmodules 可能已被修改（丢弃该文件即可还原）",
+        "not_initialized": "子模块未初始化：{{name}}"
+      },
+      "hook": {
+        "invalid_name": "hook 名称无效：{{name}}",
+        "read_failed": "读取 hook 失败：{{error}}",
+        "write_failed": "写入 hook 失败：{{error}}",
+        "chmod_failed": "设置 hook 执行权限失败：{{error}}"
+      },
+      "init": {
+        "exists": "该路径已经是仓库：{{path}}",
+        "failed": "初始化仓库失败：{{error}}"
+      },
+      "clone": {
+        "auth_failed": "克隆认证失败：{{url}}：{{error}}",
+        "not_found": "仓库不存在：{{url}}",
+        "network": "克隆 {{url}} 时发生网络错误：{{error}}"
+      },
+      "worktree": {
+        "remove_main": "主 worktree 不能删除"
+      },
+      "stash": {
+        "invalid_oid": "贮藏 id 无效：{{error}}"
+      },
+      "branch": {
+        "delete_checked_out": "不能删除当前检出的分支：{{name}}"
+      },
+      "tag": {
+        "name_empty": "标签名不能为空"
+      }
+    }
+  }
+}

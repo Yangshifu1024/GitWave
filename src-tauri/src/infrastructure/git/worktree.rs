@@ -5,10 +5,15 @@ use std::path::Path;
 use git2::{Repository, WorktreeAddOptions, WorktreePruneOptions};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::domain::worktree::WorktreeInfo;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 pub fn list_worktrees(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
@@ -97,7 +102,10 @@ pub fn add_worktree(
 
 pub fn remove_worktree(repo: &Repository, name: &str) -> Result<()> {
     if name == "(main)" {
-        return Err(AppError::Protocol("cannot remove the main worktree".into()));
+        return Err(AppError::protocol(
+            codes::git::REMOVE_MAIN_WORKTREE,
+            "cannot remove the main worktree",
+        ));
     }
     let wt = repo.find_worktree(name).map_err(map_git_err)?;
     let mut opts = WorktreePruneOptions::new();

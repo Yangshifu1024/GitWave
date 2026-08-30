@@ -1,0 +1,46 @@
+{
+  "menu": {
+    "menus": {
+      "file": "File",
+      "workspace": "Workspace",
+      "repository": "Repository",
+      "branch": "Branch",
+      "edit": "Edit",
+      "window": "Window"
+    },
+    "app": {
+      "aboutGitWave": "About GitWave",
+      "checkUpdates": "Check for Updates…",
+      "settings": "Settings…"
+    },
+    "file": {
+      "settings": { "label": "Settings", "text": "Settings" },
+      "about": { "label": "About", "text": "About" },
+      "checkUpdates": { "label": "Check for Updates", "text": "Check for updates" },
+      "quit": { "label": "Exit", "text": "Exit" }
+    },
+    "workspace": {
+      "new": { "label": "New", "text": "New workspace" },
+      "rename": { "label": "Rename", "text": "Rename workspace" },
+      "ai": { "label": "AI", "text": "AI provider" },
+      "export": { "label": "Export", "text": "Export workspace" },
+      "import": { "label": "Import", "text": "Import workspace" },
+      "delete": { "label": "Delete", "text": "Delete workspace" }
+    },
+    "repository": {
+      "init": { "label": "Init", "text": "Initialize new repo" },
+      "clone": { "label": "Clone", "text": "Clone remote repo" },
+      "add": { "label": "Add", "text": "Add existing local repo" },
+      "fetch": { "label": "Fetch", "text": "Fetch" },
+      "lfs": { "label": "LFS", "text": "Git LFS — track large files" },
+      "hooks": { "label": "Hooks", "text": "Git hooks editor" },
+      "worktreeNew": { "label": "New worktree", "text": "Create worktree" }
+    },
+    "branch": {
+      "new": { "label": "New", "text": "New branch" },
+      "pull": { "label": "Pull", "text": "Pull" },
+      "push": { "label": "Push", "text": "Push" },
+      "pr": { "label": "PR", "text": "AI PR description for the current branch" }
+    }
+  }
+}

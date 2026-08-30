@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::Connection;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 /// Resolve the platform-specific state directory for GitWave.
 ///
@@ -15,16 +16,25 @@ use crate::domain::error::{AppError, Result};
 /// Linux: `$XDG_DATA_HOME/GitWave` (or `~/.local/share/GitWave`)
 /// Windows: `%APPDATA%/GitWave`
 pub fn state_dir() -> Result<PathBuf> {
-    let base = dirs::data_dir()
-        .ok_or_else(|| AppError::Permission("could not resolve user data directory".into()))?;
+    let base = dirs::data_dir().ok_or_else(|| {
+        AppError::permission(
+            codes::infra::DATA_DIR_RESOLVE,
+            "could not resolve user data directory",
+        )
+    })?;
     let dir = base.join("GitWave");
     ensure_dir(&dir)?;
     Ok(dir)
 }
 
 fn ensure_dir(dir: &Path) -> Result<()> {
-    std::fs::create_dir_all(dir)
-        .map_err(|e| AppError::Permission(format!("create {}: {e}", dir.display())))
+    std::fs::create_dir_all(dir).map_err(|e| {
+        AppError::permission_with(
+            codes::infra::DATA_DIR_CREATE,
+            format!("create {}: {e}", dir.display()),
+            &[("dir", dir.display().to_string()), ("error", e.to_string())],
+        )
+    })
 }
 
 /// Open the SQLite database at `<state_dir>/state.db`, configuring WAL
@@ -44,7 +54,11 @@ pub fn open() -> Result<Connection> {
 }
 
 fn map_sqlite_err(e: rusqlite::Error) -> AppError {
-    AppError::Unknown(format!("sqlite: {e}"))
+    AppError::unknown_with(
+        codes::infra::SQLITE_ERROR,
+        format!("sqlite: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[cfg(test)]

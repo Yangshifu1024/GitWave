@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Check, CircleAlert, Plus, X } from "lucide-react";
 import { formatAppError, lfsInstall, lfsStatus, lfsTrack, lfsUntrack } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +22,7 @@ export function LfsPanel({
   open: boolean;
   onClose: () => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const [pattern, setPattern] = useState("");
   const [error, setError] = useState<string | null>(null);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
@@ -40,7 +42,7 @@ export function LfsPanel({
   const installMut = useMutation({
     mutationFn: () => lfsInstall(workspaceId),
     onSuccess: () => {
-      setStatus("LFS filters wired into this repository");
+      setStatus(t("repo.lfs.installDone"));
       refresh();
     },
     onError: (e) => setError(formatAppError(e)),
@@ -49,7 +51,7 @@ export function LfsPanel({
   const trackMut = useMutation({
     mutationFn: () => {
       const trimmed = pattern.trim();
-      if (!trimmed) throw new Error("enter a pattern first");
+      if (!trimmed) throw new Error(t("repo.lfs.patternRequired"));
       return lfsTrack(workspaceId, trimmed);
     },
     onSuccess: () => {
@@ -74,8 +76,8 @@ export function LfsPanel({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title="Git LFS"
-      description="Track large files with Git LFS. Patterns are stored in .gitattributes."
+      title={t("repo.lfs.title")}
+      description={t("repo.lfs.description")}
       size="sm"
     >
       <div className="flex flex-col gap-3">
@@ -83,8 +85,9 @@ export function LfsPanel({
           <p className="flex items-start gap-1.5 rounded-md bg-bg-secondary px-2 py-1.5 text-xs text-text-secondary">
             <CircleAlert size={14} className="mt-0.5 shrink-0 text-warning" />
             <span>
-              <code>git lfs</code> was not found on PATH. Install Git LFS (
-              <span className="font-mono">https://git-lfs.com</span>) to commit large files.
+              <code>git lfs</code> {t("repo.lfs.notFoundBefore")}
+              <span className="font-mono">https://git-lfs.com</span>
+              {t("repo.lfs.notFoundAfter")}
             </span>
           </p>
         ) : null}
@@ -92,7 +95,7 @@ export function LfsPanel({
         {status?.available ? (
           status.installed ? (
             <p className="flex items-center gap-1.5 text-xs text-success">
-              <Check size={14} /> LFS filters are wired into this repository
+              <Check size={14} /> {t("repo.lfs.installedNote")}
             </p>
           ) : (
             <Button
@@ -102,7 +105,7 @@ export function LfsPanel({
               disabled={busy}
               onClick={() => installMut.mutate()}
             >
-              Install LFS in this repository
+              {t("repo.lfs.installButton")}
             </Button>
           )
         ) : null}
@@ -120,8 +123,8 @@ export function LfsPanel({
                     variant="ghost"
                     size="sm"
                     className="p-1 text-text-muted hover:text-danger"
-                    aria-label={`Stop tracking ${p}`}
-                    title="Stop tracking"
+                    aria-label={t("repo.lfs.stopTrackingName", { pattern: p })}
+                    title={t("repo.lfs.stopTracking")}
                     disabled={busy}
                     onClick={() => untrackMut.mutate(p)}
                   >
@@ -130,7 +133,7 @@ export function LfsPanel({
                 </div>
               ))
             ) : (
-              <p className="text-xs text-text-muted italic">No LFS patterns tracked yet.</p>
+              <p className="text-xs text-text-muted italic">{t("repo.lfs.noPatterns")}</p>
             )}
           </div>
 
@@ -144,7 +147,7 @@ export function LfsPanel({
             <Input
               value={pattern}
               onChange={setPattern}
-              placeholder="Pattern, e.g. *.psd or assets/**"
+              placeholder={t("repo.lfs.patternPlaceholder")}
               disabled={busy}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -155,7 +158,7 @@ export function LfsPanel({
             />
             <Button type="submit" variant="secondary" size="sm" disabled={busy || !pattern.trim()}>
               <Plus size={13} />
-              Track
+              {t("repo.lfs.track")}
             </Button>
           </form>
         </div>

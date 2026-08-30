@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { Activity, Loader2, Sparkles } from "lucide-react";
 
 import { explainHealth, formatAppError, getHealth, type HealthReport } from "@/lib/api";
@@ -42,43 +44,52 @@ function MetricRow({
   );
 }
 
-function renderReport(report: HealthReport): React.JSX.Element {
+function renderReport(report: HealthReport, t: TFunction): React.JSX.Element {
   const large = report.large_files.map((f) => `${f.path} (${mb(f.size_bytes)})`).join(", ");
   return (
     <>
       <MetricRow
-        label="Unpushed"
+        label={t("health.metrics.unpushed")}
         value={
           report.unpushed === null
-            ? "no upstream"
+            ? t("health.values.noUpstream")
             : report.unpushed === 0
-              ? "in sync"
-              : `${report.unpushed} commits`
+              ? t("health.values.inSync")
+              : t("health.values.unpushedCommits", { n: report.unpushed })
         }
         warn={report.unpushed !== null && report.unpushed > 0}
       />
       <MetricRow
-        label="Conflict residue"
-        value={report.conflict_residue.length ? report.conflict_residue.join(", ") : "none"}
+        label={t("health.metrics.conflictResidue")}
+        value={
+          report.conflict_residue.length ? report.conflict_residue.join(", ") : t("common.none")
+        }
         warn={report.conflict_residue.length > 0}
-        detail="Leftover MERGE_HEAD / REVERT_HEAD / CHERRY_PICK_HEAD state files"
+        detail={t("health.details.conflictResidue")}
       />
       <MetricRow
-        label="Dirty files"
+        label={t("health.metrics.dirtyFiles")}
         value={String(report.dirty_files)}
         warn={report.dirty_files > 0}
       />
       <MetricRow
-        label="Stale branches"
-        value={report.stale_branches.length ? report.stale_branches.join(", ") : "none (30 days)"}
+        label={t("health.metrics.staleBranches")}
+        value={
+          report.stale_branches.length
+            ? report.stale_branches.join(", ")
+            : t("health.values.noneStale")
+        }
         warn={report.stale_branches.length > 0}
       />
       <MetricRow
-        label="Large files"
-        value={large || "none (>1 MB)"}
+        label={t("health.metrics.largeFiles")}
+        value={large || t("health.values.noneLarge")}
         warn={report.large_files.length > 0}
       />
-      <MetricRow label="Branches / tags" value={`${report.branch_count} / ${report.tag_count}`} />
+      <MetricRow
+        label={t("health.metrics.branchesTags")}
+        value={`${report.branch_count} / ${report.tag_count}`}
+      />
     </>
   );
 }
@@ -88,6 +99,7 @@ function renderReport(report: HealthReport): React.JSX.Element {
  * AI summary (advice only). The numbers never depend on AI availability.
  */
 export function HealthPanel(): React.JSX.Element {
+  const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
@@ -122,14 +134,14 @@ export function HealthPanel(): React.JSX.Element {
   return (
     <div className="flex flex-col gap-1 px-1 pb-1">
       {isLoading ? (
-        <p className="px-2 py-1 text-xs text-text-muted italic">Measuring…</p>
+        <p className="px-2 py-1 text-xs text-text-muted italic">{t("health.measuring")}</p>
       ) : report ? (
         <div className="flex flex-col">
           <div className="flex items-center gap-2 px-2 pt-1">
             <Activity size={12} className="text-text-muted" />
-            <span className="text-[11px] font-medium text-text-secondary">Repo health</span>
+            <span className="text-[11px] font-medium text-text-secondary">{t("health.title")}</span>
           </div>
-          {renderReport(report)}
+          {renderReport(report, t)}
         </div>
       ) : null}
 
@@ -142,7 +154,7 @@ export function HealthPanel(): React.JSX.Element {
           onClick={runSummary}
         >
           {aiBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-          {aiBusy ? "Summarizing…" : "AI summary"}
+          {aiBusy ? t("health.summarizing") : t("health.aiSummary")}
         </Button>
       </div>
 
@@ -150,7 +162,7 @@ export function HealthPanel(): React.JSX.Element {
       <Modal
         open={aiText !== null}
         onOpenChange={(o) => !o && setAiText(null)}
-        title="AI summary"
+        title={t("health.aiSummary")}
         size="md"
       >
         <p className="text-xs leading-5 whitespace-pre-wrap text-text-secondary">{aiText}</p>

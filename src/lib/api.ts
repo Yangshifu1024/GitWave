@@ -8,6 +8,17 @@
 // `workspace_id` Rust field to `workspaceId` JS key).
 
 import { invoke } from "@tauri-apps/api/core";
+import i18next from "i18next";
+
+import { readStoredAiLanguage } from "@/i18n/aiLanguage";
+
+/**
+ * The AI reply-language preference rides every prose-producing AI command
+ * (F010); Rust sanitizes and appends a reply directive to the prompt.
+ */
+function aiLanguage(): string | null {
+  return readStoredAiLanguage();
+}
 
 export interface PromptTemplates {
   commit: string | null;
@@ -87,6 +98,10 @@ export interface AppError {
   category: string;
   message: string;
   trace_id: string;
+  /** Stable i18n code ("area.name") from src-tauri error_codes; optional. */
+  code?: string;
+  /** Interpolation params for the translated message. */
+  params?: Record<string, string>;
 }
 
 export interface SshKey {
@@ -102,11 +117,26 @@ export interface SshTestResult {
   message: string;
 }
 
+/**
+ * Single rendering point for backend errors (ADR-0006): with a stable
+ * `code`, look up `errors.<code>` in the active locale (interpolating
+ * `params`); anything without a translation falls back to the English
+ * `category: message` text from Rust. I18next reserved option names are
+ * stripped so a hostile/misaligned param cannot hijack the lookup.
+ */
 export function formatAppError(err: unknown): string {
   if (err && typeof err === "object") {
     const e = err as Partial<AppError>;
     if (typeof e.message === "string" && typeof e.category === "string") {
-      return `${e.category}: ${e.message}`;
+      const fallback = `${e.category}: ${e.message}`;
+      if (typeof e.code === "string" && e.code.length > 0) {
+        const params = { ...e.params };
+        delete params.ns;
+        delete params.lng;
+        delete params.defaultValue;
+        return i18next.t(`errors.${e.code}`, { ...params, defaultValue: fallback });
+      }
+      return fallback;
     }
   }
   return String(err);
@@ -183,7 +213,10 @@ export function probeOllama(baseUrl?: string): Promise<string[]> {
 }
 
 export function generateCommitMessage(workspaceId: string): Promise<AiGenerateOutcome> {
-  return invoke<AiGenerateOutcome>("cmd_generate_commit_message", { workspaceId });
+  return invoke<AiGenerateOutcome>("cmd_generate_commit_message", {
+    workspaceId,
+    language: aiLanguage(),
+  });
 }
 
 /** Active repo's `.gitwave/AI.md` content, or null when absent. */
@@ -202,12 +235,17 @@ export function generatePrDescription(
   return invoke<PrDescriptionOutcome>("cmd_generate_pr_description", {
     workspaceId,
     base: base ?? null,
+    language: aiLanguage(),
   });
 }
 
 /** AI explanation of a single commit (read-only advice). */
 export function explainCommit(workspaceId: string, sha: string): Promise<AiGenerateOutcome> {
-  return invoke<AiGenerateOutcome>("cmd_explain_commit", { workspaceId, sha });
+  return invoke<AiGenerateOutcome>("cmd_explain_commit", {
+    workspaceId,
+    sha,
+    language: aiLanguage(),
+  });
 }
 
 /**
@@ -609,7 +647,7 @@ export function getHealth(workspaceId: string): Promise<HealthReport> {
 }
 
 export function explainHealth(workspaceId: string): Promise<string> {
-  return invoke<string>("cmd_explain_health", { workspaceId });
+  return invoke<string>("cmd_explain_health", { workspaceId, language: aiLanguage() });
 }
 
 export function listReflog(workspaceId: string, reference?: string): Promise<ReflogEntry[]> {
@@ -630,6 +668,7 @@ export function explainReflog(
     newOid: entry.new_oid,
     action: entry.action,
     message: entry.message,
+    language: aiLanguage(),
   });
 }
 
@@ -833,7 +872,11 @@ export function mergeInProgress(workspaceId: string): Promise<boolean> {
 }
 
 export function explainConflict(workspaceId: string, path: string): Promise<AiGenerateOutcome> {
-  return invoke<AiGenerateOutcome>("cmd_explain_conflict", { workspaceId, path });
+  return invoke<AiGenerateOutcome>("cmd_explain_conflict", {
+    workspaceId,
+    path,
+    language: aiLanguage(),
+  });
 }
 
 // ─── Working copy ────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -83,15 +84,18 @@ fn resolve_tips(repo: &Repository, branch_name: &str) -> Result<(git2::Oid, git2
     let branch = repo
         .find_branch(branch_name, git2::BranchType::Local)
         .map_err(map_git_err)?;
-    let their_oid = branch
-        .get()
-        .target()
-        .ok_or_else(|| AppError::Protocol(format!("branch {branch_name} has no target")))?;
+    let their_oid = branch.get().target().ok_or_else(|| {
+        AppError::protocol_with(
+            codes::git::BRANCH_NO_TARGET,
+            format!("branch {branch_name} has no target"),
+            &[("branch", branch_name.to_string())],
+        )
+    })?;
     let our_oid = repo
         .head()
         .map_err(map_git_err)?
         .target()
-        .ok_or_else(|| AppError::Protocol("HEAD is unborn".into()))?;
+        .ok_or_else(|| AppError::protocol(codes::git::HEAD_UNBORN, "HEAD is unborn"))?;
     Ok((our_oid, their_oid))
 }
 
@@ -242,7 +246,11 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
 }
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[cfg(test)]

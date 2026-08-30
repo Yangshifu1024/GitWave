@@ -15,6 +15,7 @@ pub mod infrastructure;
 
 use std::sync::{Arc, Mutex};
 
+use crate::domain::error_codes as codes;
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
     add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch,
@@ -176,8 +177,9 @@ async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppEr
 async fn cmd_generate_commit_message(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    language: Option<String>,
 ) -> Result<AiGenerateOutcome, AppError> {
-    generate_commit_message(&ctx, workspace_id).await
+    generate_commit_message(&ctx, workspace_id, language).await
 }
 
 #[tauri::command]
@@ -193,8 +195,9 @@ async fn cmd_generate_pr_description(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     base: Option<String>,
+    language: Option<String>,
 ) -> Result<PrDescriptionOutcome, AppError> {
-    generate_pr_description(&ctx, workspace_id, base).await
+    generate_pr_description(&ctx, workspace_id, base, language).await
 }
 
 #[tauri::command]
@@ -202,8 +205,9 @@ async fn cmd_explain_commit(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     sha: String,
+    language: Option<String>,
 ) -> Result<AiGenerateOutcome, AppError> {
-    explain_commit(&ctx, workspace_id, sha).await
+    explain_commit(&ctx, workspace_id, sha, language).await
 }
 
 #[tauri::command]
@@ -258,7 +262,13 @@ async fn cmd_clone_repo(
         )
     })
     .await
-    .map_err(|e| AppError::Unknown(format!("clone task join: {e}")))?;
+    .map_err(|e| {
+        AppError::unknown_with(
+            codes::cmds::CLONE_TASK_JOIN,
+            format!("clone task join: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
 
     result
 }
@@ -512,8 +522,9 @@ async fn cmd_explain_conflict(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     path: String,
+    language: Option<String>,
 ) -> Result<AiGenerateOutcome, AppError> {
-    explain_conflict(&ctx, workspace_id, path).await
+    explain_conflict(&ctx, workspace_id, path, language).await
 }
 
 #[tauri::command]
@@ -663,8 +674,9 @@ async fn cmd_get_health(
 async fn cmd_explain_health(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    language: Option<String>,
 ) -> Result<String, AppError> {
-    explain_health(&ctx, workspace_id).await
+    explain_health(&ctx, workspace_id, language).await
 }
 
 #[tauri::command]
@@ -684,8 +696,18 @@ async fn cmd_explain_reflog(
     new_oid: String,
     action: String,
     message: String,
+    language: Option<String>,
 ) -> Result<String, AppError> {
-    explain_reflog(&ctx, workspace_id, old_oid, new_oid, action, message).await
+    explain_reflog(
+        &ctx,
+        workspace_id,
+        old_oid,
+        new_oid,
+        action,
+        message,
+        language,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -944,7 +966,13 @@ async fn cmd_fetch(
         fetch(&local_ctx, &workspace_id, remote, on_progress)
     })
     .await
-    .map_err(|e| AppError::Unknown(format!("fetch task join: {e}")))?
+    .map_err(|e| {
+        AppError::unknown_with(
+            codes::cmds::FETCH_TASK_JOIN,
+            format!("fetch task join: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?
 }
 
 #[tauri::command]
@@ -982,7 +1010,13 @@ async fn cmd_pull(
         )
     })
     .await
-    .map_err(|e| AppError::Unknown(format!("pull task join: {e}")))?
+    .map_err(|e| {
+        AppError::unknown_with(
+            codes::cmds::PULL_TASK_JOIN,
+            format!("pull task join: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?
 }
 
 #[tauri::command]
@@ -999,7 +1033,13 @@ async fn cmd_list_remotes(
         list_remotes(&local_ctx, &workspace_id)
     })
     .await
-    .map_err(|e| AppError::Unknown(format!("list remotes task join: {e}")))?
+    .map_err(|e| {
+        AppError::unknown_with(
+            codes::cmds::LIST_REMOTES_TASK_JOIN,
+            format!("list remotes task join: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?
 }
 
 #[tauri::command]
@@ -1035,7 +1075,13 @@ async fn cmd_push(
         )
     })
     .await
-    .map_err(|e| AppError::Unknown(format!("push task join: {e}")))?
+    .map_err(|e| {
+        AppError::unknown_with(
+            codes::cmds::PUSH_TASK_JOIN,
+            format!("push task join: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?
 }
 
 #[tauri::command]

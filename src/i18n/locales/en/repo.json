@@ -1,0 +1,89 @@
+{
+  "repo": {
+    "gitignore": {
+      "title": "Edit .gitignore",
+      "description": "One pattern per line, relative to the repository root.",
+      "saving": "Saving…",
+      "saved": ".gitignore saved"
+    },
+    "hooks": {
+      "title": "Git hooks",
+      "description": "Edit hook scripts in .git/hooks. GitWave only edits them — it never runs hooks for you.",
+      "saveName": "Save {{name}}",
+      "scriptPlaceholder": "#!/bin/sh\n# {{name}} script",
+      "insertSample": "Insert sample",
+      "insertSampleTitle": "Insert a starter script (pre-commit only)",
+      "selectHint": "Select a hook on the left to edit it.",
+      "saved": "Hook {{name}} saved"
+    },
+    "lfs": {
+      "title": "Git LFS",
+      "description": "Track large files with Git LFS. Patterns are stored in .gitattributes.",
+      "notFoundBefore": "was not found on PATH. Install Git LFS (",
+      "notFoundAfter": ") to commit large files.",
+      "installedNote": "LFS filters are wired into this repository",
+      "installDone": "LFS filters wired into this repository",
+      "installButton": "Install LFS in this repository",
+      "stopTracking": "Stop tracking",
+      "stopTrackingName": "Stop tracking {{pattern}}",
+      "noPatterns": "No LFS patterns tracked yet.",
+      "patternPlaceholder": "Pattern, e.g. *.psd or assets/**",
+      "patternRequired": "Enter a pattern first",
+      "track": "Track"
+    },
+    "worktrees": {
+      "title": "Worktrees",
+      "empty": "No worktrees",
+      "main": "main",
+      "switchTitle": "Switch: add path to Workspace and activate",
+      "removeTitle": "Remove worktree"
+    },
+    "tags": {
+      "title": "Tags",
+      "empty": "No tags yet"
+    },
+    "reflog": {
+      "empty": "No reflog entries",
+      "thinking": "Thinking…",
+      "aiExplain": "AI explain",
+      "recoveryBranch": "Recovery branch",
+      "resetBackHere": "Reset back here",
+      "resetHere": "Reset branch here",
+      "resetSuggestion": "The branch was reset — the discarded commits are still reachable from the previous position. Create a recovery branch to keep them.",
+      "recoveryBranchCreated": "Recovery branch \"{{name}}\" created",
+      "branchReset": "Branch reset to {{oid}}",
+      "currentBranch": "current branch",
+      "resetTitle": "Reset \"{{name}}\" to {{oid}}?",
+      "resetDescription": "Hard reset: the branch moves and uncommitted changes are discarded. This cannot be undone automatically — the reflog keeps a record.",
+      "resetConfirm": "Reset — discard changes",
+      "createBranchTitle": "Create recovery branch",
+      "branchPreviousAt": "Branch the previous position at {{oid}} so the commits stay reachable.",
+      "branchCurrentAt": "Branch the current state at {{oid}} so the commits stay reachable.",
+      "createBranchButton": "Create branch",
+      "actions": {
+        "commit": "Commit",
+        "initialCommit": "Initial commit",
+        "amend": "Amend",
+        "checkout": "Checkout",
+        "reset": "Reset",
+        "merge": "Merge",
+        "rebase": "Rebase",
+        "pull": "Pull",
+        "push": "Push",
+        "branch": "Branch",
+        "revert": "Revert",
+        "cherryPick": "Cherry-pick",
+        "stash": "Stash",
+        "clone": "Clone",
+        "other": "Operation"
+      }
+    },
+    "blame": {
+      "selectWorkspace": "Select a workspace to view blame",
+      "selectRepo": "Select a repository to view blame",
+      "selectFile": "Select a file to view blame",
+      "loading": "Loading blame…",
+      "empty": "No blame information available"
+    }
+  }
+}

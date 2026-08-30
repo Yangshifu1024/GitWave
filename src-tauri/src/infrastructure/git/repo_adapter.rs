@@ -10,6 +10,7 @@ use std::sync::Arc;
 use git2::{build::RepoBuilder, Repository, RepositoryInitOptions};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 use super::credentials::{CredentialProvider, GitCredentialHelper, SshAgentCredential};
 
@@ -29,10 +30,16 @@ pub fn init(path: &Path) -> Result<()> {
     let mut opts = RepositoryInitOptions::new();
     opts.bare(false).initial_head("main").mkdir(true);
     Repository::init_opts(path, &opts).map_err(|e| match e.code() {
-        git2::ErrorCode::Exists => {
-            AppError::Protocol(format!("path already a repo: {}", path.display()))
-        }
-        _ => AppError::Unknown(format!("git init: {e}")),
+        git2::ErrorCode::Exists => AppError::protocol_with(
+            codes::git::INIT_EXISTS,
+            format!("path already a repo: {}", path.display()),
+            &[("path", path.display().to_string())],
+        ),
+        _ => AppError::unknown_with(
+            codes::git::INIT_FAILED,
+            format!("git init: {e}"),
+            &[("error", e.to_string())],
+        ),
     })?;
     Ok(())
 }
@@ -88,9 +95,21 @@ fn clone_with_creds(
     builder.fetch_options(fo);
 
     builder.clone(url, dest).map_err(|e| match e.code() {
-        git2::ErrorCode::Auth => AppError::Credential(format!("auth failed for {url}: {e}")),
-        git2::ErrorCode::NotFound => AppError::Protocol(format!("not found: {url}")),
-        _ => AppError::Network(format!("network error cloning {url}: {e}")),
+        git2::ErrorCode::Auth => AppError::credential_with(
+            codes::git::CLONE_AUTH_FAILED,
+            format!("auth failed for {url}: {e}"),
+            &[("url", url.to_string()), ("error", e.to_string())],
+        ),
+        git2::ErrorCode::NotFound => AppError::protocol_with(
+            codes::git::CLONE_NOT_FOUND,
+            format!("not found: {url}"),
+            &[("url", url.to_string())],
+        ),
+        _ => AppError::network_with(
+            codes::git::CLONE_NETWORK,
+            format!("network error cloning {url}: {e}"),
+            &[("url", url.to_string()), ("error", e.to_string())],
+        ),
     })?;
     Ok(())
 }

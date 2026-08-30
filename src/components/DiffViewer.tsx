@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { DiffSummary, FileDiff, DiffHunk, DiffLine } from "@/lib/api";
 import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { Button } from "@/components/ui/Button";
@@ -246,6 +247,7 @@ function FileDiffView({
   onToggleCollapsed: () => void;
   onBlame?: (path: string) => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   // Language for future shiki integration
   void getLanguage(getExt(fileDiff.path));
   const { dir, name } = splitPath(fileDiff.path);
@@ -259,7 +261,7 @@ function FileDiffView({
             variant="ghost"
             size="sm"
             aria-expanded={!collapsed}
-            aria-label={collapsed ? "Expand file diff" : "Collapse file diff"}
+            aria-label={t(collapsed ? "diff.file.expand" : "diff.file.collapse")}
             onClick={onToggleCollapsed}
             className="h-auto shrink-0 p-0 text-text-muted hover:text-text-secondary border-0 shadow-none bg-transparent"
           >
@@ -276,7 +278,7 @@ function FileDiffView({
               size="sm"
               className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent shadow-none"
             >
-              <Chip.Label>Staged</Chip.Label>
+              <Chip.Label>{t("diff.chip.staged")}</Chip.Label>
             </Chip>
           ) : null}
           {fileDiff.staged === false ? (
@@ -284,7 +286,7 @@ function FileDiffView({
               size="sm"
               className="ml-2 shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-text-muted/15 text-text-secondary shadow-none"
             >
-              <Chip.Label>Unstaged</Chip.Label>
+              <Chip.Label>{t("diff.chip.unstaged")}</Chip.Label>
             </Chip>
           ) : null}
         </div>
@@ -304,7 +306,7 @@ function FileDiffView({
                 size="sm"
                 onClick={() => onBlame(fileDiff.path)}
               >
-                Blame
+                {t("diff.file.blame")}
               </Button>
             ) : null}
           </div>
@@ -324,10 +326,10 @@ function FileDiffView({
                   <span className="text-success">+{fileDiff.additions}</span>
                   {" / "}
                   <span className="text-danger">-{fileDiff.deletions}</span>{" "}
-                  <span className="text-text-muted">(no hunk detail)</span>
+                  <span className="text-text-muted">{t("diff.file.noHunkDetail")}</span>
                 </>
               ) : (
-                "No changes"
+                t("diff.file.noChanges")
               )}
             </div>
           )}
@@ -344,6 +346,7 @@ export function DiffViewer({
   staged = null,
   hideMaximize = false,
 }: DiffViewerProps): React.JSX.Element {
+  const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
@@ -456,13 +459,13 @@ export function DiffViewer({
       <div className="flex items-center justify-center h-full text-text-muted text-sm px-4 text-center">
         {path
           ? staged === true
-            ? `No staged diff for ${path}`
+            ? t("diff.empty.noStaged", { path })
             : staged === false
-              ? `No unstaged diff for ${path}`
-              : `No diff for ${path}`
+              ? t("diff.empty.noUnstaged", { path })
+              : t("diff.empty.noForPath", { path })
           : workdir
-            ? "No uncommitted changes"
-            : "No diff available"}
+            ? t("diff.empty.noUncommitted")
+            : t("diff.empty.noAvailable")}
       </div>
     );
   }
@@ -485,16 +488,16 @@ export function DiffViewer({
       {/* Toolbar */}
       <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-bg-elevated border-b border-border-subtle">
         <span className="text-sm text-text-secondary">
-          {visible.files.length} file{visible.files.length !== 1 ? "s" : ""} changed
+          {t("diff.toolbar.filesChanged", { count: visible.files.length })}
         </span>
         {workdir && staged === true ? (
           <span className="rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-accent/15 text-accent">
-            Staged
+            {t("diff.chip.staged")}
           </span>
         ) : null}
         {workdir && staged === false ? (
           <span className="rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-text-muted/15 text-text-secondary">
-            Unstaged
+            {t("diff.chip.unstaged")}
           </span>
         ) : null}
         <span className="text-success text-sm">+{visible.total_additions}</span>
@@ -509,8 +512,8 @@ export function DiffViewer({
             className="p-1.5 text-text-muted hover:text-accent"
             disabled={visible.files.length === 0}
             aria-pressed={anyCollapsed}
-            aria-label={anyCollapsed ? "Expand all files" : "Collapse all files"}
-            title={anyCollapsed ? "Expand all files" : "Collapse all files"}
+            aria-label={t(anyCollapsed ? "diff.toolbar.expandAll" : "diff.toolbar.collapseAll")}
+            title={t(anyCollapsed ? "diff.toolbar.expandAll" : "diff.toolbar.collapseAll")}
             onClick={() =>
               setCollapsedFiles(
                 anyCollapsed ? new Set() : new Set(visible.files.map(fileChangeKey)),
@@ -525,8 +528,10 @@ export function DiffViewer({
             size="sm"
             className="p-1.5 text-text-muted hover:text-accent"
             aria-pressed={mode === "split"}
-            aria-label={mode === "unified" ? "Switch to split view" : "Switch to unified view"}
-            title={mode === "unified" ? "Switch to split view" : "Switch to unified view"}
+            aria-label={t(
+              mode === "unified" ? "diff.toolbar.splitView" : "diff.toolbar.unifiedView",
+            )}
+            title={t(mode === "unified" ? "diff.toolbar.splitView" : "diff.toolbar.unifiedView")}
             onClick={() => setMode(mode === "unified" ? "split" : "unified")}
           >
             {mode === "unified" ? <Columns2 size={14} /> : <Square size={14} />}
@@ -538,8 +543,12 @@ export function DiffViewer({
               size="sm"
               className="p-1.5 text-text-muted hover:text-accent"
               aria-pressed={inspectorMaximized}
-              aria-label={inspectorMaximized ? "Restore panel" : "Expand panel"}
-              title={inspectorMaximized ? "Restore panel" : "Expand panel"}
+              aria-label={t(
+                inspectorMaximized ? "diff.toolbar.restorePanel" : "diff.toolbar.expandPanel",
+              )}
+              title={t(
+                inspectorMaximized ? "diff.toolbar.restorePanel" : "diff.toolbar.expandPanel",
+              )}
               onClick={toggleInspectorMaximized}
             >
               {inspectorMaximized ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}

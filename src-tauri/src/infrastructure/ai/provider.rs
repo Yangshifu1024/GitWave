@@ -3,6 +3,7 @@
 use serde_json::{json, Value};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::ai::scrubber::scrub_secrets;
 
 #[derive(Debug, Clone)]
@@ -39,10 +40,15 @@ fn trim_base(base: &str) -> String {
 /// HTTP failure stays `Network` (the chain may retry elsewhere).
 fn http_error(provider: &str, status: reqwest::StatusCode, detail: &str) -> AppError {
     let message = format!("{provider} HTTP {status}: {detail}");
+    let params = [
+        ("provider", provider.to_string()),
+        ("status", status.to_string()),
+        ("detail", detail.to_string()),
+    ];
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-        AppError::Credential(message)
+        AppError::credential_with(codes::infra::PROVIDER_HTTP, message, &params)
     } else {
-        AppError::Network(message)
+        AppError::network_with(codes::infra::PROVIDER_HTTP, message, &params)
     }
 }
 
@@ -110,7 +116,7 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
             match result {
                 Ok(text) => return Ok(text),
                 Err(e) => {
-                    let transient = matches!(e, AppError::Network(_));
+                    let transient = matches!(e, AppError::Network { .. });
                     last_err = Some(e);
                     if pass == 0 && !transient {
                         break; // non-transient: fail over to the next provider now
@@ -121,9 +127,11 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     }
 
     Err(last_err.unwrap_or_else(|| {
-        AppError::Unknown(format!(
-            "all {total} AI provider attempt(s) failed with no error captured"
-        ))
+        AppError::unknown_with(
+            codes::infra::ALL_ATTEMPTS_FAILED,
+            format!("all {total} AI provider attempt(s) failed with no error captured"),
+            &[("total", total.to_string())],
+        )
     }))
 }
 
@@ -141,14 +149,18 @@ async fn attempt_chat(
             Some(key) => {
                 openai_chat(client, key, model, system, user, attempt.base_url.clone()).await
             }
-            None => Err(AppError::Credential("OpenAI API key not configured".into())),
+            None => Err(AppError::credential(
+                codes::infra::OPENAI_KEY_MISSING,
+                "OpenAI API key not configured",
+            )),
         },
         "anthropic" => match attempt.api_key.as_deref().filter(|k| !k.is_empty()) {
             Some(key) => {
                 anthropic_chat(client, key, model, system, user, attempt.base_url.clone()).await
             }
-            None => Err(AppError::Credential(
-                "Anthropic API key not configured".into(),
+            None => Err(AppError::credential(
+                codes::infra::ANTHROPIC_KEY_MISSING,
+                "Anthropic API key not configured",
             )),
         },
         "ollama" => {
@@ -161,9 +173,11 @@ async fn attempt_chat(
             )
             .await
         }
-        other => Err(AppError::Protocol(format!(
-            "unsupported AI provider: {other} (use openai, anthropic, or ollama)"
-        ))),
+        other => Err(AppError::protocol_with(
+            codes::infra::UNSUPPORTED_PROVIDER,
+            format!("unsupported AI provider: {other} (use openai, anthropic, or ollama)"),
+            &[("provider", other.to_string())],
+        )),
     }
 }
 
@@ -171,21 +185,27 @@ async fn attempt_chat(
 pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
     let base = ollama_base(base_url);
     let url = format!("{}/api/tags", base);
-    let resp = client()
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| AppError::Network(format!("ollama unreachable: {e}")))?;
+    let resp = client().get(&url).send().await.map_err(|e| {
+        AppError::network_with(
+            codes::infra::OLLAMA_UNREACHABLE,
+            format!("ollama unreachable: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     if !resp.status().is_success() {
-        return Err(AppError::Network(format!(
-            "ollama probe failed: HTTP {}",
-            resp.status()
-        )));
+        return Err(AppError::network_with(
+            codes::infra::OLLAMA_PROBE_FAILED,
+            format!("ollama probe failed: HTTP {}", resp.status()),
+            &[("status", resp.status().to_string())],
+        ));
     }
-    let body: Value = resp
-        .json()
-        .await
-        .map_err(|e| AppError::Unknown(format!("ollama json: {e}")))?;
+    let body: Value = resp.json().await.map_err(|e| {
+        AppError::unknown_with(
+            codes::infra::OLLAMA_JSON,
+            format!("ollama json: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     let models = body["models"]
         .as_array()
         .unwrap_or(&vec![])
@@ -217,12 +237,21 @@ async fn openai_chat(
         }))
         .send()
         .await
-        .map_err(|e| AppError::Network(format!("openai: {e}")))?;
+        .map_err(|e| {
+            AppError::network_with(
+                codes::infra::OPENAI_REQUEST,
+                format!("openai: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     let status = resp.status();
-    let body: Value = resp
-        .json()
-        .await
-        .map_err(|e| AppError::Unknown(format!("openai json: {e}")))?;
+    let body: Value = resp.json().await.map_err(|e| {
+        AppError::unknown_with(
+            codes::infra::OPENAI_JSON,
+            format!("openai json: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     if !status.is_success() {
         return Err(http_error(
             "openai",
@@ -236,7 +265,12 @@ async fn openai_chat(
         .as_str()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| AppError::Unknown("openai returned empty content".into()))
+        .ok_or_else(|| {
+            AppError::unknown(
+                codes::infra::OPENAI_EMPTY_CONTENT,
+                "openai returned empty content",
+            )
+        })
 }
 
 async fn anthropic_chat(
@@ -266,12 +300,21 @@ async fn anthropic_chat(
         }))
         .send()
         .await
-        .map_err(|e| AppError::Network(format!("anthropic: {e}")))?;
+        .map_err(|e| {
+            AppError::network_with(
+                codes::infra::ANTHROPIC_REQUEST,
+                format!("anthropic: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     let status = resp.status();
-    let body: Value = resp
-        .json()
-        .await
-        .map_err(|e| AppError::Unknown(format!("anthropic json: {e}")))?;
+    let body: Value = resp.json().await.map_err(|e| {
+        AppError::unknown_with(
+            codes::infra::ANTHROPIC_JSON,
+            format!("anthropic json: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     if !status.is_success() {
         return Err(http_error(
             "anthropic",
@@ -292,18 +335,25 @@ async fn anthropic_chat(
 fn anthropic_no_text_error(body: &Value) -> AppError {
     let stop_reason = body["stop_reason"].as_str().unwrap_or("none");
     if stop_reason == "max_tokens" {
-        return AppError::Unknown(
+        return AppError::unknown(
+            codes::infra::ANTHROPIC_MAX_TOKENS,
             "anthropic: the model hit max_tokens while still reasoning, so no commit \
-             message was produced — try again or switch to a non-reasoning model"
-                .into(),
+             message was produced — try again or switch to a non-reasoning model",
         );
     }
     // Include the response shape in the error so provider-side changes stay
     // debuggable without a proxy.
     let content_json: String = body["content"].to_string().chars().take(200).collect();
-    AppError::Unknown(format!(
-        "anthropic returned no text content (stop_reason: {stop_reason}, content: {content_json})"
-    ))
+    AppError::unknown_with(
+        codes::infra::ANTHROPIC_NO_TEXT,
+        format!(
+            "anthropic returned no text content (stop_reason: {stop_reason}, content: {content_json})"
+        ),
+        &[
+            ("stop_reason", stop_reason.to_string()),
+            ("content", content_json.clone()),
+        ],
+    )
 }
 
 /// Join the `text` of every content block, skipping non-text blocks such
@@ -345,12 +395,21 @@ async fn ollama_chat(
         }))
         .send()
         .await
-        .map_err(|e| AppError::Network(format!("ollama: {e}")))?;
+        .map_err(|e| {
+            AppError::network_with(
+                codes::infra::OLLAMA_REQUEST,
+                format!("ollama: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     let status = resp.status();
-    let body: Value = resp
-        .json()
-        .await
-        .map_err(|e| AppError::Unknown(format!("ollama json: {e}")))?;
+    let body: Value = resp.json().await.map_err(|e| {
+        AppError::unknown_with(
+            codes::infra::OLLAMA_JSON,
+            format!("ollama json: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     if !status.is_success() {
         return Err(http_error("ollama", status, "request failed"));
     }
@@ -358,7 +417,12 @@ async fn ollama_chat(
         .as_str()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| AppError::Unknown("ollama returned empty content".into()))
+        .ok_or_else(|| {
+            AppError::unknown(
+                codes::infra::OLLAMA_EMPTY_CONTENT,
+                "ollama returned empty content",
+            )
+        })
 }
 
 #[cfg(test)]

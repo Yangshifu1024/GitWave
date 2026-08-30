@@ -8,6 +8,7 @@
 use rusqlite::{params, Connection};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
 
 /// Storage abstraction for Workspaces. `Send` only — `Sync` is intentionally
@@ -114,7 +115,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             )
             .map_err(map_sqlite_err)?;
         if affected == 0 {
-            return Err(AppError::Protocol(format!("workspace not found: {id}")));
+            return Err(AppError::protocol_with(
+                codes::infra::WORKSPACE_NOT_FOUND,
+                format!("workspace not found: {id}"),
+                &[("id", id.to_string())],
+            ));
         }
         Ok(())
     }
@@ -125,7 +130,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             .execute("DELETE FROM workspaces WHERE id = ?1", [id])
             .map_err(map_sqlite_err)?;
         if affected == 0 {
-            return Err(AppError::Protocol(format!("workspace not found: {id}")));
+            return Err(AppError::protocol_with(
+                codes::infra::WORKSPACE_NOT_FOUND,
+                format!("workspace not found: {id}"),
+                &[("id", id.to_string())],
+            ));
         }
         Ok(())
     }
@@ -139,9 +148,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             )
             .map_err(map_sqlite_err)?;
         if affected == 0 {
-            return Err(AppError::Protocol(format!(
-                "workspace not found: {workspace_id}"
-            )));
+            return Err(AppError::protocol_with(
+                codes::infra::WORKSPACE_NOT_FOUND,
+                format!("workspace not found: {workspace_id}"),
+                &[("id", workspace_id.to_string())],
+            ));
         }
         Ok(())
     }
@@ -156,7 +167,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             )
             .map_err(map_sqlite_err)?;
         if affected == 0 {
-            return Err(AppError::Protocol(format!("workspace not found: {id}")));
+            return Err(AppError::protocol_with(
+                codes::infra::WORKSPACE_NOT_FOUND,
+                format!("workspace not found: {id}"),
+                &[("id", id.to_string())],
+            ));
         }
         Ok(())
     }
@@ -201,9 +216,14 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             )
             .map_err(map_sqlite_err)?;
         if affected == 0 {
-            return Err(AppError::Protocol(format!(
-                "repo not found: {repo_id} in workspace {workspace_id}"
-            )));
+            return Err(AppError::protocol_with(
+                codes::infra::REPO_NOT_FOUND_IN_WS,
+                format!("repo not found: {repo_id} in workspace {workspace_id}"),
+                &[
+                    ("repo_id", repo_id.to_string()),
+                    ("workspace_id", workspace_id.to_string()),
+                ],
+            ));
         }
         Ok(())
     }
@@ -235,7 +255,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             )
             .map_err(map_sqlite_err)?;
         if affected == 0 {
-            return Err(AppError::Protocol(format!("repo not found: {repo_id}")));
+            return Err(AppError::protocol_with(
+                codes::infra::REPO_NOT_FOUND,
+                format!("repo not found: {repo_id}"),
+                &[("repo_id", repo_id.to_string())],
+            ));
         }
         Ok(())
     }
@@ -250,7 +274,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
             )
             .map_err(map_sqlite_err)?;
         if affected == 0 {
-            return Err(AppError::Protocol(format!("repo not found: {repo_id}")));
+            return Err(AppError::protocol_with(
+                codes::infra::REPO_NOT_FOUND,
+                format!("repo not found: {repo_id}"),
+                &[("repo_id", repo_id.to_string())],
+            ));
         }
         Ok(())
     }
@@ -265,9 +293,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
                 .iter()
                 .all(|r| repo_ids.iter().any(|id| id == &r.id))
         {
-            return Err(AppError::Protocol(format!(
-                "reorder ids do not match repos of workspace {workspace_id}"
-            )));
+            return Err(AppError::protocol_with(
+                codes::infra::REORDER_MISMATCH,
+                format!("reorder ids do not match repos of workspace {workspace_id}"),
+                &[("workspace_id", workspace_id.to_string())],
+            ));
         }
         let tx = self.conn.unchecked_transaction().map_err(map_sqlite_err)?;
         for (idx, repo_id) in repo_ids.iter().enumerate() {
@@ -278,7 +308,11 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
                 )
                 .map_err(map_sqlite_err)?;
             if affected == 0 {
-                return Err(AppError::Protocol(format!("repo not found: {repo_id}")));
+                return Err(AppError::protocol_with(
+                    codes::infra::REPO_NOT_FOUND,
+                    format!("repo not found: {repo_id}"),
+                    &[("repo_id", repo_id.to_string())],
+                ));
             }
         }
         tx.commit().map_err(map_sqlite_err)?;
@@ -352,11 +386,19 @@ fn now_unix() -> i64 {
 }
 
 fn map_sqlite_err(e: rusqlite::Error) -> AppError {
-    AppError::Unknown(format!("sqlite: {e}"))
+    AppError::unknown_with(
+        codes::infra::SQLITE_ERROR,
+        format!("sqlite: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 fn map_serde_err(e: serde_json::Error) -> AppError {
-    AppError::Unknown(format!("serde: {e}"))
+    AppError::unknown_with(
+        codes::infra::SERDE_ERROR,
+        format!("serde: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 fn repo_status_to_db(status: crate::domain::workspace::RepoStatus) -> &'static str {

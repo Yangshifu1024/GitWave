@@ -1,5 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Github } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { ProgressBar } from "@heroui/react";
 
 import { Modal } from "@/components/ui/Modal";
@@ -22,17 +23,13 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-const MANUAL_DOWNLOAD_NOTE =
-  "This copy was installed from a .deb/.rpm package, which cannot replace " +
-  "itself. Please grab the new package from the releases page — the AppImage " +
-  "build updates in-app.";
-
 /**
  * Self-update surface: opened on startup / manual check when a newer release
  * exists. Install path by phase — in-app download + relaunch, or a jump to
  * the releases page for deb/rpm installs.
  */
 export function UpdateModal(): React.JSX.Element {
+  const { t } = useTranslation();
   const phase = useUpdaterStore((s) => s.phase);
   const modalOpen = useUpdaterStore((s) => s.modalOpen);
   const setModalOpen = useUpdaterStore((s) => s.setModalOpen);
@@ -62,10 +59,10 @@ export function UpdateModal(): React.JSX.Element {
         return (
           <>
             <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
-              Later
+              {t("updater.actions.later")}
             </Button>
             <Button variant="primary" size="sm" onClick={install}>
-              Download &amp; Install
+              {t("updater.actions.downloadInstall")}
             </Button>
           </>
         );
@@ -73,27 +70,27 @@ export function UpdateModal(): React.JSX.Element {
         return (
           <>
             <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
-              Later
+              {t("updater.actions.later")}
             </Button>
             <Button variant="primary" size="sm" onClick={openReleases}>
-              Open Releases Page
+              {t("updater.actions.openReleases")}
             </Button>
           </>
         );
       case "downloading":
         return (
           <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
-            Hide
+            {t("updater.actions.hide")}
           </Button>
         );
       case "ready":
         return (
           <>
             <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
-              Later
+              {t("updater.actions.later")}
             </Button>
             <Button variant="primary" size="sm" onClick={restart}>
-              Restart Now
+              {t("updater.actions.restartNow")}
             </Button>
           </>
         );
@@ -101,10 +98,10 @@ export function UpdateModal(): React.JSX.Element {
         return (
           <>
             <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
-              Close
+              {t("updater.actions.close")}
             </Button>
             <Button variant="primary" size="sm" onClick={retry}>
-              Try Again
+              {t("updater.actions.tryAgain")}
             </Button>
           </>
         );
@@ -119,10 +116,10 @@ export function UpdateModal(): React.JSX.Element {
       onOpenChange={setModalOpen}
       title={
         phase === "ready"
-          ? "Update installed"
+          ? t("updater.title.installed")
           : phase === "error"
-            ? "Update check"
-            : "Update available"
+            ? t("updater.title.check")
+            : t("updater.title.available")
       }
       size="sm"
       footer={footer}
@@ -130,29 +127,29 @@ export function UpdateModal(): React.JSX.Element {
       <div className="flex min-w-0 flex-col gap-3 py-1">
         <div className="flex flex-col gap-0.5">
           <p className="text-sm text-text-primary">
-            GitWave <span className="font-medium tabular-nums">v{newVersion ?? "?"}</span> is
-            available.
+            GitWave <span className="font-medium tabular-nums">v{newVersion ?? "?"}</span>
+            {t("updater.availableSuffix")}
           </p>
           <p className="text-xs text-text-muted tabular-nums">
-            You are running v{currentVersion ?? "?.?.?"}.
+            {t("updater.runningVersion", { version: currentVersion ?? "?.?.?" })}
           </p>
         </div>
 
         {newVersion ? (
           <Button variant="ghost" size="sm" className="self-start" onClick={handleOpenNotes}>
             <Github size={14} />
-            View release notes
+            {t("updater.viewReleaseNotes")}
           </Button>
         ) : null}
 
         {phase === "manual-download" ? (
-          <p className="text-xs text-text-secondary">{MANUAL_DOWNLOAD_NOTE}</p>
+          <p className="text-xs text-text-secondary">{t("updater.manualDownloadNote")}</p>
         ) : null}
 
         {phase === "downloading" ? (
           <div className="flex flex-col gap-1.5">
             <ProgressBar
-              aria-label="Downloading update"
+              aria-label={t("updater.downloadingAria")}
               minValue={0}
               maxValue={100}
               value={percent ?? 0}
@@ -169,9 +166,7 @@ export function UpdateModal(): React.JSX.Element {
         ) : null}
 
         {phase === "ready" ? (
-          <p className="text-xs text-text-secondary">
-            Restart GitWave to finish applying the update.
-          </p>
+          <p className="text-xs text-text-secondary">{t("updater.restartToApply")}</p>
         ) : null}
 
         {phase === "error" && error ? (

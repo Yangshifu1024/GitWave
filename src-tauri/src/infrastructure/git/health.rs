@@ -8,9 +8,14 @@ use git2::{Repository, Time};
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 const STALE_DAYS: i64 = 30;

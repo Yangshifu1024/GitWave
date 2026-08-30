@@ -1,0 +1,26 @@
+{
+  "health": {
+    "title": "Repo health",
+    "measuring": "Measuring…",
+    "aiSummary": "AI summary",
+    "summarizing": "Summarizing…",
+    "metrics": {
+      "unpushed": "Unpushed",
+      "conflictResidue": "Conflict residue",
+      "dirtyFiles": "Dirty files",
+      "staleBranches": "Stale branches",
+      "largeFiles": "Large files",
+      "branchesTags": "Branches / tags"
+    },
+    "values": {
+      "noUpstream": "no upstream",
+      "inSync": "in sync",
+      "unpushedCommits": "{{n}} commits",
+      "noneStale": "none (30 days)",
+      "noneLarge": "none (>1 MB)"
+    },
+    "details": {
+      "conflictResidue": "Leftover MERGE_HEAD / REVERT_HEAD / CHERRY_PICK_HEAD state files"
+    }
+  }
+}

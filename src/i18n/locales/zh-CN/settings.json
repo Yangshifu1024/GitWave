@@ -1,0 +1,41 @@
+{
+  "settings": {
+    "title": "设置",
+    "sections": {
+      "general": "通用",
+      "appearance": "外观",
+      "ssh": "SSH 密钥"
+    },
+    "general": {
+      "uiLanguage": "界面语言",
+      "uiLanguageHint": "界面显示语言，保存后立即生效；系统菜单栏稍后自动更新。",
+      "aiLanguage": "AI 语言",
+      "aiLanguageHint": "AI 回复使用的语言——commit message、PR 描述与解释均以此语言输出。提示词本身不翻译。",
+      "autoRefresh": "自动刷新",
+      "autoRefreshCheckbox": "每分钟刷新仓库数据",
+      "autoRefreshHint": "刷新提交、分支与各面板，并向远程 fetch。绝不会自动 pull 或 push。",
+      "updates": "更新",
+      "autoUpdateCheckbox": "启动时自动检查更新",
+      "updatesHint": "检查 GitHub Releases 是否有新版本。未经你确认不会下载任何内容。",
+      "checkForUpdates": "检查更新",
+      "viewUpdate": "查看更新",
+      "checking": "检查中…",
+      "upToDate": "已是最新版本",
+      "available": "{{version}} 可用",
+      "checkFailed": "检查失败"
+    },
+    "appearance": {
+      "theme": "主题",
+      "themeLight": "浅色",
+      "themeDark": "深色",
+      "themeSystem": "跟随系统",
+      "colorPalette": "配色方案",
+      "fonts": "字体",
+      "uiFont": "界面字体",
+      "uiFontHint": "界面文本。作为平台回退链的首选；CJK 回退保持生效。",
+      "monoFont": "等宽字体",
+      "monoFontHint": "用于 diff、blame、提交图、commit message 及其他代码界面。",
+      "saved": "已保存——全局生效"
+    }
+  }
+}

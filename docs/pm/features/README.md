@@ -61,6 +61,7 @@
 | [F007](./F007-macos-native-menu.md) | macOS 原生系统菜单 | 接受 | v0.3.x |
 | [F008](./F008-website.md) | 项目官网（GitHub Pages + 自定义域名） | 接受 | v0.4.x |
 | [F009](./F009-auto-update.md) | 应用内检查更新与自动更新 | 接受 | v0.5.0 |
+| [F010](./F010-i18n.md) | 完整国际化（UI 中英双语 + AI 回复语言） | 接受 | v0.6.0 |
 
 ## 相关文档
 

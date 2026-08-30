@@ -1,0 +1,31 @@
+{
+  "remotes": {
+    "title": "Remotes",
+    "empty": "No remotes",
+    "noUrl": "(no URL)",
+    "added": "Remote \"{{name}}\" added",
+    "updated": "Remote \"{{name}}\" updated",
+    "fetched": "Fetched from {{name}}",
+    "removed": "Remote \"{{name}}\" removed",
+    "actions": {
+      "add": "Add remote",
+      "fetch": "Fetch",
+      "edit": "Edit…"
+    },
+    "add": {
+      "title": "Add remote",
+      "namePlaceholder": "name (e.g. origin)",
+      "urlPlaceholder": "URL (https:// or git@…)"
+    },
+    "edit": {
+      "title": "Edit remote \"{{name}}\"",
+      "namePlaceholder": "name",
+      "fetchPlaceholder": "fetch URL",
+      "pushPlaceholder": "push URL (empty = same as fetch)"
+    },
+    "delete": {
+      "title": "Remove remote \"{{name}}\"?",
+      "description": "The remote configuration is removed. Local branches and commits are not touched."
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import {
   createWorkspace,
@@ -19,6 +20,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FolderPlus, Pencil, Trash2 } from "lucide-react";
 
 export function WorkspaceSwitcher(): React.JSX.Element {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const activeId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
@@ -93,13 +95,13 @@ export function WorkspaceSwitcher(): React.JSX.Element {
       {/* Header row */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
         <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-          Workspaces
+          {t("workspace.title")}
         </h2>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setShowCreate(true)}
-          aria-label="New workspace"
+          aria-label={t("workspace.new")}
         >
           <FolderPlus size={14} />
         </Button>
@@ -107,16 +109,18 @@ export function WorkspaceSwitcher(): React.JSX.Element {
 
       {/* List */}
       {isLoading ? (
-        <p className="px-3 py-2 text-sm text-text-muted">Loading…</p>
+        <p className="px-3 py-2 text-sm text-text-muted">{t("common.loading")}</p>
       ) : error ? (
-        <p className="px-3 py-2 text-sm text-danger">Failed to load: {formatAppError(error)}</p>
+        <p className="px-3 py-2 text-sm text-danger">
+          {t("workspace.loadFailed", { error: formatAppError(error) })}
+        </p>
       ) : workspaces.length === 0 ? (
         <EmptyState
-          title="No workspaces"
-          description="Create a workspace to get started."
+          title={t("workspace.empty.title")}
+          description={t("workspace.empty.description")}
           action={
             <Button variant="secondary" size="sm" onClick={() => setShowCreate(true)}>
-              New workspace
+              {t("workspace.new")}
             </Button>
           }
           className="py-6"
@@ -139,7 +143,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                         openRename(ws);
                       }}
                       className="p-1"
-                      aria-label={`Rename ${ws.name}`}
+                      aria-label={t("workspace.itemRenameAria", { name: ws.name })}
                     >
                       <Pencil size={13} />
                     </Button>
@@ -151,7 +155,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                         setDeleting(ws);
                       }}
                       className="p-1 text-danger hover:text-danger"
-                      aria-label={`Delete ${ws.name}`}
+                      aria-label={t("workspace.itemDeleteAria", { name: ws.name })}
                     >
                       <Trash2 size={13} />
                     </Button>
@@ -176,7 +180,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
               setCreateError(null);
             }
           }}
-          title="New Workspace"
+          title={t("workspace.new")}
           size="sm"
           footer={
             <>
@@ -186,7 +190,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setShowCreate(false)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -195,7 +199,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                 onClick={submitCreate}
                 disabled={!createName.trim() || createMut.isPending}
               >
-                Create
+                {t("workspace.create.submit")}
               </Button>
             </>
           }
@@ -208,7 +212,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
               onKeyDown={(e) => {
                 if (e.key === "Enter") submitCreate();
               }}
-              placeholder="Workspace name"
+              placeholder={t("workspace.create.namePlaceholder")}
               error={createError}
             />
           </div>
@@ -222,7 +226,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
           onOpenChange={(open) => {
             if (!open) setRenaming(null);
           }}
-          title={`Rename "${renaming.name}"`}
+          title={t("workspace.rename.title", { name: renaming.name })}
           size="sm"
           footer={
             <>
@@ -232,7 +236,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setRenaming(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -241,7 +245,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                 onClick={submitRename}
                 disabled={!renameValue.trim() || renameMut.isPending}
               >
-                Save
+                {t("common.save")}
               </Button>
             </>
           }
@@ -266,8 +270,8 @@ export function WorkspaceSwitcher(): React.JSX.Element {
           onOpenChange={(open) => {
             if (!open) setDeleting(null);
           }}
-          title={`Delete "${deleting.name}"?`}
-          description="This removes the workspace and its repo references from GitWave. It does not delete the local repositories themselves."
+          title={t("workspace.delete.title", { name: deleting.name })}
+          description={t("workspace.delete.description")}
           size="sm"
           footer={
             <>
@@ -277,7 +281,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setDeleting(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -286,7 +290,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
                 onClick={() => deleteMut.mutate(deleting.id)}
                 disabled={deleteMut.isPending}
               >
-                Delete
+                {t("common.delete")}
               </Button>
             </>
           }

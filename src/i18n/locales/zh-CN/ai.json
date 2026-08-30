@@ -1,0 +1,63 @@
+{
+  "ai": {
+    "title": "AI 提供商",
+    "titleWithWorkspace": "AI 提供商 · {{name}}",
+    "description": "按工作区生效。云端密钥存放在系统钥匙串中（BYOK）。AI 绝不自动提交。",
+    "saved": "AI 设置已保存（密钥保存在系统钥匙串中）",
+    "repoRules": {
+      "prefix": "已启用每仓库 AI 规则 —— ",
+      "suffix": "（{{chars}} 字符）会附加到当前仓库的每个 AI 提示词中。"
+    },
+    "provider": {
+      "label": "提供商",
+      "openai": "OpenAI",
+      "anthropic": "Anthropic",
+      "ollama": "Ollama（本地）"
+    },
+    "modelPlaceholder": "模型",
+    "baseUrlPlaceholder": "API 基础 URL",
+    "baseUrlHint": {
+      "openai": "默认：https://api.openai.com（兼容 /v1/chat/completions）",
+      "anthropic": "默认：https://api.anthropic.com",
+      "ollama": "默认：http://127.0.0.1:11434"
+    },
+    "detectOllama": "检测 Ollama",
+    "ollamaFound": "找到 {{num}} 个本地模型",
+    "ollamaNoModels": "Ollama 可访问，但未列出任何模型",
+    "apiKey": "API 密钥",
+    "apiKeyKeep": "API 密钥（留空则保留现有密钥）",
+    "apiKeyCleared": "已清除 API 密钥",
+    "clearStoredKey": "清除已存密钥",
+    "offlineMode": "离线模式 —— 禁用所有云端 AI 调用（Ollama 仍可使用）",
+    "fallback": {
+      "label": "备用提供商",
+      "hint": "当上方提供商因网络错误失败时按顺序尝试。云端条目需要各自的 API 密钥（按提供商分别存放在系统钥匙串中）。",
+      "ariaLabel": "备用提供商 {{num}}",
+      "modelPlaceholder": "模型（默认）",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "remove": "移除",
+      "add": "添加备用提供商"
+    },
+    "templates": {
+      "show": "提示词模板（提交 / 冲突 / PR）",
+      "hide": "隐藏提示词模板",
+      "hint": "每个字段会替换对应任务的内置系统提示词 —— diff、conflict 双侧内容与仓库上下文会自动附加。留空则使用内置默认值。每仓库规则（",
+      "hintTail": "）会叠加在所运行的提示词之上。",
+      "commitLabel": "提交信息",
+      "commitPlaceholder": "覆盖内置的提交信息系统提示词",
+      "conflictLabel": "冲突解释",
+      "conflictPlaceholder": "覆盖内置的冲突解释系统提示词",
+      "prLabel": "PR 描述",
+      "prPlaceholder": "用于 AI 生成 PR 描述的系统提示词",
+      "reflogLabel": "恢复助手（reflog）",
+      "reflogPlaceholder": "覆盖恢复助手的系统提示词",
+      "healthLabel": "健康总结器",
+      "healthPlaceholder": "覆盖健康报告的系统提示词"
+    },
+    "actions": {
+      "close": "关闭",
+      "save": "保存"
+    }
+  }
+}

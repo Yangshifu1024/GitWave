@@ -2,6 +2,7 @@
 // (recursive) / deinit actions and an inline "add submodule" form.
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   addSubmodule,
@@ -21,6 +22,7 @@ import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Blocks, CircleAlert, CircleCheck, Plus } from "lucide-react";
 
 export function SubmodulesPanel(): React.JSX.Element {
+  const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
@@ -58,7 +60,9 @@ export function SubmodulesPanel(): React.JSX.Element {
     try {
       if (op === "init") await initSubmodule(workspaceId, name);
       else await updateSubmodule(workspaceId, name, true);
-      setStatus(`Submodule ${name} ${op === "init" ? "initialized" : "updated"}`);
+      setStatus(
+        t(op === "init" ? "submodules.status.initialized" : "submodules.status.updated", { name }),
+      );
       bumpHistory();
       await refresh();
     } catch (e) {
@@ -74,7 +78,7 @@ export function SubmodulesPanel(): React.JSX.Element {
     setError(null);
     try {
       await addSubmodule(workspaceId, url.trim(), path.trim());
-      setStatus(`Submodule added at ${path.trim()} — staged, ready to commit`);
+      setStatus(t("submodules.status.added", { path: path.trim() }));
       setUrl("");
       setPath("");
       setAdding(false);
@@ -92,7 +96,7 @@ export function SubmodulesPanel(): React.JSX.Element {
     setError(null);
     try {
       await deinitSubmodule(workspaceId, pendingDeinit);
-      setStatus(`Submodule ${pendingDeinit} deactivated`);
+      setStatus(t("submodules.status.deactivated", { name: pendingDeinit }));
       setPendingDeinit(null);
       await refresh();
     } catch (e) {
@@ -105,11 +109,11 @@ export function SubmodulesPanel(): React.JSX.Element {
   if (!workspaceId || !repoId) return <></>;
 
   return (
-    <SidebarSection title="Submodules" collapsible={items.length > 0}>
+    <SidebarSection title={t("submodules.title")} collapsible={items.length > 0}>
       <div className="flex flex-col gap-1 px-1">
         {error ? <p className="px-2 text-xs text-danger">{error}</p> : null}
         {items.length === 0 ? (
-          <p className="px-2 py-1 text-xs text-text-muted italic">No submodules</p>
+          <p className="px-2 py-1 text-xs text-text-muted italic">{t("submodules.empty")}</p>
         ) : (
           items.map((sm) => (
             <div
@@ -144,7 +148,7 @@ export function SubmodulesPanel(): React.JSX.Element {
                   title="git submodule init"
                   onClick={() => void run(sm.name, "init")}
                 >
-                  Init
+                  {t("submodules.actions.init")}
                 </Button>
               ) : (
                 <>
@@ -155,7 +159,7 @@ export function SubmodulesPanel(): React.JSX.Element {
                     title="git submodule update --init --recursive"
                     onClick={() => void run(sm.name, "update")}
                   >
-                    {sm.in_sync ? "Update" : "Sync"}
+                    {sm.in_sync ? t("submodules.actions.update") : t("submodules.actions.sync")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -165,7 +169,7 @@ export function SubmodulesPanel(): React.JSX.Element {
                     title="git submodule deinit"
                     onClick={() => setPendingDeinit(sm.name)}
                   >
-                    Deinit
+                    {t("submodules.actions.deinit")}
                   </Button>
                 </>
               )}
@@ -175,8 +179,12 @@ export function SubmodulesPanel(): React.JSX.Element {
 
         {adding ? (
           <div className="flex flex-col gap-1 rounded-md border border-border-subtle p-1.5">
-            <Input value={url} onChange={setUrl} placeholder="Submodule URL" />
-            <Input value={path} onChange={setPath} placeholder="Path, e.g. libs/util" />
+            <Input value={url} onChange={setUrl} placeholder={t("submodules.add.urlPlaceholder")} />
+            <Input
+              value={path}
+              onChange={setPath}
+              placeholder={t("submodules.add.pathPlaceholder")}
+            />
             <div className="flex justify-end gap-1">
               <Button
                 variant="ghost"
@@ -184,7 +192,7 @@ export function SubmodulesPanel(): React.JSX.Element {
                 disabled={busy !== null}
                 onClick={() => setAdding(false)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="secondary"
@@ -192,7 +200,7 @@ export function SubmodulesPanel(): React.JSX.Element {
                 disabled={busy !== null || !url.trim() || !path.trim()}
                 onClick={() => void submitAdd()}
               >
-                Add
+                {t("common.add")}
               </Button>
             </div>
           </div>
@@ -205,7 +213,7 @@ export function SubmodulesPanel(): React.JSX.Element {
             onClick={() => setAdding(true)}
           >
             <Plus size={12} />
-            Add submodule
+            {t("submodules.add.button")}
           </Button>
         )}
 
@@ -215,8 +223,8 @@ export function SubmodulesPanel(): React.JSX.Element {
             onOpenChange={(open) => {
               if (!open) setPendingDeinit(null);
             }}
-            title={`Deinit submodule ${pendingDeinit}?`}
-            description="Unregisters it from .git/config. The checkout is left untouched; the entry stays in .gitmodules. Run Init to reactivate."
+            title={t("submodules.deinit.title", { name: pendingDeinit })}
+            description={t("submodules.deinit.description")}
             size="sm"
             footer={
               <>
@@ -226,7 +234,7 @@ export function SubmodulesPanel(): React.JSX.Element {
                   className="min-w-0 flex-[3]"
                   onClick={() => setPendingDeinit(null)}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   variant="danger"
@@ -235,7 +243,7 @@ export function SubmodulesPanel(): React.JSX.Element {
                   disabled={busy !== null}
                   onClick={() => void confirmDeinit()}
                 >
-                  Deinit
+                  {t("submodules.actions.deinit")}
                 </Button>
               </>
             }

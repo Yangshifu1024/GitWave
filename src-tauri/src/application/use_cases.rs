@@ -9,6 +9,7 @@ use crate::domain::blame::BlameLine;
 use crate::domain::branch::BranchInfo;
 use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
 use crate::domain::hooks::HookInfo;
 use crate::domain::lfs::LfsStatus;
@@ -19,6 +20,7 @@ use crate::domain::workspace::{
 };
 use crate::domain::worktree::WorktreeInfo;
 use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
+use crate::infrastructure::ai::with_reply_language;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
@@ -127,8 +129,13 @@ impl AppContext {
     /// is !Sync so can't be stored in shared state).
     #[allow(dead_code)]
     pub fn open_repo(&self, repo_path: &str) -> Result<git2::Repository> {
-        git2::Repository::open(PathBuf::from(repo_path))
-            .map_err(|e| AppError::Unknown(format!("git open: {e}")))
+        git2::Repository::open(PathBuf::from(repo_path)).map_err(|e| {
+            AppError::unknown_with(
+                codes::usecases::REPO_OPEN_FAILED,
+                format!("git open: {e}"),
+                &[("error", e.to_string())],
+            )
+        })
     }
 }
 
@@ -164,7 +171,10 @@ fn now_unix() -> i64 {
 pub fn create_workspace(ctx: &AppContext, name: String) -> Result<Workspace> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Protocol("workspace name cannot be empty".into()));
+        return Err(AppError::protocol(
+            codes::usecases::WORKSPACE_NAME_EMPTY,
+            "workspace name cannot be empty",
+        ));
     }
     let now = now_unix();
     let ws = Workspace {
@@ -193,7 +203,10 @@ pub fn list_workspaces(ctx: &AppContext) -> Result<Vec<WorkspaceSummary>> {
 pub fn rename_workspace(ctx: &AppContext, id: String, new_name: String) -> Result<()> {
     let trimmed = new_name.trim();
     if trimmed.is_empty() {
-        return Err(AppError::Protocol("workspace name cannot be empty".into()));
+        return Err(AppError::protocol(
+            codes::usecases::WORKSPACE_NAME_EMPTY,
+            "workspace name cannot be empty",
+        ));
     }
     ctx.workspaces
         .lock()
@@ -213,7 +226,13 @@ pub fn get_workspace(ctx: &AppContext, id: String) -> Result<Workspace> {
         .lock()
         .expect("workspace repo mutex poisoned")
         .get(&id)?
-        .ok_or_else(|| AppError::Protocol(format!("workspace not found: {id}")))
+        .ok_or_else(|| {
+            AppError::protocol_with(
+                codes::usecases::WORKSPACE_NOT_FOUND,
+                format!("workspace not found: {id}"),
+                &[("id", id.clone())],
+            )
+        })
 }
 
 pub fn update_workspace_settings(
@@ -223,16 +242,19 @@ pub fn update_workspace_settings(
 ) -> Result<()> {
     let provider = settings.ai_provider.as_deref().unwrap_or("");
     if !provider.is_empty() && !matches!(provider, "openai" | "anthropic" | "ollama") {
-        return Err(AppError::Protocol(format!(
-            "unsupported ai_provider: {provider}"
-        )));
+        return Err(AppError::protocol_with(
+            codes::usecases::AI_PROVIDER_UNSUPPORTED,
+            format!("unsupported ai_provider: {provider}"),
+            &[("provider", provider.to_string())],
+        ));
     }
     for fb in &settings.ai_failover {
         if !matches!(fb.provider.as_str(), "openai" | "anthropic" | "ollama") {
-            return Err(AppError::Protocol(format!(
-                "unsupported ai_failover provider: {}",
-                fb.provider
-            )));
+            return Err(AppError::protocol_with(
+                codes::usecases::AI_FAILOVER_PROVIDER_UNSUPPORTED,
+                format!("unsupported ai_failover provider: {}", fb.provider),
+                &[("provider", fb.provider.clone())],
+            ));
         }
     }
     // A blank template means "use the built-in default", not "empty system
@@ -299,8 +321,13 @@ pub fn clone_repo(
 ) -> Result<RepoRef> {
     let dest = PathBuf::from(&dest_path);
     if replace_dest && dest.exists() {
-        std::fs::remove_dir_all(&dest)
-            .map_err(|e| AppError::Unknown(format!("failed to clear dest for retry: {e}")))?;
+        std::fs::remove_dir_all(&dest).map_err(|e| {
+            AppError::unknown_with(
+                codes::usecases::CLONE_DEST_CLEAR_FAILED,
+                format!("failed to clear dest for retry: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
     }
     if url.starts_with("ssh://") || url.starts_with("git@") {
         crate::infrastructure::git::repo_adapter::clone_ssh(&url, &dest, on_progress)?;
@@ -502,7 +529,7 @@ pub fn default_ai_model(provider: &str) -> &'static str {
 /// errors stop too — the next provider would make the same mistake on the
 /// same prompt.
 fn should_failover(err: &AppError) -> bool {
-    matches!(err, AppError::Network(_))
+    matches!(err, AppError::Network { .. })
 }
 
 /// Resolve the primary + failover entries into concrete attempts. Cloud
@@ -538,7 +565,10 @@ fn resolve_ai_chain(
         .clone()
         .filter(|p| !p.trim().is_empty())
         .ok_or_else(|| {
-            AppError::Protocol("AI provider not configured for this Workspace".into())
+            AppError::protocol(
+                codes::usecases::AI_PROVIDER_NOT_CONFIGURED,
+                "AI provider not configured for this Workspace",
+            )
         })?;
 
     // Offline mode: keep only Ollama entries, before any cloud key checks —
@@ -558,9 +588,9 @@ fn resolve_ai_chain(
             }
         }
         if chain.is_empty() {
-            return Err(AppError::Protocol(
-                "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)"
-                    .into(),
+            return Err(AppError::protocol(
+                codes::usecases::AI_OFFLINE_MODE,
+                "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)",
             ));
         }
         return Ok(chain);
@@ -568,9 +598,11 @@ fn resolve_ai_chain(
 
     let head = resolve(&primary, &settings.ai_model, &settings.ai_base_url)?;
     if head.provider != "ollama" && head.api_key.is_none() {
-        return Err(AppError::Credential(format!(
-            "{primary} API key not configured"
-        )));
+        return Err(AppError::credential_with(
+            codes::usecases::AI_API_KEY_MISSING,
+            format!("{primary} API key not configured"),
+            &[("provider", primary.clone())],
+        ));
     }
 
     let mut chain = vec![head];
@@ -644,10 +676,11 @@ async fn generate_with_failover(
     }
     let last = last_err.expect("resolve_ai_chain never returns an empty chain");
     if failures.len() > 1 {
-        Err(AppError::Unknown(format!(
-            "all providers failed — {}",
-            failures.join("; ")
-        )))
+        Err(AppError::unknown_with(
+            codes::usecases::AI_ALL_PROVIDERS_FAILED,
+            format!("all providers failed — {}", failures.join("; ")),
+            &[("errors", failures.join("; "))],
+        ))
     } else {
         Err(last)
     }
@@ -658,6 +691,7 @@ async fn generate_with_failover(
 pub async fn generate_commit_message(
     ctx: &AppContext,
     workspace_id: String,
+    language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
@@ -669,8 +703,9 @@ pub async fn generate_commit_message(
     let repo = ctx.open_repo(&repo_path)?;
     let staged = infra_diff_index_to_head(&repo)?;
     if staged.files.is_empty() {
-        return Err(AppError::Protocol(
-            "no staged changes — stage files before generating a commit message".into(),
+        return Err(AppError::protocol(
+            codes::usecases::COMMIT_NO_STAGED,
+            "no staged changes — stage files before generating a commit message",
         ));
     }
     let recent = infra_commit_log(&repo, 8, None)?;
@@ -699,16 +734,19 @@ pub async fn generate_commit_message(
     user.push_str("\nStaged diff (unified format, may be truncated):\n");
     append_diff_patch(&mut user, &staged_files, 12_000);
 
-    let system = with_repo_rules(
-        settings.prompt_templates.commit.unwrap_or_else(|| {
-            "You write concise git commit messages. Output ONLY the message text. \
-             Prefer conventional commits (type: summary). First line <= 72 chars. \
-             Base the message strictly on the provided staged diff — do not invent \
-             changes that are not visible in it. \
-             Do not wrap in markdown fences."
-                .into()
-        }),
-        repo.workdir().and_then(infra_read_ai_rules),
+    let system = with_reply_language(
+        with_repo_rules(
+            settings.prompt_templates.commit.unwrap_or_else(|| {
+                "You write concise git commit messages. Output ONLY the message text. \
+                 Prefer conventional commits (type: summary). First line <= 72 chars. \
+                 Base the message strictly on the provided staged diff — do not invent \
+                 changes that are not visible in it. \
+                 Do not wrap in markdown fences."
+                    .into()
+            }),
+            repo.workdir().and_then(infra_read_ai_rules),
+        ),
+        language.as_deref(),
     );
 
     generate_with_failover(chain, system, user).await
@@ -828,8 +866,13 @@ pub fn get_commit_diff(
 ) -> Result<DiffSummary> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    let oid = git2::Oid::from_str(commit_oid)
-        .map_err(|e| AppError::Protocol(format!("invalid commit OID: {e}")))?;
+    let oid = git2::Oid::from_str(commit_oid).map_err(|e| {
+        AppError::protocol_with(
+            codes::usecases::COMMIT_OID_INVALID,
+            format!("invalid commit OID: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     infra_diff_commit_vs_parent(&repo, oid)
 }
 
@@ -853,10 +896,20 @@ pub fn get_file_diff(
 ) -> Result<Vec<FileDiff>> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    let from = git2::Oid::from_str(from_oid)
-        .map_err(|e| AppError::Protocol(format!("invalid from OID: {e}")))?;
-    let to = git2::Oid::from_str(to_oid)
-        .map_err(|e| AppError::Protocol(format!("invalid to OID: {e}")))?;
+    let from = git2::Oid::from_str(from_oid).map_err(|e| {
+        AppError::protocol_with(
+            codes::usecases::FILE_DIFF_FROM_OID_INVALID,
+            format!("invalid from OID: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    let to = git2::Oid::from_str(to_oid).map_err(|e| {
+        AppError::protocol_with(
+            codes::usecases::FILE_DIFF_TO_OID_INVALID,
+            format!("invalid to OID: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     infra_diff_paths(&repo, from, to)
 }
 
@@ -891,7 +944,13 @@ pub fn create_branch(
     branches
         .into_iter()
         .find(|b| b.name == name)
-        .ok_or_else(|| AppError::Unknown(format!("branch {} not found after creation", name)))
+        .ok_or_else(|| {
+            AppError::unknown_with(
+                codes::usecases::BRANCH_NOT_FOUND_AFTER_CREATE,
+                format!("branch {} not found after creation", name),
+                &[("name", name.to_string())],
+            )
+        })
 }
 
 /// Delete a local branch.
@@ -1011,6 +1070,7 @@ pub async fn explain_conflict(
     ctx: &AppContext,
     workspace_id: String,
     path: String,
+    language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
@@ -1021,15 +1081,18 @@ pub async fn explain_conflict(
     let repo_path = active_repo_path(ctx, &workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     let rules = repo.workdir().and_then(infra_read_ai_rules);
-    let system = with_repo_rules(
-        settings.prompt_templates.conflict.unwrap_or_else(|| {
-            "You explain git merge conflicts for a human developer. \
-         Describe what each side intends and suggest a resolution approach. \
-         Do NOT output a full rewritten file unless asked. \
-         Clearly state this is advice only — the user must apply changes."
-                .into()
-        }),
-        rules,
+    let system = with_reply_language(
+        with_repo_rules(
+            settings.prompt_templates.conflict.unwrap_or_else(|| {
+                "You explain git merge conflicts for a human developer. \
+             Describe what each side intends and suggest a resolution approach. \
+             Do NOT output a full rewritten file unless asked. \
+             Clearly state this is advice only — the user must apply changes."
+                    .into()
+            }),
+            rules,
+        ),
+        language.as_deref(),
     );
     let user = format!(
         "Conflict in `{path}`\n\n=== BASE ===\n{}\n\n=== OURS ===\n{}\n\n=== THEIRS ===\n{}\n",
@@ -1068,10 +1131,10 @@ fn default_pr_base(repo: &git2::Repository) -> Result<String> {
             return Ok(candidate.to_string());
         }
     }
-    Err(AppError::Protocol(
+    Err(AppError::protocol(
+        codes::usecases::PR_NO_BASE_BRANCH,
         "no base branch found (tried origin/main, origin/master, main, master) — \
-         pick a base branch explicitly"
-            .into(),
+         pick a base branch explicitly",
     ))
 }
 
@@ -1117,6 +1180,7 @@ pub async fn generate_pr_description(
     ctx: &AppContext,
     workspace_id: String,
     base: Option<String>,
+    language: Option<String>,
 ) -> Result<PrDescriptionOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
@@ -1132,8 +1196,9 @@ pub async fn generate_pr_description(
         let head = match repo.head() {
             Ok(head) => head.peel_to_commit().map_err(AppError::from)?,
             Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
-                return Err(AppError::Protocol(
-                    "repository has no commits yet — nothing to describe".into(),
+                return Err(AppError::protocol(
+                    codes::usecases::PR_NO_COMMITS_YET,
+                    "repository has no commits yet — nothing to describe",
                 ));
             }
             Err(e) => return Err(AppError::from(e)),
@@ -1150,25 +1215,34 @@ pub async fn generate_pr_description(
         };
         let base_oid = infra_resolve_ref_oid(&repo, &base_name)?;
         let merge_base = repo.merge_base(base_oid, head.id()).map_err(|_| {
-            AppError::Protocol(format!("no common ancestor between HEAD and {base_name}"))
+            AppError::protocol_with(
+                codes::usecases::PR_NO_COMMON_ANCESTOR,
+                format!("no common ancestor between HEAD and {base_name}"),
+                &[("base_name", base_name.clone())],
+            )
         })?;
         let commits = infra_commits_ahead_of(&repo, merge_base, head.id(), 30)?;
         if commits.is_empty() {
-            return Err(AppError::Protocol(format!(
-                "no commits ahead of {base_name} — nothing to describe"
-            )));
+            return Err(AppError::protocol_with(
+                codes::usecases::PR_NO_COMMITS_AHEAD,
+                format!("no commits ahead of {base_name} — nothing to describe"),
+                &[("base_name", base_name.clone())],
+            ));
         }
         let files = infra_diff_paths(&repo, merge_base, head.id())?;
 
         let user = build_pr_user_prompt(&branch, &base_name, &commits, &files);
-        let system = with_repo_rules(
-            settings
-                .prompt_templates
-                .pr
-                .clone()
-                .filter(|t| !t.trim().is_empty())
-                .unwrap_or_else(|| DEFAULT_PR_SYSTEM.to_string()),
-            repo.workdir().and_then(infra_read_ai_rules),
+        let system = with_reply_language(
+            with_repo_rules(
+                settings
+                    .prompt_templates
+                    .pr
+                    .clone()
+                    .filter(|t| !t.trim().is_empty())
+                    .unwrap_or_else(|| DEFAULT_PR_SYSTEM.to_string()),
+                repo.workdir().and_then(infra_read_ai_rules),
+            ),
+            language.as_deref(),
         );
         (user, system)
     };
@@ -1209,6 +1283,7 @@ pub async fn explain_commit(
     ctx: &AppContext,
     workspace_id: String,
     sha: String,
+    language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
@@ -1225,9 +1300,12 @@ pub async fn explain_commit(
         let summary = infra_diff_commit_vs_parent(&repo, oid)?;
         let files = infra_diff_commit_vs_parent_files(&repo, oid)?;
         let user = build_explain_user_prompt(&details.message_full, &summary, &files);
-        let system = with_repo_rules(
-            DEFAULT_EXPLAIN_SYSTEM.to_string(),
-            repo.workdir().and_then(infra_read_ai_rules),
+        let system = with_reply_language(
+            with_repo_rules(
+                DEFAULT_EXPLAIN_SYSTEM.to_string(),
+                repo.workdir().and_then(infra_read_ai_rules),
+            ),
+            language.as_deref(),
         );
         (user, system)
     };
@@ -1300,13 +1378,18 @@ fn parse_palette_intent(raw: &str) -> Result<PaletteIntent> {
     let (start, end) = match (text.find('{'), text.rfind('}')) {
         (Some(s), Some(e)) if e > s => (s, e),
         _ => {
-            return Err(AppError::Protocol(
-                "AI did not return a JSON action — try rephrasing the request".into(),
+            return Err(AppError::protocol(
+                codes::usecases::PALETTE_NO_JSON,
+                "AI did not return a JSON action — try rephrasing the request",
             ));
         }
     };
-    let value: serde_json::Value = serde_json::from_str(&text[start..=end])
-        .map_err(|_| AppError::Protocol("AI returned malformed JSON — try again".into()))?;
+    let value: serde_json::Value = serde_json::from_str(&text[start..=end]).map_err(|_| {
+        AppError::protocol(
+            codes::usecases::PALETTE_MALFORMED_JSON,
+            "AI returned malformed JSON — try again",
+        )
+    })?;
 
     let action = value["action"]
         .as_str()
@@ -1332,9 +1415,11 @@ fn parse_palette_intent(raw: &str) -> Result<PaletteIntent> {
         } else {
             format!("unsupported action: {action}")
         };
-        return Err(AppError::Protocol(format!(
-            "{hinted} — commit, push, merge and rebase are never palette-driven (P1)"
-        )));
+        return Err(AppError::protocol_with(
+            codes::usecases::PALETTE_ACTION_FORBIDDEN,
+            format!("{hinted} — commit, push, merge and rebase are never palette-driven (P1)"),
+            &[("hinted", hinted)],
+        ));
     }
 
     let require_str = |key: &str| -> Result<String> {
@@ -1344,7 +1429,11 @@ fn parse_palette_intent(raw: &str) -> Result<PaletteIntent> {
             .filter(|s| !s.is_empty())
             .map(str::to_string)
             .ok_or_else(|| {
-                AppError::Protocol(format!("AI action \"{action}\" is missing \"{key}\""))
+                AppError::protocol_with(
+                    codes::usecases::PALETTE_PARAM_MISSING,
+                    format!("AI action \"{action}\" is missing \"{key}\""),
+                    &[("action", action.clone()), ("key", key.to_string())],
+                )
             })
     };
     match action.as_str() {
@@ -1399,7 +1488,10 @@ pub async fn ai_palette_intent(
     query: String,
 ) -> Result<PaletteIntent> {
     if query.trim().is_empty() {
-        return Err(AppError::Protocol("empty palette request".into()));
+        return Err(AppError::protocol(
+            codes::usecases::PALETTE_EMPTY_REQUEST,
+            "empty palette request",
+        ));
     }
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
@@ -1465,8 +1557,13 @@ pub async fn ai_palette_intent(
     };
     let user = format!(
         "Repository context:\n{}\n\nUser request: {}",
-        serde_json::to_string_pretty(&snapshot)
-            .map_err(|e| AppError::Unknown(format!("palette context: {e}")))?,
+        serde_json::to_string_pretty(&snapshot).map_err(|e| {
+            AppError::unknown_with(
+                codes::usecases::PALETTE_CONTEXT_SERIALIZE_FAILED,
+                format!("palette context: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?,
         query.trim()
     );
     let system = with_repo_rules(PALETTE_SYSTEM.to_string(), rules);
@@ -1493,8 +1590,9 @@ pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Re
     // dirty worktree instead of clobbering local changes (git refuses the
     // same way).
     if worktree_is_dirty(&repo)? {
-        return Err(AppError::Protocol(
-            "rebase needs a clean worktree; commit or stash your changes first".into(),
+        return Err(AppError::protocol(
+            codes::usecases::REBASE_DIRTY_WORKTREE,
+            "rebase needs a clean worktree; commit or stash your changes first",
         ));
     }
     let result = infra_rebase_branch(&repo, upstream)?;
@@ -1502,10 +1600,12 @@ pub fn rebase_branch(ctx: &AppContext, workspace_id: &str, upstream: &str) -> Re
         // In-memory rebase leaves refs and the workdir untouched; land the
         // rewritten head on the current branch here. Clone keeps `new_head`
         // in the returned result — its contract promises it on Clean.
-        let new_head = result
-            .new_head
-            .clone()
-            .ok_or_else(|| AppError::Protocol("rebase finished without a new HEAD".into()))?;
+        let new_head = result.new_head.clone().ok_or_else(|| {
+            AppError::protocol(
+                codes::usecases::REBASE_NO_NEW_HEAD,
+                "rebase finished without a new HEAD",
+            )
+        })?;
         infra_finalize_rebase(&repo, &new_head)?;
     }
     Ok(result)
@@ -1598,7 +1698,11 @@ pub fn get_health(ctx: &AppContext, workspace_id: &str) -> Result<HealthReport> 
 }
 
 /// AI summary of the health report (advice only, P1).
-pub async fn explain_health(ctx: &AppContext, workspace_id: String) -> Result<String> {
+pub async fn explain_health(
+    ctx: &AppContext,
+    workspace_id: String,
+    language: Option<String>,
+) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
     let key_lookup =
@@ -1611,13 +1715,21 @@ pub async fn explain_health(ctx: &AppContext, workspace_id: String) -> Result<St
 {}
 
 Write a short health assessment:          what looks fine, what needs attention, and the single most          valuable next action. Plain text, no markdown fences.",
-        serde_json::to_string_pretty(&report)
-            .map_err(|e| AppError::Unknown(format!("serialize report: {e}")))?,
+        serde_json::to_string_pretty(&report).map_err(|e| {
+            AppError::unknown_with(
+                codes::usecases::HEALTH_SERIALIZE_FAILED,
+                format!("serialize report: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?,
     );
-    let system = settings.prompt_templates.health.clone().unwrap_or_else(|| {
-        "You are a repository health assistant. You receive deterministic          metrics about a git repository and summarize them for a developer.          Advice only — you never execute anything."
-            .into()
-    });
+    let system = with_reply_language(
+        settings.prompt_templates.health.clone().unwrap_or_else(|| {
+            "You are a repository health assistant. You receive deterministic          metrics about a git repository and summarize them for a developer.          Advice only — you never execute anything."
+                .into()
+        }),
+        language.as_deref(),
+    );
 
     let outcome = generate_with_failover(chain, system, user).await?;
     Ok(outcome.text)
@@ -1639,6 +1751,7 @@ pub async fn explain_reflog(
     new_oid: String,
     action: String,
     message: String,
+    language: Option<String>,
 ) -> Result<String> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
     let settings = ws.settings;
@@ -1654,10 +1767,13 @@ pub async fn explain_reflog(
         (subject_of(&repo, &old_oid), subject_of(&repo, &new_oid))
     };
 
-    let system = settings.prompt_templates.reflog.clone().unwrap_or_else(|| {
-        "You are a git recovery assistant. A single reflog entry is provided.          In 2-4 sentences: explain what happened to the branch, then give one          concrete recovery recommendation (create a recovery branch at a sha,          git reset --hard, or checkout). Advice only — you never execute          anything. Do not wrap in markdown fences."
-            .into()
-    });
+    let system = with_reply_language(
+        settings.prompt_templates.reflog.clone().unwrap_or_else(|| {
+            "You are a git recovery assistant. A single reflog entry is provided.          In 2-4 sentences: explain what happened to the branch, then give one          concrete recovery recommendation (create a recovery branch at a sha,          git reset --hard, or checkout). Advice only — you never execute          anything. Do not wrap in markdown fences."
+                .into()
+        }),
+        language.as_deref(),
+    );
     let user = format!(
         "Reflog entry\nAction: {action}\nMessage: {message}\n\nPrevious position: {old}\n  ({old_subject})\n\nNew position: {new}\n  ({new_subject})\n",
         old = old_oid,
@@ -1768,9 +1884,9 @@ pub fn lfs_status(ctx: &AppContext, workspace_id: &str) -> Result<LfsStatus> {
 /// Requires a `git lfs` binary on PATH.
 pub fn lfs_install(ctx: &AppContext, workspace_id: &str) -> Result<String> {
     if !infra_lfs_available() {
-        return Err(AppError::Protocol(
-            "git lfs is not installed — install Git LFS (https://git-lfs.com) and restart GitWave"
-                .into(),
+        return Err(AppError::protocol(
+            codes::usecases::LFS_NOT_INSTALLED,
+            "git lfs is not installed — install Git LFS (https://git-lfs.com) and restart GitWave",
         ));
     }
     let repo_path = active_repo_path(ctx, workspace_id)?;
@@ -1799,7 +1915,13 @@ pub fn get_gitignore(ctx: &AppContext, workspace_id: &str) -> Result<String> {
     if !path.exists() {
         return Ok(String::new());
     }
-    std::fs::read_to_string(&path).map_err(|e| AppError::Unknown(format!("read .gitignore: {e}")))
+    std::fs::read_to_string(&path).map_err(|e| {
+        AppError::unknown_with(
+            codes::usecases::GITIGNORE_READ_FAILED,
+            format!("read .gitignore: {e}"),
+            &[("error", e.to_string())],
+        )
+    })
 }
 
 // ─── Git hooks editor ───────────────────────────────────────────────────────
@@ -1836,8 +1958,13 @@ pub fn write_gitignore(ctx: &AppContext, workspace_id: &str, content: &str) -> R
     } else {
         format!("{content}\n")
     };
-    std::fs::write(&path, normalized)
-        .map_err(|e| AppError::Unknown(format!("write .gitignore: {e}")))
+    std::fs::write(&path, normalized).map_err(|e| {
+        AppError::unknown_with(
+            codes::usecases::GITIGNORE_WRITE_FAILED,
+            format!("write .gitignore: {e}"),
+            &[("error", e.to_string())],
+        )
+    })
 }
 
 /// Payload shape of a `.gitwave-workspace.json` transfer file (S6).
@@ -1858,10 +1985,20 @@ pub fn export_workspace(ctx: &AppContext, workspace_id: &str, dest_path: &str) -
         name: ws.name.clone(),
         repos: ws.repos.iter().map(|r| r.path.clone()).collect(),
     };
-    let json = serde_json::to_string_pretty(&transfer)
-        .map_err(|e| AppError::Unknown(format!("serialize workspace: {e}")))?;
-    std::fs::write(dest_path, json)
-        .map_err(|e| AppError::Unknown(format!("write transfer file: {e}")))?;
+    let json = serde_json::to_string_pretty(&transfer).map_err(|e| {
+        AppError::unknown_with(
+            codes::usecases::TRANSFER_SERIALIZE_FAILED,
+            format!("serialize workspace: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    std::fs::write(dest_path, json).map_err(|e| {
+        AppError::unknown_with(
+            codes::usecases::TRANSFER_WRITE_FAILED,
+            format!("write transfer file: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     Ok(dest_path.to_string())
 }
 
@@ -1873,15 +2010,26 @@ pub fn import_workspace(
     src_path: &str,
     new_name: Option<String>,
 ) -> Result<WorkspaceSummary> {
-    let raw = std::fs::read_to_string(src_path)
-        .map_err(|e| AppError::Unknown(format!("read transfer file: {e}")))?;
-    let transfer: WorkspaceTransfer = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Protocol(format!("invalid transfer file: {e}")))?;
+    let raw = std::fs::read_to_string(src_path).map_err(|e| {
+        AppError::unknown_with(
+            codes::usecases::TRANSFER_READ_FAILED,
+            format!("read transfer file: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    let transfer: WorkspaceTransfer = serde_json::from_str(&raw).map_err(|e| {
+        AppError::protocol_with(
+            codes::usecases::TRANSFER_INVALID,
+            format!("invalid transfer file: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     if transfer.version != 1 {
-        return Err(AppError::Protocol(format!(
-            "unsupported transfer file version: {}",
-            transfer.version
-        )));
+        return Err(AppError::protocol_with(
+            codes::usecases::TRANSFER_VERSION_UNSUPPORTED,
+            format!("unsupported transfer file version: {}", transfer.version),
+            &[("version", transfer.version.to_string())],
+        ));
     }
     let name = new_name
         .map(|n| n.trim().to_string())
@@ -1904,7 +2052,12 @@ pub fn import_workspace(
     list_workspaces(ctx)?
         .into_iter()
         .find(|sum| sum.id == ws.id)
-        .ok_or_else(|| AppError::Unknown("imported workspace vanished".into()))
+        .ok_or_else(|| {
+            AppError::unknown(
+                codes::usecases::TRANSFER_WORKSPACE_VANISHED,
+                "imported workspace vanished",
+            )
+        })
 }
 
 pub fn plan_interactive_rebase(
@@ -1956,12 +2109,19 @@ fn active_repo_id(ctx: &AppContext, workspace_id: &str) -> Result<String> {
         .workspaces
         .lock()
         .expect("workspace repo mutex poisoned");
-    let ws = workspaces
-        .get(workspace_id)?
-        .ok_or_else(|| AppError::Protocol(format!("workspace not found: {workspace_id}")))?;
-    ws.last_active_repo_id
-        .clone()
-        .ok_or_else(|| AppError::Protocol("no active repo in workspace".into()))
+    let ws = workspaces.get(workspace_id)?.ok_or_else(|| {
+        AppError::protocol_with(
+            codes::usecases::WORKSPACE_NOT_FOUND,
+            format!("workspace not found: {workspace_id}"),
+            &[("id", workspace_id.to_string())],
+        )
+    })?;
+    ws.last_active_repo_id.clone().ok_or_else(|| {
+        AppError::protocol(
+            codes::usecases::NO_ACTIVE_REPO,
+            "no active repo in workspace",
+        )
+    })
 }
 
 pub fn get_working_copy(ctx: &AppContext, workspace_id: &str) -> Result<WorkingCopy> {
@@ -2159,17 +2319,31 @@ fn active_repo_path(ctx: &AppContext, workspace_id: &str) -> Result<String> {
         .lock()
         .expect("workspace repo mutex poisoned");
     let ws = workspaces.get(workspace_id).and_then(|opt| {
-        opt.ok_or_else(|| AppError::Protocol(format!("workspace not found: {workspace_id}")))
+        opt.ok_or_else(|| {
+            AppError::protocol_with(
+                codes::usecases::WORKSPACE_NOT_FOUND,
+                format!("workspace not found: {workspace_id}"),
+                &[("id", workspace_id.to_string())],
+            )
+        })
     })?;
-    let repo_id = ws
-        .last_active_repo_id
-        .as_ref()
-        .ok_or_else(|| AppError::Protocol("no active repo in workspace".into()))?;
+    let repo_id = ws.last_active_repo_id.as_ref().ok_or_else(|| {
+        AppError::protocol(
+            codes::usecases::NO_ACTIVE_REPO,
+            "no active repo in workspace",
+        )
+    })?;
     let repos = workspaces.list_repos(workspace_id)?;
     let repo = repos
         .iter()
         .find(|r| r.id.as_str() == repo_id)
-        .ok_or_else(|| AppError::Protocol(format!("repo not found: {repo_id}")))?;
+        .ok_or_else(|| {
+            AppError::protocol_with(
+                codes::usecases::REPO_NOT_FOUND,
+                format!("repo not found: {repo_id}"),
+                &[("id", repo_id.to_string())],
+            )
+        })?;
     Ok(repo.path.clone())
 }
 
@@ -2260,18 +2434,33 @@ mod tests {
             .map(|(p, k)| (p.to_string(), k.map(str::to_string)))
             .collect();
         move |provider: &str| {
-            keys.get(provider)
-                .cloned()
-                .ok_or_else(|| AppError::Unknown("keychain unavailable".into()))
+            keys.get(provider).cloned().ok_or_else(|| {
+                AppError::unknown(
+                    codes::usecases::TEST_KEYCHAIN_UNAVAILABLE,
+                    "keychain unavailable",
+                )
+            })
         }
     }
 
     #[test]
     fn failover_policy_only_walks_network_errors() {
-        assert!(should_failover(&AppError::Network("timeout".into())));
-        assert!(!should_failover(&AppError::Protocol("bad prompt".into())));
-        assert!(!should_failover(&AppError::Credential("no key".into())));
-        assert!(!should_failover(&AppError::Unknown("empty content".into())));
+        assert!(should_failover(&AppError::network(
+            codes::usecases::TEST_NETWORK,
+            "timeout",
+        )));
+        assert!(!should_failover(&AppError::protocol(
+            codes::usecases::TEST_PROTOCOL,
+            "bad prompt",
+        )));
+        assert!(!should_failover(&AppError::credential(
+            codes::usecases::TEST_CREDENTIAL,
+            "no key",
+        )));
+        assert!(!should_failover(&AppError::unknown(
+            codes::usecases::TEST_UNKNOWN,
+            "empty content",
+        )));
     }
 
     #[test]
@@ -2391,7 +2580,7 @@ mod tests {
         // openai is known to the keychain but has no stored key.
         let lookup = key_lookup_for(&[("openai", None)]);
         let err = resolve_ai_chain(&settings, &lookup).expect_err("no key");
-        assert!(matches!(err, AppError::Credential(_)), "got: {err:?}");
+        assert!(matches!(err, AppError::Credential { .. }), "got: {err:?}");
     }
 
     #[test]

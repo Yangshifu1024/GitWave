@@ -7,9 +7,14 @@ use git2::Repository;
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 /// One reflog entry. Lists come back newest-first.
@@ -83,15 +88,19 @@ fn normalize_ref(reference: &str) -> String {
 pub fn list_reflog(repo: &Repository, reference: &str) -> Result<Vec<ReflogEntry>> {
     let name = normalize_ref(reference);
     if repo.find_reference(&name).is_err() {
-        return Err(AppError::Protocol(format!(
-            "reference not found: {reference}"
-        )));
+        return Err(AppError::protocol_with(
+            codes::git::REF_NOT_FOUND,
+            format!("reference not found: {reference}"),
+            &[("reference", reference.to_string())],
+        ));
     }
     let log = repo.reflog(&name).map_err(map_git_err)?;
     if log.is_empty() {
-        return Err(AppError::Protocol(format!(
-            "no reflog for reference: {reference}"
-        )));
+        return Err(AppError::protocol_with(
+            codes::git::REFLOG_EMPTY,
+            format!("no reflog for reference: {reference}"),
+            &[("reference", reference.to_string())],
+        ));
     }
 
     Ok(log

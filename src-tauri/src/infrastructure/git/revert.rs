@@ -8,14 +8,25 @@
 use git2::Repository;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 fn parse_oid(oid_str: &str) -> Result<git2::Oid> {
-    git2::Oid::from_str(oid_str).map_err(|e| AppError::Protocol(format!("invalid oid: {e}")))
+    git2::Oid::from_str(oid_str).map_err(|e| {
+        AppError::protocol_with(
+            codes::git::INVALID_OID,
+            format!("invalid oid: {e}"),
+            &[("error", e.to_string())],
+        )
+    })
 }
 
 /// Refuse when the index or worktree carries any change (incl. untracked).
@@ -24,8 +35,9 @@ fn ensure_clean(repo: &Repository) -> Result<()> {
     opts.include_untracked(true).recurse_untracked_dirs(true);
     let statuses = repo.statuses(Some(&mut opts)).map_err(map_git_err)?;
     if !statuses.is_empty() {
-        return Err(AppError::Protocol(
-            "working copy is not clean — commit or stash your changes first".into(),
+        return Err(AppError::protocol(
+            codes::git::DIRTY_WORKTREE,
+            "working copy is not clean — commit or stash your changes first",
         ));
     }
     Ok(())
@@ -52,12 +64,17 @@ fn index_conflicts(index: &git2::Index) -> Result<Vec<String>> {
 pub fn revert_commit(repo: &Repository, oid_str: &str) -> Result<String> {
     ensure_clean(repo)?;
     let oid = parse_oid(oid_str)?;
-    let commit = repo
-        .find_commit(oid)
-        .map_err(|_| AppError::Protocol(format!("commit not found: {oid_str}")))?;
+    let commit = repo.find_commit(oid).map_err(|_| {
+        AppError::protocol_with(
+            codes::git::COMMIT_NOT_FOUND,
+            format!("commit not found: {oid_str}"),
+            &[("oid", oid_str.to_string())],
+        )
+    })?;
     if commit.parent_count() > 1 {
-        return Err(AppError::Protocol(
-            "reverting a merge commit is not supported (use an explicit reverse merge)".into(),
+        return Err(AppError::protocol(
+            codes::git::REVERT_MERGE_COMMIT,
+            "reverting a merge commit is not supported (use an explicit reverse merge)",
         ));
     }
     let head = repo
@@ -81,10 +98,11 @@ pub fn revert_commit(repo: &Repository, oid_str: &str) -> Result<String> {
         .map_err(map_git_err)?;
     let conflicts = index_conflicts(&merged)?;
     if !conflicts.is_empty() {
-        return Err(AppError::Protocol(format!(
-            "revert hit conflicts in: {}",
-            conflicts.join(", ")
-        )));
+        return Err(AppError::protocol_with(
+            codes::git::REVERT_CONFLICTS,
+            format!("revert hit conflicts in: {}", conflicts.join(", ")),
+            &[("conflicts", conflicts.join(", "))],
+        ));
     }
 
     let tree_oid = merged.write_tree_to(repo).map_err(map_git_err)?;
@@ -107,19 +125,24 @@ pub fn revert_commit(repo: &Repository, oid_str: &str) -> Result<String> {
 pub fn cherry_pick_commit(repo: &Repository, oid_str: &str) -> Result<String> {
     ensure_clean(repo)?;
     let oid = parse_oid(oid_str)?;
-    let commit = repo
-        .find_commit(oid)
-        .map_err(|_| AppError::Protocol(format!("commit not found: {oid_str}")))?;
+    let commit = repo.find_commit(oid).map_err(|_| {
+        AppError::protocol_with(
+            codes::git::COMMIT_NOT_FOUND,
+            format!("commit not found: {oid_str}"),
+            &[("oid", oid_str.to_string())],
+        )
+    })?;
 
     repo.cherrypick(&commit, None).map_err(map_git_err)?;
     let on_disk = repo.index().map_err(map_git_err)?;
     let conflicts = index_conflicts(&on_disk)?;
     if !conflicts.is_empty() {
         let _ = repo.cleanup_state();
-        return Err(AppError::Protocol(format!(
-            "cherry-pick hit conflicts in: {}",
-            conflicts.join(", ")
-        )));
+        return Err(AppError::protocol_with(
+            codes::git::CHERRY_PICK_CONFLICTS,
+            format!("cherry-pick hit conflicts in: {}", conflicts.join(", ")),
+            &[("conflicts", conflicts.join(", "))],
+        ));
     }
 
     let mut index = repo.index().map_err(map_git_err)?;
@@ -134,9 +157,9 @@ pub fn cherry_pick_commit(repo: &Repository, oid_str: &str) -> Result<String> {
     // we, instead of silently creating a no-change commit.
     if tree_oid == head.tree_id() {
         let _ = repo.cleanup_state();
-        return Err(AppError::Protocol(
-            "cherry-pick produced no changes — this commit is already contained in the current branch"
-                .into(),
+        return Err(AppError::protocol(
+            codes::git::CHERRY_PICK_NO_CHANGES,
+            "cherry-pick produced no changes — this commit is already contained in the current branch",
         ));
     }
     let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
@@ -339,7 +362,7 @@ mod empty_pick_tests {
         let err = cherry_pick_commit(&repo, &picked.to_string()).unwrap_err();
         assert_eq!(err.category(), "Protocol");
         let msg = match &err {
-            AppError::Protocol(m) => m.clone(),
+            AppError::Protocol { message: m, .. } => m.clone(),
             other => other.to_string(),
         };
         assert!(

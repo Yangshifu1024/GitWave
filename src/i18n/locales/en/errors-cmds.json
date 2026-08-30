@@ -1,0 +1,11 @@
+{
+  "errors": {
+    "cmds": {
+      "clone_task_join": "Clone task failed: {{error}}",
+      "fetch_task_join": "Fetch task failed: {{error}}",
+      "pull_task_join": "Pull task failed: {{error}}",
+      "list_remotes_task_join": "Failed to list remotes: {{error}}",
+      "push_task_join": "Push task failed: {{error}}"
+    }
+  }
+}

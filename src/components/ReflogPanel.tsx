@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { History, RotateCcw, Sparkles, Undo2 } from "lucide-react";
 
 import {
@@ -18,22 +19,23 @@ import { Modal } from "@/components/ui/Modal";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { cn } from "@/lib/utils";
 
-const ACTION_LABELS: Record<string, string> = {
-  commit: "Commit",
-  initial_commit: "Initial commit",
-  amend: "Amend",
-  checkout: "Checkout",
-  reset: "Reset",
-  merge: "Merge",
-  rebase: "Rebase",
-  pull: "Pull",
-  push: "Push",
-  branch: "Branch",
-  revert: "Revert",
-  cherry_pick: "Cherry-pick",
-  stash: "Stash",
-  clone: "Clone",
-  other: "Operation",
+// Reflog action → i18n key; labels resolve via t() at render time.
+const ACTION_LABEL_KEYS: Record<string, string> = {
+  commit: "repo.reflog.actions.commit",
+  initial_commit: "repo.reflog.actions.initialCommit",
+  amend: "repo.reflog.actions.amend",
+  checkout: "repo.reflog.actions.checkout",
+  reset: "repo.reflog.actions.reset",
+  merge: "repo.reflog.actions.merge",
+  rebase: "repo.reflog.actions.rebase",
+  pull: "repo.reflog.actions.pull",
+  push: "repo.reflog.actions.push",
+  branch: "repo.reflog.actions.branch",
+  revert: "repo.reflog.actions.revert",
+  cherry_pick: "repo.reflog.actions.cherryPick",
+  stash: "repo.reflog.actions.stash",
+  clone: "repo.reflog.actions.clone",
+  other: "repo.reflog.actions.other",
 };
 
 function formatTime(time: number): string {
@@ -54,6 +56,7 @@ type RecoveryTarget = ReflogEntry & { oid: string };
  * explanation. Every mutation is behind an explicit confirmation (P1).
  */
 export function ReflogPanel(): React.JSX.Element {
+  const { t } = useTranslation();
   const wc = useWorkingCopy();
   const workspaceId = wc.workspaceId;
   const repoId = wc.repoId;
@@ -106,7 +109,7 @@ export function ReflogPanel(): React.JSX.Element {
     setBusy(true);
     createBranch(workspaceId, branchName_.trim(), branchModal.oid)
       .then(() => {
-        setStatus(`Recovery branch "${branchName_.trim()}" created`);
+        setStatus(t("repo.reflog.recoveryBranchCreated", { name: branchName_.trim() }));
         setBranchModal(null);
         afterMutation();
       })
@@ -119,7 +122,7 @@ export function ReflogPanel(): React.JSX.Element {
     setBusy(true);
     resetHeadHard(workspaceId, resetModal.oid)
       .then(() => {
-        setStatus(`Branch reset to ${resetModal.oid.slice(0, 7)}`);
+        setStatus(t("repo.reflog.branchReset", { oid: resetModal.oid.slice(0, 7) }));
         setResetModal(null);
         setSelected(null);
         afterMutation();
@@ -138,10 +141,7 @@ export function ReflogPanel(): React.JSX.Element {
       .finally(() => setAiBusy(false));
   };
 
-  const suggestion =
-    selected?.action === "reset"
-      ? "The branch was reset — the discarded commits are still reachable from the previous position. Create a recovery branch to keep them."
-      : null;
+  const suggestion = selected?.action === "reset" ? t("repo.reflog.resetSuggestion") : null;
 
   return (
     <div className="flex flex-col gap-1 px-1 pb-1">
@@ -169,9 +169,9 @@ export function ReflogPanel(): React.JSX.Element {
       ) : null}
 
       {isLoading ? (
-        <p className="px-2 py-1 text-xs text-text-muted italic">Loading…</p>
+        <p className="px-2 py-1 text-xs text-text-muted italic">{t("common.loading")}</p>
       ) : entries.length === 0 ? (
-        <p className="px-2 py-1 text-xs text-text-muted italic">No reflog entries</p>
+        <p className="px-2 py-1 text-xs text-text-muted italic">{t("repo.reflog.empty")}</p>
       ) : (
         <div className="flex max-h-72 flex-col overflow-auto">
           {entries.map((e) => (
@@ -190,7 +190,7 @@ export function ReflogPanel(): React.JSX.Element {
             >
               <History size={12} className="shrink-0 text-text-muted" />
               <span className="shrink-0 text-[11px] font-medium text-text-secondary">
-                {ACTION_LABELS[e.action] ?? "Operation"}
+                {t(ACTION_LABEL_KEYS[e.action] ?? "repo.reflog.actions.other")}
               </span>
               <span className="min-w-0 flex-1 truncate text-[11px] text-text-muted">
                 {e.message}
@@ -207,7 +207,7 @@ export function ReflogPanel(): React.JSX.Element {
         <div className="flex flex-col gap-1.5 rounded-md border border-border-subtle p-2">
           <p className="text-[11px] leading-4 text-text-secondary break-words">
             <span className="font-medium text-text-primary">
-              {ACTION_LABELS[selected.action] ?? "Operation"}
+              {t(ACTION_LABEL_KEYS[selected.action] ?? "repo.reflog.actions.other")}
             </span>{" "}
             · {selected.message}
           </p>
@@ -224,7 +224,7 @@ export function ReflogPanel(): React.JSX.Element {
               }}
             >
               <Undo2 size={12} />
-              Recovery branch
+              {t("repo.reflog.recoveryBranch")}
             </Button>
             <Button
               variant="secondary"
@@ -234,7 +234,7 @@ export function ReflogPanel(): React.JSX.Element {
               onClick={() => setResetModal({ ...selected, oid: recoveryOid })}
             >
               <RotateCcw size={12} />
-              {recoversOld ? "Reset back here" : "Reset branch here"}
+              {recoversOld ? t("repo.reflog.resetBackHere") : t("repo.reflog.resetHere")}
             </Button>
             <Button
               variant="secondary"
@@ -244,11 +244,11 @@ export function ReflogPanel(): React.JSX.Element {
               onClick={() => runExplain(selected)}
             >
               <Sparkles size={12} />
-              AI explain
+              {t("repo.reflog.aiExplain")}
             </Button>
           </div>
           {aiBusy ? (
-            <p className="text-[11px] text-text-muted italic">Thinking…</p>
+            <p className="text-[11px] text-text-muted italic">{t("repo.reflog.thinking")}</p>
           ) : aiText ? (
             <p className="rounded-md bg-bg-primary p-2 text-[11px] leading-4 whitespace-pre-wrap text-text-secondary">
               {aiText}
@@ -261,8 +261,12 @@ export function ReflogPanel(): React.JSX.Element {
         <Modal
           open
           onOpenChange={(o) => !o && setBranchModal(null)}
-          title="Create recovery branch"
-          description={`Branch ${recoversOld ? "the previous position" : "the current state"} at ${branchModal.oid.slice(0, 7)} so the commits stay reachable.`}
+          title={t("repo.reflog.createBranchTitle")}
+          description={
+            recoversOld
+              ? t("repo.reflog.branchPreviousAt", { oid: branchModal.oid.slice(0, 7) })
+              : t("repo.reflog.branchCurrentAt", { oid: branchModal.oid.slice(0, 7) })
+          }
           size="sm"
           footer={
             <>
@@ -272,7 +276,7 @@ export function ReflogPanel(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setBranchModal(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -281,7 +285,7 @@ export function ReflogPanel(): React.JSX.Element {
                 disabled={busy || !branchName_.trim()}
                 onClick={submitRecoveryBranch}
               >
-                Create branch
+                {t("repo.reflog.createBranchButton")}
               </Button>
             </>
           }
@@ -296,8 +300,11 @@ export function ReflogPanel(): React.JSX.Element {
         <Modal
           open
           onOpenChange={(o) => !o && setResetModal(null)}
-          title={`Reset "${branchName || "current branch"}" to ${resetModal.oid.slice(0, 7)}?`}
-          description="Hard reset: the branch moves and uncommitted changes are discarded. This cannot be undone automatically — the reflog keeps a record."
+          title={t("repo.reflog.resetTitle", {
+            name: branchName || t("repo.reflog.currentBranch"),
+            oid: resetModal.oid.slice(0, 7),
+          })}
+          description={t("repo.reflog.resetDescription")}
           size="sm"
           footer={
             <>
@@ -307,7 +314,7 @@ export function ReflogPanel(): React.JSX.Element {
                 className="min-w-0 flex-[3]"
                 onClick={() => setResetModal(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -316,7 +323,7 @@ export function ReflogPanel(): React.JSX.Element {
                 disabled={busy}
                 onClick={submitReset}
               >
-                Reset — discard changes
+                {t("repo.reflog.resetConfirm")}
               </Button>
             </>
           }

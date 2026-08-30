@@ -1,0 +1,46 @@
+{
+  "menu": {
+    "menus": {
+      "file": "文件",
+      "workspace": "工作区",
+      "repository": "仓库",
+      "branch": "分支",
+      "edit": "编辑",
+      "window": "窗口"
+    },
+    "app": {
+      "aboutGitWave": "关于 GitWave",
+      "checkUpdates": "检查更新…",
+      "settings": "设置…"
+    },
+    "file": {
+      "settings": { "label": "设置", "text": "设置" },
+      "about": { "label": "关于", "text": "关于" },
+      "checkUpdates": { "label": "检查更新", "text": "检查更新" },
+      "quit": { "label": "退出", "text": "退出" }
+    },
+    "workspace": {
+      "new": { "label": "新建", "text": "新建工作区" },
+      "rename": { "label": "重命名", "text": "重命名工作区" },
+      "ai": { "label": "AI", "text": "AI 提供商" },
+      "export": { "label": "导出", "text": "导出工作区" },
+      "import": { "label": "导入", "text": "导入工作区" },
+      "delete": { "label": "删除", "text": "删除工作区" }
+    },
+    "repository": {
+      "init": { "label": "初始化", "text": "初始化新仓库" },
+      "clone": { "label": "克隆", "text": "克隆远程仓库" },
+      "add": { "label": "添加", "text": "添加已有本地仓库" },
+      "fetch": { "label": "获取", "text": "获取远程更新" },
+      "lfs": { "label": "LFS", "text": "Git LFS——跟踪大文件" },
+      "hooks": { "label": "Hooks", "text": "Git hooks 编辑器" },
+      "worktreeNew": { "label": "新建 worktree", "text": "创建 worktree" }
+    },
+    "branch": {
+      "new": { "label": "新建", "text": "新建分支" },
+      "pull": { "label": "拉取", "text": "拉取" },
+      "push": { "label": "推送", "text": "推送" },
+      "pr": { "label": "PR", "text": "AI 生成本分支的 PR 描述" }
+    }
+  }
+}

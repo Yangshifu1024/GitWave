@@ -1,0 +1,26 @@
+{
+  "health": {
+    "title": "仓库健康",
+    "measuring": "测量中…",
+    "aiSummary": "AI 总结",
+    "summarizing": "总结中…",
+    "metrics": {
+      "unpushed": "未推送",
+      "conflictResidue": "冲突残留",
+      "dirtyFiles": "脏文件",
+      "staleBranches": "过期分支",
+      "largeFiles": "大文件",
+      "branchesTags": "分支 / 标签"
+    },
+    "values": {
+      "noUpstream": "无上游",
+      "inSync": "已同步",
+      "unpushedCommits": "{{n}} 个提交",
+      "noneStale": "无（30 天）",
+      "noneLarge": "无（>1 MB）"
+    },
+    "details": {
+      "conflictResidue": "遗留的 MERGE_HEAD / REVERT_HEAD / CHERRY_PICK_HEAD 状态文件"
+    }
+  }
+}

@@ -9,10 +9,15 @@ use std::path::PathBuf;
 use git2::{Oid, Repository, ResetType};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -79,7 +84,7 @@ pub fn plan_interactive_rebase(
         .head()
         .map_err(map_git_err)?
         .target()
-        .ok_or_else(|| AppError::Protocol("HEAD is unborn".into()))?;
+        .ok_or_else(|| AppError::protocol(codes::git::HEAD_UNBORN, "HEAD is unborn"))?;
     let upstream_oid = resolve_upstream(repo, upstream)?;
 
     if our_oid == upstream_oid {
@@ -131,11 +136,15 @@ fn cherry_pick_onto_head(repo: &Repository, commit_oid: Oid) -> Result<()> {
     let conflicts = collect_index_conflicts(repo)?;
     if !conflicts.is_empty() {
         abort_cherry_pick_state(repo);
-        return Err(AppError::Protocol(format!(
-            "conflict while applying {}: {}",
-            &commit_oid.to_string()[..7.min(commit_oid.to_string().len())],
-            conflicts.join(", ")
-        )));
+        let oid_short = commit_oid.to_string()[..7.min(commit_oid.to_string().len())].to_string();
+        return Err(AppError::protocol_with(
+            codes::git::APPLY_CONFLICT,
+            format!(
+                "conflict while applying {oid_short}: {}",
+                conflicts.join(", ")
+            ),
+            &[("commit", oid_short), ("conflicts", conflicts.join(", "))],
+        ));
     }
     Ok(())
 }
@@ -202,8 +211,13 @@ fn replay_todos(
     let mut i = 0;
     while i < todos.len() {
         let todo = todos[i];
-        let oid = Oid::from_str(&todo.oid)
-            .map_err(|e| AppError::Protocol(format!("bad oid {}: {e}", todo.oid)))?;
+        let oid = Oid::from_str(&todo.oid).map_err(|e| {
+            AppError::protocol_with(
+                codes::git::BAD_OID,
+                format!("bad oid {}: {e}", todo.oid),
+                &[("oid", todo.oid.clone()), ("error", e.to_string())],
+            )
+        })?;
         let commit = repo.find_commit(oid).map_err(map_git_err)?;
 
         match todo.action {
@@ -242,10 +256,20 @@ fn replay_todos(
                         upstream: upstream.to_string(),
                         remaining,
                     };
-                    let json = serde_json::to_string_pretty(&state)
-                        .map_err(|e| AppError::Unknown(format!("serialize pause: {e}")))?;
-                    fs::write(pause_path(repo), json)
-                        .map_err(|e| AppError::Unknown(format!("write pause: {e}")))?;
+                    let json = serde_json::to_string_pretty(&state).map_err(|e| {
+                        AppError::unknown_with(
+                            codes::git::SERIALIZE_PAUSE,
+                            format!("serialize pause: {e}"),
+                            &[("error", e.to_string())],
+                        )
+                    })?;
+                    fs::write(pause_path(repo), json).map_err(|e| {
+                        AppError::unknown_with(
+                            codes::git::WRITE_PAUSE,
+                            format!("write pause: {e}"),
+                            &[("error", e.to_string())],
+                        )
+                    })?;
                 }
                 return Ok(InteractiveRebaseResult {
                     kind: InteractiveRebaseKind::PausedForEdit,
@@ -256,8 +280,9 @@ fn replay_todos(
             InteractiveRebaseAction::Squash | InteractiveRebaseAction::Fixup => {
                 // Squash/fixup into the previous commit: must not be first.
                 if i == 0 {
-                    return Err(AppError::Protocol(
-                        "cannot squash/fixup the first commit in the todo list".into(),
+                    return Err(AppError::protocol(
+                        codes::git::SQUASH_FIRST_COMMIT,
+                        "cannot squash/fixup the first commit in the todo list",
                     ));
                 }
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
@@ -310,7 +335,7 @@ fn replay_todos(
 
 fn conflict_from_err(e: AppError) -> Result<InteractiveRebaseResult> {
     let msg = match &e {
-        AppError::Protocol(s) | AppError::Unknown(s) => s.clone(),
+        AppError::Protocol { message: s, .. } | AppError::Unknown { message: s, .. } => s.clone(),
         other => format!("{other:?}"),
     };
     Ok(InteractiveRebaseResult {
@@ -322,10 +347,19 @@ fn conflict_from_err(e: AppError) -> Result<InteractiveRebaseResult> {
 
 pub fn continue_interactive_rebase(repo: &Repository) -> Result<InteractiveRebaseResult> {
     let path = pause_path(repo);
-    let raw = fs::read_to_string(&path)
-        .map_err(|_| AppError::Protocol("no interactive rebase paused for edit".into()))?;
-    let state: PauseState = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Unknown(format!("parse pause state: {e}")))?;
+    let raw = fs::read_to_string(&path).map_err(|_| {
+        AppError::protocol(
+            codes::git::NOT_PAUSED,
+            "no interactive rebase paused for edit",
+        )
+    })?;
+    let state: PauseState = serde_json::from_str(&raw).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::PARSE_PAUSE,
+            format!("parse pause state: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
     let refs: Vec<&InteractiveRebaseTodo> = state.remaining.iter().collect();
     replay_todos(repo, &state.upstream, &refs)
 }

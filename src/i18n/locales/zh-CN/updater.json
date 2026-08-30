@@ -1,0 +1,24 @@
+{
+  "updater": {
+    "title": {
+      "available": "有可用更新",
+      "check": "检查更新",
+      "installed": "更新已安装"
+    },
+    "availableSuffix": " 现已可用。",
+    "runningVersion": "当前运行的是 v{{version}}。",
+    "viewReleaseNotes": "查看发布说明",
+    "manualDownloadNote": "当前副本通过 .deb/.rpm 软件包安装，无法在应用内自行替换。请从发布页获取新安装包 —— AppImage 版本支持应用内更新。",
+    "downloadingAria": "正在下载更新",
+    "restartToApply": "重启 GitWave 以完成更新。",
+    "actions": {
+      "later": "稍后",
+      "downloadInstall": "下载并安装",
+      "openReleases": "打开 Releases 页面",
+      "hide": "隐藏",
+      "restartNow": "立即重启",
+      "close": "关闭",
+      "tryAgain": "重试"
+    }
+  }
+}

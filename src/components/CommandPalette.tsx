@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ArrowRight, CornerDownLeft, Download, Search, Settings, Sparkles } from "lucide-react";
 import {
   aiPaletteIntent,
@@ -28,15 +29,15 @@ import { useSyncStore } from "@/stores/syncStore";
 import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { cn } from "@/lib/utils";
 
-const ACTION_LABELS: Record<string, string> = {
-  explain_commit: "Explain commit",
-  locate_commit: "Locate commit in history",
-  create_branch: "Create branch",
-  checkout_branch: "Checkout branch",
-  create_tag: "Create tag",
-  stash_changes: "Stash changes",
-  fetch_remotes: "Fetch remotes",
-  none: "No matching action",
+const ACTION_LABEL_KEYS: Record<string, string> = {
+  explain_commit: "palette.action.explain_commit",
+  locate_commit: "palette.action.locate_commit",
+  create_branch: "palette.action.create_branch",
+  checkout_branch: "palette.action.checkout_branch",
+  create_tag: "palette.action.create_tag",
+  stash_changes: "palette.action.stash_changes",
+  fetch_remotes: "palette.action.fetch_remotes",
+  none: "palette.action.none",
 };
 
 export function CommandPalette({
@@ -44,6 +45,7 @@ export function CommandPalette({
 }: {
   requestLocate: (sha: string) => void;
 }): React.JSX.Element | null {
+  const { t } = useTranslation();
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
@@ -84,7 +86,7 @@ export function CommandPalette({
     () => [
       {
         id: "settings",
-        label: "Open settings",
+        label: t("palette.command.openSettings"),
         icon: <Settings size={14} />,
         hint: "Ctrl+,",
         run: () => {
@@ -94,7 +96,7 @@ export function CommandPalette({
       },
       {
         id: "fetch",
-        label: "Fetch from remote",
+        label: t("palette.command.fetchRemote"),
         icon: <Download size={14} />,
         hint: "",
         run: () => {
@@ -105,13 +107,13 @@ export function CommandPalette({
           const sync = useSyncStore.getState();
           sync.startOp("fetch");
           fetchRemote(workspaceId)
-            .then(() => setStatus("Fetch complete"))
+            .then(() => setStatus(t("status.fetchComplete")))
             .catch((e) => setStatus(formatAppError(e), "danger"))
             .finally(() => sync.endOp("fetch"));
         },
       },
     ],
-    [workspaceId, setOpen, setSettingsOpen, setStatus],
+    [workspaceId, setOpen, setSettingsOpen, setStatus, t],
   );
 
   const filtered = staticCommands.filter((c) =>
@@ -120,7 +122,7 @@ export function CommandPalette({
 
   const askAi = useMutation({
     mutationFn: () => {
-      if (!workspaceId) throw new Error("no workspace");
+      if (!workspaceId) throw new Error(t("palette.noWorkspace"));
       return aiPaletteIntent(workspaceId, query);
     },
     onSuccess: (res) => {
@@ -152,30 +154,30 @@ export function CommandPalette({
           case "create_branch": {
             const from =
               params.from?.trim() || (await getWorkingCopy(workspaceId)).sha || undefined;
-            if (!from) throw new Error("no base commit for the new branch");
+            if (!from) throw new Error(t("palette.noBaseCommit"));
             await createBranch(workspaceId, params.name ?? "", from);
             bumpHistory();
-            setStatus(`Created branch ${params.name}`);
+            setStatus(t("status.createdBranch", { name: params.name }));
             break;
           }
           case "checkout_branch": {
             await checkoutBranch(workspaceId, params.name ?? "", false);
             bumpHistory();
             void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
-            setStatus(`Checked out ${params.name}`);
+            setStatus(t("status.checkedOut", { name: params.name }));
             break;
           }
           case "create_tag": {
             const target = params.sha?.trim() || (await getWorkingCopy(workspaceId)).sha || null;
             await createTag(workspaceId, params.name ?? "", target || null, null);
             bumpHistory();
-            setStatus(`Created tag ${params.name}`);
+            setStatus(t("status.createdTag", { name: params.name }));
             break;
           }
           case "stash_changes": {
             await saveStash(workspaceId, params.message || undefined);
             void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
-            setStatus("Changes stashed");
+            setStatus(t("status.changesStashed"));
             break;
           }
           case "fetch_remotes": {
@@ -184,7 +186,7 @@ export function CommandPalette({
               sync.startOp("fetch");
               try {
                 await fetchRemote(workspaceId);
-                setStatus("Fetch complete");
+                setStatus(t("status.fetchComplete"));
               } finally {
                 sync.endOp("fetch");
               }
@@ -192,7 +194,7 @@ export function CommandPalette({
             break;
           }
           case "none": {
-            setStatus(next.explanation || "No matching action for that request", "info");
+            setStatus(next.explanation || t("palette.noMatch"), "info");
             break;
           }
         }
@@ -207,6 +209,7 @@ export function CommandPalette({
   if (!open) return null;
 
   const showResults = query.trim().length === 0 || filtered.length > 0;
+  const actionLabelKey = ACTION_LABEL_KEYS[intent?.action ?? ""];
 
   return (
     <div
@@ -243,13 +246,13 @@ export function CommandPalette({
                   setOpen(false);
                 }
               }}
-              placeholder="Type a command, or describe what you want to do…"
+              placeholder={t("palette.placeholder")}
               variant="search"
             />
             {query.trim() ? (
               <Button type="submit" variant="primary" size="sm" disabled={askAi.isPending}>
                 <Sparkles size={13} />
-                {askAi.isPending ? "Thinking…" : "Ask AI"}
+                {askAi.isPending ? t("palette.thinking") : t("palette.askAi")}
               </Button>
             ) : null}
           </div>
@@ -257,22 +260,22 @@ export function CommandPalette({
 
         <div className="max-h-[46vh] overflow-y-auto">
           {askAi.isPending ? (
-            <p className="px-3 py-3 text-xs text-text-muted">Interpreting your request…</p>
+            <p className="px-3 py-3 text-xs text-text-muted">{t("palette.interpreting")}</p>
           ) : null}
 
           {intent ? (
             <div className="border-b border-border-subtle px-3 py-2.5">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
                 <ArrowRight size={13} />
-                {ACTION_LABELS[intent.action] ?? intent.action}
+                {actionLabelKey ? t(actionLabelKey) : intent.action}
                 {intent.requires_confirm ? (
                   <span className="rounded bg-bg-secondary px-1 text-[10px] font-medium uppercase text-text-muted">
-                    needs confirmation
+                    {t("palette.needsConfirmation")}
                   </span>
                 ) : null}
               </p>
               <p className="mt-0.5 text-xs text-text-secondary">
-                {intent.explanation || "Run this action?"}
+                {intent.explanation || t("palette.runAction")}
               </p>
               {Object.keys(intent.params).length > 0 ? (
                 <p className="mt-0.5 font-mono text-[11px] text-text-muted">
@@ -283,10 +286,10 @@ export function CommandPalette({
               ) : null}
               <div className="mt-1.5 flex justify-end gap-2">
                 <Button variant="secondary" size="sm" onClick={() => setIntent(null)}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button variant="primary" size="sm" onClick={() => execute(intent)}>
-                  {intent.requires_confirm ? "Confirm" : "Run"}
+                  {intent.requires_confirm ? t("common.confirm") : t("palette.run")}
                 </Button>
               </div>
             </div>
@@ -321,14 +324,13 @@ export function CommandPalette({
               ) : (
                 <p className="px-3 py-2 text-xs text-text-muted">
                   <Sparkles size={11} className="mr-1 inline" />
-                  Press Enter to ask AI: e.g. "create branch fix/auth", "tag this as v1.2.0",
-                  "explain the last commit"
+                  {t("palette.askHint")}
                 </p>
               )}
               {query.trim() ? (
                 <p className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-text-muted">
                   <CornerDownLeft size={11} />
-                  Enter asks AI to interpret this request
+                  {t("palette.enterAsks")}
                 </p>
               ) : null}
             </div>

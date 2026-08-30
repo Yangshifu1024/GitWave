@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { BlameLine } from "@/lib/api";
 import { formatAppError, getBlame } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 
-function formatTime(time: number): string {
-  return new Date(time * 1000).toLocaleDateString("en-US", {
+function formatTime(time: number, locale: string): string {
+  return new Date(time * 1000).toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -26,6 +27,7 @@ interface HoverInfo {
 }
 
 function BlameGutter({ line }: { line: BlameLine }): React.JSX.Element {
+  const { i18n } = useTranslation();
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -57,7 +59,9 @@ function BlameGutter({ line }: { line: BlameLine }): React.JSX.Element {
       >
         <span className="text-accent font-mono text-xs shrink-0">{shortSha(line.sha)}</span>
         <span className="text-text-muted text-xs truncate shrink-0">{line.author}</span>
-        <span className="text-text-muted text-xs ml-auto shrink-0">{formatTime(line.time)}</span>
+        <span className="text-text-muted text-xs ml-auto shrink-0">
+          {formatTime(line.time, i18n.language)}
+        </span>
       </div>
 
       {hoverInfo && (
@@ -75,7 +79,7 @@ function BlameGutter({ line }: { line: BlameLine }): React.JSX.Element {
             <p className="font-mono text-xs text-accent">{shortSha(hoverInfo.sha)}</p>
             <p className="text-sm font-medium text-text-primary">{hoverInfo.author}</p>
             <p className="text-xs text-text-muted">{hoverInfo.author_email}</p>
-            <p className="text-xs text-text-muted">{formatTime(hoverInfo.time)}</p>
+            <p className="text-xs text-text-muted">{formatTime(hoverInfo.time, i18n.language)}</p>
           </div>
         </div>
       )}
@@ -107,6 +111,7 @@ interface BlameViewProps {
 }
 
 export function BlameView({ path }: BlameViewProps): React.JSX.Element {
+  const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const [lines, setLines] = useState<BlameLine[]>([]);
@@ -130,7 +135,7 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   if (!activeWorkspaceId) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Select a workspace to view blame
+        {t("repo.blame.selectWorkspace")}
       </div>
     );
   }
@@ -138,7 +143,7 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   if (!activeRepoId) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Select a repository to view blame
+        {t("repo.blame.selectRepo")}
       </div>
     );
   }
@@ -146,7 +151,7 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   if (!path) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Select a file to view blame
+        {t("repo.blame.selectFile")}
       </div>
     );
   }
@@ -154,7 +159,7 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Loading blame...
+        {t("repo.blame.loading")}
       </div>
     );
   }
@@ -170,7 +175,7 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   if (lines.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        No blame information available
+        {t("repo.blame.empty")}
       </div>
     );
   }

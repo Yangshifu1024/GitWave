@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 import {
   addSshKey,
@@ -19,6 +20,7 @@ import { Label } from "@/components/ui/Label";
 import { Key, Trash2, Plus, Wifi } from "lucide-react";
 
 export function SshKeyManager(): React.JSX.Element {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const [adding, setAdding] = useState(false);
@@ -102,10 +104,15 @@ export function SshKeyManager(): React.JSX.Element {
     <div className="flex flex-col">
       {/* Actions */}
       <div className="flex items-center justify-end gap-1 pb-2">
-        <Button variant="ghost" size="sm" onClick={showTesting} aria-label="Test SSH connection">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={showTesting}
+          aria-label={t("ssh.actions.testConnection")}
+        >
           <Wifi size={14} />
         </Button>
-        <Button variant="ghost" size="sm" onClick={showAdding} aria-label="Add SSH key">
+        <Button variant="ghost" size="sm" onClick={showAdding} aria-label={t("ssh.actions.addKey")}>
           <Plus size={14} />
         </Button>
       </div>
@@ -125,7 +132,7 @@ export function SshKeyManager(): React.JSX.Element {
         >
           <div className="flex flex-col gap-1">
             <Label className="text-xs font-medium text-text-secondary" htmlFor="ssh-key-path">
-              Key path
+              {t("ssh.add.keyPath")}
             </Label>
             <PathInput
               id="ssh-key-path"
@@ -138,14 +145,11 @@ export function SshKeyManager(): React.JSX.Element {
               placeholder="~/.ssh/id_ed25519"
               error={actionError}
             />
-            <p className="text-xs text-text-muted">
-              Adds the key to ssh-agent (ssh-add). For passphrase-protected keys, the agent may
-              prompt via terminal.
-            </p>
+            <p className="text-xs text-text-muted">{t("ssh.add.hint")}</p>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={closeAdding}>
-              Cancel
+              {t("ssh.actions.cancel")}
             </Button>
             <Button
               variant="primary"
@@ -153,7 +157,7 @@ export function SshKeyManager(): React.JSX.Element {
               onClick={() => addMut.mutate(addPath.trim())}
               disabled={!addPath.trim() || addMut.isPending}
             >
-              Add
+              {t("ssh.actions.add")}
             </Button>
           </div>
         </div>
@@ -173,7 +177,7 @@ export function SshKeyManager(): React.JSX.Element {
         >
           <div className="flex flex-col gap-1">
             <Label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-host">
-              Host
+              {t("ssh.test.host")}
             </Label>
             <Input
               id="ssh-test-host"
@@ -184,7 +188,7 @@ export function SshKeyManager(): React.JSX.Element {
           </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs font-medium text-text-secondary" htmlFor="ssh-test-user">
-              User
+              {t("ssh.test.user")}
             </Label>
             <Input id="ssh-test-user" value={testUser} onChange={setTestUser} placeholder="git" />
           </div>
@@ -198,7 +202,7 @@ export function SshKeyManager(): React.JSX.Element {
               }
             >
               <p className="text-sm font-medium text-text-primary">
-                {testResult.success ? "Success" : "Failed"}
+                {testResult.success ? t("ssh.test.success") : t("ssh.test.failed")}
               </p>
               <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-xs text-text-secondary">
                 {testResult.message}
@@ -207,10 +211,10 @@ export function SshKeyManager(): React.JSX.Element {
           )}
           <div className="flex items-center justify-between gap-2">
             <Button variant="secondary" size="sm" onClick={runTest} disabled={testMut.isPending}>
-              {testMut.isPending ? "Testing…" : "Run test"}
+              {testMut.isPending ? t("ssh.test.testing") : t("ssh.test.run")}
             </Button>
             <Button variant="ghost" size="sm" onClick={closeTesting}>
-              Close
+              {t("ssh.actions.close")}
             </Button>
           </div>
         </div>
@@ -218,13 +222,15 @@ export function SshKeyManager(): React.JSX.Element {
 
       {/* List */}
       {isLoading ? (
-        <p className="px-3 py-2 text-sm text-text-muted">Loading keys…</p>
+        <p className="px-3 py-2 text-sm text-text-muted">{t("ssh.loading")}</p>
       ) : error ? (
-        <p className="px-3 py-2 text-sm text-danger">Failed to load: {formatAppError(error)}</p>
+        <p className="px-3 py-2 text-sm text-danger">
+          {t("ssh.loadFailed", { message: formatAppError(error) })}
+        </p>
       ) : keys.length === 0 ? (
         <EmptyState
-          title="No keys in ssh-agent"
-          description="Add a key to enable SSH clone and push."
+          title={t("ssh.empty.title")}
+          description={t("ssh.empty.description")}
           className="py-6"
         />
       ) : (
@@ -243,7 +249,7 @@ export function SshKeyManager(): React.JSX.Element {
                       deleteMut.mutate(k.path);
                     }}
                     className="p-1 text-danger hover:text-danger"
-                    aria-label={`Remove ${k.path}`}
+                    aria-label={t("ssh.removeKey", { path: k.path })}
                   >
                     <Trash2 size={13} />
                   </Button>

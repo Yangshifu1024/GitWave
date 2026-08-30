@@ -1,0 +1,73 @@
+{
+  "errors": {
+    "ai": {
+      "provider_http": "Provider {{provider}} returned HTTP {{status}}: {{detail}}",
+      "all_attempts_failed": "All {{total}} AI provider attempt(s) failed with no error captured",
+      "unsupported_provider": "Unsupported AI provider: {{provider}} (use openai, anthropic, or ollama)",
+      "openai": {
+        "key_missing": "OpenAI API key is not configured",
+        "request_failed": "OpenAI request failed: {{error}}",
+        "json_failed": "OpenAI returned an invalid response: {{error}}",
+        "empty_content": "OpenAI returned empty content"
+      },
+      "anthropic": {
+        "key_missing": "Anthropic API key is not configured",
+        "request_failed": "Anthropic request failed: {{error}}",
+        "json_failed": "Anthropic returned an invalid response: {{error}}",
+        "max_tokens": "Anthropic: the model hit max_tokens while still reasoning, so no commit message was produced — try again or switch to a non-reasoning model",
+        "no_text": "Anthropic returned no text content (stop_reason: {{stop_reason}}, content: {{content}})"
+      },
+      "ollama": {
+        "unreachable": "Ollama is unreachable: {{error}}",
+        "probe_failed": "Ollama probe failed: HTTP {{status}}",
+        "request_failed": "Ollama request failed: {{error}}",
+        "json_failed": "Ollama returned an invalid response: {{error}}",
+        "empty_content": "Ollama returned empty content"
+      },
+      "keychain": {
+        "error": "Keychain error: {{error}}",
+        "set_failed": "Could not save the key to the keychain: {{error}}",
+        "get_failed": "Could not read the key from the keychain: {{error}}",
+        "delete_failed": "Could not delete the key from the keychain: {{error}}"
+      },
+      "key": {
+        "empty": "API key cannot be empty"
+      }
+    },
+    "persist": {
+      "workspace": {
+        "not_found": "Workspace not found: {{id}}"
+      },
+      "repo": {
+        "not_found": "Repo not found: {{repo_id}}",
+        "not_found_in_workspace": "Repo not found: {{repo_id}} in workspace {{workspace_id}}",
+        "reorder_mismatch": "The reordered ids do not match the repos of workspace {{workspace_id}}"
+      },
+      "sqlite": {
+        "error": "Database error: {{error}}"
+      },
+      "serde": {
+        "error": "Data serialization error: {{error}}"
+      },
+      "data_dir": {
+        "resolve": "Could not resolve the user data directory",
+        "create": "Could not create directory {{dir}}: {{error}}"
+      },
+      "migration": {
+        "failed": "Database migration failed: {{error}}"
+      }
+    },
+    "ssh": {
+      "add_failed": "Could not run ssh-add: {{error}}",
+      "add_exit_failed": "ssh-add failed (exit {{exit}}): {{stderr}}",
+      "delete_failed": "ssh-add -d failed (exit {{exit}})",
+      "spawn_failed": "Could not run ssh: {{error}}",
+      "key": {
+        "passphrase": "This key is protected by a passphrase, which cannot be entered here. Load it once from a terminal (ssh-add <key>) so the agent caches it decrypted, or use a key without a passphrase"
+      },
+      "agent": {
+        "not_running": "ssh-agent is not running — start it (on Windows: the “OpenSSH Agent” service; on macOS/Linux: eval $(ssh-agent)) and try again"
+      }
+    }
+  }
+}

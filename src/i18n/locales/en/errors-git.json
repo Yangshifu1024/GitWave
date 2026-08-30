@@ -1,0 +1,109 @@
+{
+  "errors": {
+    "git": {
+      "raw": "Git error: {{detail}}",
+      "error": "Git operation failed: {{error}}",
+      "auth_failed": "Authentication failed: {{error}}",
+      "fetch_auth_failed": "Fetch authentication failed: {{error}}",
+      "fetch_failed": "Fetch failed: {{error}}",
+      "push_auth_failed": "Push authentication failed: {{error}}",
+      "push_failed": "Push failed: {{error}}",
+      "delete_remote_branch_failed": "Could not delete the remote branch: {{error}}",
+      "remote_no_url": "Remote “{{name}}” has no URL configured",
+      "remote": {
+        "not_found": "Remote not found: {{error}}"
+      },
+      "remote_exists": "Remote already exists: {{error}}",
+      "remote_duplicate": "Remote “{{name}}” already exists",
+      "remote_name_empty": "Remote name cannot be empty",
+      "remote_url_empty": "Remote URL cannot be empty",
+      "remote_op_failed": "Remote operation failed: {{error}}",
+      "push_detached_head": "Cannot push while HEAD is detached — check out a branch first",
+      "pull_detached_head": "Cannot pull while HEAD is detached — check out a branch first",
+      "stash_reapply_failed": "Pull completed, but the stash could not be reapplied and was kept: {{error}}",
+      "stash_restore_failed": "{{error}}; the stash could not be restored either and was kept",
+      "cannot_resolve_ref": "Cannot resolve “{{ref}}”: {{error}}",
+      "pull_dirty_worktree": "Pull needs a clean worktree — check “Stash and reapply” or commit your changes first",
+      "pull_rebase_conflicts": "Pull with rebase hit conflicts; your local commits were left untouched",
+      "pull_needs_merge": "Pull would require a merge — enable Rebase, or use Merge from Branches",
+      "pull_unexpected": "Pull ended in an unexpected merge state",
+      "rebase_no_new_head": "Rebase finished without a new HEAD",
+      "commit_message_empty": "Commit message cannot be empty",
+      "nothing_to_commit": "Nothing to commit",
+      "path_escapes_worktree": "Path escapes the worktree: {{path}}",
+      "discard_conflicted": "Resolve conflicts before discarding: {{path}}",
+      "invalid_ignore_pattern": "Invalid ignore pattern",
+      "read_gitignore": "Could not read .gitignore: {{error}}",
+      "write_gitignore": "Could not write .gitignore: {{error}}",
+      "reset_detached_head": "HEAD is detached — check out a branch before resetting",
+      "bare_repo": "This is a bare repository without a worktree",
+      "invalid_oid": "Invalid commit id: {{error}}",
+      "commit_not_found": "Commit not found: {{oid}}",
+      "fs_error": "File system error: {{error}}",
+      "head_unborn": "HEAD has no commits yet",
+      "dirty_worktree": "The working copy is not clean — commit or stash your changes first",
+      "read_gitattributes": "Could not read .gitattributes: {{error}}",
+      "write_gitattributes": "Could not write .gitattributes: {{error}}",
+      "revert_merge_commit": "Reverting a merge commit is not supported — use an explicit reverse merge",
+      "revert_conflicts": "Revert hit conflicts in: {{conflicts}}",
+      "cherry_pick_conflicts": "Cherry-pick hit conflicts in: {{conflicts}}",
+      "cherry_pick_no_changes": "Cherry-pick produced no changes — this commit is already contained in the current branch",
+      "bad_oid": "Invalid commit id {{oid}}: {{error}}",
+      "apply_conflict": "Conflict while applying {{commit}}: {{conflicts}}",
+      "pause_serialize": "Could not serialize the pause state: {{error}}",
+      "pause_write": "Could not write the pause state: {{error}}",
+      "pause_parse": "Could not parse the pause state: {{error}}",
+      "not_paused": "No interactive rebase is paused for edit",
+      "squash_first_commit": "Cannot squash or fixup the first commit in the todo list",
+      "finalize_detached_head": "Cannot finalize a rebase on a detached HEAD",
+      "ref_no_name": "The branch ref has no name",
+      "ref_not_found": "Reference not found: {{reference}}",
+      "reflog_empty": "No reflog entries for reference: {{reference}}",
+      "branch_no_target": "Branch {{branch}} does not point at any commit",
+      "not_a_repo": "Not a git repository: {{path}}",
+      "open_failed": "Could not open the repository at {{path}}: {{error}}",
+      "lfs": {
+        "invalid_pattern": "Invalid LFS pattern",
+        "pattern_spaces": "LFS patterns cannot contain spaces — use a glob like *.psd or assets/**",
+        "pattern_comment": "LFS patterns cannot start with “#” (that is a .gitattributes comment)",
+        "cli_failed": "Could not run git lfs: {{error}}",
+        "install_failed": "git lfs install failed: {{stderr}}"
+      },
+      "submodule": {
+        "not_found": "Submodule not found: {{name}}",
+        "args_required": "Submodule URL and path are both required",
+        "path_invalid": "Submodule path must be a relative path inside the repository",
+        "add_failed": "Could not add the submodule: {{error}}",
+        "clone_failed": "Submodule clone failed: {{error}} — the half-cloned directory was removed, but .gitmodules may have been modified (discard it to revert)",
+        "not_initialized": "Submodule not initialized: {{name}}"
+      },
+      "hook": {
+        "invalid_name": "Invalid hook name: {{name}}",
+        "read_failed": "Could not read the hook: {{error}}",
+        "write_failed": "Could not write the hook: {{error}}",
+        "chmod_failed": "Could not set hook permissions: {{error}}"
+      },
+      "init": {
+        "exists": "This path is already a repository: {{path}}",
+        "failed": "Could not initialize the repository: {{error}}"
+      },
+      "clone": {
+        "auth_failed": "Authentication failed for {{url}}: {{error}}",
+        "not_found": "Repository not found: {{url}}",
+        "network": "Network error while cloning {{url}}: {{error}}"
+      },
+      "worktree": {
+        "remove_main": "The main worktree cannot be removed"
+      },
+      "stash": {
+        "invalid_oid": "Invalid stash id: {{error}}"
+      },
+      "branch": {
+        "delete_checked_out": "Cannot delete the checked-out branch: {{name}}"
+      },
+      "tag": {
+        "name_empty": "Tag name cannot be empty"
+      }
+    }
+  }
+}

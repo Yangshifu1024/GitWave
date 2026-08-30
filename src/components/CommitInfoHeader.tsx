@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Chip } from "@heroui/react";
 import { Cherry, Sparkles, Tag as TagIcon, Trash2, Undo2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import {
   cherryPickCommit,
@@ -23,8 +24,8 @@ import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { RefBadge } from "@/components/RefBadge";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
-function formatDateTime(time: number): string {
-  return new Date(time * 1000).toLocaleString("en-US", {
+function formatDateTime(time: number, locale: string): string {
+  return new Date(time * 1000).toLocaleString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -46,6 +47,7 @@ export function CommitInfoHeader({
   workspaceId: string;
   sha: string;
 }): React.JSX.Element | null {
+  const { t, i18n } = useTranslation();
   const { data, isLoading, error } = useQuery({
     queryKey: ["commit-details", workspaceId, sha],
     queryFn: () => getCommitDetails(workspaceId, sha),
@@ -73,7 +75,7 @@ export function CommitInfoHeader({
   if (isLoading) {
     return (
       <div className="shrink-0 border-b border-border-subtle bg-bg-elevated px-4 py-2.5 text-xs text-text-muted">
-        Loading commit…
+        {t("commits.header.loading")}
       </div>
     );
   }
@@ -101,8 +103,8 @@ export function CommitInfoHeader({
         kind: b.is_current ? "head" : b.kind === "remote" ? "remote_branch" : "local_branch",
       })),
     ...tags
-      .filter((t) => t.sha === data.sha)
-      .map((t): CommitRef => ({ name: t.name, kind: "tag" })),
+      .filter((tag) => tag.sha === data.sha)
+      .map((tag): CommitRef => ({ name: tag.name, kind: "tag" })),
   ];
 
   const run = (op: CommitAction): void => {
@@ -113,8 +115,8 @@ export function CommitInfoHeader({
       .then(() => {
         setStatus(
           op === "revert"
-            ? `Reverted ${shortSha}`
-            : `Cherry-picked ${shortSha} onto the current branch`,
+            ? t("commits.revert.done", { sha: shortSha })
+            : t("commits.cherryPick.done", { sha: shortSha }),
         );
         void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
         void queryClient.invalidateQueries({ queryKey: ["commit-details", workspaceId, sha] });
@@ -149,7 +151,7 @@ export function CommitInfoHeader({
         <span className="font-medium text-text-secondary">{data.author}</span>
         <span className="truncate">{data.author_email}</span>
         <span aria-hidden="true">·</span>
-        <span>{formatDateTime(data.time)}</span>
+        <span>{formatDateTime(data.time, i18n.language)}</span>
       </div>
       {commitRefs.length > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -162,44 +164,44 @@ export function CommitInfoHeader({
         <Button
           variant="ghost"
           size="sm"
-          aria-label="Explain this commit with AI"
-          title="Explain with AI"
+          aria-label={t("commits.header.explainAria")}
+          title={t("commits.header.explainTitle")}
           onClick={() => setExplainOpen(true)}
         >
           <Sparkles size={13} />
-          Explain
+          {t("commits.header.explain")}
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          aria-label="Manage tags on this commit"
-          title="Manage tags"
+          aria-label={t("commits.header.tagAria")}
+          title={t("commits.header.tagTitle")}
           onClick={() => setTagOpen(true)}
         >
           <TagIcon size={13} />
-          Tag
+          {t("commits.header.tag")}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           disabled={busy}
-          aria-label="Cherry-pick this commit onto the current branch"
-          title="Cherry-pick onto current branch"
+          aria-label={t("commits.header.cherryPickAria")}
+          title={t("commits.header.cherryPickTitle")}
           onClick={() => setPending("cherry-pick")}
         >
           <Cherry size={13} />
-          Cherry-pick
+          {t("commits.action.cherryPick")}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           disabled={busy}
-          aria-label="Revert this commit"
-          title="Revert this commit"
+          aria-label={t("commits.header.revertAria")}
+          title={t("commits.header.revertTitle")}
           onClick={() => setPending("revert")}
         >
           <Undo2 size={13} />
-          Revert
+          {t("commits.action.revert")}
         </Button>
       </div>
 
@@ -224,7 +226,7 @@ export function CommitInfoHeader({
             bumpHistory();
           }}
           onError={(message) => setStatus(message, "danger")}
-          onCreated={(name) => setStatus(`Tagged ${shortSha} as ${name}`)}
+          onCreated={(name) => setStatus(t("commits.tag.created", { sha: shortSha, name }))}
         />
       ) : null}
 
@@ -234,11 +236,15 @@ export function CommitInfoHeader({
           onOpenChange={(open) => {
             if (!open) setPending(null);
           }}
-          title={pending === "revert" ? `Revert ${shortSha}?` : `Cherry-pick ${shortSha}?`}
+          title={
+            pending === "revert"
+              ? t("commits.revert.confirmTitle", { sha: shortSha })
+              : t("commits.cherryPick.confirmTitle", { sha: shortSha })
+          }
           description={
             pending === "revert"
-              ? `Creates a commit that undoes "${subject}" on the current branch. The working copy must be clean.`
-              : `Applies "${subject}" onto the current branch as a new commit (original author preserved). The working copy must be clean.`
+              ? t("commits.revert.confirmDescription", { subject })
+              : t("commits.cherryPick.confirmDescription", { subject })
           }
           size="sm"
           footer={
@@ -249,7 +255,7 @@ export function CommitInfoHeader({
                 className="min-w-0 flex-[3]"
                 onClick={() => setPending(null)}
               >
-                Cancel
+                {t("commits.action.cancel")}
               </Button>
               <Button
                 variant={pending === "revert" ? "danger" : "primary"}
@@ -258,7 +264,7 @@ export function CommitInfoHeader({
                 disabled={busy}
                 onClick={() => run(pending)}
               >
-                {pending === "revert" ? "Revert" : "Cherry-pick"}
+                {pending === "revert" ? t("commits.action.revert") : t("commits.action.cherryPick")}
               </Button>
             </>
           }
@@ -286,11 +292,12 @@ function TagManagerModal({
   onError: (message: string) => void;
   onCreated: (name: string) => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const here = tags.filter((t) => t.sha === sha);
+  const here = tags.filter((tag) => tag.sha === sha);
 
   const create = (): void => {
     if (!name.trim() || busy) return;
@@ -320,12 +327,12 @@ function TagManagerModal({
     <Modal
       open
       onOpenChange={(open) => !open && onClose()}
-      title={`Tags on ${sha.slice(0, 7)}`}
+      title={t("commits.tag.managerTitle", { sha: sha.slice(0, 7) })}
       size="sm"
       footer={
         <>
           <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onClose}>
-            Close
+            {t("commits.action.close")}
           </Button>
           <Button
             variant="primary"
@@ -334,26 +341,26 @@ function TagManagerModal({
             disabled={busy || !name.trim()}
             onClick={create}
           >
-            Create tag
+            {t("commits.tag.createButton")}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-1.5 rounded-xl bg-bg-primary p-3">
         {here.length === 0 ? (
-          <p className="text-xs text-text-muted italic">No tags on this commit.</p>
+          <p className="text-xs text-text-muted italic">{t("commits.tag.none")}</p>
         ) : (
-          here.map((t) => (
+          here.map((tag) => (
             <div
-              key={t.name}
+              key={tag.name}
               className="flex items-center gap-2 rounded-md border border-border-subtle px-2 py-1.5"
             >
               <TagIcon size={13} className="shrink-0 text-text-muted" />
               <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">
-                {t.name}
-                {t.annotation ? (
-                  <span className="ml-1 font-normal text-text-muted" title={t.annotation}>
-                    (annotated)
+                {tag.name}
+                {tag.annotation ? (
+                  <span className="ml-1 font-normal text-text-muted" title={tag.annotation}>
+                    {t("commits.tag.annotated")}
                   </span>
                 ) : null}
               </span>
@@ -361,10 +368,10 @@ function TagManagerModal({
                 variant="ghost"
                 size="sm"
                 className="p-1 text-text-muted hover:text-danger"
-                aria-label={`Delete tag ${t.name}`}
-                title={`Delete ${t.name}`}
+                aria-label={t("commits.tag.deleteAria", { name: tag.name })}
+                title={t("commits.tag.deleteTitle", { name: tag.name })}
                 disabled={busy}
-                onClick={() => remove(t.name)}
+                onClick={() => remove(tag.name)}
               >
                 <Trash2 size={13} />
               </Button>
@@ -379,13 +386,13 @@ function TagManagerModal({
           onKeyDown={(e) => {
             if (e.key === "Enter") create();
           }}
-          placeholder="tag name (e.g. v1.2.0)"
+          placeholder={t("commits.tag.namePlaceholder")}
           autoFocus
         />
         <Textarea
           value={message}
           onChange={setMessage}
-          placeholder="Annotation (optional — leave empty for a lightweight tag)"
+          placeholder={t("commits.tag.annotationPlaceholder")}
           rows={2}
         />
       </div>

@@ -4,10 +4,15 @@ use git2::{Repository, Signature};
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 /// One tag in the repository.
@@ -66,15 +71,27 @@ pub fn create_tag(
 ) -> Result<String> {
     let name = name.trim();
     if name.is_empty() {
-        return Err(AppError::Protocol("tag name cannot be empty".into()));
+        return Err(AppError::protocol(
+            codes::git::TAG_NAME_EMPTY,
+            "tag name cannot be empty",
+        ));
     }
     let target = match target_oid {
         Some(oid) => repo
-            .find_commit(
-                git2::Oid::from_str(oid)
-                    .map_err(|e| AppError::Protocol(format!("invalid oid: {e}")))?,
-            )
-            .map_err(|_| AppError::Protocol(format!("commit not found: {oid}")))?
+            .find_commit(git2::Oid::from_str(oid).map_err(|e| {
+                AppError::protocol_with(
+                    codes::git::INVALID_OID,
+                    format!("invalid oid: {e}"),
+                    &[("error", e.to_string())],
+                )
+            })?)
+            .map_err(|_| {
+                AppError::protocol_with(
+                    codes::git::COMMIT_NOT_FOUND,
+                    format!("commit not found: {oid}"),
+                    &[("oid", oid.to_string())],
+                )
+            })?
             .into_object(),
         None => repo
             .head()

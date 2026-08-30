@@ -9,6 +9,7 @@
 // click.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
   ArrowDownToLine,
@@ -126,11 +127,17 @@ function MenuBarMenu({
 }
 
 export function AppMenuBar({ onAbout }: { onAbout: () => void }): React.JSX.Element {
+  const { i18n } = useTranslation();
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const requestMenuAction = useUiStore((s) => s.requestMenuAction);
   const gating = useAppMenuGating();
-  const menus = useMemo(() => buildAppMenuSpec(gating), [gating]);
+  // Spec labels translate at build time (module-level i18next.t, invisible
+  // to the lint rule) — i18n.language forces a rebuild on language switch.
+  const menus = useMemo(() => {
+    void i18n.language;
+    return buildAppMenuSpec(gating);
+  }, [gating, i18n.language]);
 
   // While a menu is open, HeroUI marks the app root `inert`, so sibling
   // triggers stop receiving pointer events and `onMouseEnter` can never fire.

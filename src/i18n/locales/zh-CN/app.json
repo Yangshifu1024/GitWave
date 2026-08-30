@@ -1,0 +1,18 @@
+{
+  "app": {
+    "sidebar": {
+      "health": "健康",
+      "recovery": "恢复"
+    },
+    "emptyState": {
+      "noWorkspaceTitle": "未选择工作区",
+      "noWorkspaceDescription": "请在侧边栏中选择或创建工作区。",
+      "selectWorkspaceTitle": "选择工作区",
+      "selectWorkspaceDescription": "请在侧边栏中选择或创建工作区以打开仓库。",
+      "noRepoTitle": "未选择仓库",
+      "noRepoDescription": "从侧边栏选择一个仓库，以查看历史和 diff。",
+      "noCommitTitle": "未选择提交",
+      "noCommitDescription": "点击历史图中的提交即可查看其 diff。"
+    }
+  }
+}

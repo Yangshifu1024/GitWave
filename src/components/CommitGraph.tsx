@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import type { CommitSummary } from "@/lib/api";
 import { formatAppError, getCommitLog } from "@/lib/api";
 import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
@@ -19,13 +21,13 @@ const PAGE_SIZE = 300;
 const LANE_GAP = 14;
 const NODE_R = 3.2;
 
-function formatTime(time: number): string {
+function formatTime(time: number, t: TFunction): string {
   const now = Math.floor(Date.now() / 1000);
   const diff = now - time;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t("branches.time.justNow");
+  if (diff < 3600) return t("branches.time.minutesAgo", { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t("branches.time.hoursAgo", { n: Math.floor(diff / 3600) });
+  if (diff < 604800) return t("branches.time.daysAgo", { n: Math.floor(diff / 86400) });
   return new Date(time * 1000).toLocaleDateString();
 }
 
@@ -214,6 +216,7 @@ function CommitRow({
   isSelected,
   isHead,
 }: CommitRowProps): React.JSX.Element {
+  const { t } = useTranslation();
   const refs = commit.refs ?? [];
 
   return (
@@ -266,7 +269,7 @@ function CommitRow({
       </p>
 
       <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
-        {commit.author} &middot; {formatTime(commit.time)}
+        {commit.author} &middot; {formatTime(commit.time, t)}
       </span>
     </Surface>
   );
@@ -284,6 +287,7 @@ export function CommitGraph({
   selectedSha: selectedShaProp,
   locateRequest,
 }: CommitGraphProps): React.JSX.Element {
+  const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
@@ -402,8 +406,8 @@ export function CommitGraph({
       <div className="flex items-center justify-center h-full">
         <EmptyState
           icon={<FolderOpen size={22} />}
-          title="Select a workspace"
-          description="Choose a workspace in the toolbar to view commit history."
+          title={t("branches.graph.selectWorkspaceTitle")}
+          description={t("branches.graph.selectWorkspaceDesc")}
         />
       </div>
     );
@@ -414,8 +418,8 @@ export function CommitGraph({
       <div className="flex items-center justify-center h-full">
         <EmptyState
           icon={<FolderOpen size={22} />}
-          title="Select a repository"
-          description="Pick a repository from the sidebar to view commit history."
+          title={t("branches.graph.selectRepoTitle")}
+          description={t("branches.graph.selectRepoDesc")}
         />
       </div>
     );
@@ -431,7 +435,7 @@ export function CommitGraph({
     if (loading && commits.length === 0) {
       stateContent = (
         <div className="flex items-center justify-center h-full text-text-muted text-sm">
-          Loading history...
+          {t("branches.graph.loading")}
         </div>
       );
     } else if (error) {
@@ -443,7 +447,7 @@ export function CommitGraph({
     } else if (commits.length === 0) {
       stateContent = filter ? (
         <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted text-sm">
-          <span>No commits match “{filter}”</span>
+          <span>{t("branches.graph.noMatch", { filter })}</span>
           <Button
             variant="ghost"
             size="sm"
@@ -452,12 +456,12 @@ export function CommitGraph({
               setFilter(null);
             }}
           >
-            Clear search
+            {t("branches.graph.clearSearch")}
           </Button>
         </div>
       ) : (
         <div className="flex items-center justify-center h-full text-text-muted text-sm">
-          No commits yet
+          {t("branches.graph.empty")}
         </div>
       );
     }
@@ -470,7 +474,7 @@ export function CommitGraph({
           variant="search"
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search commits (message or author)"
+          placeholder={t("branches.graph.searchPlaceholder")}
           className="h-7 bg-bg-panel hover:bg-bg-panel focus-within:bg-bg-panel focus-visible:bg-bg-panel"
         />
       </div>
@@ -513,11 +517,11 @@ export function CommitGraph({
 
           {loading && commits.length > 0 ? (
             <div className="py-2 text-center text-[10px] text-text-muted">
-              Loading older commits…
+              {t("branches.graph.loadingOlder")}
             </div>
           ) : !hasMore && commits.length > 0 ? (
             <div className="py-2 text-center text-[10px] text-text-muted">
-              End of history · {commits.length} commits
+              {t("branches.graph.endOfHistory", { total: commits.length })}
             </div>
           ) : null}
         </div>

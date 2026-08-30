@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { formatAppError, getGitignore, writeGitignore } from "@/lib/api";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
@@ -18,6 +19,7 @@ export interface GitignoreEditorProps {
  * newline so the per-file "Add to .gitignore" append keeps working.
  */
 export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
   const [content, setContent] = useState("");
@@ -40,7 +42,7 @@ export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.
     setSaving(true);
     writeGitignore(workspaceId, content)
       .then(() => {
-        setStatus(".gitignore saved");
+        setStatus(t("repo.gitignore.saved"));
         onClose();
       })
       .catch((e) => setStatus(formatAppError(e), "danger"))
@@ -51,23 +53,23 @@ export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.
     <Modal
       open
       onOpenChange={(o) => !o && onClose()}
-      title="Edit .gitignore"
-      description="One pattern per line, relative to the repository root."
+      title={t("repo.gitignore.title")}
+      description={t("repo.gitignore.description")}
       size="md"
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" size="sm" disabled={saving || loading} onClick={save}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("repo.gitignore.saving") : t("common.save")}
           </Button>
         </>
       }
     >
       <div className="rounded-xl bg-bg-primary p-3">
         <Textarea
-          value={loading ? "Loading…" : content}
+          value={loading ? t("common.loading") : content}
           disabled={loading}
           onChange={setContent}
           rows={14}

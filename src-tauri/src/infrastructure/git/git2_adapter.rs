@@ -8,14 +8,24 @@ use std::path::Path;
 use git2::{Repository, Signature};
 
 use crate::domain::error::{AppError, Result};
+use crate::domain::error_codes as codes;
 
 /// Open a local repository at `path`.
 pub fn open_local(path: &Path) -> Result<Repository> {
     Repository::open(path).map_err(|e| match e.code() {
-        git2::ErrorCode::NotFound => {
-            AppError::Protocol(format!("not a git repository: {}", path.display()))
-        }
-        _ => AppError::Unknown(format!("git open {}: {e}", path.display())),
+        git2::ErrorCode::NotFound => AppError::protocol_with(
+            codes::git::NOT_A_REPO,
+            format!("not a git repository: {}", path.display()),
+            &[("path", path.display().to_string())],
+        ),
+        _ => AppError::unknown_with(
+            codes::git::OPEN_FAILED,
+            format!("git open {}: {e}", path.display()),
+            &[
+                ("path", path.display().to_string()),
+                ("error", e.to_string()),
+            ],
+        ),
     })
 }
 
@@ -52,7 +62,11 @@ pub fn commit_signature(repo: &Repository) -> Result<Signature<'static>> {
 }
 
 fn map_git_err(e: git2::Error) -> AppError {
-    AppError::Unknown(format!("git: {e}"))
+    AppError::unknown_with(
+        codes::git::GIT_ERROR,
+        format!("git: {e}"),
+        &[("error", e.to_string())],
+    )
 }
 
 #[cfg(test)]

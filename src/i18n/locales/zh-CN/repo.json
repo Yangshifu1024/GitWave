@@ -1,0 +1,89 @@
+{
+  "repo": {
+    "gitignore": {
+      "title": "编辑 .gitignore",
+      "description": "每行一条模式，相对于仓库根目录。",
+      "saving": "保存中…",
+      "saved": ".gitignore 已保存"
+    },
+    "hooks": {
+      "title": "Git hooks",
+      "description": "编辑 .git/hooks 中的 hook 脚本。GitWave 只负责编辑——绝不会替你执行 hook。",
+      "saveName": "保存 {{name}}",
+      "scriptPlaceholder": "#!/bin/sh\n# {{name}} 脚本",
+      "insertSample": "插入示例",
+      "insertSampleTitle": "插入一段起始脚本（仅限 pre-commit）",
+      "selectHint": "请在左侧选择要编辑的 hook。",
+      "saved": "已保存 hook {{name}}"
+    },
+    "lfs": {
+      "title": "Git LFS",
+      "description": "用 Git LFS 跟踪大文件，模式保存在 .gitattributes 中。",
+      "notFoundBefore": "未在 PATH 中找到。请安装 Git LFS（",
+      "notFoundAfter": "）后即可提交大文件。",
+      "installedNote": "LFS 过滤器已接入此仓库",
+      "installDone": "已在此仓库接入 LFS 过滤器",
+      "installButton": "在此仓库安装 LFS",
+      "stopTracking": "停止跟踪",
+      "stopTrackingName": "停止跟踪 {{pattern}}",
+      "noPatterns": "尚未跟踪任何 LFS 模式。",
+      "patternPlaceholder": "模式，如 *.psd 或 assets/**",
+      "patternRequired": "请先输入模式",
+      "track": "跟踪"
+    },
+    "worktrees": {
+      "title": "Worktree",
+      "empty": "暂无 worktree",
+      "main": "主工作树",
+      "switchTitle": "切换：将路径加入工作区并激活",
+      "removeTitle": "移除 worktree"
+    },
+    "tags": {
+      "title": "标签",
+      "empty": "暂无标签"
+    },
+    "reflog": {
+      "empty": "暂无 reflog 记录",
+      "thinking": "思考中…",
+      "aiExplain": "AI 解读",
+      "recoveryBranch": "恢复分支",
+      "resetBackHere": "重置回此处",
+      "resetHere": "重置分支到此处",
+      "resetSuggestion": "分支已被重置——被丢弃的提交仍可从上一个位置访问。创建恢复分支即可保留它们。",
+      "recoveryBranchCreated": "已创建恢复分支「{{name}}」",
+      "branchReset": "分支已重置到 {{oid}}",
+      "currentBranch": "当前分支",
+      "resetTitle": "将「{{name}}」重置到 {{oid}}？",
+      "resetDescription": "硬重置：分支指针将移动，未提交的改动会被丢弃。此操作无法自动撤销——reflog（引用日志）中仍保留记录。",
+      "resetConfirm": "重置——丢弃改动",
+      "createBranchTitle": "创建恢复分支",
+      "branchPreviousAt": "在上一个位置 {{oid}} 创建分支，使这些提交保持可达。",
+      "branchCurrentAt": "在当前状态 {{oid}} 创建分支，使这些提交保持可达。",
+      "createBranchButton": "创建分支",
+      "actions": {
+        "commit": "提交",
+        "initialCommit": "初始提交",
+        "amend": "修正",
+        "checkout": "检出",
+        "reset": "重置",
+        "merge": "合并",
+        "rebase": "变基",
+        "pull": "拉取",
+        "push": "推送",
+        "branch": "创建分支",
+        "revert": "还原",
+        "cherryPick": "拣选",
+        "stash": "贮藏",
+        "clone": "克隆",
+        "other": "操作"
+      }
+    },
+    "blame": {
+      "selectWorkspace": "选择工作区以查看 blame",
+      "selectRepo": "选择仓库以查看 blame",
+      "selectFile": "选择文件以查看 blame",
+      "loading": "正在加载 blame…",
+      "empty": "暂无 blame 信息"
+    }
+  }
+}

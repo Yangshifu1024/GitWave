@@ -1,0 +1,30 @@
+{
+  "palette": {
+    "placeholder": "输入命令，或描述你想做的事…",
+    "thinking": "思考中…",
+    "askAi": "询问 AI",
+    "interpreting": "正在解析你的请求…",
+    "askHint": "按 Enter 询问 AI：例如 \"create branch fix/auth\"、\"tag this as v1.2.0\"、\"explain the last commit\"",
+    "enterAsks": "按 Enter 由 AI 解析此请求",
+    "needsConfirmation": "需确认",
+    "runAction": "执行此操作？",
+    "run": "执行",
+    "noMatch": "没有匹配的操作",
+    "noWorkspace": "当前没有活动工作区",
+    "noBaseCommit": "新分支缺少基础 commit",
+    "action": {
+      "explain_commit": "解释 commit",
+      "locate_commit": "在历史中定位 commit",
+      "create_branch": "创建分支",
+      "checkout_branch": "检出分支",
+      "create_tag": "创建 tag",
+      "stash_changes": "贮藏改动",
+      "fetch_remotes": "获取远程",
+      "none": "没有匹配的操作"
+    },
+    "command": {
+      "openSettings": "打开设置",
+      "fetchRemote": "从远程获取"
+    }
+  }
+}

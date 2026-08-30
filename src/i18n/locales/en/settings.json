@@ -1,0 +1,41 @@
+{
+  "settings": {
+    "title": "Settings",
+    "sections": {
+      "general": "General",
+      "appearance": "Appearance",
+      "ssh": "SSH Keys"
+    },
+    "general": {
+      "uiLanguage": "UI language",
+      "uiLanguageHint": "Interface language. Applied immediately; native menu bars update in a moment.",
+      "aiLanguage": "AI language",
+      "aiLanguageHint": "Language AI uses for its replies — commit messages, PR descriptions and explanations. Prompts are not translated.",
+      "autoRefresh": "Auto refresh",
+      "autoRefreshCheckbox": "Refresh repository data every minute",
+      "autoRefreshHint": "Refreshes commits, branches and panels, and fetches from the remote. Never pulls or pushes.",
+      "updates": "Updates",
+      "autoUpdateCheckbox": "Automatically check for updates on startup",
+      "updatesHint": "Checks GitHub Releases for a newer version. Nothing is downloaded without your confirmation.",
+      "checkForUpdates": "Check for updates",
+      "viewUpdate": "View update",
+      "checking": "Checking…",
+      "upToDate": "You're up to date",
+      "available": "{{version}} available",
+      "checkFailed": "Check failed"
+    },
+    "appearance": {
+      "theme": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "System",
+      "colorPalette": "Color palette",
+      "fonts": "Fonts",
+      "uiFont": "UI font",
+      "uiFontHint": "Interface text. Leads the platform fallback chain; CJK fallbacks stay active.",
+      "monoFont": "Mono font",
+      "monoFontHint": "Diff, blame, graph, commit message and other code surfaces.",
+      "saved": "Saved — applied app-wide"
+    }
+  }
+}

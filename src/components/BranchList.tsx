@@ -4,6 +4,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import type { BranchInfo } from "@/lib/api";
 import {
   abortInteractiveRebasePause,
@@ -63,14 +65,14 @@ import {
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
 
-function formatTime(time: number): string {
+function formatTime(time: number, t: TFunction): string {
   if (time <= 0) return "";
   const now = Math.floor(Date.now() / 1000);
   const diff = now - time;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t("branches.time.justNow");
+  if (diff < 3600) return t("branches.time.minutesAgo", { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t("branches.time.hoursAgo", { n: Math.floor(diff / 3600) });
+  if (diff < 604800) return t("branches.time.daysAgo", { n: Math.floor(diff / 86400) });
   return new Date(time * 1000).toLocaleDateString();
 }
 
@@ -118,6 +120,7 @@ function BranchRow({
   onInteractiveRebase,
   onNewBranch,
 }: BranchRowProps): React.JSX.Element {
+  const { t } = useTranslation();
   // Every local branch gets a context menu — the current branch's menu is
   // New-only (merge / rebase / delete don't apply to HEAD).
   const hasActions = branch.kind === "local";
@@ -139,7 +142,9 @@ function BranchRow({
         <div className="flex items-center gap-1">
           {branch.ahead > 0 && <StatusBadge variant="ahead" suffix={`\u2191${branch.ahead}`} />}
           {branch.behind > 0 && <StatusBadge variant="behind" suffix={`\u2193${branch.behind}`} />}
-          {branch.is_current && <span className="text-xs text-accent font-medium">current</span>}
+          {branch.is_current && (
+            <span className="text-xs text-accent font-medium">{t("branches.row.current")}</span>
+          )}
         </div>
       }
     >
@@ -175,7 +180,7 @@ function BranchRow({
           ) : branch.last_commit_sha ? (
             <span className="truncate">
               <span className="font-mono">{shortSha(branch.last_commit_sha)}</span>
-              {branch.last_commit_time > 0 ? ` · ${formatTime(branch.last_commit_time)}` : ""}
+              {branch.last_commit_time > 0 ? ` · ${formatTime(branch.last_commit_time, t)}` : ""}
             </span>
           ) : null}
         </span>
@@ -198,26 +203,26 @@ function BranchRow({
           onSelect={() => onNewBranch(branch.name, branch.last_commit_sha)}
         >
           <GitBranch size={14} />
-          New
+          {t("branches.menu.new")}
         </ContextMenuItem>
         {!branch.is_current ? (
           <>
             <ContextMenuItem disabled={busy} onSelect={() => onMerge(branch.name)}>
               <GitMerge size={14} />
-              Merge into current
+              {t("branches.menu.mergeIntoCurrent")}
             </ContextMenuItem>
             <ContextMenuItem disabled={busy} onSelect={() => onRebaseOnto(branch.name)}>
               <GitPullRequestArrow size={14} />
-              Rebase current onto this
+              {t("branches.menu.rebaseCurrentOntoThis")}
             </ContextMenuItem>
             <ContextMenuItem disabled={busy} onSelect={() => onInteractiveRebase(branch.name)}>
               <ListOrdered size={14} />
-              Interactive rebase
+              {t("branches.menu.interactiveRebase")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem destructive disabled={busy} onSelect={() => onDelete(branch.name)}>
               <Trash2 size={14} />
-              Delete
+              {t("branches.delete")}
             </ContextMenuItem>
           </>
         ) : null}
@@ -232,6 +237,7 @@ interface BranchListProps {
 }
 
 export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Element {
+  const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
@@ -337,17 +343,17 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const checkoutOnto = async (name: string, mode: "safe" | "force" | "stash") => {
     if (!activeWorkspaceId) return;
     if (mode === "stash") {
-      await saveStash(activeWorkspaceId, `switch to ${name}`);
+      await saveStash(activeWorkspaceId, t("branches.checkout.stashMessage", { name }));
       await checkoutBranch(activeWorkspaceId, name, false);
       try {
         await popStash(activeWorkspaceId, 0);
-        setStatus(`Checked out ${name} and re-applied stash`);
+        setStatus(t("branches.checkout.withStash", { name }));
       } catch {
-        setStatus(`Checked out ${name}. Stash re-apply failed; the stash was kept.`, "danger");
+        setStatus(t("branches.checkout.stashFailed", { name }), "danger");
       }
     } else {
       await checkoutBranch(activeWorkspaceId, name, mode === "force");
-      setStatus(`Checked out ${name}`);
+      setStatus(t("branches.checkout.success", { name }));
     }
     setSelectedName(name);
     void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
@@ -419,8 +425,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       setDeleteDialog(null);
       showNotice(
         deleteRemote && deleteCounterparts.length > 0
-          ? `Deleted ${name} and its remote counterpart`
-          : `Deleted ${name}`,
+          ? t("branches.deleteDialog.deletedWithRemote", { name })
+          : t("branches.deleteDialog.deleted", { name }),
       );
     });
 
@@ -443,7 +449,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       setNewBranchBase(null);
       setNewBranchName("");
       refresh();
-      showNotice(`Created branch ${name} from ${newBranchBase.name}`);
+      showNotice(t("branches.newBranch.created", { name, base: newBranchBase.name }));
     } catch (e) {
       setNewBranchError(formatAppError(e));
     } finally {
@@ -456,11 +462,15 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       const result = await mergeBranch(activeWorkspaceId!, name, noFf);
       if (result.conflicts.length > 0) {
         showNotice(
-          `Merged ${name} with ${result.conflicts.length} conflict(s): ${result.conflicts.join(", ")}`,
+          t("branches.merge.withConflicts", {
+            name,
+            n: result.conflicts.length,
+            files: result.conflicts.join(", "),
+          }),
           "danger",
         );
       } else {
-        showNotice(`Merged ${name} (${result.kind.replace(/_/g, " ")})`);
+        showNotice(t("branches.merge.success", { name, kind: result.kind.replace(/_/g, " ") }));
       }
     });
 
@@ -469,13 +479,13 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       const result = await rebaseBranch(activeWorkspaceId!, name);
       if (result.kind === "conflicts" || result.conflicts.length > 0) {
         showNotice(
-          `Rebase onto ${name} hit conflicts${
-            result.conflicts.length ? `: ${result.conflicts.join(", ")}` : ""
-          }`,
+          result.conflicts.length
+            ? t("branches.rebase.hitConflicts", { name, files: result.conflicts.join(", ") })
+            : t("branches.rebase.hitConflictsPlain", { name }),
           "danger",
         );
       } else {
-        showNotice(`Rebased onto ${name} (${result.kind.replace(/_/g, " ")})`);
+        showNotice(t("branches.rebase.success", { name, kind: result.kind.replace(/_/g, " ") }));
       }
     });
 
@@ -483,18 +493,21 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     void run("rebase", async () => {
       const result = await continueInteractiveRebase(activeWorkspaceId!);
       if (result.kind === "conflicts") {
-        showNotice(`Continue rebase conflicts: ${result.conflicts.join(", ")}`, "danger");
+        showNotice(
+          t("branches.irebase.continueConflicts", { files: result.conflicts.join(", ") }),
+          "danger",
+        );
       } else if (result.kind === "paused_for_edit") {
-        showNotice("Still paused for edit — amend then Continue again.");
+        showNotice(t("branches.irebase.stillPaused"));
       } else {
-        showNotice(`Continued interactive rebase (${result.kind.replace(/_/g, " ")})`);
+        showNotice(t("branches.irebase.continued", { kind: result.kind.replace(/_/g, " ") }));
       }
     });
 
   const handleAbortIrebasePause = () =>
     void run("rebase", async () => {
       await abortInteractiveRebasePause(activeWorkspaceId!);
-      showNotice("Cleared interactive rebase pause state");
+      showNotice(t("branches.irebase.pauseCleared"));
     });
 
   const visibleBranches = filterRemoteBranches(branches);
@@ -622,14 +635,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (!activeWorkspaceId) {
       return (
         <div className="flex items-center justify-center py-6 text-text-muted text-sm px-3 text-center">
-          Select a workspace to view branches
+          {t("branches.list.selectWorkspace")}
         </div>
       );
     }
     if (!activeRepoId) {
       return (
         <div className="flex items-center justify-center py-6 text-text-muted text-sm px-3 text-center">
-          Select a repository to view branches
+          {t("branches.list.selectRepo")}
         </div>
       );
     }
@@ -641,13 +654,13 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     if (branches.length === 0) {
       return (
         <div className="flex items-center justify-center py-6 text-text-muted text-sm">
-          No branches found
+          {t("branches.list.empty")}
         </div>
       );
     }
     return (
       <>
-        {renderGroup("Local", "local", localBranches)}
+        {renderGroup(t("branches.list.localGroup"), "local", localBranches)}
         {remoteGroups.map(([remote, list]) => renderGroup(remote, `remote:${remote}`, list))}
       </>
     );
@@ -655,14 +668,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   return (
     <>
-      <SidebarSection title="Branches">
+      <SidebarSection title={t("branches.title")}>
         {irebasePaused ? (
           <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
             <Button variant="primary" size="sm" disabled={busy} onClick={handleContinueIrebase}>
-              Continue rebase
+              {t("branches.irebase.continue")}
             </Button>
             <Button variant="ghost" size="sm" disabled={busy} onClick={handleAbortIrebasePause}>
-              Discard pause
+              {t("branches.irebase.discardPause")}
             </Button>
           </div>
         ) : null}
@@ -678,8 +691,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           onOpenChange={(open) => {
             if (!open) setSwitchDialog(null);
           }}
-          title={`Switch to ${switchDialog.name}?`}
-          description={`Working copy has ${switchDialog.fileCount} uncommitted file${switchDialog.fileCount === 1 ? "" : "s"}. Discard them, or stash, switch, and re-apply the stash on the new branch.`}
+          title={t("branches.switch.dirtyTitle", { name: switchDialog.name })}
+          description={t("branches.switch.dirtyDescription", { count: switchDialog.fileCount })}
           size="sm"
           footer={
             <>
@@ -689,7 +702,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 className="min-w-0 flex-[3]"
                 onClick={() => setSwitchDialog(null)}
               >
-                Cancel
+                {t("branches.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -702,7 +715,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                   void run("checkout", () => checkoutOnto(target, "force"));
                 }}
               >
-                Discard
+                {t("branches.switch.discard")}
               </Button>
               <Button
                 variant="primary"
@@ -715,7 +728,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                   void run("checkout", () => checkoutOnto(target, "stash"));
                 }}
               >
-                Stash & switch
+                {t("branches.switch.stashAndSwitch")}
               </Button>
             </>
           }
@@ -728,7 +741,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           onOpenChange={(open) => {
             if (!open) setSwitchDialog(null);
           }}
-          title={`Cannot switch to ${switchDialog.name}`}
+          title={t("branches.switch.blockedTitle", { name: switchDialog.name })}
           description={switchDialog.message}
           size="sm"
           footer={
@@ -738,7 +751,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
               className="w-full"
               onClick={() => setSwitchDialog(null)}
             >
-              OK
+              {t("branches.ok")}
             </Button>
           }
         />
@@ -750,8 +763,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           onOpenChange={(open) => {
             if (!open) setNewBranchBase(null);
           }}
-          title={`New branch from "${newBranchBase.name}"`}
-          description="Creates a local branch at this tip; the current branch stays checked out."
+          title={t("branches.newBranch.title", { name: newBranchBase.name })}
+          description={t("branches.newBranch.description")}
           size="sm"
           footer={
             <>
@@ -761,7 +774,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 className="min-w-0 flex-[3]"
                 onClick={() => setNewBranchBase(null)}
               >
-                Cancel
+                {t("branches.cancel")}
               </Button>
               <Button
                 variant="primary"
@@ -770,7 +783,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 disabled={busy || !newBranchName.trim()}
                 onClick={() => void submitNewBranch()}
               >
-                Create
+                {t("branches.newBranch.create")}
               </Button>
             </>
           }
@@ -783,7 +796,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newBranchName.trim()) void submitNewBranch();
               }}
-              placeholder="feature/my-branch"
+              placeholder={t("branches.newBranch.placeholder")}
               error={newBranchError}
             />
           </div>
@@ -796,8 +809,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           onOpenChange={(open) => {
             if (!open) setDeleteDialog(null);
           }}
-          title="Delete Branch"
-          description="Delete local branch from your repository"
+          title={t("branches.deleteDialog.title")}
+          description={t("branches.deleteDialog.description")}
           size="sm"
           footer={
             <>
@@ -807,7 +820,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 className="min-w-0 flex-[3]"
                 onClick={() => setDeleteDialog(null)}
               >
-                Cancel
+                {t("branches.cancel")}
               </Button>
               <Button
                 variant="danger"
@@ -816,13 +829,15 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 disabled={busy}
                 onClick={handleConfirmDelete}
               >
-                Delete
+                {t("branches.delete")}
               </Button>
             </>
           }
         >
           <div className="flex items-center gap-2 rounded-xl bg-bg-primary p-3">
-            <span className="w-16 shrink-0 text-sm text-text-secondary">Branch</span>
+            <span className="w-16 shrink-0 text-sm text-text-secondary">
+              {t("branches.deleteDialog.branchLabel")}
+            </span>
             <span className="flex min-w-0 items-center gap-1 text-sm text-text-primary">
               <GitBranch size={12} className="shrink-0 text-accent" />
               <span className="truncate" title={deleteDialog.name}>
@@ -837,7 +852,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
               onChange={(deleteRemote) => setDeleteDialog({ ...deleteDialog, deleteRemote })}
               className={cn(deleteCounterparts.length === 0 && "text-text-muted")}
             >
-              Also delete corresponding remote branch
+              {t("branches.deleteDialog.alsoDeleteRemote")}
             </Checkbox>
           </div>
         </Modal>
@@ -891,6 +906,7 @@ function MergeConfirmDialog({
   onClose: () => void;
   onConfirm: (noFf: boolean) => void;
 }): React.JSX.Element {
+  const { t } = useTranslation();
   const [noFf, setNoFf] = useState(false);
   const { data: preview, isLoading } = useQuery({
     queryKey: ["merge-preview", workspaceId, name],
@@ -906,13 +922,13 @@ function MergeConfirmDialog({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title="Merge branch"
-      description={`Merge ${name} into ${currentBranch}.`}
+      title={t("branches.merge.title")}
+      description={t("branches.merge.description", { name, current: currentBranch })}
       size="sm"
       footer={
         <>
           <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onClose}>
-            Cancel
+            {t("branches.cancel")}
           </Button>
           <Button
             variant="primary"
@@ -921,59 +937,62 @@ function MergeConfirmDialog({
             disabled={upToDate}
             onClick={() => onConfirm(noFf)}
           >
-            Merge
+            {t("branches.merge.confirm")}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
         <div className="flex items-center gap-2">
-          <span className="w-16 shrink-0 text-sm text-text-secondary">Merge</span>
+          <span className="w-16 shrink-0 text-sm text-text-secondary">
+            {t("branches.merge.sourceLabel")}
+          </span>
           <GitBranch size={13} className="shrink-0 text-text-muted" />
           <span className="min-w-0 truncate text-sm text-text-primary" title={name}>
             {name}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-16 shrink-0 text-sm text-text-secondary">Into</span>
+          <span className="w-16 shrink-0 text-sm text-text-secondary">
+            {t("branches.merge.targetLabel")}
+          </span>
           <GitBranch size={13} className="shrink-0 text-text-muted" />
           <span className="min-w-0 truncate text-sm text-text-primary">{currentBranch}</span>
         </div>
         <div className="flex items-center gap-2">
           <Label className="w-16 shrink-0 text-sm text-text-secondary" htmlFor="merge-option">
-            Option
+            {t("branches.merge.optionLabel")}
           </Label>
           <Select
             id="merge-option"
-            aria-label="Merge option"
+            aria-label={t("branches.merge.optionAria")}
             className="h-auto min-w-0 flex-1 bg-bg-primary border-border-subtle px-1.5 py-1.5 text-sm"
             value={noFf ? "no_ff" : "auto"}
             onChange={(next) => setNoFf(next === "no_ff")}
             options={[
-              { value: "auto", label: "Auto — fast-forward when possible" },
-              { value: "no_ff", label: "No fast-forward — always create a merge commit" },
+              { value: "auto", label: t("branches.merge.optionAuto") },
+              { value: "no_ff", label: t("branches.merge.optionNoFf") },
             ]}
           />
         </div>
       </div>
       <div className="flex items-center gap-1.5 text-xs text-text-muted">
         {isLoading ? (
-          <span>Checking merge…</span>
+          <span>{t("branches.merge.checking")}</span>
         ) : upToDate ? (
           <span className="flex items-center gap-1.5">
             <CircleX size={14} className="shrink-0" />
-            Already up to date
+            {t("branches.merge.upToDate")}
           </span>
         ) : conflictCount > 0 ? (
           <span className="flex items-center gap-1.5 text-danger">
             <CircleX size={14} className="shrink-0" />
-            May conflict in {conflictCount} file{conflictCount === 1 ? "" : "s"} (resolve after
-            merge)
+            {t("branches.merge.mayConflict", { count: conflictCount })}
           </span>
         ) : (
           <span className="flex items-center gap-1.5 text-success">
             <CircleCheck size={14} className="shrink-0" />
-            Merge can be done without conflicts
+            {t("branches.merge.noConflicts")}
           </span>
         )}
       </div>
