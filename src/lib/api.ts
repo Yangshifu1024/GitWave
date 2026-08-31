@@ -1003,9 +1003,7 @@ export const SYNC_CANCELLED_CODE = "git.sync_cancelled";
 /** Whether `err` is the backend's "sync cancelled by user" result. */
 export function isCancelledSyncError(err: unknown): boolean {
   return (
-    !!err &&
-    typeof err === "object" &&
-    (err as Partial<AppError>).code === SYNC_CANCELLED_CODE
+    !!err && typeof err === "object" && (err as Partial<AppError>).code === SYNC_CANCELLED_CODE
   );
 }
 
