@@ -9,7 +9,7 @@
     },
     "add": {
       "keyPath": "密钥路径",
-      "hint": "将密钥添加到 ssh-agent（ssh-add）。如果密钥设有口令保护，agent 可能会通过终端提示输入。"
+      "hint": "将私钥（不带 .pub 后缀）添加到 ssh-agent。带 passphrase 的密钥无法在此输入，请先在终端执行 ssh-add，或改用无 passphrase 的密钥。"
     },
     "test": {
       "host": "主机",
@@ -24,6 +24,13 @@
     "empty": {
       "title": "ssh-agent 中没有密钥",
       "description": "添加密钥以启用 SSH 克隆和推送。"
+    },
+    "agentDown": {
+      "title": "ssh-agent 未运行",
+      "description": "SSH 密钥功能不可用。Windows：启动「OpenSSH Authentication Agent」服务；macOS/Linux：在终端执行 eval $(ssh-agent)。",
+      "startButton": "启动 ssh-agent 服务",
+      "starting": "等待授权…",
+      "retryHint": "服务仍未运行——请重试，或在管理员终端执行：sc config ssh-agent start= auto && sc start ssh-agent"
     },
     "removeKey": "移除 {{path}}"
   }

@@ -7,6 +7,7 @@ import {
   deleteSshKey,
   formatAppError,
   listSshKeys,
+  startSshAgentService,
   testSshConnection,
   type SshKey,
   type SshTestResult,
@@ -17,7 +18,9 @@ import { ListItem } from "@/components/ui/ListItem";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PathInput } from "@/components/ui/PathInput";
 import { Label } from "@/components/ui/Label";
-import { Key, Trash2, Plus, Wifi } from "lucide-react";
+import { Key, Trash2, Plus, Wifi, Power } from "lucide-react";
+
+const isWindows = navigator.userAgent.includes("Windows");
 
 export function SshKeyManager(): React.JSX.Element {
   const { t } = useTranslation();
@@ -32,18 +35,47 @@ export function SshKeyManager(): React.JSX.Element {
   const [testUser, setTestUser] = useState("git");
 
   const [actionError, setActionError] = useState<string | null>(null);
+  const [startingAgent, setStartingAgent] = useState(false);
 
   const {
-    data: keys = [],
+    data: result,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["ssh-keys"],
     queryFn: listSshKeys,
   });
 
+  const keys: SshKey[] = result?.keys ?? [];
+  const agentDown: boolean = result !== undefined && !result.agent_running;
+
   const refresh = (): void => {
     void queryClient.invalidateQueries({ queryKey: ["ssh-keys"] });
+  };
+
+  // After the UAC request is handed off, poll the agent for ~16s — the
+  // elevated process itself is not observable from the app.
+  const startAgent = (): void => {
+    setActionError(null);
+    void startSshAgentService()
+      .then(() => {
+        setStartingAgent(true);
+        let tries = 0;
+        const timer = setInterval(() => {
+          tries += 1;
+          void refetch().then(({ data }) => {
+            if (data?.agent_running || tries >= 8) {
+              clearInterval(timer);
+              setStartingAgent(false);
+              if (!data?.agent_running) {
+                setActionError(t("ssh.agentDown.retryHint"));
+              }
+            }
+          });
+        }, 2000);
+      })
+      .catch((e: unknown) => setActionError(formatAppError(e)));
   };
 
   const addMut = useMutation({
@@ -227,6 +259,20 @@ export function SshKeyManager(): React.JSX.Element {
         <p className="px-3 py-2 text-sm text-danger">
           {t("ssh.loadFailed", { message: formatAppError(error) })}
         </p>
+      ) : agentDown ? (
+        <div className="flex flex-col items-center gap-3 py-6">
+          <EmptyState
+            title={t("ssh.agentDown.title")}
+            description={t("ssh.agentDown.description")}
+          />
+          {isWindows && (
+            <Button variant="secondary" size="sm" onClick={startAgent} disabled={startingAgent}>
+              <Power size={14} />
+              {startingAgent ? t("ssh.agentDown.starting") : t("ssh.agentDown.startButton")}
+            </Button>
+          )}
+          {actionError && <p className="text-xs text-danger">{actionError}</p>}
+        </div>
       ) : keys.length === 0 ? (
         <EmptyState
           title={t("ssh.empty.title")}

@@ -114,6 +114,12 @@ pub const KEY_PASSPHRASE: &str = "ssh.key.passphrase";
 /// ssh-agent 未运行。
 pub const AGENT_NOT_RUNNING: &str = "ssh.agent.not_running";
 
+/// 尝试添加的是 .pub 公钥文件（ssh-add 需要私钥）。
+pub const KEY_PUBLIC_FILE: &str = "ssh.key.public_file";
+
+/// 启动 Windows OpenSSH Agent 服务失败（含用户拒绝 UAC）。
+pub const AGENT_START_FAILED: &str = "ssh.agent.start_failed";
+
 /// ssh-add -d 移除密钥失败。
 pub const SSH_DELETE_FAILED: &str = "ssh.delete_failed";
 

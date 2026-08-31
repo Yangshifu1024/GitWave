@@ -23,7 +23,7 @@ pub use use_cases::{
     remove_remote, remove_repo, remove_worktree, rename_remote, rename_workspace, reorder_repos,
     reset_hard, resolve_conflict, revert_commit, save_hook, save_stash, set_active_repo,
     set_ai_api_key, set_remote_push_url, set_remote_url, stage_all, stage_files,
-    test_ssh_connection, unstage_files, update_submodule, update_workspace_settings,
-    write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus, AppContext, PaletteIntent,
-    PrDescriptionOutcome,
+    start_ssh_agent_service, test_ssh_connection, unstage_files, update_submodule,
+    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
+    AppContext, PaletteIntent, PrDescriptionOutcome,
 };

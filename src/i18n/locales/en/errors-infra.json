@@ -63,10 +63,12 @@
       "delete_failed": "ssh-add -d failed (exit {{exit}})",
       "spawn_failed": "Could not run ssh: {{error}}",
       "key": {
-        "passphrase": "This key is protected by a passphrase, which cannot be entered here. Load it once from a terminal (ssh-add <key>) so the agent caches it decrypted, or use a key without a passphrase"
+        "passphrase": "This key is protected by a passphrase, which cannot be entered here. Load it once from a terminal (ssh-add <key>) so the agent caches it decrypted, or use a key without a passphrase",
+        "public_file": "That is the public key (.pub) — ssh-add needs the private key file (e.g. id_ed25519 / id_rsa, without the .pub extension)"
       },
       "agent": {
-        "not_running": "ssh-agent is not running — start it (on Windows: the “OpenSSH Agent” service; on macOS/Linux: eval $(ssh-agent)) and try again"
+        "not_running": "ssh-agent is not running — start it (on Windows: the “OpenSSH Agent” service; on macOS/Linux: eval $(ssh-agent)) and try again",
+        "start_failed": "Could not start the OpenSSH Agent service (if you declined the permission prompt, retry or start it manually)"
       }
     }
   }
