@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::infrastructure::git::credentials::{
-    CredentialProvider, GitCredentialHelper, SshAgentCredential,
+    run_with_credentials, CredentialProvider, GitCredentialHelper, SshAgentCredential,
 };
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
@@ -103,21 +103,24 @@ pub fn fetch(
     fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
     fo.prune(git2::FetchPrune::On);
-    remote
-        .fetch(&[] as &[&str], Some(&mut fo), None)
-        .map_err(|e| match e.code() {
-            git2::ErrorCode::Auth => AppError::credential_with(
+    run_with_credentials(
+        &*creds,
+        || remote.fetch(&[] as &[&str], Some(&mut fo), None),
+        |e| {
+            AppError::credential_with(
                 codes::git::FETCH_AUTH_FAILED,
                 format!("fetch auth: {e}"),
                 &[("error", e.to_string())],
-            ),
-            _ => AppError::network_with(
+            )
+        },
+        |e| {
+            AppError::network_with(
                 codes::git::FETCH_FAILED,
                 format!("fetch failed: {e}"),
                 &[("error", e.to_string())],
-            ),
-        })?;
-    Ok(())
+            )
+        },
+    )
 }
 
 /// Options controlling [`push_with_options`].
@@ -165,21 +168,24 @@ pub fn push_with_options(
     let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, on_progress);
     po.remote_callbacks(cb);
     let str_refs: Vec<&str> = refspecs.iter().map(String::as_str).collect();
-    remote
-        .push(&str_refs, Some(&mut po))
-        .map_err(|e| match e.code() {
-            git2::ErrorCode::Auth => AppError::credential_with(
+    run_with_credentials(
+        &*creds,
+        || remote.push(&str_refs, Some(&mut po)),
+        |e| {
+            AppError::credential_with(
                 codes::git::PUSH_AUTH_FAILED,
                 format!("push auth: {e}"),
                 &[("error", e.to_string())],
-            ),
-            _ => AppError::network_with(
+            )
+        },
+        |e| {
+            AppError::network_with(
                 codes::git::PUSH_FAILED,
                 format!("push failed: {e}"),
                 &[("error", e.to_string())],
-            ),
-        })?;
-    Ok(())
+            )
+        },
+    )
 }
 
 /// Remote names configured on the repository.
@@ -311,20 +317,24 @@ pub fn delete_remote_branch(repo: &Repository, remote_name: &str, branch_name: &
     let mut po = PushOptions::new();
     let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, None);
     po.remote_callbacks(cb);
-    remote
-        .push(&[refspec.as_str()], Some(&mut po))
-        .map_err(|e| match e.code() {
-            git2::ErrorCode::Auth => AppError::credential_with(
+    run_with_credentials(
+        &*creds,
+        || remote.push(&[refspec.as_str()], Some(&mut po)),
+        |e| {
+            AppError::credential_with(
                 codes::git::PUSH_AUTH_FAILED,
                 format!("push auth: {e}"),
                 &[("error", e.to_string())],
-            ),
-            _ => AppError::network_with(
+            )
+        },
+        |e| {
+            AppError::network_with(
                 codes::git::DELETE_REMOTE_BRANCH_FAILED,
                 format!("delete remote branch failed: {e}"),
                 &[("error", e.to_string())],
-            ),
-        })?;
+            )
+        },
+    )?;
     if let Ok(mut tracking) =
         repo.find_reference(&format!("refs/remotes/{remote_name}/{branch_name}"))
     {

@@ -12,7 +12,9 @@ use git2::{build::RepoBuilder, Repository, RepositoryInitOptions};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
-use super::credentials::{CredentialProvider, GitCredentialHelper, SshAgentCredential};
+use super::credentials::{
+    run_with_credentials, CredentialProvider, GitCredentialHelper, SshAgentCredential,
+};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,23 +96,29 @@ fn clone_with_creds(
     let mut builder = RepoBuilder::new();
     builder.fetch_options(fo);
 
-    builder.clone(url, dest).map_err(|e| match e.code() {
-        git2::ErrorCode::Auth => AppError::credential_with(
-            codes::git::CLONE_AUTH_FAILED,
-            format!("auth failed for {url}: {e}"),
-            &[("url", url.to_string()), ("error", e.to_string())],
-        ),
-        git2::ErrorCode::NotFound => AppError::protocol_with(
-            codes::git::CLONE_NOT_FOUND,
-            format!("not found: {url}"),
-            &[("url", url.to_string())],
-        ),
-        _ => AppError::network_with(
-            codes::git::CLONE_NETWORK,
-            format!("network error cloning {url}: {e}"),
-            &[("url", url.to_string()), ("error", e.to_string())],
-        ),
-    })?;
+    run_with_credentials(
+        &*creds,
+        || builder.clone(url, dest),
+        |e| {
+            AppError::credential_with(
+                codes::git::CLONE_AUTH_FAILED,
+                format!("auth failed for {url}: {e}"),
+                &[("url", url.to_string()), ("error", e.to_string())],
+            )
+        },
+        |e| match e.code() {
+            git2::ErrorCode::NotFound => AppError::protocol_with(
+                codes::git::CLONE_NOT_FOUND,
+                format!("not found: {url}"),
+                &[("url", url.to_string())],
+            ),
+            _ => AppError::network_with(
+                codes::git::CLONE_NETWORK,
+                format!("network error cloning {url}: {e}"),
+                &[("url", url.to_string()), ("error", e.to_string())],
+            ),
+        },
+    )?;
     Ok(())
 }
 

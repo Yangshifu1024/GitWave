@@ -2,8 +2,9 @@
 //!
 //! See `docs/tasks/feat-history-graph/plan.md` steps 6-10.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::domain::blame::BlameLine;
 use crate::domain::branch::BranchInfo;
@@ -2169,12 +2170,32 @@ pub fn ignore_path(ctx: &AppContext, workspace_id: &str, pattern: String) -> Res
     infra_ignore_path(&repo, &pattern)
 }
 
+/// Per-workspace fetch mutex: auto-refresh and a manual fetch can overlap,
+/// and two concurrent credential prompts for the same remote would each
+/// pop the helper — the credential fill gate only dedups within a single
+/// operation.
+fn workspace_fetch_lock(workspace_id: &str) -> Arc<Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
+    let mut locks = LOCKS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    locks
+        .entry(workspace_id.to_string())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
+}
+
 pub fn fetch(
     ctx: &AppContext,
     workspace_id: &str,
     remote: Option<String>,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
 ) -> Result<()> {
+    let fetch_lock = workspace_fetch_lock(workspace_id);
+    let _serialized = fetch_lock
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     let Some(remote) = remote else {
@@ -2386,6 +2407,15 @@ mod tests {
     use crate::infrastructure::persistence::migrations;
     use rusqlite::Connection;
     use std::fs;
+
+    #[test]
+    fn workspace_fetch_lock_is_per_workspace() {
+        let a1 = workspace_fetch_lock("ws-lock-a");
+        let a2 = workspace_fetch_lock("ws-lock-a");
+        let b = workspace_fetch_lock("ws-lock-b");
+        assert!(Arc::ptr_eq(&a1, &a2), "same workspace must share one lock");
+        assert!(!Arc::ptr_eq(&a1, &b), "workspaces must not share locks");
+    }
 
     fn patch_fixture(long_content: Option<String>) -> Vec<FileDiff> {
         let content = long_content.unwrap_or_else(|| "new".into());
