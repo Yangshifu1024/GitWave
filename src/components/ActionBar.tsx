@@ -38,6 +38,7 @@ import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
+import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
 import { cn } from "@/lib/utils";
 import { Separator } from "@heroui/react";
 import { Button } from "@/components/ui/Button";
@@ -136,6 +137,7 @@ export function ActionBar(): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
+  const switchWorkspace = useValidatedWorkspaceSwitch();
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const wc = useWorkingCopy();
@@ -250,7 +252,7 @@ export function ActionBar(): React.JSX.Element {
       importWorkspace(path, null)
         .then((ws) => {
           done(t("commits.workspace.imported", { name: ws.name }));
-          selectWorkspace(ws.id, ws.last_active_repo_id);
+          switchWorkspace(ws.id, ws.last_active_repo_id);
         })
         .catch((e) => setTransferError(formatAppError(e)));
     }

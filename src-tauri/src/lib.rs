@@ -302,11 +302,29 @@ fn cmd_relink_repo(
 }
 
 #[tauri::command]
-fn cmd_list_repos(
+async fn cmd_list_repos(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
 ) -> Result<Vec<RepoRef>, AppError> {
-    list_repos(&ctx, workspace_id)
+    // list_repos sweeps filesystem presence for every repo in the workspace;
+    // on stalled network storage that hangs for minutes, and a sync command
+    // runs on the UI thread — the whole window would freeze (workspace
+    // deletion included). Keep the sweep off the main thread, like clone.
+    let workspaces = Arc::clone(&ctx.workspaces);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let local_ctx = AppContext::new(workspaces);
+        list_repos(&local_ctx, workspace_id)
+    })
+    .await
+    .map_err(|e| {
+        AppError::unknown_with(
+            codes::cmds::LIST_REPOS_TASK_JOIN,
+            format!("list_repos task join: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+
+    result
 }
 
 #[tauri::command]

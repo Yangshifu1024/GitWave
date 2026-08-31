@@ -8,6 +8,7 @@ import { Check, ChevronDown, FolderGit2 } from "lucide-react";
 
 import { listWorkspaces } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -18,7 +19,7 @@ import {
 
 export function WorkspaceDropdown(): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
+  const switchWorkspace = useValidatedWorkspaceSwitch();
   const { data: workspaces = [] } = useQuery({
     queryKey: ["workspaces"],
     queryFn: listWorkspaces,
@@ -43,7 +44,7 @@ export function WorkspaceDropdown(): React.JSX.Element {
             key={w.id}
             id={w.id}
             textValue={w.name}
-            onSelect={() => selectWorkspace(w.id, w.last_active_repo_id)}
+            onSelect={() => switchWorkspace(w.id, w.last_active_repo_id)}
           >
             <span className="flex w-3.5 shrink-0">
               {w.id === activeWorkspaceId ? <Check size={13} /> : null}
