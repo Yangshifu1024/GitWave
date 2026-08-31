@@ -6,6 +6,7 @@ import i18next from "i18next";
 import {
   fetchRemote,
   formatAppError,
+  isCancelledSyncError,
   pullRemote,
   pushRemote,
   type PullOptions,
@@ -69,6 +70,11 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   const handleError = (e: unknown, op: "fetch" | "pull" | "push") => {
     useSyncStore.getState().endOp(op);
+    if (isCancelledSyncError(e)) {
+      // User-initiated abort: report neutrally instead of as a failure.
+      useStatusAreaStore.getState().setStatus(t("status.sync.cancelled"), "info");
+      return;
+    }
     useStatusAreaStore.getState().setStatus(t(FAILURE_KEYS[op]), "danger");
     onError?.(formatAppError(e));
   };

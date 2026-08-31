@@ -6,7 +6,8 @@
       "pull_task_join": "拉取（pull）任务失败：{{error}}",
       "list_remotes_task_join": "列出远程仓库失败：{{error}}",
       "list_repos_task_join": "列出仓库失败：{{error}}",
-      "push_task_join": "推送（push）任务失败：{{error}}"
+      "push_task_join": "推送（push）任务失败：{{error}}",
+      "delete_remote_branch_task_join": "删除远程分支任务失败：{{error}}"
     }
   }
 }

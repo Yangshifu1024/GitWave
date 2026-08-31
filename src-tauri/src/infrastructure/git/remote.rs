@@ -1,5 +1,6 @@
 //! Fetch / push / pull against a named remote (default `origin`).
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use git2::{AutotagOption, BranchType, FetchOptions, PushOptions, Repository, StatusOptions};
@@ -10,6 +11,12 @@ use crate::domain::error_codes as codes;
 use crate::infrastructure::git::credentials::{
     run_with_credentials, CredentialProvider, GitCredentialHelper, SshAgentCredential,
 };
+
+/// Shared cancellation flag for one network sync operation. The command
+/// layer flips it on timeout or user cancel; libgit2 observes it at its
+/// transport checkpoints (transfer-progress callback, credential fill
+/// wait) and aborts.
+pub type CancelFlag = Arc<AtomicBool>;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -43,11 +50,11 @@ fn map_git_err(e: git2::Error) -> AppError {
     }
 }
 
-fn provider_for_url(url: &str) -> Arc<dyn CredentialProvider> {
+fn provider_for_url(url: &str, cancel: Option<CancelFlag>) -> Arc<dyn CredentialProvider> {
     if url.starts_with("git@") || url.starts_with("ssh://") {
         Arc::new(SshAgentCredential::new())
     } else {
-        Arc::new(GitCredentialHelper::new(url.to_string()))
+        Arc::new(GitCredentialHelper::new(url.to_string()).with_cancel(cancel))
     }
 }
 
@@ -62,14 +69,38 @@ fn remote_url(repo: &Repository, remote_name: &str) -> Result<String> {
     })
 }
 
+/// Report a cancelled operation as such instead of whatever libgit2 error
+/// the abort happened to surface as.
+fn cancelled_if_flagged<T>(cancel: Option<&AtomicBool>, result: Result<T>) -> Result<T> {
+    if result.is_err() && cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+        return Err(AppError::network_with(
+            codes::git::SYNC_CANCELLED,
+            "sync cancelled by user",
+            &[],
+        ));
+    }
+    result
+}
+
 fn attach_transfer_progress(
     mut callbacks: git2::RemoteCallbacks<'_>,
     operation: SyncOperation,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> git2::RemoteCallbacks<'_> {
-    if let Some(progress) = on_progress {
-        let progress = Mutex::new(progress);
-        callbacks.transfer_progress(move |stats| {
+    // Attach whenever there is anything to observe: progress reporting or
+    // the cancel checkpoint. Returning false from the callback is the only
+    // lever libgit2 offers for aborting a transfer mid-flight.
+    if on_progress.is_none() && cancel.is_none() {
+        return callbacks;
+    }
+    let progress = on_progress.map(Mutex::new);
+    let cancel = cancel.unwrap_or_default();
+    callbacks.transfer_progress(move |stats| {
+        if cancel.load(Ordering::Relaxed) {
+            return false;
+        }
+        if let Some(progress) = progress.as_ref() {
             if let Ok(guard) = progress.lock() {
                 guard(SyncProgress {
                     operation,
@@ -78,9 +109,9 @@ fn attach_transfer_progress(
                     received_bytes: stats.received_bytes() as u64,
                 });
             }
-            true
-        });
-    }
+        }
+        true
+    });
     callbacks
 }
 
@@ -94,32 +125,36 @@ pub fn fetch(
     remote_name: &str,
     operation: SyncOperation,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url);
+    let creds = provider_for_url(&url, cancel.clone());
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let mut fo = FetchOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), operation, on_progress);
+    let cb = attach_transfer_progress(creds.callbacks(), operation, on_progress, cancel.clone());
     fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
     fo.prune(git2::FetchPrune::On);
-    run_with_credentials(
-        &*creds,
-        || remote.fetch(&[] as &[&str], Some(&mut fo), None),
-        |e| {
-            AppError::credential_with(
-                codes::git::FETCH_AUTH_FAILED,
-                format!("fetch auth: {e}"),
-                &[("error", e.to_string())],
-            )
-        },
-        |e| {
-            AppError::network_with(
-                codes::git::FETCH_FAILED,
-                format!("fetch failed: {e}"),
-                &[("error", e.to_string())],
-            )
-        },
+    cancelled_if_flagged(
+        cancel.as_deref(),
+        run_with_credentials(
+            &*creds,
+            || remote.fetch(&[] as &[&str], Some(&mut fo), None),
+            |e| {
+                AppError::credential_with(
+                    codes::git::FETCH_AUTH_FAILED,
+                    format!("fetch auth: {e}"),
+                    &[("error", e.to_string())],
+                )
+            },
+            |e| {
+                AppError::network_with(
+                    codes::git::FETCH_FAILED,
+                    format!("fetch failed: {e}"),
+                    &[("error", e.to_string())],
+                )
+            },
+        ),
     )
 }
 
@@ -138,9 +173,10 @@ pub fn push_with_options(
     remote_name: &str,
     opts: PushRequest,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url);
+    let creds = provider_for_url(&url, cancel.clone());
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
@@ -165,26 +201,34 @@ pub fn push_with_options(
     }
 
     let mut po = PushOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, on_progress);
+    let cb = attach_transfer_progress(
+        creds.callbacks(),
+        SyncOperation::Push,
+        on_progress,
+        cancel.clone(),
+    );
     po.remote_callbacks(cb);
     let str_refs: Vec<&str> = refspecs.iter().map(String::as_str).collect();
-    run_with_credentials(
-        &*creds,
-        || remote.push(&str_refs, Some(&mut po)),
-        |e| {
-            AppError::credential_with(
-                codes::git::PUSH_AUTH_FAILED,
-                format!("push auth: {e}"),
-                &[("error", e.to_string())],
-            )
-        },
-        |e| {
-            AppError::network_with(
-                codes::git::PUSH_FAILED,
-                format!("push failed: {e}"),
-                &[("error", e.to_string())],
-            )
-        },
+    cancelled_if_flagged(
+        cancel.as_deref(),
+        run_with_credentials(
+            &*creds,
+            || remote.push(&str_refs, Some(&mut po)),
+            |e| {
+                AppError::credential_with(
+                    codes::git::PUSH_AUTH_FAILED,
+                    format!("push auth: {e}"),
+                    &[("error", e.to_string())],
+                )
+            },
+            |e| {
+                AppError::network_with(
+                    codes::git::PUSH_FAILED,
+                    format!("push failed: {e}"),
+                    &[("error", e.to_string())],
+                )
+            },
+        ),
     )
 }
 
@@ -309,31 +353,39 @@ pub fn remove_remote(repo: &Repository, name: &str) -> Result<()> {
 
 /// Delete `branch_name` on `remote_name` by pushing a bare refspec, then
 /// prune the stale local remote-tracking ref (best effort).
-pub fn delete_remote_branch(repo: &Repository, remote_name: &str, branch_name: &str) -> Result<()> {
+pub fn delete_remote_branch(
+    repo: &Repository,
+    remote_name: &str,
+    branch_name: &str,
+    cancel: Option<CancelFlag>,
+) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url);
+    let creds = provider_for_url(&url, cancel.clone());
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let refspec = format!(":refs/heads/{branch_name}");
     let mut po = PushOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, None);
+    let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, None, cancel.clone());
     po.remote_callbacks(cb);
-    run_with_credentials(
-        &*creds,
-        || remote.push(&[refspec.as_str()], Some(&mut po)),
-        |e| {
-            AppError::credential_with(
-                codes::git::PUSH_AUTH_FAILED,
-                format!("push auth: {e}"),
-                &[("error", e.to_string())],
-            )
-        },
-        |e| {
-            AppError::network_with(
-                codes::git::DELETE_REMOTE_BRANCH_FAILED,
-                format!("delete remote branch failed: {e}"),
-                &[("error", e.to_string())],
-            )
-        },
+    cancelled_if_flagged(
+        cancel.as_deref(),
+        run_with_credentials(
+            &*creds,
+            || remote.push(&[refspec.as_str()], Some(&mut po)),
+            |e| {
+                AppError::credential_with(
+                    codes::git::PUSH_AUTH_FAILED,
+                    format!("push auth: {e}"),
+                    &[("error", e.to_string())],
+                )
+            },
+            |e| {
+                AppError::network_with(
+                    codes::git::DELETE_REMOTE_BRANCH_FAILED,
+                    format!("delete remote branch failed: {e}"),
+                    &[("error", e.to_string())],
+                )
+            },
+        ),
     )?;
     if let Ok(mut tracking) =
         repo.find_reference(&format!("refs/remotes/{remote_name}/{branch_name}"))
@@ -377,6 +429,7 @@ pub fn pull_with_options(
     remote_name: &str,
     opts: PullOptions,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     // Newest stash entry is index 0.
     let mut stashed = false;
@@ -385,7 +438,7 @@ pub fn pull_with_options(
         stashed = true;
     }
 
-    match pull_integrate(repo, remote_name, &opts, on_progress) {
+    match pull_integrate(repo, remote_name, &opts, on_progress, cancel) {
         Ok(()) => {
             if stashed {
                 crate::infrastructure::git::stash::pop_stash(repo, 0).map_err(|e| {
@@ -419,8 +472,9 @@ fn pull_integrate(
     remote_name: &str,
     opts: &PullOptions,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
-    fetch(repo, remote_name, SyncOperation::Pull, on_progress)?;
+    fetch(repo, remote_name, SyncOperation::Pull, on_progress, cancel)?;
 
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
@@ -607,7 +661,7 @@ mod tests {
     #[test]
     fn fetch_missing_remote_errors() {
         let (path, repo) = build_linear_repo(1);
-        let err = fetch(&repo, "origin", SyncOperation::Fetch, None).expect_err("no origin");
+        let err = fetch(&repo, "origin", SyncOperation::Fetch, None, None).expect_err("no origin");
         let _ = fs::remove_dir_all(&path);
         assert_eq!(err.category(), "Unknown");
     }
@@ -625,7 +679,7 @@ mod tests {
                 "create feature",
             )
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None).unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None, None).unwrap();
         assert!(local.find_reference("refs/remotes/origin/feature").is_ok());
 
         // ...then it is deleted upstream: the next fetch must prune the
@@ -635,12 +689,34 @@ mod tests {
             .unwrap()
             .delete()
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None).unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None, None).unwrap();
         assert!(
             local.find_reference("refs/remotes/origin/feature").is_err(),
             "stale tracking ref must be pruned"
         );
         assert!(local.find_reference("refs/remotes/origin/main").is_ok());
+
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn fetch_aborts_when_cancel_flag_is_set() {
+        // A set cancel flag must abort at the transfer-progress checkpoint
+        // (the callback returns false) and surface as git.sync_cancelled —
+        // this is the lever behind both the timeout and the cancel button.
+        let (server_path, local_path, server, local) = cloned_from_server();
+        // Give the fetch something to receive so the transport reports
+        // progress and reaches the checkpoint.
+        let tree = write_and_stage(&server, "file1.txt", "v1\n");
+        make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
+
+        let cancel = Arc::new(AtomicBool::new(true)); // pre-set: cancel wins
+        let err = fetch(&local, "origin", SyncOperation::Fetch, None, Some(cancel))
+            .expect_err("cancelled fetch must abort");
+
+        assert_eq!(err.code(), codes::git::SYNC_CANCELLED);
+        assert_eq!(err.category(), "Network");
 
         let _ = fs::remove_dir_all(&server_path);
         let _ = fs::remove_dir_all(&local_path);
@@ -720,7 +796,7 @@ mod tests {
         let tree = write_and_stage(&server, "file1.txt", "v1\n");
         let server_tip = make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(false), None, None).unwrap();
 
         assert_eq!(
             head_oid(&local),
@@ -741,7 +817,7 @@ mod tests {
         let _local_tip = head_oid(&local);
         let server_tip = diverge(&server, &local);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(false), None, None).unwrap();
 
         let head = local.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(
@@ -769,7 +845,7 @@ mod tests {
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None)
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None)
             .expect_err("dirty worktree must refuse");
 
         assert_eq!(err.category(), "Protocol");
@@ -793,7 +869,7 @@ mod tests {
         fs::write(local.workdir().unwrap().join("file0.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None)
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None)
             .expect_err("dirty worktree must refuse even when fast-forwardable");
 
         assert_eq!(err.category(), "Protocol");
@@ -821,7 +897,7 @@ mod tests {
             rebase: false,
             stash: false,
         };
-        let err = pull_with_options(&mut local, "origin", opts, None)
+        let err = pull_with_options(&mut local, "origin", opts, None, None)
             .expect_err("dirty worktree must refuse plain pull too");
 
         assert_eq!(err.category(), "Protocol");
@@ -840,7 +916,7 @@ mod tests {
         let server_tip = diverge(&server, &local);
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
 
-        pull_with_options(&mut local, "origin", rebase_opts(true), None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(true), None, None).unwrap();
 
         assert_eq!(
             local

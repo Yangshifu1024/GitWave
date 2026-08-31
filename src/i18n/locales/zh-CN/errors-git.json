@@ -8,6 +8,8 @@
       "fetch_failed": "获取失败：{{error}}",
       "push_auth_failed": "推送认证失败：{{error}}",
       "push_failed": "推送失败：{{error}}",
+      "sync_timeout": "网络操作超时（{{seconds}} 秒）——请检查网络后重试",
+      "sync_cancelled": "已取消",
       "delete_remote_branch_failed": "删除远程分支失败：{{error}}",
       "remote_no_url": "远程「{{name}}」没有配置 URL",
       "remote": {

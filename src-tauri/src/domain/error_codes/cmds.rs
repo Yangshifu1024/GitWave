@@ -18,4 +18,7 @@ pub const LIST_REPOS_TASK_JOIN: &str = "cmds.list_repos_task_join";
 /// 等待推送（push）后台任务结束失败。
 pub const PUSH_TASK_JOIN: &str = "cmds.push_task_join";
 
+/// 等待删除远程分支后台任务结束失败。
+pub const DELETE_REMOTE_BRANCH_TASK_JOIN: &str = "cmds.delete_remote_branch_task_join";
+
 // Populated by the i18n error-key migration (docs/tasks/feat-i18n/plan.md).

@@ -10,12 +10,23 @@
 
 use std::io::Write;
 use std::process::Stdio;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use git2::{Cred, CredentialType, RemoteCallbacks};
 
 use crate::domain::error::{AppError, Result};
-use crate::infrastructure::process::hidden_command;
+use crate::infrastructure::process::{hidden_command, wait_timeout, wait_with_output_timeout};
+
+/// Upper bound for one `git credential fill`. A GUI helper (GCM) may hold
+/// the process open while its dialog waits for the user; without a cap, a
+/// dismissed or forgotten prompt hangs the whole fetch forever.
+const CREDENTIAL_FILL_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Upper bound for `git credential approve|reject` — helpers only store and
+/// return, so anything this slow is stuck.
+const CREDENTIAL_NOTIFY_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Pluggable credential strategy for libgit2 fetch/clone.
 pub trait CredentialProvider: Send + Sync {
@@ -157,6 +168,7 @@ impl FillOnce {
 pub struct GitCredentialHelper {
     url: String,
     fill: Arc<Mutex<FillOnce>>,
+    cancel: Option<Arc<AtomicBool>>,
 }
 
 impl GitCredentialHelper {
@@ -165,7 +177,17 @@ impl GitCredentialHelper {
         Self {
             url,
             fill: Arc::new(Mutex::new(FillOnce::new())),
+            cancel: None,
         }
+    }
+
+    /// Share the operation's cancel flag: an aborted operation also stops
+    /// waiting on a helper prompt instead of blocking until the fill
+    /// timeout.
+    #[must_use]
+    pub fn with_cancel(mut self, cancel: Option<Arc<AtomicBool>>) -> Self {
+        self.cancel = cancel;
+        self
     }
 
     /// Credentials the helper actually supplied this operation; `approve`
@@ -177,6 +199,7 @@ impl GitCredentialHelper {
     fn build_callbacks(&self) -> RemoteCallbacks<'_> {
         let url = self.url.clone();
         let gate = Arc::clone(&self.fill);
+        let cancel = self.cancel.clone();
         let mut cb = RemoteCallbacks::new();
         cb.credentials(move |_url, username_from_url, allowed_types| {
             if allowed_types.contains(CredentialType::SSH_KEY) {
@@ -189,7 +212,7 @@ impl GitCredentialHelper {
                 let Ok(mut gate) = gate.lock() else {
                     return Err(auth_error("credential fill state poisoned"));
                 };
-                match gate.take(query_helper, &url) {
+                match gate.take(|url| query_helper(url, cancel.as_deref()), &url) {
                     Fill::Answer((user, pass)) => {
                         return Cred::userpass_plaintext(&user, &pass);
                     }
@@ -258,8 +281,10 @@ fn credential_request(url: &str, user: Option<&str>, pass: Option<&str>) -> Opti
 }
 
 /// Invoke `git credential fill` for the URL and return parsed user/pass.
-/// Returns `None` if the helper is not configured / fails.
-fn query_helper(url: &str) -> Option<(String, String)> {
+/// Returns `None` if the helper is not configured / fails / does not answer
+/// within [`CREDENTIAL_FILL_TIMEOUT`] (a GUI prompt nobody answers) or the
+/// operation was cancelled.
+fn query_helper(url: &str, cancel: Option<&AtomicBool>) -> Option<(String, String)> {
     let mut child = hidden_command("git")
         .args(["credential", "fill"])
         // The GUI helper (GCM) is controlled by its own settings; this only
@@ -277,7 +302,20 @@ fn query_helper(url: &str) -> Option<(String, String)> {
         stdin.write_all(input.as_bytes()).ok()?;
     }
 
-    let output = child.wait_with_output().ok()?;
+    let output = match wait_with_output_timeout(child, CREDENTIAL_FILL_TIMEOUT, cancel) {
+        Ok(Some(output)) => output,
+        Ok(None) => {
+            tracing::warn!(
+                "git credential fill gave no answer within {}s (helper prompt unanswered or operation cancelled)",
+                CREDENTIAL_FILL_TIMEOUT.as_secs()
+            );
+            return None;
+        }
+        Err(e) => {
+            tracing::warn!("git credential fill wait failed: {e}");
+            return None;
+        }
+    };
     if !output.status.success() {
         return None;
     }
@@ -332,12 +370,18 @@ fn notify_helper(action: &str, url: &str, user: &str, pass: &str) {
             tracing::warn!("git credential {action} stdin write failed: {e}");
         }
     }
-    match child.wait() {
-        Ok(status) if !status.success() => {
+    match wait_timeout(&mut child, CREDENTIAL_NOTIFY_TIMEOUT) {
+        Ok(Some(status)) if !status.success() => {
             tracing::warn!("git credential {action} exited with {status}");
         }
+        Ok(Some(_)) => {}
+        Ok(None) => {
+            tracing::warn!(
+                "git credential {action} gave no answer within {}s — killed",
+                CREDENTIAL_NOTIFY_TIMEOUT.as_secs()
+            );
+        }
         Err(e) => tracing::warn!("git credential {action} wait failed: {e}"),
-        _ => {}
     }
 }
 
@@ -362,7 +406,7 @@ mod tests {
 
     #[test]
     fn query_helper_returns_none_for_unconfigured_helper() {
-        let result = query_helper("https://this-domain-does-not-exist.invalid/repo.git");
+        let result = query_helper("https://this-domain-does-not-exist.invalid/repo.git", None);
         assert!(result.is_none());
     }
 

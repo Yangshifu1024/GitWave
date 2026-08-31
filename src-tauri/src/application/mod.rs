@@ -2,6 +2,7 @@
 //!
 //! See `docs/tech/architecture/00-overview.md` for the layer responsibilities.
 
+pub mod sync_ops;
 pub mod use_cases;
 
 pub use use_cases::{

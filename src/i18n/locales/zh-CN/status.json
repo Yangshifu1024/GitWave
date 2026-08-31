@@ -28,6 +28,7 @@
       "fetchFailed": "获取失败",
       "pullFailed": "拉取失败",
       "pushFailed": "推送失败",
+      "cancelled": "已取消",
       "refreshing": "正在刷新…",
       "refreshed": "已刷新"
     }

@@ -23,6 +23,12 @@ pub const PUSH_AUTH_FAILED: &str = "git.push_auth_failed";
 /// 推送（push）失败。
 pub const PUSH_FAILED: &str = "git.push_failed";
 
+/// 网络同步操作（fetch/pull/push/删远端分支）超过总时限被中止。
+pub const SYNC_TIMEOUT: &str = "git.sync_timeout";
+
+/// 网络同步操作被用户主动取消。
+pub const SYNC_CANCELLED: &str = "git.sync_cancelled";
+
 /// 删除远程分支失败。
 pub const DELETE_REMOTE_BRANCH_FAILED: &str = "git.delete_remote_branch_failed";
 
