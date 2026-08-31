@@ -266,12 +266,7 @@ export function SshKeyManager(): React.JSX.Element {
             description={t("ssh.agentDown.description")}
           />
           {isWindows && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={startAgent}
-              disabled={startingAgent}
-            >
+            <Button variant="secondary" size="sm" onClick={startAgent} disabled={startingAgent}>
               <Power size={14} />
               {startingAgent ? t("ssh.agentDown.starting") : t("ssh.agentDown.startButton")}
             </Button>
