@@ -109,7 +109,7 @@ use crate::infrastructure::git::worktree::{
 };
 use crate::infrastructure::persistence::workspace_repo::WorkspaceRepository;
 use crate::infrastructure::persistence::SqliteWorkspaceRepo;
-use crate::infrastructure::ssh::keys::{SshKey, SshTestResult};
+use crate::infrastructure::ssh::keys::{expand_tilde, SshKey, SshKeyList, SshTestResult};
 
 // ─── AppContext ──────────────────────────────────────────────────────────────
 
@@ -446,22 +446,39 @@ fn refresh_repo_presence(ctx: &AppContext, workspace_id: &str) -> Result<()> {
 
 // ─── SSH use cases (Sprint 2) ───────────────────────────────────────────────
 
-pub fn list_ssh_keys() -> Result<Vec<SshKey>> {
+pub fn list_ssh_keys() -> Result<SshKeyList> {
     crate::infrastructure::ssh::keys::list_loaded()
 }
 
 pub fn add_ssh_key(path: String) -> Result<()> {
-    let p = PathBuf::from(path);
+    let p = expand_tilde(&path);
     crate::infrastructure::ssh::keys::add(&p)
 }
 
 pub fn delete_ssh_key(path: String) -> Result<()> {
-    let p = PathBuf::from(path);
+    let p = expand_tilde(&path);
     crate::infrastructure::ssh::keys::delete(&p)
 }
 
 pub fn test_ssh_connection(host: String, user: String) -> Result<SshTestResult> {
     crate::infrastructure::ssh::keys::test_connection(&host, &user)
+}
+
+/// Ask the OS to start the ssh-agent service (Windows only — via one UAC
+/// prompt). On other platforms the UI guides the user to a terminal.
+pub fn start_ssh_agent_service() -> Result<()> {
+    #[cfg(windows)]
+    {
+        crate::infrastructure::ssh::keys::start_windows_agent_service()
+    }
+    #[cfg(not(windows))]
+    {
+        Err(AppError::protocol(
+            codes::infra::AGENT_START_FAILED,
+            "starting the ssh-agent service is only supported on Windows; \
+             on macOS/Linux run eval $(ssh-agent)",
+        ))
+    }
 }
 
 // ─── AI provider (Sprint 4) ─────────────────────────────────────────────────

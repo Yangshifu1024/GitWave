@@ -110,6 +110,12 @@ export interface SshKey {
   comment: string;
 }
 
+/** Snapshot of the agent — an unreachable agent is distinct from "no keys". */
+export interface SshKeyList {
+  agent_running: boolean;
+  keys: SshKey[];
+}
+
 export interface SshTestResult {
   host: string;
   user: string;
@@ -353,8 +359,8 @@ export function relinkRepo(workspaceId: string, repoId: string, newPath: string)
 
 // ─── SSH commands ─────────────────────────────────────────────────────────
 
-export function listSshKeys(): Promise<SshKey[]> {
-  return invoke<SshKey[]>("cmd_list_ssh_keys");
+export function listSshKeys(): Promise<SshKeyList> {
+  return invoke<SshKeyList>("cmd_list_ssh_keys");
 }
 
 export function addSshKey(path: string): Promise<void> {
@@ -367,6 +373,11 @@ export function deleteSshKey(path: string): Promise<void> {
 
 export function testSshConnection(host: string, user: string): Promise<SshTestResult> {
   return invoke<SshTestResult>("cmd_test_ssh_connection", { host, user });
+}
+
+/** Windows only: enable + start the OpenSSH Agent service via one UAC prompt. */
+export function startSshAgentService(): Promise<void> {
+  return invoke<void>("cmd_start_ssh_agent_service");
 }
 
 // ─── History / Diff / Blame / Branch commands (Sprint 3) ─────────────────

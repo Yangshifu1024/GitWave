@@ -63,10 +63,12 @@
       "delete_failed": "ssh-add -d 执行失败（退出码 {{exit}}）",
       "spawn_failed": "无法运行 ssh：{{error}}",
       "key": {
-        "passphrase": "该密钥由 passphrase 保护，无法在此输入。请先在终端执行一次 ssh-add <key> 让 agent 缓存解密后的密钥，或改用不带 passphrase 的密钥"
+        "passphrase": "该密钥由 passphrase 保护，无法在此输入。请先在终端执行一次 ssh-add <key> 让 agent 缓存解密后的密钥，或改用不带 passphrase 的密钥",
+        "public_file": "这是公钥文件（.pub）——ssh-add 需要私钥文件（如 id_ed25519 / id_rsa，不带 .pub 后缀）"
       },
       "agent": {
-        "not_running": "ssh-agent 未运行——请先启动（Windows：启动「OpenSSH Agent」服务；macOS/Linux：执行 eval $(ssh-agent)）后重试"
+        "not_running": "ssh-agent 未运行——请先启动（Windows：启动「OpenSSH Agent」服务；macOS/Linux：执行 eval $(ssh-agent)）后重试",
+        "start_failed": "启动 OpenSSH Agent 服务失败（若拒绝了授权弹窗，可重试或手动启动）"
       }
     }
   }

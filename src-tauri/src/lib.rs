@@ -35,9 +35,9 @@ use application::{
     remove_remote, remove_repo, remove_worktree, rename_remote, rename_workspace, reorder_repos,
     reset_hard, resolve_conflict, revert_commit, save_hook, save_stash, set_active_repo,
     set_ai_api_key, set_remote_push_url, set_remote_url, stage_all, stage_files,
-    test_ssh_connection, unstage_files, update_submodule, update_workspace_settings,
-    write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus, AppContext, PaletteIntent,
-    PrDescriptionOutcome,
+    start_ssh_agent_service, test_ssh_connection, unstage_files, update_submodule,
+    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
+    AppContext, PaletteIntent, PrDescriptionOutcome,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -58,7 +58,7 @@ use infrastructure::git::merge::{MergePreview, MergeResult};
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
 use infrastructure::persistence::{migrations, open as open_state, state_dir, SqliteWorkspaceRepo};
-use infrastructure::ssh::keys::{SshKey, SshTestResult};
+use infrastructure::ssh::keys::{SshKey, SshKeyList, SshTestResult};
 use std::fmt::Display;
 use tauri::WebviewWindow;
 mod macos_window;
@@ -321,7 +321,7 @@ fn cmd_reorder_repos(
 // ─── SSH commands (Sprint 2) ──────────────────────────────────────────────
 
 #[tauri::command]
-fn cmd_list_ssh_keys() -> Result<Vec<SshKey>, AppError> {
+fn cmd_list_ssh_keys() -> Result<SshKeyList, AppError> {
     list_ssh_keys()
 }
 
@@ -338,6 +338,11 @@ fn cmd_delete_ssh_key(path: String) -> Result<(), AppError> {
 #[tauri::command]
 fn cmd_test_ssh_connection(host: String, user: String) -> Result<SshTestResult, AppError> {
     test_ssh_connection(host, user)
+}
+
+#[tauri::command]
+fn cmd_start_ssh_agent_service() -> Result<(), AppError> {
+    start_ssh_agent_service()
 }
 
 // ─── History / Diff / Blame commands (Sprint 3) ───────────────────────────
@@ -1303,6 +1308,7 @@ pub fn run() {
             cmd_add_ssh_key,
             cmd_delete_ssh_key,
             cmd_test_ssh_connection,
+            cmd_start_ssh_agent_service,
             cmd_get_commit_log,
             cmd_get_commit_details,
             cmd_get_workdir_diff,

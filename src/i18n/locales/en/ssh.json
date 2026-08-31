@@ -9,7 +9,7 @@
     },
     "add": {
       "keyPath": "Key path",
-      "hint": "Adds the key to ssh-agent (ssh-add). For passphrase-protected keys, the agent may prompt via terminal."
+      "hint": "Adds the private key (no .pub extension) to ssh-agent. Passphrase-protected keys cannot be entered here — run ssh-add in a terminal first, or use a key without a passphrase."
     },
     "test": {
       "host": "Host",
@@ -24,6 +24,13 @@
     "empty": {
       "title": "No keys in ssh-agent",
       "description": "Add a key to enable SSH clone and push."
+    },
+    "agentDown": {
+      "title": "ssh-agent is not running",
+      "description": "SSH key features are unavailable. On Windows: start the “OpenSSH Authentication Agent” service; on macOS/Linux: run eval $(ssh-agent) in a terminal.",
+      "startButton": "Start ssh-agent service",
+      "starting": "Waiting for permission…",
+      "retryHint": "The service is still not running — retry, or run this in an elevated terminal: sc config ssh-agent start= auto && sc start ssh-agent"
     },
     "removeKey": "Remove {{path}}"
   }
