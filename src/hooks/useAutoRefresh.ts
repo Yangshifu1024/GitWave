@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import i18next from "i18next";
-import { fetchRemote, formatAppError } from "@/lib/api";
+import { fetchRemote, formatAppError, isCancelledSyncError } from "@/lib/api";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -87,8 +87,14 @@ export function useRefreshRepo(): () => void {
           await refreshLocal();
           setStatus(t("status.sync.refreshed"));
         } catch (e) {
-          // Local refresh already applied; report the fetch problem.
-          setStatus(formatAppError(e), "danger");
+          // Local refresh already applied; report the fetch problem. A
+          // user-initiated cancel is neutral, not a failure — same as the
+          // manual sync path in useRemoteSync.
+          if (isCancelledSyncError(e)) {
+            setStatus(t("status.sync.cancelled"), "info");
+          } else {
+            setStatus(formatAppError(e), "danger");
+          }
         } finally {
           sync.endOp("fetch");
         }

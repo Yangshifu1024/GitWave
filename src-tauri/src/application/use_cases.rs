@@ -79,8 +79,8 @@ use crate::infrastructure::git::remote::{
 use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
-    push_with_options as infra_push_with_options, worktree_is_dirty, PullOptions, PushRequest,
-    SyncProgress,
+    push_with_options as infra_push_with_options, worktree_is_dirty, CancelFlag, PullOptions,
+    PushRequest, SyncProgress,
 };
 use crate::infrastructure::git::revert::{
     cherry_pick_commit as infra_cherry_pick_commit, revert_commit as infra_revert_commit,
@@ -967,10 +967,11 @@ pub fn delete_remote_branch(
     workspace_id: &str,
     remote: &str,
     branch: &str,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_delete_remote_branch(&repo, remote, branch)
+    infra_delete_remote_branch(&repo, remote, branch, cancel)
 }
 
 /// Check out a branch (updates HEAD and working tree).
@@ -2191,6 +2192,7 @@ pub fn fetch(
     workspace_id: &str,
     remote: Option<String>,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     let fetch_lock = workspace_fetch_lock(workspace_id);
     let _serialized = fetch_lock
@@ -2219,7 +2221,16 @@ pub fn fetch(
                 &name,
                 crate::infrastructure::git::remote::SyncOperation::Fetch,
                 cb,
+                cancel.clone(),
             ) {
+                // A cancelled operation must not grind through the remaining
+                // remotes — the user asked for the whole fetch to stop.
+                if cancel
+                    .as_deref()
+                    .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+                {
+                    return Err(e);
+                }
                 if first_err.is_none() {
                     first_err = Some(e);
                 }
@@ -2235,6 +2246,7 @@ pub fn fetch(
         &remote,
         crate::infrastructure::git::remote::SyncOperation::Fetch,
         on_progress,
+        cancel,
     )
 }
 
@@ -2246,6 +2258,7 @@ pub fn pull(
     rebase: bool,
     stash: bool,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let mut repo = ctx.open_repo(&repo_path)?;
@@ -2258,6 +2271,7 @@ pub fn pull(
             stash,
         },
         on_progress,
+        cancel,
     )
 }
 
@@ -2274,6 +2288,7 @@ pub fn push(
     tags: bool,
     force: bool,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -2282,6 +2297,7 @@ pub fn push(
         remote.as_deref().unwrap_or("origin"),
         PushRequest { tags, force },
         on_progress,
+        cancel,
     )
 }
 
@@ -2968,7 +2984,7 @@ mod tests {
         .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        fetch(&ctx, &ws.id, None, None).expect("fetch without a remote name");
+        fetch(&ctx, &ws.id, None, None, None).expect("fetch without a remote name");
 
         let local = git2::Repository::open(&local_path).unwrap();
         assert_eq!(
@@ -3006,7 +3022,7 @@ mod tests {
             .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        fetch(&ctx, &ws.id, None, None).expect("no remotes means a silent no-op");
+        fetch(&ctx, &ws.id, None, None, None).expect("no remotes means a silent no-op");
         cleanup(&tmp);
     }
 
@@ -3037,7 +3053,8 @@ mod tests {
         .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        let err = fetch(&ctx, &ws.id, None, None).expect_err("bad remote must fail the batch");
+        let err =
+            fetch(&ctx, &ws.id, None, None, None).expect_err("bad remote must fail the batch");
         assert_eq!(err.category(), "Network");
 
         // Best-effort semantics: origin was still fetched despite "bad".
@@ -3050,6 +3067,56 @@ mod tests {
                 .unwrap(),
             origin_tip,
             "remaining remotes must still be fetched after a failure"
+        );
+
+        let _ = fs::remove_dir_all(&origin_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn fetch_all_remotes_stops_immediately_when_cancelled() {
+        // A cancelled "fetch all" must abort at the first remote instead of
+        // grinding through the batch (the cancel button / timeout path).
+        let (origin_path, origin) = build_linear_repo(1);
+        let local_path = origin_path.with_extension("clone");
+        let local = git2::Repository::clone(origin_path.to_str().unwrap(), &local_path).unwrap();
+        // A remote whose URL is not a repository, listed before origin.
+        crate::infrastructure::git::remote::add_remote(
+            &local,
+            "bad",
+            local_path.with_extension("missing").to_str().unwrap(),
+        )
+        .unwrap();
+
+        let base = local.head().unwrap().peel_to_commit().unwrap().id();
+        let tree = write_and_stage(&origin, "still.txt", "o\n");
+        let origin_tip = make_commit(&origin, &uc_sig(), "origin tip", tree, &[base]);
+
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        let repo_ref = add_local_repo(
+            &ctx,
+            ws.id.clone(),
+            local_path.to_string_lossy().to_string(),
+        )
+        .expect("add_local_repo");
+        set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
+
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(true)); // pre-set
+        let err =
+            fetch(&ctx, &ws.id, None, None, Some(cancel)).expect_err("cancelled batch must fail");
+        assert_eq!(err.code(), crate::domain::error_codes::git::SYNC_CANCELLED);
+
+        // The batch stopped at the first remote; origin was never reached.
+        let local = git2::Repository::open(&local_path).unwrap();
+        assert_ne!(
+            local
+                .find_reference("refs/remotes/origin/main")
+                .unwrap()
+                .target()
+                .unwrap(),
+            origin_tip,
+            "cancel must stop the batch before origin is fetched"
         );
 
         let _ = fs::remove_dir_all(&origin_path);

@@ -979,6 +979,25 @@ export function pushRemote(workspaceId: string, options?: PushOptions): Promise<
   });
 }
 
+/** Ask the backend to abort the workspace's in-flight fetch/pull/push
+ * (also delete-remote-branch). Resolves to false when no cancellable
+ * operation was active. */
+export function cancelSync(workspaceId: string): Promise<boolean> {
+  return invoke<boolean>("cmd_cancel_sync", { workspaceId });
+}
+
+/** Stable code the backend reports for a user-cancelled sync operation. */
+export const SYNC_CANCELLED_CODE = "git.sync_cancelled";
+
+/** Whether `err` is the backend's "sync cancelled by user" result. */
+export function isCancelledSyncError(err: unknown): boolean {
+  return (
+    !!err &&
+    typeof err === "object" &&
+    (err as Partial<AppError>).code === SYNC_CANCELLED_CODE
+  );
+}
+
 // ─── Stash ───────────────────────────────────────────────────────────────────
 
 export interface StashEntry {

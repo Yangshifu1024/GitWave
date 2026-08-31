@@ -28,6 +28,7 @@
       "fetchFailed": "Fetch failed",
       "pullFailed": "Pull failed",
       "pushFailed": "Push failed",
+      "cancelled": "Cancelled",
       "refreshing": "Refreshing…",
       "refreshed": "Refreshed"
     }

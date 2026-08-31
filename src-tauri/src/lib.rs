@@ -13,9 +13,11 @@ pub mod application;
 pub mod domain;
 pub mod infrastructure;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::domain::error_codes as codes;
+use application::sync_ops;
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
     add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch,
@@ -433,7 +435,17 @@ async fn cmd_delete_remote_branch(
     remote: String,
     branch: String,
 ) -> Result<(), AppError> {
-    delete_remote_branch(&ctx, &workspace_id, &remote, &branch)
+    let ws_id = workspace_id.clone();
+    run_sync_op(
+        &workspace_id,
+        "delete remote branch",
+        codes::cmds::DELETE_REMOTE_BRANCH_TASK_JOIN,
+        &ctx,
+        move |local_ctx, cancel| {
+            delete_remote_branch(local_ctx, &ws_id, &remote, &branch, Some(cancel))
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -942,6 +954,56 @@ async fn cmd_ignore_path(
     ignore_path(&ctx, &workspace_id, pattern)
 }
 
+/// Run a network sync operation (fetch / pull / push / delete-remote-branch)
+/// on the blocking pool behind its workspace's cancel flag and a total
+/// timeout, so a hung libgit2 transport can never pin the UI at "Fetching…"
+/// forever. On timeout the flag is set — the blocking task aborts at its
+/// next libgit2 checkpoint (transfer-progress callback or credential fill
+/// wait) and thereby releases the workspace fetch lock — while the command
+/// reports `git.sync_timeout` immediately. The same flag backs
+/// `cmd_cancel_sync`.
+async fn run_sync_op<T, F>(
+    workspace_id: &str,
+    operation: &'static str,
+    join_error_code: &'static str,
+    ctx: &tauri::State<'_, AppContext>,
+    op: F,
+) -> Result<T, AppError>
+where
+    T: Send + 'static,
+    F: FnOnce(&AppContext, Arc<AtomicBool>) -> Result<T, AppError> + Send + 'static,
+{
+    let workspaces = Arc::clone(&ctx.workspaces);
+    let flag = Arc::new(AtomicBool::new(false));
+    let inner = Arc::clone(&flag);
+    // The guard lives inside the closure so the registry entry matches the
+    // operation's real lifetime — a timed-out command returns early while
+    // its closure may still be winding down.
+    let guard = sync_ops::register(workspace_id, &flag);
+    let handle = tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        let local_ctx = AppContext::new(workspaces);
+        op(&local_ctx, inner)
+    });
+    match tokio::time::timeout(sync_ops::SYNC_OP_TIMEOUT, handle).await {
+        // JoinHandle settles to Result<Result<T, AppError>, JoinError>:
+        // map the join failure, then flatten the operation's own result.
+        Ok(result) => result
+            .map_err(|e| {
+                AppError::unknown_with(
+                    join_error_code,
+                    format!("{operation} task join: {e}"),
+                    &[("error", e.to_string())],
+                )
+            })
+            .and_then(std::convert::identity),
+        Err(_) => {
+            flag.store(true, Ordering::Relaxed);
+            Err(sync_ops::timeout_error(operation))
+        }
+    }
+}
+
 #[tauri::command]
 async fn cmd_fetch(
     app: tauri::AppHandle,
@@ -951,7 +1013,6 @@ async fn cmd_fetch(
 ) -> Result<(), AppError> {
     use application::use_cases::fetch;
     use infrastructure::git::remote::SyncProgress;
-    use std::sync::Arc;
     use tauri::Emitter;
 
     let app_emit = app.clone();
@@ -960,19 +1021,15 @@ async fn cmd_fetch(
             let _ = app_emit.emit("sync-progress", &p);
         }));
 
-    let workspaces = Arc::clone(&ctx.workspaces);
-    tauri::async_runtime::spawn_blocking(move || {
-        let local_ctx = AppContext::new(workspaces);
-        fetch(&local_ctx, &workspace_id, remote, on_progress)
-    })
+    let ws_id = workspace_id.clone();
+    run_sync_op(
+        &workspace_id,
+        "fetch",
+        codes::cmds::FETCH_TASK_JOIN,
+        &ctx,
+        move |local_ctx, cancel| fetch(local_ctx, &ws_id, remote, on_progress, Some(cancel)),
+    )
     .await
-    .map_err(|e| {
-        AppError::unknown_with(
-            codes::cmds::FETCH_TASK_JOIN,
-            format!("fetch task join: {e}"),
-            &[("error", e.to_string())],
-        )
-    })?
 }
 
 #[tauri::command]
@@ -987,7 +1044,6 @@ async fn cmd_pull(
 ) -> Result<(), AppError> {
     use application::use_cases::pull;
     use infrastructure::git::remote::SyncProgress;
-    use std::sync::Arc;
     use tauri::Emitter;
 
     let app_emit = app.clone();
@@ -996,27 +1052,26 @@ async fn cmd_pull(
             let _ = app_emit.emit("sync-progress", &p);
         }));
 
-    let workspaces = Arc::clone(&ctx.workspaces);
-    tauri::async_runtime::spawn_blocking(move || {
-        let local_ctx = AppContext::new(workspaces);
-        pull(
-            &local_ctx,
-            &workspace_id,
-            remote,
-            branch,
-            rebase.unwrap_or(false),
-            stash.unwrap_or(false),
-            on_progress,
-        )
-    })
+    let ws_id = workspace_id.clone();
+    run_sync_op(
+        &workspace_id,
+        "pull",
+        codes::cmds::PULL_TASK_JOIN,
+        &ctx,
+        move |local_ctx, cancel| {
+            pull(
+                local_ctx,
+                &ws_id,
+                remote,
+                branch,
+                rebase.unwrap_or(false),
+                stash.unwrap_or(false),
+                on_progress,
+                Some(cancel),
+            )
+        },
+    )
     .await
-    .map_err(|e| {
-        AppError::unknown_with(
-            codes::cmds::PULL_TASK_JOIN,
-            format!("pull task join: {e}"),
-            &[("error", e.to_string())],
-        )
-    })?
 }
 
 #[tauri::command]
@@ -1053,7 +1108,6 @@ async fn cmd_push(
 ) -> Result<(), AppError> {
     use application::use_cases::push;
     use infrastructure::git::remote::SyncProgress;
-    use std::sync::Arc;
     use tauri::Emitter;
 
     let app_emit = app.clone();
@@ -1062,26 +1116,33 @@ async fn cmd_push(
             let _ = app_emit.emit("sync-progress", &p);
         }));
 
-    let workspaces = Arc::clone(&ctx.workspaces);
-    tauri::async_runtime::spawn_blocking(move || {
-        let local_ctx = AppContext::new(workspaces);
-        push(
-            &local_ctx,
-            &workspace_id,
-            remote,
-            tags.unwrap_or(false),
-            force.unwrap_or(false),
-            on_progress,
-        )
-    })
+    let ws_id = workspace_id.clone();
+    run_sync_op(
+        &workspace_id,
+        "push",
+        codes::cmds::PUSH_TASK_JOIN,
+        &ctx,
+        move |local_ctx, cancel| {
+            push(
+                local_ctx,
+                &ws_id,
+                remote,
+                tags.unwrap_or(false),
+                force.unwrap_or(false),
+                on_progress,
+                Some(cancel),
+            )
+        },
+    )
     .await
-    .map_err(|e| {
-        AppError::unknown_with(
-            codes::cmds::PUSH_TASK_JOIN,
-            format!("push task join: {e}"),
-            &[("error", e.to_string())],
-        )
-    })?
+}
+
+/// Abort the workspace's in-flight sync operation (fetch / pull / push /
+/// delete remote branch); returns whether one was active. The operation
+/// fails at its next libgit2 checkpoint with `git.sync_cancelled`.
+#[tauri::command]
+fn cmd_cancel_sync(workspace_id: String) -> Result<bool, AppError> {
+    Ok(sync_ops::cancel_workspace_ops(&workspace_id))
 }
 
 #[tauri::command]
@@ -1360,6 +1421,7 @@ pub fn run() {
             cmd_ignore_path,
             cmd_fetch,
             cmd_pull,
+            cmd_cancel_sync,
             cmd_list_remotes,
             cmd_reset_hard,
             cmd_explain_reflog,

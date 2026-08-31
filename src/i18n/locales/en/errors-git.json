@@ -8,6 +8,8 @@
       "fetch_failed": "Fetch failed: {{error}}",
       "push_auth_failed": "Push authentication failed: {{error}}",
       "push_failed": "Push failed: {{error}}",
+      "sync_timeout": "Network operation timed out after {{seconds}}s — check your connection and try again",
+      "sync_cancelled": "Cancelled",
       "delete_remote_branch_failed": "Could not delete the remote branch: {{error}}",
       "remote_no_url": "Remote “{{name}}” has no URL configured",
       "remote": {
