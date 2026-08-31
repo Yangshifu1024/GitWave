@@ -11,7 +11,7 @@
 // drops non-Tab wrapper elements, so per-tab title / onContextMenu ride on
 // TabsTrigger's DOM passthrough.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Header, Menu, Popover, Separator } from "@heroui/react";
@@ -27,6 +27,7 @@ import {
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { applyOrder, arrayMove, useTabDragReorder } from "@/hooks/useTabDragReorder";
+import { pickRestoredRepo } from "@/lib/repoSelection";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -54,7 +55,11 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
   const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
   const tabstripRef = useRef<HTMLDivElement>(null);
 
-  const { data: repos = [], error: reposError } = useQuery({
+  const {
+    data: repos = [],
+    error: reposError,
+    isSuccess: reposLoaded,
+  } = useQuery({
     queryKey: ["repos", activeWorkspaceId],
     queryFn: () => listRepos(activeWorkspaceId!),
     enabled: !!activeWorkspaceId,
@@ -122,6 +127,10 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
       refresh();
       setRemoving(null);
     },
+    onError: (e: unknown) => {
+      setRemoving(null);
+      setActionError(formatAppError(e));
+    },
   });
 
   const relinkMut = useMutation({
@@ -135,6 +144,34 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
     },
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
+
+  // A missing (or stale — deleted repo, persisted id) active selection would
+  // fail every panel query and keep re-raising blocking error dialogs, so
+  // switch to a repo that still opens. Covers startup restore, workspace
+  // switches that land on a dead lastActiveRepoId, a path going away while
+  // the app runs (presence sweep marks it), and the empty selection left
+  // behind after the active repo was removed.
+  useEffect(() => {
+    if (!activeWorkspaceId || !reposLoaded) return;
+    const current = activeRepoId ? repos.find((r) => r.id === activeRepoId) : null;
+    if (current && current.status !== "missing") return;
+    const next = pickRestoredRepo(repos, null);
+    if (next === activeRepoId) return;
+    const staleId = activeRepoId;
+    setActiveRepo(activeWorkspaceId, next)
+      .then(() => {
+        // The IPC round trip races manual tab clicks — never stomp one.
+        if (useWorkspaceUiStore.getState().activeRepoId !== staleId) return;
+        setActiveRepoId(next);
+        void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      })
+      .catch(() => {
+        if (useWorkspaceUiStore.getState().activeRepoId !== staleId) return;
+        // Persisting failed — still move the UI selection so panels stop
+        // erroring; the next switch re-persists.
+        setActiveRepoId(next);
+      });
+  }, [activeWorkspaceId, activeRepoId, repos, reposLoaded, setActiveRepoId, queryClient]);
 
   if (!activeWorkspaceId) return null;
 
@@ -154,6 +191,9 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
             if (id === activeRepoId) return;
             // A drag release lands on a tab without picking it.
             if (drag.suppressClickRef.current) return;
+            // Missing tabs stay clickable (right-click menu, drag) but never
+            // become the active repo — panels would just error-loop on it.
+            if (renderedRepos.find((r) => r.id === id)?.status === "missing") return;
             void activateRepo(id).catch((e: unknown) => setActionError(formatAppError(e)));
           }}
           className="min-w-0 flex-1"
@@ -165,12 +205,16 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 <TabsTrigger
                   key={r.id}
                   value={r.id}
-                  disabled={r.status === "missing"}
                   className={cn(
                     // Default cursor on hover (tabs are click-to-switch);
                     // grabbing only while a drag is actually in flight.
                     "h-6 px-3 py-0 text-xs cursor-default",
                     drag.draggingId === r.id && "cursor-grabbing opacity-50",
+                    // Visual-only de-emphasis — deliberately NOT the
+                    // `disabled` prop: HeroUI's disabled tab applies
+                    // pointer-events:none, which kills the right-click
+                    // menu (the only entry to relink/remove) and drag.
+                    r.status === "missing" && "opacity-60",
                   )}
                   title={
                     r.status === "missing"
@@ -185,10 +229,14 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                 >
                   {label}
                   {r.status === "missing" ? (
-                    <span
-                      aria-label={t("workspace.tabs.missing")}
-                      className="ml-1.5 size-1.5 rounded-full bg-warning"
-                    />
+                    <>
+                      {/* sr-only text instead of aria-disabled: HeroUI's
+                          disabled/aria-disabled styling applies
+                          pointer-events:none, which would recreate the
+                          unreachable-tab bug. */}
+                      <span aria-hidden className="ml-1.5 size-1.5 rounded-full bg-warning" />
+                      <span className="sr-only">{t("workspace.tabs.missing")}</span>
+                    </>
                   ) : null}
                 </TabsTrigger>
               );

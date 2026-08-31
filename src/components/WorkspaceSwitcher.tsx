@@ -12,6 +12,7 @@ import {
   type WorkspaceSummary,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ListItem } from "@/components/ui/ListItem";
@@ -24,6 +25,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
   const queryClient = useQueryClient();
   const activeId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
+  const switchWorkspace = useValidatedWorkspaceSwitch();
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -131,7 +133,7 @@ export function WorkspaceSwitcher(): React.JSX.Element {
             <li key={ws.id}>
               <ListItem
                 selected={ws.id === activeId}
-                onClick={() => selectWorkspace(ws.id, ws.last_active_repo_id)}
+                onClick={() => switchWorkspace(ws.id, ws.last_active_repo_id)}
                 leading={null}
                 trailing={
                   <span className="flex items-center gap-1">

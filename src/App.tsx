@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { Toolbar } from "@/components/Toolbar";
@@ -14,8 +15,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { useAutoRefreshLoop } from "@/hooks/useAutoRefresh";
 import { useStartupUpdateCheck } from "@/hooks/useUpdater";
 import { UpdateModal } from "@/components/UpdateModal";
-import type { BranchInfo } from "@/lib/api";
-import { listWorkspaces } from "@/lib/api";
+import type { BranchInfo, RepoRef } from "@/lib/api";
+import { listRepos, listWorkspaces } from "@/lib/api";
+import { pickRestoredRepo } from "@/lib/repoSelection";
 import type { LocateRequest } from "@/lib/commitLocate";
 import { CommitGraph } from "@/components/CommitGraph";
 import { CommitInfoHeader } from "@/components/CommitInfoHeader";
@@ -63,8 +65,12 @@ function App(): React.JSX.Element {
   }, [activeWorkspaceId, activeRepoId, setInspectorMaximized]);
 
   // PM 1.4 restart restore: land on the last active workspace/repo once the
-  // persisted workspace list is in. Skips stale ids (deleted workspace/repo).
+  // persisted workspace list is in. Skips stale ids (deleted workspace/repo)
+  // and repos whose path no longer opens — restoring onto a missing repo
+  // would fail every panel query and raise blocking error dialogs on the
+  // very first render.
   const selectWorkspace = useWorkspaceUiStore((s) => s.selectWorkspace);
+  const queryClient = useQueryClient();
   const restoredRef = useRef(false);
   useEffect(() => {
     if (restoredRef.current) return;
@@ -72,15 +78,27 @@ function App(): React.JSX.Element {
     const { workspaceId, repoId } = readLastActive();
     if (!workspaceId) return;
     listWorkspaces()
-      .then((workspaces) => {
+      .then(async (workspaces) => {
         const ws = workspaces.find((w) => w.id === workspaceId);
         if (!ws) return;
-        selectWorkspace(ws.id, repoId ?? ws.last_active_repo_id);
+        const target = repoId ?? ws.last_active_repo_id;
+        // Warm the ["repos", …] cache the tab strip reads anyway, so the
+        // validity check below costs no extra round trip. Fail fast: default
+        // retry(3) would stall restore for seconds on a backend hiccup, and
+        // the tab strip's own query still surfaces load errors.
+        const repos = await queryClient
+          .fetchQuery({
+            queryKey: ["repos", ws.id],
+            queryFn: () => listRepos(ws.id),
+            retry: 0,
+          })
+          .catch(() => [] as RepoRef[]);
+        selectWorkspace(ws.id, pickRestoredRepo(repos, target));
       })
       .catch(() => {
         // First run with no persisted workspaces — nothing to restore.
       });
-  }, [selectWorkspace]);
+  }, [selectWorkspace, queryClient]);
 
   const selectedCommitOid =
     commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;

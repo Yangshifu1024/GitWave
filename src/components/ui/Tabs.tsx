@@ -60,6 +60,11 @@ export const TabsTrigger = forwardRef<
   {
     value: string;
     className?: string;
+    /** Full interactive kill: HeroUI's disabled tab applies
+     * pointer-events:none, so onContextMenu / onPointerDown never fire
+     * either. Tabs that must stay right-clickable or draggable (e.g. a
+     * missing repo tab whose only escape hatch is the context menu) should
+     * use visual de-emphasis classes instead. */
     disabled?: boolean;
     children?: ReactNode;
     /** DOM passthroughs — the TabList collection drops non-Tab wrappers, so

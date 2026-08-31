@@ -12,6 +12,9 @@ pub const PULL_TASK_JOIN: &str = "cmds.pull_task_join";
 /// 等待列出远程仓库后台任务结束失败。
 pub const LIST_REMOTES_TASK_JOIN: &str = "cmds.list_remotes_task_join";
 
+/// 等待列出仓库后台任务结束失败。
+pub const LIST_REPOS_TASK_JOIN: &str = "cmds.list_repos_task_join";
+
 /// 等待推送（push）后台任务结束失败。
 pub const PUSH_TASK_JOIN: &str = "cmds.push_task_join";
 
