@@ -123,7 +123,8 @@ RemotesPanel 用本地 `useState` + `listRemoteDetails` 管数据，增/删/改 
 React Query 缓存——新建的 remote 到不了分支菜单（一直显示打开时的旧列表）。
 修复：RemotesPanel 的 `run()`（add / edit / remove 共用出口）成功后
 `invalidateQueries({ queryKey: ["remotes", workspaceId] })`，BranchList 的
-活动查询立即重取，push 菜单随之更新；fetch 不改配置，不需要失效。
+活动查询立即重取，push 菜单随之更新。fetch 不改配置，本不需要失效，但共用
+出口使其顺带多一次冗余重取（无害，见 review.md 🟢1）。
 
 ## 测试
 
@@ -143,4 +144,6 @@ React Query 缓存——新建的 remote 到不了分支菜单（一直显示打
   - 无 remote 的仓库：push 项置灰；
   - 侧栏标签：初始为折叠；展开后切换仓库，标签恢复折叠；
   - 远程卡片新增 / 重命名 / 删除 remote 后，右键本地分支的 push 菜单
-    （扁平项文案或子菜单列表）立即反映最新 remote 列表。
+    （扁平项文案或子菜单列表）立即反映最新 remote 列表；
+  - 菜单开着滚动其他面板（如 history 列表）：菜单应立即关闭
+    （capture scroll 行为面比 RAC 原生滚动父链更宽，属预期，见 review.md 🟢2）。
