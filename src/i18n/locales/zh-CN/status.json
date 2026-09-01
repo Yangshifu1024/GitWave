@@ -25,6 +25,7 @@
       "fetched": "已获取",
       "pulled": "已从 {{remote}} 拉取",
       "pushed": "已推送到 {{remote}}",
+      "pushedSkipped": "已推送到 {{remote}}；已跳过与远端不一致的标签：{{tags}}（勾选「强制推送」可覆盖）",
       "fetchFailed": "获取失败",
       "pullFailed": "拉取失败",
       "pushFailed": "推送失败",

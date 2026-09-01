@@ -8,6 +8,7 @@
       "fetch_failed": "获取失败：{{error}}",
       "push_auth_failed": "推送认证失败：{{error}}",
       "push_failed": "推送失败：{{error}}",
+      "push_non_fast_forward": "推送被拒：远端分支不可快进更新——本地落后于远端或与远端历史不一致。请先拉取同步远端，确认无误后再推送；确要覆盖可勾选「强制推送」。（{{error}}）",
       "sync_timeout": "网络操作超时（{{seconds}} 秒）——请检查网络后重试",
       "sync_cancelled": "已取消",
       "delete_remote_branch_failed": "删除远程分支失败：{{error}}",

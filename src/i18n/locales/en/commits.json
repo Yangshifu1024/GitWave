@@ -101,6 +101,8 @@
       "pullDescription": "Pull remote branches and merge them into your local branch",
       "push": "Push",
       "pushTitle": "Push",
+      "pushCommitTags": "Push tags on this commit",
+      "pushCommitTagsWithTip": "Push tags on this commit ({{tag}})",
       "pushWithCount": "Push ({{total}})",
       "pushDescription": "Push your local changes to remote repository",
       "remote": "Remote",
@@ -109,8 +111,6 @@
       "to": "To",
       "rebaseInstead": "Rebase instead of merge",
       "stashAndReapply": "Stash and reapply local changes",
-      "pushAllTags": "Push all tags",
-      "pushAllTagsWithTip": "Push all tags ({{tag}})",
       "forcePush": "Force push"
     },
     "branch": {

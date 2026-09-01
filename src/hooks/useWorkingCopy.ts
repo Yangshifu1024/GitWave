@@ -9,6 +9,7 @@ import {
   stageFiles,
   unstageFiles,
   type FileChange,
+  type FetchOptions,
   type PullOptions,
   type PushOptions,
   type WorkingCopy,
@@ -36,7 +37,7 @@ export interface UseWorkingCopyResult {
   /** Append a pattern to the repo-root `.gitignore`. */
   ignore: (pattern: string) => void;
   commitMessage: (message: string, options?: { onSuccess?: () => void }) => void;
-  fetch: () => void;
+  fetch: (options?: FetchOptions) => void;
   pull: (options?: PullOptions) => void;
   push: (options?: PushOptions) => void;
   commitPending: boolean;

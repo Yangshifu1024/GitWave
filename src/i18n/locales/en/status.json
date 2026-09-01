@@ -25,6 +25,7 @@
       "fetched": "Fetched",
       "pulled": "Pulled from {{remote}}",
       "pushed": "Pushed to {{remote}}",
+      "pushedSkipped": "Pushed to {{remote}}; skipped tags diverged from remote: {{tags}} (enable Force push to overwrite)",
       "fetchFailed": "Fetch failed",
       "pullFailed": "Pull failed",
       "pushFailed": "Push failed",

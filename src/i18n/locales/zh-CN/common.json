@@ -24,6 +24,14 @@
     "done": "完成",
     "apply": "应用",
     "search": "搜索",
-    "learnMore": "了解更多"
+    "learnMore": "了解更多",
+    "authPrompt": {
+      "title": "需要认证",
+      "description": "远端「{{remote}}」需要认证：输入用户名与访问令牌（PAT）后重试。",
+      "username": "用户名",
+      "token": "访问令牌（PAT）",
+      "remember": "保存到系统钥匙串（与 git 命令行共享）",
+      "submit": "保存并重试"
+    }
   }
 }

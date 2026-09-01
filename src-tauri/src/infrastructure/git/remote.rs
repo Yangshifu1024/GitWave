@@ -9,7 +9,8 @@ use serde::Serialize;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::infrastructure::git::credentials::{
-    run_with_credentials, CredentialProvider, GitCredentialHelper, SshAgentCredential,
+    run_with_credentials, CredentialProvider, GitCredentialHelper, InlineAuth,
+    InlineCredentialProvider, SshAgentCredential,
 };
 
 /// Shared cancellation flag for one network sync operation. The command
@@ -35,6 +36,15 @@ pub struct SyncProgress {
     pub received_bytes: u64,
 }
 
+/// Result of a push that recovered from non-fast-forward tag refspecs:
+/// `skipped_tags` names the local tags diverged from the remote and left
+/// unpushed (empty in the common all-at-once case).
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushOutcome {
+    pub skipped_tags: Vec<String>,
+}
+
 fn map_git_err(e: git2::Error) -> AppError {
     match e.code() {
         git2::ErrorCode::Auth => AppError::credential_with(
@@ -55,6 +65,25 @@ fn provider_for_url(url: &str, cancel: Option<CancelFlag>) -> Arc<dyn Credential
         Arc::new(SshAgentCredential::new())
     } else {
         Arc::new(GitCredentialHelper::new(url.to_string()).with_cancel(cancel))
+    }
+}
+
+/// Pick the credential strategy for one operation: in-app entered
+/// credentials (F012) win — they only cover HTTPS user/pass, so SSH URLs
+/// keep agent auth — otherwise the URL decides as before.
+fn provider_for_operation(
+    url: &str,
+    cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
+) -> Arc<dyn CredentialProvider> {
+    match auth {
+        Some(a) if url.starts_with("http") => Arc::new(InlineCredentialProvider::new(
+            url.to_string(),
+            a.username.clone(),
+            a.password.clone(),
+            a.remember,
+        )),
+        _ => provider_for_url(url, cancel),
     }
 }
 
@@ -82,19 +111,21 @@ fn cancelled_if_flagged<T>(cancel: Option<&AtomicBool>, result: Result<T>) -> Re
     result
 }
 
-fn attach_transfer_progress(
-    mut callbacks: git2::RemoteCallbacks<'_>,
+fn attach_transfer_progress<'cb>(
+    mut callbacks: git2::RemoteCallbacks<'cb>,
     operation: SyncOperation,
-    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    on_progress: &'cb Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
-) -> git2::RemoteCallbacks<'_> {
+) -> git2::RemoteCallbacks<'cb> {
     // Attach whenever there is anything to observe: progress reporting or
     // the cancel checkpoint. Returning false from the callback is the only
     // lever libgit2 offers for aborting a transfer mid-flight.
     if on_progress.is_none() && cancel.is_none() {
         return callbacks;
     }
-    let progress = on_progress.map(Mutex::new);
+    // Mutex makes the shared `&Fn` Sync; push retries reuse the same boxed
+    // closure, so it is borrowed rather than moved.
+    let progress = on_progress.as_ref().map(Mutex::new);
     let cancel = cancel.unwrap_or_default();
     callbacks.transfer_progress(move |stats| {
         if cancel.load(Ordering::Relaxed) {
@@ -126,12 +157,13 @@ pub fn fetch(
     operation: SyncOperation,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url, cancel.clone());
+    let creds = provider_for_operation(&url, cancel.clone(), auth);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let mut fo = FetchOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), operation, on_progress, cancel.clone());
+    let cb = attach_transfer_progress(creds.callbacks(), operation, &on_progress, cancel.clone());
     fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
     fo.prune(git2::FetchPrune::On);
@@ -144,7 +176,12 @@ pub fn fetch(
                 AppError::credential_with(
                     codes::git::FETCH_AUTH_FAILED,
                     format!("fetch auth: {e}"),
-                    &[("error", e.to_string())],
+                    // The failing remote's name rides along: the F012 prompt
+                    // retry targets it alone (credentials are host-scoped).
+                    &[
+                        ("error", e.to_string()),
+                        ("remote", remote_name.to_string()),
+                    ],
                 )
             },
             |e| {
@@ -161,7 +198,7 @@ pub fn fetch(
 /// Options controlling [`push_with_options`].
 #[derive(Debug, Clone, Default)]
 pub struct PushRequest {
-    /// Push all local tags in addition to the branch.
+    /// Push local tags whose target is the pushed branch's tip commit.
     pub tags: bool,
     /// Force-update the remote branch (leading `+` refspec).
     pub force: bool,
@@ -172,15 +209,21 @@ pub struct PushRequest {
 
 /// Push the current branch (or [`PushRequest::branch`]) to `remote_name`
 /// under the same branch name.
+///
+/// Batch pushes (branch + all tags) that get rejected as non-fast-forward
+/// are retried in isolation — branch first, then tags one by one — so a
+/// single diverged tag cannot take the whole push down: the survivors land
+/// and the diverged ones are reported by name in [`PushOutcome`].
 pub fn push_with_options(
     repo: &Repository,
     remote_name: &str,
     opts: PushRequest,
-    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    on_progress: &Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
-) -> Result<()> {
+    auth: Option<&InlineAuth>,
+) -> Result<PushOutcome> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url, cancel.clone());
+    let creds = provider_for_operation(&url, cancel.clone(), auth);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let branch = match opts.branch.as_deref() {
         Some(name) => {
@@ -205,45 +248,131 @@ pub fn push_with_options(
         if opts.force { "+" } else { "" }
     )];
     if opts.tags {
+        // Only tags that vouch for the pushed branch's tip commit (release
+        // flow: tag the commit, push it with the branch). Pushing every
+        // local tag made one diverged old tag sink the whole batch.
+        let tip = repo
+            .find_branch(&branch, git2::BranchType::Local)
+            .map_err(map_git_err)?
+            .into_reference()
+            .peel_to_commit()
+            .map_err(map_git_err)?
+            .id();
         let tags = repo.references_glob("refs/tags/*").map_err(map_git_err)?;
         for tag in tags {
             let tag = tag.map_err(map_git_err)?;
             let Some(name) = tag.name() else { continue };
+            let Some(oid) = tag.target() else { continue };
+            // Peel annotated tags to the commit they point at.
+            let peeled = repo
+                .find_object(oid, None)
+                .and_then(|obj| obj.peel(git2::ObjectType::Commit))
+                .map(|obj| obj.id())
+                .unwrap_or(oid);
+            if peeled != tip {
+                continue;
+            }
             let short = name.trim_start_matches("refs/tags/");
-            refspecs.push(format!("refs/tags/{short}:refs/tags/{short}"));
+            // Force covers tags too (matches `git push --force`): a re-tagged
+            // name can never fast-forward over the remote's existing tag.
+            refspecs.push(format!(
+                "{}refs/tags/{short}:refs/tags/{short}",
+                if opts.force { "+" } else { "" }
+            ));
         }
     }
 
-    let mut po = PushOptions::new();
-    let cb = attach_transfer_progress(
-        creds.callbacks(),
-        SyncOperation::Push,
-        on_progress,
-        cancel.clone(),
-    );
-    po.remote_callbacks(cb);
-    let str_refs: Vec<&str> = refspecs.iter().map(String::as_str).collect();
-    cancelled_if_flagged(
-        cancel.as_deref(),
-        run_with_credentials(
-            &*creds,
-            || remote.push(&str_refs, Some(&mut po)),
-            |e| {
-                AppError::credential_with(
-                    codes::git::PUSH_AUTH_FAILED,
-                    format!("push auth: {e}"),
-                    &[("error", e.to_string())],
-                )
-            },
-            |e| {
-                AppError::network_with(
-                    codes::git::PUSH_FAILED,
-                    format!("push failed: {e}"),
-                    &[("error", e.to_string())],
-                )
-            },
-        ),
-    )
+    // Each attempt needs fresh callbacks, and the raw git2 error is needed
+    // to steer the non-fast-forward recovery — hence this instead of
+    // `run_with_credentials` (approve/reject lifecycle kept identical).
+    // Reject is only allowed on the first attempt: by then the credential
+    // has already authenticated once (the non-fast-forward check happens
+    // after negotiation), so a later 401 is transient and must not erase
+    // the helper's stored credential.
+    let attempt_cancel = cancel.clone();
+    let mut push_once =
+        move |specs: &[String], allow_reject: bool| -> std::result::Result<(), git2::Error> {
+            let refs: Vec<&str> = specs.iter().map(String::as_str).collect();
+            let mut po = PushOptions::new();
+            let cb = attach_transfer_progress(
+                creds.callbacks(),
+                SyncOperation::Push,
+                on_progress,
+                attempt_cancel.clone(),
+            );
+            po.remote_callbacks(cb);
+            match remote.push(&refs, Some(&mut po)) {
+                Ok(()) => {
+                    creds.approve();
+                    Ok(())
+                }
+                Err(e) => {
+                    if e.code() == git2::ErrorCode::Auth && allow_reject {
+                        creds.reject();
+                    }
+                    Err(e)
+                }
+            }
+        };
+    let surface = |e: git2::Error| -> AppError {
+        match e.code() {
+            git2::ErrorCode::NotFastForward => AppError::protocol_with(
+                codes::git::PUSH_NON_FAST_FORWARD,
+                format!("push rejected (non-fast-forward): {e}"),
+                &[("error", e.to_string())],
+            ),
+            git2::ErrorCode::Auth => AppError::credential_with(
+                codes::git::PUSH_AUTH_FAILED,
+                format!("push auth: {e}"),
+                &[("error", e.to_string())],
+            ),
+            _ => AppError::network_with(
+                codes::git::PUSH_FAILED,
+                format!("push failed: {e}"),
+                &[("error", e.to_string())],
+            ),
+        }
+    };
+    let report = |e: git2::Error| -> AppError {
+        cancelled_if_flagged::<AppError>(cancel.as_deref(), Err(surface(e))).unwrap_err()
+    };
+
+    // Fast path: branch + tags at once. Unchanged tags are remote no-ops, so
+    // the common case stays a single network push.
+    match push_once(&refspecs, true) {
+        Ok(()) => return Ok(PushOutcome::default()),
+        // Recovery only makes sense for a tag-conflict rejection with tags
+        // enabled; everything else surfaces mapped as-is.
+        Err(e) if e.code() == git2::ErrorCode::NotFastForward && opts.tags => {}
+        Err(e) => return Err(report(e)),
+    }
+
+    // Branch first: its rejection is fatal and must not be masked by tag
+    // recovery (tags stay unpushed so the retry after a real fix is clean).
+    if let Err(e) = push_once(std::slice::from_ref(&refspecs[0]), false) {
+        return Err(report(e));
+    }
+
+    let tag_count = refspecs.len() - 1;
+    if tag_count == 0 {
+        return Ok(PushOutcome::default());
+    }
+    if push_once(&refspecs[1..], false).is_ok() {
+        return Ok(PushOutcome::default());
+    }
+    let mut skipped_tags = Vec::new();
+    for spec in &refspecs[1..] {
+        match push_once(std::slice::from_ref(spec), false) {
+            Ok(()) => {}
+            Err(e) if e.code() == git2::ErrorCode::NotFastForward => {
+                let spec = spec.trim_start_matches('+');
+                let name = spec.split(':').next().unwrap_or(spec);
+                skipped_tags.push(name.trim_start_matches("refs/tags/").to_string());
+            }
+            Err(e) => return Err(report(e)),
+        }
+    }
+    Ok(PushOutcome { skipped_tags })
 }
 
 /// Remote names configured on the repository.
@@ -372,13 +501,20 @@ pub fn delete_remote_branch(
     remote_name: &str,
     branch_name: &str,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url, cancel.clone());
+    let creds = provider_for_operation(&url, cancel.clone(), auth);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let refspec = format!(":refs/heads/{branch_name}");
+    let no_progress: Option<Box<dyn Fn(SyncProgress) + Send>> = None;
     let mut po = PushOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, None, cancel.clone());
+    let cb = attach_transfer_progress(
+        creds.callbacks(),
+        SyncOperation::Push,
+        &no_progress,
+        cancel.clone(),
+    );
     po.remote_callbacks(cb);
     cancelled_if_flagged(
         cancel.as_deref(),
@@ -444,6 +580,7 @@ pub fn pull_with_options(
     opts: PullOptions,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
     // Newest stash entry is index 0.
     let mut stashed = false;
@@ -452,7 +589,7 @@ pub fn pull_with_options(
         stashed = true;
     }
 
-    match pull_integrate(repo, remote_name, &opts, on_progress, cancel) {
+    match pull_integrate(repo, remote_name, &opts, on_progress, cancel, auth) {
         Ok(()) => {
             if stashed {
                 crate::infrastructure::git::stash::pop_stash(repo, 0).map_err(|e| {
@@ -487,8 +624,16 @@ fn pull_integrate(
     opts: &PullOptions,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
-    fetch(repo, remote_name, SyncOperation::Pull, on_progress, cancel)?;
+    fetch(
+        repo,
+        remote_name,
+        SyncOperation::Pull,
+        on_progress,
+        cancel,
+        auth,
+    )?;
 
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
@@ -675,7 +820,8 @@ mod tests {
     #[test]
     fn fetch_missing_remote_errors() {
         let (path, repo) = build_linear_repo(1);
-        let err = fetch(&repo, "origin", SyncOperation::Fetch, None, None).expect_err("no origin");
+        let err =
+            fetch(&repo, "origin", SyncOperation::Fetch, None, None, None).expect_err("no origin");
         let _ = fs::remove_dir_all(&path);
         assert_eq!(err.category(), "Unknown");
     }
@@ -693,7 +839,7 @@ mod tests {
                 "create feature",
             )
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None, None).unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None, None, None).unwrap();
         assert!(local.find_reference("refs/remotes/origin/feature").is_ok());
 
         // ...then it is deleted upstream: the next fetch must prune the
@@ -703,7 +849,7 @@ mod tests {
             .unwrap()
             .delete()
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None, None).unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None, None, None).unwrap();
         assert!(
             local.find_reference("refs/remotes/origin/feature").is_err(),
             "stale tracking ref must be pruned"
@@ -726,8 +872,15 @@ mod tests {
         make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
 
         let cancel = Arc::new(AtomicBool::new(true)); // pre-set: cancel wins
-        let err = fetch(&local, "origin", SyncOperation::Fetch, None, Some(cancel))
-            .expect_err("cancelled fetch must abort");
+        let err = fetch(
+            &local,
+            "origin",
+            SyncOperation::Fetch,
+            None,
+            Some(cancel),
+            None,
+        )
+        .expect_err("cancelled fetch must abort");
 
         assert_eq!(err.code(), codes::git::SYNC_CANCELLED);
         assert_eq!(err.category(), "Network");
@@ -810,7 +963,7 @@ mod tests {
         let tree = write_and_stage(&server, "file1.txt", "v1\n");
         let server_tip = make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None, None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None).unwrap();
 
         assert_eq!(
             head_oid(&local),
@@ -831,7 +984,7 @@ mod tests {
         let _local_tip = head_oid(&local);
         let server_tip = diverge(&server, &local);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None, None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None).unwrap();
 
         let head = local.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(
@@ -859,7 +1012,7 @@ mod tests {
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None)
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None)
             .expect_err("dirty worktree must refuse");
 
         assert_eq!(err.category(), "Protocol");
@@ -883,7 +1036,7 @@ mod tests {
         fs::write(local.workdir().unwrap().join("file0.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None)
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None)
             .expect_err("dirty worktree must refuse even when fast-forwardable");
 
         assert_eq!(err.category(), "Protocol");
@@ -911,7 +1064,7 @@ mod tests {
             rebase: false,
             stash: false,
         };
-        let err = pull_with_options(&mut local, "origin", opts, None, None)
+        let err = pull_with_options(&mut local, "origin", opts, None, None, None)
             .expect_err("dirty worktree must refuse plain pull too");
 
         assert_eq!(err.category(), "Protocol");
@@ -930,7 +1083,7 @@ mod tests {
         let server_tip = diverge(&server, &local);
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
 
-        pull_with_options(&mut local, "origin", rebase_opts(true), None, None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(true), None, None, None).unwrap();
 
         assert_eq!(
             local
