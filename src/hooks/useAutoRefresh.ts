@@ -1,29 +1,22 @@
 // User preference + global timer for auto-refreshing repository data.
-// The preference follows the app's hook + localStorage convention (see
-// usePalette); the loop owns the single 60s timer: bumping the history
-// epoch re-walks the commit graph and branch list, invalidating all
-// react-query caches refreshes every panel served through react-query.
-// Panels with manual effects (Remotes / Worktrees / Submodules) re-run
-// because their refresh callbacks depend on the epoch.
+// The preference lives in the autoRefreshStore so the settings modal
+// (writer) and the App-level loop (reader) observe one shared value.
+// The loop owns the single 60s timer: bumping the history epoch re-walks
+// the commit graph and branch list, invalidating all react-query caches
+// refreshes every panel served through react-query. Panels with manual
+// effects (Remotes / Worktrees / Submodules) re-run because their refresh
+// callbacks depend on the epoch.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import i18next from "i18next";
 import { fetchRemote, formatAppError, isCancelledSyncError } from "@/lib/api";
+import { useAutoRefreshStore } from "@/stores/autoRefreshStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
-const STORAGE_KEY = "gitwave-auto-refresh";
 const INTERVAL_MS = 60_000;
-
-function readStoredAutoRefresh(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
 
 export interface UseAutoRefreshReturn {
   autoRefresh: boolean;
@@ -31,17 +24,8 @@ export interface UseAutoRefreshReturn {
 }
 
 export function useAutoRefresh(): UseAutoRefreshReturn {
-  const [autoRefresh, setAutoRefreshState] = useState(readStoredAutoRefresh);
-
-  const setAutoRefresh = useCallback((enabled: boolean) => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(enabled));
-    } catch {
-      // Persistence is best-effort; the in-memory value still applies.
-    }
-    setAutoRefreshState(enabled);
-  }, []);
-
+  const autoRefresh = useAutoRefreshStore((s) => s.autoRefresh);
+  const setAutoRefresh = useAutoRefreshStore((s) => s.setAutoRefresh);
   return { autoRefresh, setAutoRefresh };
 }
 
@@ -112,7 +96,11 @@ export function useAutoRefreshLoop(): void {
 
   useEffect(() => {
     if (!autoRefresh) return undefined;
-    const timer = window.setInterval(() => refreshRepo(), INTERVAL_MS);
+    const timer = window.setInterval(() => {
+      // The guard above only runs when the effect is (re)created; re-check
+      // at tick time so the toggle wins even with a stale closure.
+      if (useAutoRefreshStore.getState().autoRefresh) refreshRepo();
+    }, INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [autoRefresh, refreshRepo]);
 }
