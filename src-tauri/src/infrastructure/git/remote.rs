@@ -35,6 +35,15 @@ pub struct SyncProgress {
     pub received_bytes: u64,
 }
 
+/// Result of a push that recovered from non-fast-forward tag refspecs:
+/// `skipped_tags` names the local tags diverged from the remote and left
+/// unpushed (empty in the common all-at-once case).
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PushOutcome {
+    pub skipped_tags: Vec<String>,
+}
+
 fn map_git_err(e: git2::Error) -> AppError {
     match e.code() {
         git2::ErrorCode::Auth => AppError::credential_with(
@@ -82,19 +91,21 @@ fn cancelled_if_flagged<T>(cancel: Option<&AtomicBool>, result: Result<T>) -> Re
     result
 }
 
-fn attach_transfer_progress(
-    mut callbacks: git2::RemoteCallbacks<'_>,
+fn attach_transfer_progress<'cb>(
+    mut callbacks: git2::RemoteCallbacks<'cb>,
     operation: SyncOperation,
-    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    on_progress: &'cb Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
-) -> git2::RemoteCallbacks<'_> {
+) -> git2::RemoteCallbacks<'cb> {
     // Attach whenever there is anything to observe: progress reporting or
     // the cancel checkpoint. Returning false from the callback is the only
     // lever libgit2 offers for aborting a transfer mid-flight.
     if on_progress.is_none() && cancel.is_none() {
         return callbacks;
     }
-    let progress = on_progress.map(Mutex::new);
+    // Mutex makes the shared `&Fn` Sync; push retries reuse the same boxed
+    // closure, so it is borrowed rather than moved.
+    let progress = on_progress.as_ref().map(Mutex::new);
     let cancel = cancel.unwrap_or_default();
     callbacks.transfer_progress(move |stats| {
         if cancel.load(Ordering::Relaxed) {
@@ -131,7 +142,7 @@ pub fn fetch(
     let creds = provider_for_url(&url, cancel.clone());
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let mut fo = FetchOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), operation, on_progress, cancel.clone());
+    let cb = attach_transfer_progress(creds.callbacks(), operation, &on_progress, cancel.clone());
     fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
     fo.prune(git2::FetchPrune::On);
@@ -161,7 +172,7 @@ pub fn fetch(
 /// Options controlling [`push_with_options`].
 #[derive(Debug, Clone, Default)]
 pub struct PushRequest {
-    /// Push all local tags in addition to the branch.
+    /// Push local tags whose target is the pushed branch's tip commit.
     pub tags: bool,
     /// Force-update the remote branch (leading `+` refspec).
     pub force: bool,
@@ -172,13 +183,18 @@ pub struct PushRequest {
 
 /// Push the current branch (or [`PushRequest::branch`]) to `remote_name`
 /// under the same branch name.
+///
+/// Batch pushes (branch + all tags) that get rejected as non-fast-forward
+/// are retried in isolation — branch first, then tags one by one — so a
+/// single diverged tag cannot take the whole push down: the survivors land
+/// and the diverged ones are reported by name in [`PushOutcome`].
 pub fn push_with_options(
     repo: &Repository,
     remote_name: &str,
     opts: PushRequest,
-    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    on_progress: &Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
-) -> Result<()> {
+) -> Result<PushOutcome> {
     let url = remote_url(repo, remote_name)?;
     let creds = provider_for_url(&url, cancel.clone());
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
@@ -205,45 +221,130 @@ pub fn push_with_options(
         if opts.force { "+" } else { "" }
     )];
     if opts.tags {
+        // Only tags that vouch for the pushed branch's tip commit (release
+        // flow: tag the commit, push it with the branch). Pushing every
+        // local tag made one diverged old tag sink the whole batch.
+        let tip = repo
+            .find_branch(&branch, git2::BranchType::Local)
+            .map_err(map_git_err)?
+            .into_reference()
+            .peel_to_commit()
+            .map_err(map_git_err)?
+            .id();
         let tags = repo.references_glob("refs/tags/*").map_err(map_git_err)?;
         for tag in tags {
             let tag = tag.map_err(map_git_err)?;
             let Some(name) = tag.name() else { continue };
+            let Some(oid) = tag.target() else { continue };
+            // Peel annotated tags to the commit they point at.
+            let peeled = repo
+                .find_object(oid, None)
+                .and_then(|obj| obj.peel(git2::ObjectType::Commit))
+                .map(|obj| obj.id())
+                .unwrap_or(oid);
+            if peeled != tip {
+                continue;
+            }
             let short = name.trim_start_matches("refs/tags/");
-            refspecs.push(format!("refs/tags/{short}:refs/tags/{short}"));
+            // Force covers tags too (matches `git push --force`): a re-tagged
+            // name can never fast-forward over the remote's existing tag.
+            refspecs.push(format!(
+                "{}refs/tags/{short}:refs/tags/{short}",
+                if opts.force { "+" } else { "" }
+            ));
         }
     }
 
-    let mut po = PushOptions::new();
-    let cb = attach_transfer_progress(
-        creds.callbacks(),
-        SyncOperation::Push,
-        on_progress,
-        cancel.clone(),
-    );
-    po.remote_callbacks(cb);
-    let str_refs: Vec<&str> = refspecs.iter().map(String::as_str).collect();
-    cancelled_if_flagged(
-        cancel.as_deref(),
-        run_with_credentials(
-            &*creds,
-            || remote.push(&str_refs, Some(&mut po)),
-            |e| {
-                AppError::credential_with(
-                    codes::git::PUSH_AUTH_FAILED,
-                    format!("push auth: {e}"),
-                    &[("error", e.to_string())],
-                )
-            },
-            |e| {
-                AppError::network_with(
-                    codes::git::PUSH_FAILED,
-                    format!("push failed: {e}"),
-                    &[("error", e.to_string())],
-                )
-            },
-        ),
-    )
+    // Each attempt needs fresh callbacks, and the raw git2 error is needed
+    // to steer the non-fast-forward recovery — hence this instead of
+    // `run_with_credentials` (approve/reject lifecycle kept identical).
+    // Reject is only allowed on the first attempt: by then the credential
+    // has already authenticated once (the non-fast-forward check happens
+    // after negotiation), so a later 401 is transient and must not erase
+    // the helper's stored credential.
+    let attempt_cancel = cancel.clone();
+    let mut push_once =
+        move |specs: &[String], allow_reject: bool| -> std::result::Result<(), git2::Error> {
+            let refs: Vec<&str> = specs.iter().map(String::as_str).collect();
+            let mut po = PushOptions::new();
+            let cb = attach_transfer_progress(
+                creds.callbacks(),
+                SyncOperation::Push,
+                on_progress,
+                attempt_cancel.clone(),
+            );
+            po.remote_callbacks(cb);
+            match remote.push(&refs, Some(&mut po)) {
+                Ok(()) => {
+                    creds.approve();
+                    Ok(())
+                }
+                Err(e) => {
+                    if e.code() == git2::ErrorCode::Auth && allow_reject {
+                        creds.reject();
+                    }
+                    Err(e)
+                }
+            }
+        };
+    let surface = |e: git2::Error| -> AppError {
+        match e.code() {
+            git2::ErrorCode::NotFastForward => AppError::protocol_with(
+                codes::git::PUSH_NON_FAST_FORWARD,
+                format!("push rejected (non-fast-forward): {e}"),
+                &[("error", e.to_string())],
+            ),
+            git2::ErrorCode::Auth => AppError::credential_with(
+                codes::git::PUSH_AUTH_FAILED,
+                format!("push auth: {e}"),
+                &[("error", e.to_string())],
+            ),
+            _ => AppError::network_with(
+                codes::git::PUSH_FAILED,
+                format!("push failed: {e}"),
+                &[("error", e.to_string())],
+            ),
+        }
+    };
+    let report = |e: git2::Error| -> AppError {
+        cancelled_if_flagged::<AppError>(cancel.as_deref(), Err(surface(e))).unwrap_err()
+    };
+
+    // Fast path: branch + tags at once. Unchanged tags are remote no-ops, so
+    // the common case stays a single network push.
+    match push_once(&refspecs, true) {
+        Ok(()) => return Ok(PushOutcome::default()),
+        // Recovery only makes sense for a tag-conflict rejection with tags
+        // enabled; everything else surfaces mapped as-is.
+        Err(e) if e.code() == git2::ErrorCode::NotFastForward && opts.tags => {}
+        Err(e) => return Err(report(e)),
+    }
+
+    // Branch first: its rejection is fatal and must not be masked by tag
+    // recovery (tags stay unpushed so the retry after a real fix is clean).
+    if let Err(e) = push_once(std::slice::from_ref(&refspecs[0]), false) {
+        return Err(report(e));
+    }
+
+    let tag_count = refspecs.len() - 1;
+    if tag_count == 0 {
+        return Ok(PushOutcome::default());
+    }
+    if push_once(&refspecs[1..], false).is_ok() {
+        return Ok(PushOutcome::default());
+    }
+    let mut skipped_tags = Vec::new();
+    for spec in &refspecs[1..] {
+        match push_once(std::slice::from_ref(spec), false) {
+            Ok(()) => {}
+            Err(e) if e.code() == git2::ErrorCode::NotFastForward => {
+                let name = spec.split(':').next().unwrap_or(spec);
+                skipped_tags.push(name.trim_start_matches("refs/tags/").to_string());
+            }
+            Err(e) => return Err(report(e)),
+        }
+    }
+    Ok(PushOutcome { skipped_tags })
 }
 
 /// Remote names configured on the repository.
@@ -377,8 +478,14 @@ pub fn delete_remote_branch(
     let creds = provider_for_url(&url, cancel.clone());
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let refspec = format!(":refs/heads/{branch_name}");
+    let no_progress: Option<Box<dyn Fn(SyncProgress) + Send>> = None;
     let mut po = PushOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), SyncOperation::Push, None, cancel.clone());
+    let cb = attach_transfer_progress(
+        creds.callbacks(),
+        SyncOperation::Push,
+        &no_progress,
+        cancel.clone(),
+    );
     po.remote_callbacks(cb);
     cancelled_if_flagged(
         cancel.as_deref(),

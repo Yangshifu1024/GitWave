@@ -108,10 +108,22 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   const pushMut = useMutation({
     mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
     onMutate: (options) => useSyncStore.getState().startOp("push", options?.remote),
-    onSuccess: (_data, options) => {
-      useStatusAreaStore
-        .getState()
-        .setStatus(t(SUCCESS_KEYS.push, { remote: options?.remote }), "success");
+    onSuccess: (summary, options) => {
+      if (summary.skippedTags.length > 0) {
+        // Tag recovery pushed the branch and the non-conflicting tags; the
+        // diverged ones need an explicit force push to land.
+        useStatusAreaStore.getState().setStatus(
+          t("status.sync.pushedSkipped", {
+            remote: options?.remote,
+            tags: summary.skippedTags.join(", "),
+          }),
+          "info",
+        );
+      } else {
+        useStatusAreaStore
+          .getState()
+          .setStatus(t(SUCCESS_KEYS.push, { remote: options?.remote }), "success");
+      }
       invalidate();
       bumpHistory();
     },

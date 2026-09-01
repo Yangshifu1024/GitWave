@@ -23,6 +23,9 @@ pub const PUSH_AUTH_FAILED: &str = "git.push_auth_failed";
 /// 推送（push）失败。
 pub const PUSH_FAILED: &str = "git.push_failed";
 
+/// 推送（push）被拒：远端引用已存在且不可快进（常见于同名 tag 指向不同提交）。
+pub const PUSH_NON_FAST_FORWARD: &str = "git.push_non_fast_forward";
+
 /// 网络同步操作（fetch/pull/push/删远端分支）超过总时限被中止。
 pub const SYNC_TIMEOUT: &str = "git.sync_timeout";
 

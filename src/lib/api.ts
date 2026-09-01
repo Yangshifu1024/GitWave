@@ -988,8 +988,14 @@ export interface PushOptions {
   branch?: string;
 }
 
-export function pushRemote(workspaceId: string, options?: PushOptions): Promise<void> {
-  return invoke<void>("cmd_push", {
+/** Tags that diverged from the remote and were skipped by the push
+ *  recovery (surfaced so the user knows what did not land). */
+export interface PushSummary {
+  skippedTags: string[];
+}
+
+export function pushRemote(workspaceId: string, options?: PushOptions): Promise<PushSummary> {
+  return invoke<PushSummary>("cmd_push", {
     workspaceId,
     remote: options?.remote ?? null,
     tags: options?.tags ?? false,

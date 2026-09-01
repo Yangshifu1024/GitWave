@@ -148,6 +148,12 @@ impl FillOnce {
     }
 
     fn take(&mut self, fill: impl FnOnce(&str) -> Option<(String, String)>, url: &str) -> Fill {
+        // Once the helper answered, that answer is THE credential for the
+        // whole operation: replay it for follow-up auth rounds and for the
+        // push retry ladder instead of re-querying (which would re-prompt).
+        if let Some((user, pass)) = &self.answer {
+            return Fill::Answer((user.clone(), pass.clone()));
+        }
         if self.queried {
             return Fill::AlreadyQueried;
         }
@@ -521,7 +527,8 @@ mod tests {
             _ => panic!("first take must return the helper answer"),
         }
 
-        // A 401 retry must fail fast instead of querying (and re-prompting).
+        // Follow-up auth rounds (401 replay, push retry ladder) reuse the
+        // stored answer without querying (and re-prompting) the helper.
         let retry = gate.take(
             |_: &str| -> Option<(String, String)> {
                 calls += 1;
@@ -529,7 +536,7 @@ mod tests {
             },
             "https://example.com/repo.git",
         );
-        assert!(matches!(retry, Fill::AlreadyQueried));
+        assert!(matches!(retry, Fill::Answer((ref u, ref p)) if u == "user" && p == "pass"));
         assert_eq!(calls, 1, "the helper must be queried at most once");
         assert_eq!(
             gate.answer.as_ref().map(|(u, _)| u.as_str()),

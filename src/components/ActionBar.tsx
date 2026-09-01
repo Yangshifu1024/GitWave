@@ -1351,12 +1351,12 @@ export function ActionBar(): React.JSX.Element {
           <div className="flex flex-col gap-2 rounded-xl bg-bg-primary p-3">
             <Checkbox
               checked={pushDialog.tags}
-              disabled={wc.isSyncBusy}
+              disabled={wc.isSyncBusy || headTagNames.length === 0}
               onChange={(tags) => setPushDialog({ ...pushDialog, tags })}
             >
               {headTagNames.length > 0
-                ? t("commits.sync.pushAllTagsWithTip", { tag: headTagNames.join(", ") })
-                : t("commits.sync.pushAllTags")}
+                ? t("commits.sync.pushCommitTagsWithTip", { tag: headTagNames.join(", ") })
+                : t("commits.sync.pushCommitTags")}
             </Checkbox>
             <Checkbox
               checked={pushDialog.force}

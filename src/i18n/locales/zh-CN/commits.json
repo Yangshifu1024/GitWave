@@ -101,6 +101,8 @@
       "pullDescription": "拉取远程分支并合并到你的本地分支",
       "push": "推送",
       "pushTitle": "推送",
+      "pushCommitTags": "推送此提交上的标签",
+      "pushCommitTagsWithTip": "推送此提交上的标签({{tag}})",
       "pushWithCount": "推送({{total}})",
       "pushDescription": "将你的本地变更推送到远程仓库",
       "remote": "远程",
@@ -109,8 +111,6 @@
       "to": "推送到",
       "rebaseInstead": "变基而不是合并",
       "stashAndReapply": "贮藏并重新应用本地变更",
-      "pushAllTags": "推送所有标签",
-      "pushAllTagsWithTip": "推送所有标签({{tag}})",
       "forcePush": "强制推送"
     },
     "branch": {

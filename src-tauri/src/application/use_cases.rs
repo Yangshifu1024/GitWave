@@ -81,7 +81,7 @@ use crate::infrastructure::git::remote::{
     delete_remote_branch as infra_delete_remote_branch, fetch as infra_fetch,
     list_remotes as infra_list_remotes, pull_with_options as infra_pull_with_options,
     push_with_options as infra_push_with_options, worktree_is_dirty, CancelFlag, PullOptions,
-    PushRequest, SyncProgress,
+    PushOutcome, PushRequest, SyncProgress,
 };
 use crate::infrastructure::git::revert::{
     cherry_pick_commit as infra_cherry_pick_commit, revert_commit as infra_revert_commit,
@@ -2341,7 +2341,7 @@ pub fn push(
     branch: Option<String>,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
-) -> Result<()> {
+) -> Result<PushOutcome> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_push_with_options(
@@ -2352,7 +2352,7 @@ pub fn push(
             force,
             branch,
         },
-        on_progress,
+        &on_progress,
         cancel,
     )
 }

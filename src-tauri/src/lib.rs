@@ -1166,9 +1166,9 @@ async fn cmd_push(
     tags: Option<bool>,
     force: Option<bool>,
     branch: Option<String>,
-) -> Result<(), AppError> {
+) -> Result<infrastructure::git::remote::PushOutcome, AppError> {
     use application::use_cases::push;
-    use infrastructure::git::remote::SyncProgress;
+    use infrastructure::git::remote::{PushOutcome, SyncProgress};
     use tauri::Emitter;
 
     let app_emit = app.clone();
