@@ -79,6 +79,26 @@ no-op）+ 四个网络操作 `auth` 参数透传 + 前端 `isAuthError` 触发
 单远端 fetch，每个操作至多提示一次，不循环）。详见
 docs/pm/features/F012-in-app-credential-prompt.md。
 
+## 同批 UI 修复：commit graph 标签徽章不折行 + tracked 合并
+
+```
+前（折行/截断/两枚徽章）                 后（单行/合并/空间不足隐藏右侧）
+[HEAD] [fix/push-tag-   ] [origin/me ]   [HEAD] [main✓] [v0.7.2] [fix/push…✓] +1
+       [non-ff]                Yang…·2h  docs(commit): …      (作者/时间被挤掉)
+```
+
+1. **不折行**：RefBadge 加 `whitespace-nowrap` + Label `truncate`（长名
+   单行省略，CSS 兜底，文本级 24 字符截断保留）。
+2. **tracked 合并**：`mergeTrackedRefs` 把「本地分支 + 其 remote 对应分支」
+   折叠为一枚徽章（本地名 + `CircleCheck` 圆圈内对勾图标；remote 名不再
+   单独出现）。`remoteShortName` 归一化比较，适配任意远端名。
+3. **空间优先级**（纯 flex，无测量）：作者/时间 `shrink-[999]` +
+   `overflow-hidden`——空间不足时最先收缩至完全隐藏；提交信息 `flex-auto`
+   其次截断；标签容器 `min-w-0 overflow-hidden` 最后兜底，徽章不再把
+   行挤乱。可见徽章上限 2 → 3。
+4. 检查器头部的 RefBadge 共用上述 nowrap/truncate；`title` 属性仍可
+   悬停查看全名。
+
 ## 已知边界
 
 - 分支被拒时 tags 不再尝试（分支是推送主体，错误先解决；避免半交付状态

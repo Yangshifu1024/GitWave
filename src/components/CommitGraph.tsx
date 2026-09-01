@@ -3,8 +3,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import type { CommitSummary } from "@/lib/api";
+import type { CommitRef, CommitSummary } from "@/lib/api";
 import { formatAppError, getCommitLog } from "@/lib/api";
+import { remoteShortName } from "@/lib/branchNames";
 import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Surface } from "@heroui/react";
@@ -217,6 +218,23 @@ interface CommitRowProps {
   menu: CommitMenuController;
 }
 
+type DisplayRef = CommitRef & { synced?: boolean };
+
+/** Fork-style single badge per branch: a local branch and its tracked
+ *  remote branch on the same commit fold into one synced badge (the remote
+ *  name disappears, the badge icon becomes a check-in-circle). */
+function mergeTrackedRefs(refs: CommitRef[]): DisplayRef[] {
+  const locals = new Set(refs.filter((r) => r.kind === "local_branch").map((r) => r.name));
+  const remoteShorts = new Set(
+    refs.filter((r) => r.kind === "remote_branch").map((r) => remoteShortName(r.name)),
+  );
+  return refs
+    .filter((r) => r.kind !== "remote_branch" || !locals.has(remoteShortName(r.name)))
+    .map((r) =>
+      r.kind === "local_branch" && remoteShorts.has(r.name) ? { ...r, synced: true } : r,
+    );
+}
+
 function CommitRow({
   commit,
   art,
@@ -227,7 +245,7 @@ function CommitRow({
   menu,
 }: CommitRowProps): React.JSX.Element {
   const { t } = useTranslation();
-  const refs = commit.refs ?? [];
+  const refs = mergeTrackedRefs(commit.refs ?? []);
 
   return (
     <ContextMenu>
@@ -256,8 +274,8 @@ function CommitRow({
           </span>
 
           {refs.length > 0 ? (
-            <span className="flex items-center gap-0.5 shrink-0 max-w-[28%] overflow-hidden">
-              {refs.slice(0, 2).map((r) => (
+            <span className="flex min-w-0 items-center gap-1 max-w-[55%] overflow-hidden">
+              {refs.slice(0, 3).map((r) => (
                 <RefBadgeContextMenu
                   key={`${r.kind}:${r.name}`}
                   r={r}
@@ -267,18 +285,19 @@ function CommitRow({
                     r={r}
                     lane={commit.lane}
                     emphasize={isHead && r.kind !== "remote_branch"}
+                    synced={r.synced}
                   />
                 </RefBadgeContextMenu>
               ))}
-              {refs.length > 2 ? (
-                <span className="text-xs text-text-muted shrink-0">+{refs.length - 2}</span>
+              {refs.length > 3 ? (
+                <span className="text-xs text-text-muted shrink-0">+{refs.length - 3}</span>
               ) : null}
             </span>
           ) : null}
 
           <p
             className={cn(
-              "flex-1 min-w-0 text-xs leading-none truncate text-text-primary",
+              "flex-auto min-w-0 text-xs leading-none truncate text-text-primary",
               isHead ? "font-semibold" : "font-medium",
             )}
             title={commit.message_summary}
@@ -286,7 +305,9 @@ function CommitRow({
             {commit.message_summary}
           </p>
 
-          <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
+          {/* Shrinks first and collapses to nothing before the message gives
+              up its room: tight rows hide author/time instead of the refs. */}
+          <span className="min-w-0 shrink-[999] overflow-hidden whitespace-nowrap text-[10px] text-text-muted tabular-nums">
             {commit.author} &middot; {formatTime(commit.time, t)}
           </span>
         </Surface>

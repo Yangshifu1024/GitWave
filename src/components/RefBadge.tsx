@@ -1,5 +1,5 @@
 import { Chip } from "@heroui/react";
-import { Circle, GitBranch, Tag } from "lucide-react";
+import { Circle, CircleCheck, GitBranch, Tag } from "lucide-react";
 
 import type { CommitRef } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -35,15 +35,19 @@ export function RefBadge({
   lane,
   emphasize = false,
   truncate = true,
+  synced = false,
 }: {
   r: CommitRef;
   lane?: number;
   emphasize?: boolean;
   /** History rows truncate long names; the inspector header shows them in full. */
   truncate?: boolean;
+  /** Local branch whose tracked remote branch lives on this commit too
+   *  (Fork-style single badge; the icon becomes a check-in-circle). */
+  synced?: boolean;
 }): React.JSX.Element {
   const chrome = cn(
-    "inline-flex items-center gap-1 shrink-0",
+    "inline-flex items-center gap-1 shrink-0 min-w-0 max-w-full whitespace-nowrap",
     // Same size as the commit title (text-xs) so refs read as part of the row.
     "rounded px-1 py-0 text-xs leading-none font-medium border shadow-none",
   );
@@ -56,7 +60,7 @@ export function RefBadge({
         title={r.name}
         className={cn(chrome, "bg-branch-current text-text-inverse border-branch-current")}
       >
-        <Chip.Label>{displayName}</Chip.Label>
+        <Chip.Label className="min-w-0 truncate">{displayName}</Chip.Label>
       </Chip>
     );
   }
@@ -68,9 +72,9 @@ export function RefBadge({
         title={r.name}
         className={cn(chrome, "bg-warning/20 text-warning border-warning/60")}
       >
-        <Chip.Label className="inline-flex items-center gap-1">
-          <Tag size={12} />
-          {displayName}
+        <Chip.Label className="inline-flex min-w-0 items-center gap-1">
+          <Tag size={12} className="shrink-0" />
+          <span className="truncate">{displayName}</span>
         </Chip.Label>
       </Chip>
     );
@@ -86,7 +90,10 @@ export function RefBadge({
           "bg-branch-current/20 text-branch-current border-branch-current/50 font-semibold",
         )}
       >
-        <Chip.Label>{displayName}</Chip.Label>
+        <Chip.Label className="inline-flex min-w-0 items-center gap-1">
+          {synced && <CircleCheck size={12} className="shrink-0" />}
+          <span className="truncate">{displayName}</span>
+        </Chip.Label>
       </Chip>
     );
   }
@@ -110,9 +117,15 @@ export function RefBadge({
         color: lineColor,
       }}
     >
-      <Chip.Label className="inline-flex items-center gap-1">
-        {r.kind === "remote_branch" ? <Circle size={12} /> : <GitBranch size={12} />}
-        {displayName}
+      <Chip.Label className="inline-flex min-w-0 items-center gap-1">
+        {r.kind === "remote_branch" ? (
+          <Circle size={12} className="shrink-0" />
+        ) : synced ? (
+          <CircleCheck size={12} className="shrink-0" />
+        ) : (
+          <GitBranch size={12} className="shrink-0" />
+        )}
+        <span className="truncate">{displayName}</span>
       </Chip.Label>
     </Chip>
   );
