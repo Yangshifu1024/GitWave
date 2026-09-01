@@ -4,7 +4,7 @@
 
 > 本地优先、AI 协作的 Git 客户端。官网：**[gitwave.work](https://gitwave.work)** · 产品范围见 `docs/pm/core/01-features.md`，工程决策见 `docs/tech/`。
 
-**状态：** v0.7.0 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供，多远端同步（推送可选目标 remote、fetch 覆盖全部远端，网络操作限时且可随时取消，HTTPS 凭据跨操作记忆），界面完整支持中文 / English 双语，AI 回复语言可选，界面 / 等宽字体大小独立可调。
+**状态：** v0.7.2 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供，多远端同步（推送可选目标 remote、fetch 覆盖全部远端，网络操作限时且可随时取消，HTTPS 凭据跨操作记忆，远端要求认证时应用内弹窗收集用户名 / 访问令牌并原地重试），Fork 风格右键菜单覆盖提交图与分支列表，tag 推送只发送被推提交上的标签（冲突标签点名跳过而非整批失败），提交图 ref 徽章将 tracked 远端合并为单个同步标记并采用九色 lane 调色板，界面完整支持中文 / English 双语，AI 回复语言可选，界面 / 等宽字体大小独立可调。
 
 ## 下载
 
