@@ -11,7 +11,14 @@
       "daysAgo": "{{n}}d ago"
     },
     "menu": {
-      "new": "New",
+      "new": "New Branch…",
+      "checkout": "Checkout",
+      "copyName": "Copy Branch Name",
+      "copyTagName": "Copy Tag Name",
+      "push": "Push to '{{remote}}'…",
+      "newTag": "New Tag…",
+      "tracking": "Tracking…",
+      "rename": "Rename…",
       "mergeIntoCurrent": "Merge into current",
       "rebaseCurrentOntoThis": "Rebase current onto this",
       "interactiveRebase": "Interactive rebase"
@@ -53,6 +60,34 @@
       "alsoDeleteRemote": "Also delete corresponding remote branch",
       "deleted": "Deleted {{name}}",
       "deletedWithRemote": "Deleted {{name}} and its remote counterpart"
+    },
+    "deleteRemote": {
+      "title": "Delete Remote Branch",
+      "menuItem": "Delete Remote Branch",
+      "description": "Delete remote branch \"{{name}}\" from the remote. Local branches are not affected.",
+      "deleted": "Deleted remote branch {{name}}"
+    },
+    "guard": {
+      "current": "Already the current branch",
+      "currentBranch": "Cannot delete the current branch"
+    },
+    "push": {
+      "confirmDescription": "Push local branch \"{{name}}\" to \"{{remote}}\"?",
+      "done": "Pushed {{name}} to {{remote}}"
+    },
+    "rename": {
+      "title": "Rename Branch",
+      "confirm": "Rename",
+      "done": "Renamed {{old}} to {{name}}"
+    },
+    "tracking": {
+      "title": "Tracking — {{name}}",
+      "description": "Current upstream: {{upstream}}. Pick the remote branch this branch should track.",
+      "none": "No upstream",
+      "confirm": "Set tracking",
+      "done": "{{name}} now tracks {{upstream}}",
+      "cleared": "Upstream cleared for {{name}}",
+      "aria": "Upstream branch"
     },
     "merge": {
       "title": "Merge branch",

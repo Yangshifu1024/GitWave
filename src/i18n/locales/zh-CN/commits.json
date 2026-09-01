@@ -19,6 +19,21 @@
       "copyDescription": "复制描述",
       "copyAll": "复制全部"
     },
+    "menu": {
+      "newBranch": "新建分支…",
+      "newTag": "新建标签…",
+      "checkoutCommit": "检出提交",
+      "checkoutIsHead": "已是当前 HEAD",
+      "blockedMerge": "合并正在进行中——请先完成或中止合并，再切换提交。",
+      "blockedRebase": "交互式变基已暂停——请先继续或中止变基，再切换提交。",
+      "resetToHere": "将 '{{branch}}' 重置到此处…",
+      "resetDetached": "HEAD 处于游离状态——请先检出分支再重置",
+      "cherryPick": "拣选提交…",
+      "revert": "撤销提交…",
+      "copySha": "复制提交 SHA",
+      "copyInfo": "复制提交信息",
+      "copied": "已复制到剪贴板"
+    },
     "header": {
       "loading": "正在加载提交…",
       "explain": "解释",

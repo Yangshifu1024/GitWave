@@ -62,6 +62,7 @@
 | [F008](./F008-website.md) | 项目官网（GitHub Pages + 自定义域名） | 接受 | v0.4.x |
 | [F009](./F009-auto-update.md) | 应用内检查更新与自动更新 | 接受 | v0.5.0 |
 | [F010](./F010-i18n.md) | 完整国际化（UI 中英双语 + AI 回复语言） | 接受 | v0.6.0 |
+| [F011](./F011-commit-context-menu.md) | History 提交右键菜单（参考 Fork） | 接受 | v0.7.x |
 
 ## 相关文档
 

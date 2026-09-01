@@ -20,7 +20,7 @@ use crate::domain::error_codes as codes;
 use application::sync_ops;
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
-    add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch,
+    add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch, checkout_commit,
     cherry_pick_commit, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
     create_branch, create_tag, create_workspace, deinit_submodule, delete_branch,
     delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
@@ -34,12 +34,12 @@ use application::{
     list_remote_details, list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags,
     list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
     plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
-    remove_remote, remove_repo, remove_worktree, rename_remote, rename_workspace, reorder_repos,
-    reset_hard, resolve_conflict, revert_commit, save_hook, save_stash, set_active_repo,
-    set_ai_api_key, set_remote_push_url, set_remote_url, stage_all, stage_files,
-    start_ssh_agent_service, test_ssh_connection, unstage_files, update_submodule,
-    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
-    AppContext, PaletteIntent, PrDescriptionOutcome,
+    remove_remote, remove_repo, remove_worktree, rename_branch, rename_remote, rename_workspace,
+    reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook, save_stash,
+    set_active_repo, set_ai_api_key, set_branch_upstream, set_remote_push_url, set_remote_url,
+    stage_all, stage_files, start_ssh_agent_service, test_ssh_connection, unstage_files,
+    update_submodule, update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome,
+    AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
 };
 use domain::blame::BlameLine;
 use domain::branch::BranchInfo;
@@ -472,6 +472,33 @@ async fn cmd_delete_remote_branch(
 }
 
 #[tauri::command]
+fn cmd_rename_branch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    old_name: String,
+    new_name: String,
+    force: Option<bool>,
+) -> Result<(), AppError> {
+    rename_branch(
+        &ctx,
+        &workspace_id,
+        &old_name,
+        &new_name,
+        force.unwrap_or(false),
+    )
+}
+
+#[tauri::command]
+fn cmd_set_branch_upstream(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    branch: String,
+    upstream: Option<String>,
+) -> Result<(), AppError> {
+    set_branch_upstream(&ctx, &workspace_id, &branch, upstream)
+}
+
+#[tauri::command]
 async fn cmd_checkout_branch(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -479,6 +506,16 @@ async fn cmd_checkout_branch(
     force: Option<bool>,
 ) -> Result<(), AppError> {
     checkout_branch(&ctx, &workspace_id, &name, force.unwrap_or(false))
+}
+
+#[tauri::command]
+async fn cmd_checkout_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    oid: String,
+    force: Option<bool>,
+) -> Result<(), AppError> {
+    checkout_commit(&ctx, &workspace_id, &oid, force.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -1128,6 +1165,7 @@ async fn cmd_push(
     remote: Option<String>,
     tags: Option<bool>,
     force: Option<bool>,
+    branch: Option<String>,
 ) -> Result<(), AppError> {
     use application::use_cases::push;
     use infrastructure::git::remote::SyncProgress;
@@ -1152,6 +1190,7 @@ async fn cmd_push(
                 remote,
                 tags.unwrap_or(false),
                 force.unwrap_or(false),
+                branch,
                 on_progress,
                 Some(cancel),
             )
@@ -1399,6 +1438,9 @@ pub fn run() {
             cmd_delete_branch,
             cmd_delete_remote_branch,
             cmd_checkout_branch,
+            cmd_checkout_commit,
+            cmd_rename_branch,
+            cmd_set_branch_upstream,
             cmd_get_ahead_behind,
             cmd_merge_branch,
             cmd_merge_preview,

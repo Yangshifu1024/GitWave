@@ -284,6 +284,9 @@ pub const INVALID_STASH_OID: &str = "git.stash.invalid_oid";
 /// 不能删除当前检出的分支。
 pub const DELETE_CHECKED_OUT_BRANCH: &str = "git.branch.delete_checked_out";
 
+/// 分支被链接 worktree 占用，不能重命名。
+pub const RENAME_IN_WORKTREE: &str = "git.branch.rename_in_worktree";
+
 // ─── tag（tag.rs） ────────────────────────────────────────────────────
 
 /// 标签名不能为空。

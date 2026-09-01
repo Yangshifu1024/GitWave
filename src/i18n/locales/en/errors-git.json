@@ -101,7 +101,8 @@
         "invalid_oid": "Invalid stash id: {{error}}"
       },
       "branch": {
-        "delete_checked_out": "Cannot delete the checked-out branch: {{name}}"
+        "delete_checked_out": "Cannot delete the checked-out branch: {{name}}",
+        "rename_in_worktree": "Cannot rename {{name}}: it is checked out in worktree \"{{worktree}}\""
       },
       "tag": {
         "name_empty": "Tag name cannot be empty"

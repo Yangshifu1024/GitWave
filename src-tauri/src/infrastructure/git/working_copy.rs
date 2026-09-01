@@ -200,8 +200,39 @@ pub fn stage_all(repo: &Repository) -> Result<()> {
     stage_paths(repo, &paths)
 }
 
+/// Resolve MERGE_HEAD to the commit it names (the branch being merged in).
+fn read_merge_head(repo: &Repository) -> Result<git2::Commit<'_>> {
+    let raw = std::fs::read_to_string(repo.path().join("MERGE_HEAD")).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::FS_ERROR,
+            format!("read MERGE_HEAD: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    // An octopus merge (several heads) leaves one oid per line here;
+    // committing it with a single extra parent would silently drop the
+    // others from the history, so refuse with an actionable message.
+    let (first, rest) = match raw.split_once('\n') {
+        Some((first, rest)) => (first, rest.trim()),
+        None => (raw.as_str(), ""),
+    };
+    if !rest.is_empty() {
+        return Err(AppError::protocol(
+            codes::git::GIT_ERROR,
+            "octopus merge (multiple MERGE_HEAD entries) is not supported — finish or abort the merge with git",
+        ));
+    }
+    let oid = git2::Oid::from_str(first.trim()).map_err(map_git_err)?;
+    repo.find_commit(oid).map_err(map_git_err)
+}
+
 /// Create a commit from the current index. Returns new commit SHA.
 /// Never auto-runs: caller must pass an explicit message (P1).
+///
+/// While a merge is in progress (MERGE_HEAD present) the commit finishes
+/// the merge: MERGE_HEAD becomes the second parent and the merge state is
+/// cleaned up afterwards — libgit2's `commit`, unlike the git CLI, leaves
+/// MERGE_HEAD in place.
 pub fn commit(repo: &Repository, message: &str) -> Result<String> {
     let trimmed = message.trim();
     if trimmed.is_empty() {
@@ -222,10 +253,18 @@ pub fn commit(repo: &Repository, message: &str) -> Result<String> {
         Err(e) => return Err(map_git_err(e)),
     };
 
-    // Refuse empty commits (tree identical to parent).
+    let merge_head = if super::conflict::is_merge_in_progress(repo) {
+        Some(read_merge_head(repo)?)
+    } else {
+        None
+    };
+
+    // Refuse empty commits (tree identical to parent) — except when
+    // finishing a merge: an all-"ours" resolution yields the HEAD tree but
+    // the commit is still required to record the second parent.
     if let Some(ref parent) = parent_commit {
         let parent_tree = parent.tree().map_err(map_git_err)?;
-        if parent_tree.id() == tree.id() {
+        if merge_head.is_none() && parent_tree.id() == tree.id() {
             return Err(AppError::protocol(
                 codes::git::NOTHING_TO_COMMIT,
                 "nothing to commit",
@@ -238,10 +277,20 @@ pub fn commit(repo: &Repository, message: &str) -> Result<String> {
         ));
     }
 
-    let parents: Vec<&git2::Commit<'_>> = parent_commit.iter().collect();
+    let mut parents: Vec<&git2::Commit<'_>> = parent_commit.iter().collect();
+    if let Some(ref merge_commit) = merge_head {
+        parents.push(merge_commit);
+    }
     let oid = repo
         .commit(Some("HEAD"), &sig, &sig, trimmed, &tree, &parents)
         .map_err(map_git_err)?;
+
+    // Finishing a merge: clear MERGE_HEAD / MERGE_MSG / MERGE_MODE so
+    // is_merge_in_progress (and the UI banner) settles. Best-effort, like
+    // the other cleanup_state call sites (merge / revert / rebase).
+    if merge_head.is_some() {
+        let _ = repo.cleanup_state();
+    }
     Ok(oid.to_string())
 }
 
@@ -373,7 +422,8 @@ pub fn ignore_path(repo: &Repository, pattern: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::git::test_helpers::build_linear_repo;
+    use crate::infrastructure::git::conflict::{is_merge_in_progress, resolve_conflict};
+    use crate::infrastructure::git::test_helpers::{build_conflicted_merge, build_linear_repo};
     use std::fs;
 
     fn cleanup(path: &std::path::Path) {
@@ -384,6 +434,88 @@ mod tests {
     /// line-ending-insensitively.
     fn normalize(text: &str) -> String {
         text.replace("\r\n", "\n")
+    }
+
+    #[test]
+    fn commit_while_merging_records_second_parent_and_cleans_up() {
+        let (path, repo, feature_tip) = build_conflicted_merge();
+
+        // Resolving the last conflict does not end the merge by itself.
+        resolve_conflict(&repo, "file0.txt", "resolved\n").unwrap();
+        assert!(is_merge_in_progress(&repo));
+
+        let sha = commit(&repo, "merge feature").unwrap();
+        let done = repo
+            .find_commit(git2::Oid::from_str(&sha).unwrap())
+            .unwrap();
+
+        // The commit is a real merge commit: HEAD + the merged branch tip.
+        assert_eq!(done.parent_count(), 2);
+        assert_eq!(done.parent_id(1).unwrap(), feature_tip);
+        // Merge state files are gone, so the UI banner can settle.
+        assert!(!is_merge_in_progress(&repo));
+        assert!(!repo.path().join("MERGE_MSG").exists());
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commit_while_merging_allows_tree_identical_to_head() {
+        let (path, repo, feature_tip) = build_conflicted_merge();
+
+        // All-"ours" resolution: the tree ends up identical to HEAD's, and
+        // the empty-commit refusal must not block finishing the merge.
+        resolve_conflict(&repo, "file0.txt", "main\n").unwrap();
+        let sha = commit(&repo, "merge feature").unwrap();
+        let done = repo
+            .find_commit(git2::Oid::from_str(&sha).unwrap())
+            .unwrap();
+
+        assert_eq!(done.parent_count(), 2);
+        assert_eq!(done.parent_id(1).unwrap(), feature_tip);
+        assert!(!is_merge_in_progress(&repo));
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commit_refuses_empty_tree_without_merge() {
+        let (path, repo) = build_linear_repo(1);
+
+        // No MERGE_HEAD: tree == HEAD tree stays a refused empty commit.
+        let err = commit(&repo, "empty").unwrap_err();
+        assert_eq!(err.code(), codes::git::NOTHING_TO_COMMIT);
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commit_with_unparseable_merge_head_fails_and_keeps_state() {
+        let (path, repo, _feature_tip) = build_conflicted_merge();
+        resolve_conflict(&repo, "file0.txt", "resolved\n").unwrap();
+        fs::write(repo.path().join("MERGE_HEAD"), "not-an-oid\n").unwrap();
+
+        // Fail-safe: committing fails, the merge state is untouched.
+        let err = commit(&repo, "merge feature").unwrap_err();
+        assert_eq!(err.code(), codes::git::GIT_ERROR);
+        assert!(is_merge_in_progress(&repo));
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn commit_refuses_octopus_merge_head() {
+        let (path, repo, feature_tip) = build_conflicted_merge();
+        resolve_conflict(&repo, "file0.txt", "resolved\n").unwrap();
+        let tip = feature_tip.to_string();
+        fs::write(repo.path().join("MERGE_HEAD"), format!("{tip}\n{tip}\n")).unwrap();
+
+        let err = commit(&repo, "merge feature").unwrap_err();
+        assert_eq!(err.code(), codes::git::GIT_ERROR);
+        assert!(err.message().contains("octopus"));
+        assert!(is_merge_in_progress(&repo));
+
+        cleanup(&path);
     }
 
     #[test]

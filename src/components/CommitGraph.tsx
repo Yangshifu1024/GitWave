@@ -14,6 +14,13 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FolderOpen } from "lucide-react";
 import { laneColor, RefBadge } from "@/components/RefBadge";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/ContextMenu";
+import {
+  CommitMenuItems,
+  useCommitMenuActions,
+  type CommitMenuController,
+} from "@/components/CommitContextMenu";
+import { RefBadgeContextMenu } from "@/components/RefBadgeContextMenu";
 
 const ROW_H = 28;
 const INITIAL_LIMIT = 200;
@@ -206,6 +213,8 @@ interface CommitRowProps {
   onSelect: (sha: string) => void;
   isSelected: boolean;
   isHead: boolean;
+  /** F011 row context menu controller (shared, modals live in CommitGraph). */
+  menu: CommitMenuController;
 }
 
 function CommitRow({
@@ -215,63 +224,81 @@ function CommitRow({
   onSelect,
   isSelected,
   isHead,
+  menu,
 }: CommitRowProps): React.JSX.Element {
   const { t } = useTranslation();
   const refs = commit.refs ?? [];
 
   return (
-    <Surface
-      variant="transparent"
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(commit.sha)}
-      onKeyDown={(e) => e.key === "Enter" && onSelect(commit.sha)}
-      aria-current={isHead ? "true" : undefined}
-      className={cn(
-        "flex items-center gap-2 px-2 py-0 cursor-pointer rounded-none shadow-none",
-        "transition-colors duration-fast border-l-2 border-l-transparent",
-        !isSelected && !isHead && "hover:bg-bg-elevated",
-        isHead && !isSelected && "bg-accent/10 border-l-accent hover:bg-accent/20",
-        isSelected && "bg-accent/20 border-l-accent hover:bg-accent/30",
-      )}
-      style={{ height: `${ROW_H}px` }}
-    >
-      <GraphRow commit={commit} art={art} maxLane={maxLane} isHead={isHead} />
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Surface
+          variant="transparent"
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelect(commit.sha)}
+          onKeyDown={(e) => e.key === "Enter" && onSelect(commit.sha)}
+          onContextMenu={() => onSelect(commit.sha)}
+          aria-current={isHead ? "true" : undefined}
+          className={cn(
+            "flex items-center gap-2 px-2 py-0 cursor-pointer rounded-none shadow-none",
+            "transition-colors duration-fast border-l-2 border-l-transparent",
+            !isSelected && !isHead && "hover:bg-bg-elevated",
+            isHead && !isSelected && "bg-accent/10 border-l-accent hover:bg-accent/20",
+            isSelected && "bg-accent/20 border-l-accent hover:bg-accent/30",
+          )}
+          style={{ height: `${ROW_H}px` }}
+        >
+          <GraphRow commit={commit} art={art} maxLane={maxLane} isHead={isHead} />
 
-      <span className="font-mono text-[10px] text-text-muted w-14 shrink-0 tabular-nums">
-        {shortSha(commit.sha)}
-      </span>
+          <span className="font-mono text-[10px] text-text-muted w-14 shrink-0 tabular-nums">
+            {shortSha(commit.sha)}
+          </span>
 
-      {refs.length > 0 ? (
-        <span className="flex items-center gap-0.5 shrink-0 max-w-[28%] overflow-hidden">
-          {refs.slice(0, 2).map((r) => (
-            <RefBadge
-              key={`${r.kind}:${r.name}`}
-              r={r}
-              lane={commit.lane}
-              emphasize={isHead && r.kind !== "remote_branch"}
-            />
-          ))}
-          {refs.length > 2 ? (
-            <span className="text-xs text-text-muted shrink-0">+{refs.length - 2}</span>
+          {refs.length > 0 ? (
+            <span className="flex items-center gap-0.5 shrink-0 max-w-[28%] overflow-hidden">
+              {refs.slice(0, 2).map((r) => (
+                <RefBadgeContextMenu
+                  key={`${r.kind}:${r.name}`}
+                  r={r}
+                  onSelect={() => onSelect(commit.sha)}
+                >
+                  <RefBadge
+                    r={r}
+                    lane={commit.lane}
+                    emphasize={isHead && r.kind !== "remote_branch"}
+                  />
+                </RefBadgeContextMenu>
+              ))}
+              {refs.length > 2 ? (
+                <span className="text-xs text-text-muted shrink-0">+{refs.length - 2}</span>
+              ) : null}
+            </span>
           ) : null}
-        </span>
-      ) : null}
 
-      <p
-        className={cn(
-          "flex-1 min-w-0 text-xs leading-none truncate text-text-primary",
-          isHead ? "font-semibold" : "font-medium",
-        )}
-        title={commit.message_summary}
-      >
-        {commit.message_summary}
-      </p>
+          <p
+            className={cn(
+              "flex-1 min-w-0 text-xs leading-none truncate text-text-primary",
+              isHead ? "font-semibold" : "font-medium",
+            )}
+            title={commit.message_summary}
+          >
+            {commit.message_summary}
+          </p>
 
-      <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
-        {commit.author} &middot; {formatTime(commit.time, t)}
-      </span>
-    </Surface>
+          <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap tabular-nums">
+            {commit.author} &middot; {formatTime(commit.time, t)}
+          </span>
+        </Surface>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="max-w-[260px]">
+        <CommitMenuItems
+          commit={commit}
+          onAction={menu.onAction}
+          state={{ currentBranch: menu.currentBranch, headSha: menu.headSha }}
+        />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -299,6 +326,8 @@ export function CommitGraph({
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const [searchInput, setSearchInput] = useState("");
   const [filter, setFilter] = useState<string | null>(null);
+  // F011: one shared row-menu controller; its modals render once below.
+  const menu = useCommitMenuActions(activeWorkspaceId);
 
   // Debounce keystrokes so each character doesn't trigger a backend walk.
   useEffect(() => {
@@ -509,6 +538,7 @@ export function CommitGraph({
                     onSelect={handleSelect}
                     isSelected={selectedSha === commit.sha}
                     isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
+                    menu={menu}
                   />
                 </div>
               );
@@ -528,6 +558,8 @@ export function CommitGraph({
       ) : (
         stateContent
       )}
+
+      {menu.renderModals()}
     </div>
   );
 }

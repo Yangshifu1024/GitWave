@@ -159,6 +159,57 @@ pub fn build_merge_repo() -> (std::path::PathBuf, Repository) {
     (tmp, repo)
 }
 
+/// Build a conflicted merge: after branching `feature` from base, both
+/// branches edit `file0.txt` divergently, then `merge_branch` leaves the
+/// merge in progress on `main` with that one conflict. Returns
+/// (path, repo, feature tip Oid) — the tip must end up as the second
+/// parent of the commit that finishes the merge.
+pub fn build_conflicted_merge() -> (std::path::PathBuf, Repository, Oid) {
+    let (tmp, repo) = build_linear_repo(1);
+    let sig = Signature::now("Test", "test@local").unwrap();
+    let base = repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    // Branch feature from base; edit file0.txt there.
+    {
+        let c = repo.find_commit(base).unwrap();
+        repo.branch("feature", &c, true).unwrap();
+    }
+    repo.set_head("refs/heads/feature").unwrap();
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+        .unwrap();
+    fs::write(repo.workdir().unwrap().join("file0.txt"), "feature\n").unwrap();
+    {
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("file0.txt")).unwrap();
+        let tree = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree).unwrap();
+        let parent = repo.find_commit(base).unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "feature edit", &tree, &[&parent])
+            .unwrap();
+    }
+    let feature_tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+
+    // Diverging edit on main.
+    repo.set_head("refs/heads/main").unwrap();
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+        .unwrap();
+    fs::write(repo.workdir().unwrap().join("file0.txt"), "main\n").unwrap();
+    {
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("file0.txt")).unwrap();
+        let tree = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree).unwrap();
+        let parent = repo.find_commit(base).unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "main edit", &tree, &[&parent])
+            .unwrap();
+    }
+
+    let res = crate::infrastructure::git::merge::merge_branch(&repo, "feature", false).unwrap();
+    assert!(!res.conflicts.is_empty(), "expected a conflict");
+
+    (tmp, repo, feature_tip)
+}
+
 /// Init a git repo with no commits (empty working tree). Sets user config
 /// so subsequent commits can be made. Returns (path, repo).
 pub fn init_empty_repo() -> (std::path::PathBuf, Repository) {

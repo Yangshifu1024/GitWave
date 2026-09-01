@@ -7,7 +7,7 @@ pub mod use_cases;
 
 pub use use_cases::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
-    add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch,
+    add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch, checkout_commit,
     cherry_pick_commit, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
     create_branch, create_tag, create_workspace, deinit_submodule, delete_branch,
     delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
@@ -21,10 +21,10 @@ pub use use_cases::{
     list_remote_details, list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags,
     list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
     plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
-    remove_remote, remove_repo, remove_worktree, rename_remote, rename_workspace, reorder_repos,
-    reset_hard, resolve_conflict, revert_commit, save_hook, save_stash, set_active_repo,
-    set_ai_api_key, set_remote_push_url, set_remote_url, stage_all, stage_files,
-    start_ssh_agent_service, test_ssh_connection, unstage_files, update_submodule,
-    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
-    AppContext, PaletteIntent, PrDescriptionOutcome,
+    remove_remote, remove_repo, remove_worktree, rename_branch, rename_remote, rename_workspace,
+    reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook, save_stash,
+    set_active_repo, set_ai_api_key, set_branch_upstream, set_remote_push_url, set_remote_url,
+    stage_all, stage_files, start_ssh_agent_service, test_ssh_connection, unstage_files,
+    update_submodule, update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome,
+    AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
 };
