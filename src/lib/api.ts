@@ -1009,14 +1009,6 @@ export function deleteRemoteBranch(
   return invoke<void>("cmd_delete_remote_branch", { workspaceId, remote, branch });
 }
 
-export interface PushOptions {
-  remote?: string;
-  tags?: boolean;
-  force?: boolean;
-  /** Push this local branch instead of the current HEAD branch. */
-  branch?: string;
-}
-
 /** Tags that diverged from the remote and were skipped by the push
  *  recovery (surfaced so the user knows what did not land). */
 export interface PushSummary {
@@ -1082,6 +1074,11 @@ const AUTH_FAILED_CODES = new Set([
 export function isAuthError(err: unknown): boolean {
   const code = !!err && typeof err === "object" ? (err as Partial<AppError>).code : undefined;
   return code !== undefined && AUTH_FAILED_CODES.has(code);
+}
+
+/** Read one interpolation param off a structured backend error. */
+export function errorParam(err: unknown, key: string): string | undefined {
+  return !!err && typeof err === "object" ? (err as Partial<AppError>).params?.[key] : undefined;
 }
 
 // ─── Stash ───────────────────────────────────────────────────────────────────

@@ -440,8 +440,9 @@ export function ActionBar(): React.JSX.Element {
   const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data]);
 
   // Tags pointing at the branch tip (the newest commit a push would send),
-  // shown in parentheses next to "Push all tags". Shares the TagsPanel /
-  // CommitInfoHeader cache and only runs while the push dialog is open.
+  // shown in parentheses next to "Push tags on this commit". Shares the
+  // TagsPanel / CommitInfoHeader cache and only runs while the push dialog
+  // is open.
   const pushTagsQuery = useQuery({
     queryKey: ["tags", activeWorkspaceId],
     queryFn: () => listTags(activeWorkspaceId!),

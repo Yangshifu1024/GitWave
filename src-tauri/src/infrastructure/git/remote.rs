@@ -176,7 +176,12 @@ pub fn fetch(
                 AppError::credential_with(
                     codes::git::FETCH_AUTH_FAILED,
                     format!("fetch auth: {e}"),
-                    &[("error", e.to_string())],
+                    // The failing remote's name rides along: the F012 prompt
+                    // retry targets it alone (credentials are host-scoped).
+                    &[
+                        ("error", e.to_string()),
+                        ("remote", remote_name.to_string()),
+                    ],
                 )
             },
             |e| {
@@ -360,6 +365,7 @@ pub fn push_with_options(
         match push_once(std::slice::from_ref(spec), false) {
             Ok(()) => {}
             Err(e) if e.code() == git2::ErrorCode::NotFastForward => {
+                let spec = spec.trim_start_matches('+');
                 let name = spec.split(':').next().unwrap_or(spec);
                 skipped_tags.push(name.trim_start_matches("refs/tags/").to_string());
             }

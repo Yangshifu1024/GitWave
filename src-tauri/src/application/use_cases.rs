@@ -2285,6 +2285,12 @@ pub fn fetch(
                 {
                     return Err(e);
                 }
+                // Same for auth failures: credentials are host-scoped, so
+                // stop the batch and name the remote that challenged (the
+                // error carries it) — the F012 retry targets it alone.
+                if e.code() == codes::git::FETCH_AUTH_FAILED {
+                    return Err(e);
+                }
                 if first_err.is_none() {
                     first_err = Some(e);
                 }

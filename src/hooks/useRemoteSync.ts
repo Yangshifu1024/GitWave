@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import i18next from "i18next";
 
 import {
+  errorParam,
   fetchRemote,
   formatAppError,
   isAuthError,
@@ -74,11 +75,15 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   // On authentication failure the F012 auth prompt collects credentials in
   // the app and re-runs the operation through `retry` — no terminal detour.
+  // `canPrompt` is false on a retry that failed auth again: the promise is
+  // at most one prompt per operation, so a wrong token surfaces as a plain
+  // status-area error instead of looping.
   const handleError = (
     e: unknown,
     op: "fetch" | "pull" | "push",
     retry: (auth: InlineAuth) => void,
     remote?: string,
+    canPrompt = true,
   ) => {
     useSyncStore.getState().endOp(op);
     if (isCancelledSyncError(e)) {
@@ -86,7 +91,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       useStatusAreaStore.getState().setStatus(t("status.sync.cancelled"), "info");
       return;
     }
-    if (isAuthError(e)) {
+    if (isAuthError(e) && canPrompt) {
       useAuthPromptStore.getState().show(remote ?? "origin", retry);
       return;
     }
@@ -102,8 +107,22 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       invalidate();
       bumpHistory();
     },
-    onError: (e, variables) =>
-      handleError(e, "fetch", (auth) => fetchMut.mutate({ ...variables, auth }), variables?.remote),
+    onError: (e, variables) => {
+      // Fetch-all fans out over every remote: credentials are host-scoped,
+      // so a retry must target only the remote that actually challenged
+      // (the backend names it in the error params).
+      const failedRemote = errorParam(e, "remote");
+      handleError(
+        e,
+        "fetch",
+        (auth) =>
+          fetchMut.mutate(
+            failedRemote ? { ...variables, remote: failedRemote, auth } : { ...variables, auth },
+          ),
+        variables?.remote ?? failedRemote,
+        variables?.auth === undefined,
+      );
+    },
     onSettled: () => useSyncStore.getState().endOp("fetch"),
   });
 
@@ -123,6 +142,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
         "pull",
         (auth) => pullMut.mutate({ ...(variables ?? {}), auth }),
         variables?.remote,
+        variables?.auth === undefined,
       ),
     onSettled: () => useSyncStore.getState().endOp("pull"),
   });
@@ -155,6 +175,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
         "push",
         (auth) => pushMut.mutate({ ...(variables ?? {}), auth }),
         variables?.remote,
+        variables?.auth === undefined,
       ),
     onSettled: () => useSyncStore.getState().endOp("push"),
   });

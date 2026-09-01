@@ -4,7 +4,7 @@
 // "remember" checked the backend persists them into the system credential
 // helper (shared with the git CLI).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/Button";
@@ -21,6 +21,16 @@ export function AuthPromptDialog(): React.JSX.Element | null {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
+
+  // Fresh fields on every open (the component stays mounted): stale input
+  // from a previous attempt must not survive, least of all the password.
+  useEffect(() => {
+    if (remoteName) {
+      setUsername("");
+      setPassword("");
+      setRemember(true);
+    }
+  }, [remoteName]);
 
   if (!remoteName || !retry) return null;
 

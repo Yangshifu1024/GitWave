@@ -266,12 +266,24 @@ impl CredentialProvider for GitCredentialHelper {
 /// User-supplied credentials entered in-app (F012): used verbatim for one
 /// operation; `remember` persists them through the system helper on
 /// `approve` so later operations fill from storage again.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InlineAuth {
     pub username: String,
     pub password: String,
     pub remember: bool,
+}
+
+/// Debug never prints the password — one stray `{auth:?}` in a log line
+/// must not leak the token.
+impl std::fmt::Debug for InlineAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InlineAuth")
+            .field("username", &self.username)
+            .field("password", &"***")
+            .field("remember", &self.remember)
+            .finish()
+    }
 }
 
 /// HTTPS credential straight from the app's auth prompt — no helper query,
