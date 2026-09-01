@@ -161,13 +161,17 @@ pub fn fetch(
 /// Options controlling [`push_with_options`].
 #[derive(Debug, Clone, Default)]
 pub struct PushRequest {
-    /// Push all local tags in addition to the current branch.
+    /// Push all local tags in addition to the branch.
     pub tags: bool,
     /// Force-update the remote branch (leading `+` refspec).
     pub force: bool,
+    /// Push this local branch instead of the current HEAD branch
+    /// (Fork-style "push any branch from its context menu").
+    pub branch: Option<String>,
 }
 
-/// Push the current branch to `remote_name` under the same branch name.
+/// Push the current branch (or [`PushRequest::branch`]) to `remote_name`
+/// under the same branch name.
 pub fn push_with_options(
     repo: &Repository,
     remote_name: &str,
@@ -178,14 +182,24 @@ pub fn push_with_options(
     let url = remote_url(repo, remote_name)?;
     let creds = provider_for_url(&url, cancel.clone());
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
-    let head = repo.head().map_err(map_git_err)?;
-    if !head.is_branch() {
-        return Err(AppError::protocol(
-            codes::git::PUSH_DETACHED_HEAD,
-            "cannot push detached HEAD",
-        ));
-    }
-    let branch = head.shorthand().unwrap_or("HEAD").to_string();
+    let branch = match opts.branch.as_deref() {
+        Some(name) => {
+            // Pushing an explicit branch works regardless of where HEAD is.
+            repo.find_branch(name, git2::BranchType::Local)
+                .map_err(map_git_err)?;
+            name.to_string()
+        }
+        None => {
+            let head = repo.head().map_err(map_git_err)?;
+            if !head.is_branch() {
+                return Err(AppError::protocol(
+                    codes::git::PUSH_DETACHED_HEAD,
+                    "cannot push detached HEAD",
+                ));
+            }
+            head.shorthand().unwrap_or("HEAD").to_string()
+        }
+    };
     let mut refspecs = vec![format!(
         "{}refs/heads/{branch}:refs/heads/{branch}",
         if opts.force { "+" } else { "" }

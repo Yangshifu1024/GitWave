@@ -17,19 +17,25 @@ import {
   getBranches,
   getWorkingCopy,
   interactiveRebasePaused,
+  isCancelledSyncError,
   listWorktrees,
   mergeBranch,
   mergeInProgress,
   mergePreview,
   popStash,
+  pushRemote,
   rebaseBranch,
+  renameBranch,
   saveStash,
   createBranch,
+  setBranchUpstream,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore, type UiOperation } from "@/stores/syncStore";
+import { useTags } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/lib/commitMenu";
 import { gateCheckout } from "@/lib/checkoutGate";
 import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
@@ -49,17 +55,23 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/ContextMenu";
 import { InteractiveRebaseDialog } from "@/components/InteractiveRebaseDialog";
+import { TagManagerModal } from "@/components/TagManagerModal";
 import {
   ArrowRight,
+  ArrowUp,
   ChevronDown,
   ChevronRight,
   CircleCheck,
   CircleX,
+  Copy,
   Folder,
   GitBranch,
   GitMerge,
   GitPullRequestArrow,
+  Link2,
   ListOrdered,
+  Pencil,
+  Tag as TagIcon,
   Trash2,
 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
@@ -78,6 +90,12 @@ function formatTime(time: number, t: TFunction): string {
 
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
+}
+
+/** The remote a branch pushes to: its upstream's remote, else the default. */
+function upstreamRemote(branch: BranchInfo): string {
+  const slash = branch.upstream?.indexOf("/") ?? -1;
+  return slash > 0 && branch.upstream ? branch.upstream.slice(0, slash) : "origin";
 }
 
 function BranchIcon({ kind }: { kind: "local" | "remote" }): React.JSX.Element {
@@ -99,11 +117,16 @@ interface BranchRowProps {
   busy: boolean;
   onSelect: (name: string) => void;
   onCheckout: (name: string) => void;
+  onPush: (branch: BranchInfo) => void;
   onDelete: (name: string) => void;
   onMerge: (name: string) => void;
   onRebaseOnto: (name: string) => void;
   onInteractiveRebase: (name: string) => void;
   onNewBranch: (name: string, sha: string | null) => void;
+  onNewTag: (branch: BranchInfo) => void;
+  onTracking: (branch: BranchInfo) => void;
+  onRename: (branch: BranchInfo) => void;
+  onCopyName: (name: string) => void;
 }
 
 function BranchRow({
@@ -114,15 +137,20 @@ function BranchRow({
   busy,
   onSelect,
   onCheckout,
+  onPush,
   onDelete,
   onMerge,
   onRebaseOnto,
   onInteractiveRebase,
   onNewBranch,
+  onNewTag,
+  onTracking,
+  onRename,
+  onCopyName,
 }: BranchRowProps): React.JSX.Element {
   const { t } = useTranslation();
-  // Every local branch gets a context menu — the current branch's menu is
-  // New-only (merge / rebase / delete don't apply to HEAD).
+  // Fork-style menu: navigation + branch ops; merge / rebase / delete stay
+  // hidden on the current branch (they don't apply to HEAD).
   const hasActions = branch.kind === "local";
 
   const row = (
@@ -195,9 +223,21 @@ function BranchRow({
       <ContextMenuTrigger asChild>
         <div>{row}</div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="max-w-[240px]">
+      <ContextMenuContent className="max-w-[260px]">
         <ContextMenuLabel title={branch.name}>{branch.name}</ContextMenuLabel>
         <ContextMenuSeparator />
+        <ContextMenuItem
+          disabled={busy || branch.is_current}
+          title={branch.is_current ? t("branches.guard.current") : undefined}
+          onSelect={() => onCheckout(branch.name)}
+        >
+          <GitBranch size={14} />
+          {t("branches.menu.checkout")}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={busy} onSelect={() => onPush(branch)}>
+          <ArrowUp size={14} />
+          {t("branches.menu.push", { remote: upstreamRemote(branch) })}
+        </ContextMenuItem>
         <ContextMenuItem
           disabled={busy || !branch.last_commit_sha}
           onSelect={() => onNewBranch(branch.name, branch.last_commit_sha)}
@@ -205,8 +245,37 @@ function BranchRow({
           <GitBranch size={14} />
           {t("branches.menu.new")}
         </ContextMenuItem>
+        <ContextMenuItem
+          disabled={busy || !branch.last_commit_sha}
+          onSelect={() => onNewTag(branch)}
+        >
+          <TagIcon size={14} />
+          {t("branches.menu.newTag")}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={busy} onSelect={() => onTracking(branch)}>
+          <Link2 size={14} />
+          {t("branches.menu.tracking")}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={busy} onSelect={() => onRename(branch)}>
+          <Pencil size={14} />
+          {t("branches.menu.rename")}
+        </ContextMenuItem>
+        <ContextMenuItem
+          destructive
+          disabled={busy || branch.is_current}
+          title={branch.is_current ? t("branches.guard.currentBranch") : undefined}
+          onSelect={() => onDelete(branch.name)}
+        >
+          <Trash2 size={14} />
+          {t("branches.delete")}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onCopyName(branch.name)}>
+          <Copy size={14} />
+          {t("branches.menu.copyName")}
+        </ContextMenuItem>
         {!branch.is_current ? (
           <>
+            <ContextMenuSeparator />
             <ContextMenuItem disabled={busy} onSelect={() => onMerge(branch.name)}>
               <GitMerge size={14} />
               {t("branches.menu.mergeIntoCurrent")}
@@ -218,11 +287,6 @@ function BranchRow({
             <ContextMenuItem disabled={busy} onSelect={() => onInteractiveRebase(branch.name)}>
               <ListOrdered size={14} />
               {t("branches.menu.interactiveRebase")}
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem destructive disabled={busy} onSelect={() => onDelete(branch.name)}>
-              <Trash2 size={14} />
-              {t("branches.delete")}
             </ContextMenuItem>
           </>
         ) : null}
@@ -243,6 +307,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
   const queryClient = useQueryClient();
+  const { data: tags = [], invalidate: invalidateTags } = useTags();
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -258,6 +323,16 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const [newBranchBase, setNewBranchBase] = useState<{ name: string; sha: string } | null>(null);
   const [newBranchName, setNewBranchName] = useState("");
   const [newBranchError, setNewBranchError] = useState<string | null>(null);
+  // F011 extension: Fork-style branch menu actions.
+  const [pushConfirm, setPushConfirm] = useState<BranchInfo | null>(null);
+  const [tagBranch, setTagBranch] = useState<BranchInfo | null>(null);
+  const [renameDialog, setRenameDialog] = useState<{
+    branch: BranchInfo;
+    name: string;
+    error: string | null;
+  } | null>(null);
+  const [trackingDialog, setTrackingDialog] = useState<BranchInfo | null>(null);
+  const [trackingPick, setTrackingPick] = useState("");
   const [switchDialog, setSwitchDialog] = useState<
     | { kind: "dirty"; name: string; fileCount: number }
     | { kind: "blocked"; name: string; message: string }
@@ -457,6 +532,87 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     }
   };
 
+  // ─── Fork-style branch menu actions (F011 extension) ──────────────────────
+
+  const copyBranchName = (name: string): void => {
+    void copyToClipboard(name).then((ok) =>
+      showNotice(
+        ok ? t("commits.menu.copied") : t("commits.explain.clipboardUnavailable"),
+        ok ? "success" : "danger",
+      ),
+    );
+  };
+
+  const openRename = (branch: BranchInfo): void =>
+    setRenameDialog({ branch, name: branch.name, error: null });
+
+  const openTracking = (branch: BranchInfo): void => {
+    setTrackingPick(branch.upstream ?? "");
+    setTrackingDialog(branch);
+  };
+
+  /** Plain (non-force) push of the branch to its upstream remote. */
+  const submitPush = (): void => {
+    const branch = pushConfirm;
+    // One network op at a time: a second concurrent push would double-claim
+    // the "push" status slot and can double-prompt for credentials.
+    if (!activeWorkspaceId || !branch || busy || useSyncStore.getState().isBusy()) return;
+    const remote = upstreamRemote(branch);
+    setBusy(true);
+    startOp("push", remote);
+    pushRemote(activeWorkspaceId, { remote, branch: branch.name })
+      .then(() => showNotice(t("branches.push.done", { name: branch.name, remote })))
+      .catch((e) => {
+        if (isCancelledSyncError(e)) {
+          showNotice(t("status.sync.cancelled"));
+        } else {
+          showNotice(formatAppError(e), "danger");
+        }
+      })
+      .finally(() => {
+        setBusy(false);
+        endOp("push");
+        setPushConfirm(null);
+      });
+  };
+
+  const submitRename = (): void => {
+    const dialog = renameDialog;
+    const name = dialog?.name.trim();
+    if (!activeWorkspaceId || !dialog || !name || busy) return;
+    setBusy(true);
+    setRenameDialog({ ...dialog, error: null });
+    renameBranch(activeWorkspaceId, dialog.branch.name, name)
+      .then(() => {
+        showNotice(t("branches.rename.done", { old: dialog.branch.name, name }));
+        setRenameDialog(null);
+        refresh();
+      })
+      .catch((e) =>
+        setRenameDialog((prev) => (prev ? { ...prev, error: formatAppError(e) } : prev)),
+      )
+      .finally(() => setBusy(false));
+  };
+
+  const submitTracking = (): void => {
+    const branch = trackingDialog;
+    if (!activeWorkspaceId || !branch || busy) return;
+    const upstream = trackingPick.trim() || null;
+    setBusy(true);
+    setBranchUpstream(activeWorkspaceId, branch.name, upstream)
+      .then(() => {
+        showNotice(
+          upstream
+            ? t("branches.tracking.done", { name: branch.name, upstream })
+            : t("branches.tracking.cleared", { name: branch.name }),
+        );
+        setTrackingDialog(null);
+        refresh();
+      })
+      .catch((e) => showNotice(formatAppError(e), "danger"))
+      .finally(() => setBusy(false));
+  };
+
   const handleMergeConfirmed = (name: string, noFf: boolean) =>
     void run("merge", async () => {
       const result = await mergeBranch(activeWorkspaceId!, name, noFf);
@@ -576,6 +732,11 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           onRebaseOnto={handleRebaseOnto}
           onInteractiveRebase={(name) => setIrebaseOnto(name)}
           onNewBranch={openNewBranch}
+          onPush={(b) => setPushConfirm(b)}
+          onNewTag={(b) => setTagBranch(b)}
+          onTracking={openTracking}
+          onRename={openRename}
+          onCopyName={copyBranchName}
         />
       ));
     return (
@@ -883,6 +1044,160 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
             void interactiveRebasePaused(activeWorkspaceId).then(setIrebasePaused);
           }}
         />
+      ) : null}
+
+      {/* Push: plain push of the branch to its upstream remote, behind a
+          Fork-style confirm (same product decision as the toolbar push). */}
+      {pushConfirm ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open && !busy) setPushConfirm(null);
+          }}
+          title={t("commits.sync.pushTitle")}
+          description={t("branches.push.confirmDescription", {
+            name: pushConfirm.name,
+            remote: upstreamRemote(pushConfirm),
+          })}
+          size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                disabled={busy}
+                onClick={() => setPushConfirm(null)}
+              >
+                {t("branches.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy}
+                onClick={submitPush}
+              >
+                {t("commits.sync.push")}
+              </Button>
+            </>
+          }
+        />
+      ) : null}
+
+      {tagBranch?.last_commit_sha && activeWorkspaceId ? (
+        <TagManagerModal
+          workspaceId={activeWorkspaceId}
+          sha={tagBranch.last_commit_sha}
+          tags={tags}
+          onClose={() => setTagBranch(null)}
+          onChanged={() => {
+            invalidateTags();
+            bumpHistoryEpoch();
+          }}
+          onError={(message) => showNotice(message, "danger")}
+          onCreated={(name) =>
+            showNotice(
+              t("commits.tag.created", { sha: tagBranch.last_commit_sha.slice(0, 7), name }),
+            )
+          }
+        />
+      ) : null}
+
+      {renameDialog ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setRenameDialog(null);
+          }}
+          title={t("branches.rename.title")}
+          size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setRenameDialog(null)}
+              >
+                {t("branches.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={
+                  busy ||
+                  !renameDialog.name.trim() ||
+                  renameDialog.name.trim() === renameDialog.branch.name
+                }
+                onClick={() => void submitRename()}
+              >
+                {t("branches.rename.confirm")}
+              </Button>
+            </>
+          }
+        >
+          <div className="rounded-xl bg-bg-primary p-3">
+            <Input
+              autoFocus
+              value={renameDialog.name}
+              onChange={(name) => setRenameDialog({ ...renameDialog, name })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameDialog.name.trim()) void submitRename();
+              }}
+              error={renameDialog.error}
+            />
+          </div>
+        </Modal>
+      ) : null}
+
+      {trackingDialog ? (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setTrackingDialog(null);
+          }}
+          title={t("branches.tracking.title", { name: trackingDialog.name })}
+          description={t("branches.tracking.description", {
+            upstream: trackingDialog.upstream ?? t("branches.tracking.none"),
+          })}
+          size="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-w-0 flex-[3]"
+                onClick={() => setTrackingDialog(null)}
+              >
+                {t("branches.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="min-w-0 flex-[7]"
+                disabled={busy}
+                onClick={submitTracking}
+              >
+                {t("branches.tracking.confirm")}
+              </Button>
+            </>
+          }
+        >
+          <div className="rounded-xl bg-bg-primary p-3">
+            <Select
+              aria-label={t("branches.tracking.aria")}
+              value={trackingPick}
+              onChange={setTrackingPick}
+              disabled={busy}
+              options={[
+                { value: "", label: t("branches.tracking.none") },
+                ...remoteBranches.map((b) => ({ value: b.name, label: b.name })),
+              ]}
+            />
+          </div>
+        </Modal>
       ) : null}
     </>
   );

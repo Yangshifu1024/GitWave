@@ -984,6 +984,8 @@ export interface PushOptions {
   remote?: string;
   tags?: boolean;
   force?: boolean;
+  /** Push this local branch instead of the current HEAD branch. */
+  branch?: string;
 }
 
 export function pushRemote(workspaceId: string, options?: PushOptions): Promise<void> {
@@ -992,7 +994,27 @@ export function pushRemote(workspaceId: string, options?: PushOptions): Promise<
     remote: options?.remote ?? null,
     tags: options?.tags ?? false,
     force: options?.force ?? false,
+    branch: options?.branch ?? null,
   });
+}
+
+/** Rename a local branch (HEAD follows when renaming the current branch). */
+export function renameBranch(
+  workspaceId: string,
+  oldName: string,
+  newName: string,
+  force = false,
+): Promise<void> {
+  return invoke<void>("cmd_rename_branch", { workspaceId, oldName, newName, force });
+}
+
+/** Set (or clear, null) the upstream a local branch tracks, e.g. "origin/main". */
+export function setBranchUpstream(
+  workspaceId: string,
+  branch: string,
+  upstream: string | null,
+): Promise<void> {
+  return invoke<void>("cmd_set_branch_upstream", { workspaceId, branch, upstream });
 }
 
 /** Ask the backend to abort the workspace's in-flight fetch/pull/push

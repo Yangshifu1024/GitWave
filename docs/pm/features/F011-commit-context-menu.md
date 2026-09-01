@@ -21,20 +21,32 @@
 
 **行内 ref 徽章右键**：
 
-- 本地分支徽章：Checkout（F004 安全门）、Delete Branch（确认，当前分支禁用）、Copy Branch Name
+- 本地分支徽章：Checkout（复用 F004 安全门）、Delete Branch（确认，当前分支禁用）、Copy Branch Name
 - 远端分支徽章（`origin/xxx`）：Delete Remote Branch（确认）、Copy Branch Name
 - 标签徽章：Delete Tag（确认）、Copy Tag Name
 - `head` 徽章不弹徽章菜单，右键穿透到提交行菜单
 
-**明确不做**（后端缺失，留作后续）：rename branch、徽章 Push、reset soft/mixed、interactive rebase to here、save as patch、compare to local changes。
+**侧栏分支列表右键**（Fork 对齐扩展，同 PR 实现）：
+
+- Checkout（F004 安全门；当前分支禁用）
+- Push to '<remote>'…（确认后 plain push 该分支——后端扩展 `cmd_push` 支持推送任意本地分支，非当前分支亦可；上游远端优先，缺省 `origin`）
+- New Branch…（从分支顶端建分支，原「New」更名）
+- New Tag…（在分支顶端提交建 / 管理标签）
+- Tracking…（设置 / 清除上游 tracking——新命令 `cmd_set_branch_upstream`；以对话框列出远端分支，替代 Fork 的子菜单）
+- Rename…（重命名本地分支——新命令 `cmd_rename_branch`；HEAD 跟随、上游关系保留）
+- Delete（确认，当前分支禁用）
+- Copy Branch Name
+- 保留 GitWave 特有的 Merge into current / Rebase current onto this / Interactive rebase（非当前分支）
+
+**明确不做**：Fork 的「Push and Create Pull Request on 'origin'」（产品无 GitHub 集成）；其余同上（reset soft/mixed、save as patch 等）。
 
 与产品原则不冲突：所有操作均由用户手动发起并逐项确认，符合 P1（AI 协作约束不涉及）；全部动作属于核心功能清单 §1.1（revert / branch / cherry-pick / tag / checkout / reset）。
 
 ## 影响
 
-- 涉及模块：history 图（前端）、git 基础层（新增 detached checkout 命令）、i18n
+- 涉及模块：history 图与侧栏分支列表（前端）、git 基础层（新增 detached checkout、推送任意分支、重命名分支、设置上游共 4 组命令）、i18n
 - 影响版本：v0.7.x
-- 是否破坏向后兼容：否（纯新增入口；`cmd_checkout_commit` 为新命令）
+- 是否破坏向后兼容：否（纯新增入口；`cmd_push` 新增可选 `branch` 参数，默认行为不变）
 
 ## 决策
 

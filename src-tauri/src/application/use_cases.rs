@@ -26,6 +26,7 @@ use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, checkout_commit as infra_checkout_commit,
     create_branch as infra_create_branch, delete_branch as infra_delete_branch,
+    rename_branch as infra_rename_branch, set_branch_upstream as infra_set_branch_upstream,
 };
 use crate::infrastructure::git::conflict::{
     abort_merge as infra_abort_merge, get_conflict_sides as infra_get_conflict_sides,
@@ -1008,6 +1009,31 @@ pub fn checkout_commit(ctx: &AppContext, workspace_id: &str, oid: &str, force: b
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_checkout_commit(&repo, oid, force)
+}
+
+/// Rename a local branch (the ref, plus its upstream tracking relationship).
+pub fn rename_branch(
+    ctx: &AppContext,
+    workspace_id: &str,
+    old_name: &str,
+    new_name: &str,
+    force: bool,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_rename_branch(&repo, old_name, new_name, force)
+}
+
+/// Set (or clear) the upstream a local branch tracks, e.g. `origin/main`.
+pub fn set_branch_upstream(
+    ctx: &AppContext,
+    workspace_id: &str,
+    branch_name: &str,
+    upstream: Option<String>,
+) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_set_branch_upstream(&repo, branch_name, upstream.as_deref())
 }
 
 /// Get ahead/behind counts for a branch against its upstream.
@@ -2305,12 +2331,14 @@ pub fn list_remotes(ctx: &AppContext, workspace_id: &str) -> Result<Vec<String>>
     infra_list_remotes(&repo)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn push(
     ctx: &AppContext,
     workspace_id: &str,
     remote: Option<String>,
     tags: bool,
     force: bool,
+    branch: Option<String>,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
 ) -> Result<()> {
@@ -2319,7 +2347,11 @@ pub fn push(
     infra_push_with_options(
         &repo,
         remote.as_deref().unwrap_or("origin"),
-        PushRequest { tags, force },
+        PushRequest {
+            tags,
+            force,
+            branch,
+        },
         on_progress,
         cancel,
     )

@@ -42,3 +42,38 @@
 ## 结论
 
 **通过审查，可合入**（所有 🟡 已修复，无阻塞项）。
+
+---
+
+# 增量审查：侧栏分支右键菜单（3570366 之后的未提交改动）
+
+- 审查人：code-reviewer 代理（同一规范）；审查日期：2026-09-01
+- 范围：push 任意分支 / rename_branch / set_branch_upstream 后端 + BranchList Fork 风格菜单重构
+- 审查时实测：cargo test 245、vitest 144、tsc / eslint / clippy 干净；并核对了 vendored libgit2 1.9.7 源码确认 `git_branch_move` / `git_branch_set_upstream` 行为
+
+## ✅ 优点（摘要）
+
+push 的 branch 参数向后兼容且校验干净；HEAD 跟随逻辑正确（经源码确认 libgit2 确实不改 HEAD symref，显式 set_head 必要）且有测试锁定；前端 push 与 syncStore / useRemoteSync 契约逐点一致；5 个新单测均为行为断言；i18n en/zh 完全同步；菜单禁用态与无障碍细节到位。
+
+## 🔴 严重问题
+
+无。
+
+## 🟡 一般问题 — 均已在本分支修复
+
+1. **submitPush 缺 syncStore 忙碌守卫**：侧栏 push 可在工具栏 push 进行中并发发起，双写同一 "push" 状态槽且可能双重弹凭证。→ **已修复**：入口加 `useSyncStore.getState().isBusy()` 守卫。
+2. **rename 的上游重挂冗余且有半成功风险**：libgit2 1.9.7 `git_branch_move` 已搬运 `branch.<old>.*` 配置节，重挂不仅多余，还在配置缺失时造成「rename 已成功却报错」。→ **已修复**：删除重挂逻辑，保留测试（`rename_branch_keeps_upstream_tracking` 改为验证配置节搬运确实保留上游）。
+3. **rename 未挡链接 worktree 占用的分支**：会让该 worktree 的 HEAD 悬空。→ **已修复**：infra 层遍历 worktree，占用时报新错误码 `git.branch.rename_in_worktree`（en/zh 文案 + parity 测试），并新增单测锁定。
+
+## 🟢 优化建议 — 处置
+
+- push 取消错误区分展示（`isCancelledSyncError` → `status.sync.cancelled`）：**已采纳**
+- push 弹窗 in-flight 时禁用 Cancel / 阻止遮罩关闭：**已采纳**
+- Checkout 禁用态的 title 用专用文案（`branches.guard.current`）：**已采纳**
+- rename 弹窗名字未变时禁用确认：**已采纳**
+- `upstreamRemote` 与 `splitBranchPrefix` 语义不同（前者取远端名、后者是文件夹分组），保留独立实现
+- `set_branch_upstream` 对不存在远端的错误路径测试、`renameBranch(force)` 的 UI 暴露：留 follow-up（当前 UI 不传 force）
+
+## 增量结论
+
+**通过审查，可合入**。最终验证：`cargo test` 246 通过、`npm run test` 144 通过、clippy / eslint / tsc / prettier / rustfmt 全绿。

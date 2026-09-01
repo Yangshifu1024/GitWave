@@ -115,6 +115,50 @@ pub fn checkout_commit(repo: &Repository, oid: &str, force: bool) -> Result<()> 
     Ok(())
 }
 
+/// Rename a local branch. HEAD stays attached when the current branch is
+/// renamed — libgit2 moves the ref and the `branch.<old>.*` config section
+/// (so upstream tracking follows) but does NOT update the HEAD symref.
+/// Refuses to rename a branch checked out in a linked worktree: the move
+/// would leave that worktree's HEAD symref dangling.
+pub fn rename_branch(repo: &Repository, old_name: &str, new_name: &str, force: bool) -> Result<()> {
+    for wt in crate::infrastructure::git::worktree::list_worktrees(repo)? {
+        if !wt.is_main && wt.branch.as_deref() == Some(old_name) {
+            return Err(AppError::protocol_with(
+                codes::git::RENAME_IN_WORKTREE,
+                format!(
+                    "cannot rename {old_name}: checked out in worktree \"{}\"",
+                    wt.name
+                ),
+                &[("name", old_name.to_string()), ("worktree", wt.name)],
+            ));
+        }
+    }
+    let mut branch = repo
+        .find_branch(old_name, git2::BranchType::Local)
+        .map_err(map_git_err)?;
+    let is_head = branch.is_head();
+    branch.rename(new_name, force).map_err(map_git_err)?;
+    if is_head {
+        repo.set_head(&format!("refs/heads/{new_name}"))
+            .map_err(map_git_err)?;
+    }
+    Ok(())
+}
+
+/// Set (or clear, `None`) the upstream a local branch tracks. `upstream`
+/// uses the remote-tracking shorthand form, e.g. `origin/main`.
+pub fn set_branch_upstream(
+    repo: &Repository,
+    branch_name: &str,
+    upstream: Option<&str>,
+) -> Result<()> {
+    let mut branch = repo
+        .find_branch(branch_name, git2::BranchType::Local)
+        .map_err(map_git_err)?;
+    branch.set_upstream(upstream).map_err(map_git_err)?;
+    Ok(())
+}
+
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::unknown_with(
         codes::git::GIT_ERROR,
@@ -355,6 +399,167 @@ mod tests {
             fs::read_to_string(path.join("file0.txt")).unwrap(),
             "dirty\n"
         );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn rename_branch_moves_the_ref() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "feature", &sha, false).unwrap();
+
+        rename_branch(&repo, "feature", "renamed", false).unwrap();
+
+        let branches = crate::infrastructure::git::history::list_branches(&repo).unwrap();
+        assert!(branches.iter().all(|b| b.name != "feature"));
+        assert!(branches.iter().any(|b| b.name == "renamed"));
+        cleanup(&path);
+    }
+
+    #[test]
+    fn rename_current_branch_keeps_head_on_it() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        // Point HEAD at the branch directly — same tip as main, so no
+        // worktree change is involved (and libgit2's SAFE checkout would
+        // spuriously conflict on the test fixture's racy index anyway).
+        repo.set_head("refs/heads/feature").unwrap();
+
+        rename_branch(&repo, "feature", "renamed", false).unwrap();
+
+        let head = repo.head().unwrap();
+        assert_eq!(head.shorthand(), Some("renamed"));
+        cleanup(&path);
+    }
+
+    #[test]
+    fn rename_existing_name_without_force_errors() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "a", &sha, false).unwrap();
+        create_branch(&repo, "b", &sha, false).unwrap();
+
+        assert!(rename_branch(&repo, "a", "b", false).is_err());
+        // With force the rename goes through.
+        rename_branch(&repo, "a", "b", true).unwrap();
+        let branches = crate::infrastructure::git::history::list_branches(&repo).unwrap();
+        assert!(branches.iter().any(|b| b.name == "b"));
+        assert!(branches.iter().all(|b| b.name != "a"));
+        cleanup(&path);
+    }
+
+    #[test]
+    fn rename_branch_refuses_worktree_occupied_branch() {
+        use crate::infrastructure::git::worktree::add_worktree;
+
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        let wt_path = std::env::temp_dir().join(format!("gitwave-wt-rename-{sha}"));
+        add_worktree(&repo, "feature", &wt_path, "feature", false, None).unwrap();
+
+        let err = rename_branch(&repo, "feature", "renamed", false).unwrap_err();
+        assert_eq!(err.code(), codes::git::RENAME_IN_WORKTREE);
+        assert!(repo.find_branch("feature", git2::BranchType::Local).is_ok());
+
+        let _ = fs::remove_dir_all(&wt_path);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn rename_branch_keeps_upstream_tracking() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        // set_upstream resolves the remote from config, so a remote must exist.
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
+        // Stand in for a fetched remote-tracking branch.
+        repo.reference(
+            "refs/remotes/origin/feature",
+            repo.revparse_single(&sha).unwrap().id(),
+            true,
+            "test: fake remote-tracking ref",
+        )
+        .unwrap();
+        set_branch_upstream(&repo, "feature", Some("origin/feature")).unwrap();
+
+        rename_branch(&repo, "feature", "renamed", false).unwrap();
+
+        let renamed = repo
+            .find_branch("renamed", git2::BranchType::Local)
+            .unwrap();
+        let upstream = renamed.upstream().unwrap();
+        assert_eq!(upstream.name().unwrap(), Some("origin/feature"));
+        cleanup(&path);
+    }
+
+    #[test]
+    fn set_branch_upstream_sets_and_clears() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
+        repo.reference(
+            "refs/remotes/origin/feature",
+            repo.revparse_single(&sha).unwrap().id(),
+            true,
+            "test: fake remote-tracking ref",
+        )
+        .unwrap();
+
+        set_branch_upstream(&repo, "feature", Some("origin/feature")).unwrap();
+        let feature = repo
+            .find_branch("feature", git2::BranchType::Local)
+            .unwrap();
+        assert_eq!(
+            feature.upstream().unwrap().name().unwrap(),
+            Some("origin/feature")
+        );
+
+        set_branch_upstream(&repo, "feature", None).unwrap();
+        let feature = repo
+            .find_branch("feature", git2::BranchType::Local)
+            .unwrap();
+        assert!(feature.upstream().is_err());
         cleanup(&path);
     }
 }

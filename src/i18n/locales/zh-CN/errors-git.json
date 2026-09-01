@@ -101,7 +101,8 @@
         "invalid_oid": "贮藏 id 无效：{{error}}"
       },
       "branch": {
-        "delete_checked_out": "不能删除当前检出的分支：{{name}}"
+        "delete_checked_out": "不能删除当前检出的分支：{{name}}",
+        "rename_in_worktree": "无法重命名 {{name}}：该分支已在 worktree「{{worktree}}」中检出"
       },
       "tag": {
         "name_empty": "标签名不能为空"
