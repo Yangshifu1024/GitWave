@@ -114,11 +114,15 @@
     /* History graph lane colors (used via literal var() in SVG code, so they
      * live outside @theme where Tailwind would prune them) — vivid swatch
      * colors: blue / cyan / purple / green / amber (HeroUI swatch hues). */
-    --color-lane-1: #007aff;
-    --color-lane-2: #06b7db;
-    --color-lane-3: #7828c8;
-    --color-lane-4: #17c964;
-    --color-lane-5: #f5a524;
+    --color-lane-1: #ff4d4f;
+    --color-lane-2: #ff7a45;
+    --color-lane-3: #ffa940;
+    --color-lane-4: #bae637;
+    --color-lane-5: #ffc53d;
+    --color-lane-6: #73d13d;
+    --color-lane-7: #36cfc9;
+    --color-lane-8: #4096ff;
+    --color-lane-9: #597ef7;
 
     /* Scrollbar track always follows the pane background it sits on. */
     --color-scrollbar-track: var(--color-bg-secondary);
@@ -176,11 +180,15 @@
     --color-diff-hunk-bg: rgb(255 255 255 / 0.05);
     --color-conflict-region-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
     --color-conflict-marker-bg: color-mix(in srgb, var(--color-danger) 28%, transparent);
-    --color-lane-1: #0a84ff;
-    --color-lane-2: #64d2ff;
-    --color-lane-3: #bf5af2;
-    --color-lane-4: #3ecf8e;
-    --color-lane-5: #f5a524;
+    --color-lane-1: #ff4d4f;
+    --color-lane-2: #ff7a45;
+    --color-lane-3: #ffa940;
+    --color-lane-4: #bae637;
+    --color-lane-5: #ffc53d;
+    --color-lane-6: #73d13d;
+    --color-lane-7: #36cfc9;
+    --color-lane-8: #4096ff;
+    --color-lane-9: #597ef7;
     --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
     --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
     --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -217,11 +225,15 @@
       --color-branch-ahead: #3ecf8e;
       --color-branch-behind: #e0a04a;
       --color-branch-conflict: #e05a5a;
-      --color-lane-1: #0a84ff;
-      --color-lane-2: #64d2ff;
-      --color-lane-3: #bf5af2;
-      --color-lane-4: #3ecf8e;
-      --color-lane-5: #f5a524;
+      --color-lane-1: #ff4d4f;
+      --color-lane-2: #ff7a45;
+      --color-lane-3: #ffa940;
+      --color-lane-4: #bae637;
+      --color-lane-5: #ffc53d;
+      --color-lane-6: #73d13d;
+      --color-lane-7: #36cfc9;
+      --color-lane-8: #4096ff;
+      --color-lane-9: #597ef7;
       --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.4);
       --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.4);
       --shadow-overlay: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -247,11 +259,15 @@
     --color-accent-hover: #157873;
     --color-branch-local: #1a8f8a;
     --color-branch-current: #1a8f8a;
-    --color-lane-1: #12a594;
-    --color-lane-2: #0090ff;
-    --color-lane-3: #8e4ec6;
-    --color-lane-4: #f76b15;
-    --color-lane-5: #d6409f;
+    --color-lane-1: #ff4d4f;
+    --color-lane-2: #ff7a45;
+    --color-lane-3: #ffa940;
+    --color-lane-4: #bae637;
+    --color-lane-5: #ffc53d;
+    --color-lane-6: #73d13d;
+    --color-lane-7: #36cfc9;
+    --color-lane-8: #4096ff;
+    --color-lane-9: #597ef7;
   }
 
   html.dark[data-palette="tide"] {
@@ -271,11 +287,15 @@
     --color-accent-hover: #5ec9c2;
     --color-branch-local: #3ebab3;
     --color-branch-current: #3ebab3;
-    --color-lane-1: #2dd4bf;
-    --color-lane-2: #60a5fa;
-    --color-lane-3: #c084fc;
-    --color-lane-4: #fb923c;
-    --color-lane-5: #f472b6;
+    --color-lane-1: #ff4d4f;
+    --color-lane-2: #ff7a45;
+    --color-lane-3: #ffa940;
+    --color-lane-4: #bae637;
+    --color-lane-5: #ffc53d;
+    --color-lane-6: #73d13d;
+    --color-lane-7: #36cfc9;
+    --color-lane-8: #4096ff;
+    --color-lane-9: #597ef7;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -296,11 +316,15 @@
       --color-accent-hover: #5ec9c2;
       --color-branch-local: #3ebab3;
       --color-branch-current: #3ebab3;
-      --color-lane-1: #2dd4bf;
-      --color-lane-2: #60a5fa;
-      --color-lane-3: #c084fc;
-      --color-lane-4: #fb923c;
-      --color-lane-5: #f472b6;
+      --color-lane-1: #ff4d4f;
+      --color-lane-2: #ff7a45;
+      --color-lane-3: #ffa940;
+      --color-lane-4: #bae637;
+      --color-lane-5: #ffc53d;
+      --color-lane-6: #73d13d;
+      --color-lane-7: #36cfc9;
+      --color-lane-8: #4096ff;
+      --color-lane-9: #597ef7;
     }
   }
 

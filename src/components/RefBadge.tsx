@@ -10,6 +10,10 @@ const LANE_COLORS = [
   "var(--color-lane-3)",
   "var(--color-lane-4)",
   "var(--color-lane-5)",
+  "var(--color-lane-6)",
+  "var(--color-lane-7)",
+  "var(--color-lane-8)",
+  "var(--color-lane-9)",
 ];
 
 export function laneColor(lane: number): string {
@@ -70,7 +74,7 @@ export function RefBadge({
       <Chip
         size="sm"
         title={r.name}
-        className={cn(chrome, "bg-warning/20 text-warning border-warning/60")}
+        className={cn(chrome, "bg-[#ffc53d]/20 text-[#ffc53d] border-[#ffc53d]/60")}
       >
         <Chip.Label className="inline-flex min-w-0 items-center gap-1">
           <Tag size={12} className="shrink-0" />
@@ -98,11 +102,11 @@ export function RefBadge({
     );
   }
 
-  // Remote branches wear a fixed vivid color (--color-branch-remote) so they
-  // stay distinguishable from local branches, which follow their lane color.
+  // Remote branches wear a fixed vivid color (palette blue) so they stay
+  // distinguishable from local branches, which follow their lane color.
   const lineColor =
     r.kind === "remote_branch"
-      ? "var(--color-branch-remote)"
+      ? "#4096ff"
       : lane === undefined
         ? "var(--color-branch-current)"
         : laneColor(lane);

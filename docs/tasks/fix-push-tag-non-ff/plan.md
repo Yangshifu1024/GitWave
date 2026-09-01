@@ -99,6 +99,22 @@ docs/pm/features/F012-in-app-credential-prompt.md。
 4. 检查器头部的 RefBadge 共用上述 nowrap/truncate；`title` 属性仍可
    悬停查看全名。
 
+## 同批 UI 修复：history 配色替换为 9 色调色板
+
+用户指定调色板（按序映射 lane 1-9，全部主题块统一，不再分亮暗差异）：
+
+`ff4d4f / ff7a45 / ffa940 / bae637 / ffc53d / 73d13d / 36cfc9 / 4096ff / 597ef7`
+
+- `tokens.css`：6 个主题块（root / root.dark / system-dark / tide 亮暗 /
+  tide system-dark）的 `--color-lane-1..5` 统一替换并扩展为
+  `--color-lane-1..9`（laneColor 取模自动轮换，>9 条 lane 循环复用）。
+- 图谱线条 / 提交节点 / 本地分支徽章走 `laneColor(lane)` 自动跟随。
+- tag 徽章：warning 语义色 → `#ffc53d` 同款 tint（bg/20、border/60）。
+- 远端分支徽章：`var(--color-branch-remote)` → `#4096ff`（仅 RefBadge，
+  语义 token `--color-branch-remote` 保留给其他 UI）。
+- HEAD 徽章 / 当前分支强调 / head 线仍用 `--color-branch-current` 语义色
+  （accent 蓝，与侧栏一致）——如需一并换蓝（4096ff/597ef7）再调。
+
 ## 已知边界
 
 - 分支被拒时 tags 不再尝试（分支是推送主体，错误先解决；避免半交付状态
