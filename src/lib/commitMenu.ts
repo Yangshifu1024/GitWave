@@ -24,9 +24,15 @@ export function copyCommitInfoText(
   return `${commit.sha}\nAuthor: ${commit.author}\nDate: ${date}\n\n${commit.message_summary}`;
 }
 
-/** Write to the system clipboard; returns false when the API is unavailable. */
+/**
+ * Write to the system clipboard; returns false when the API is unavailable.
+ * `typeof navigator` guards Node < 21 (CI's test runtime), which has no
+ * global navigator at all.
+ */
 export function copyToClipboard(text: string): Promise<boolean> {
-  if (!navigator.clipboard) return Promise.resolve(false);
+  if (typeof navigator === "undefined" || !navigator.clipboard) {
+    return Promise.resolve(false);
+  }
   return navigator.clipboard
     .writeText(text)
     .then(() => true)
