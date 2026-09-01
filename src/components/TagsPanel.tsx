@@ -32,7 +32,7 @@ export function TagsPanel({
   selectedSha?: string | null;
 }): React.JSX.Element {
   const { t } = useTranslation();
-  const { data: tags = [], isLoading, error, workspaceId, invalidate } = useTags();
+  const { data: tags = [], isLoading, error, workspaceId, repoId, invalidate } = useTags();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   const [deleteTarget, setDeleteTarget] = useState<TagInfo | null>(null);
@@ -58,7 +58,15 @@ export function TagsPanel({
 
   return (
     <>
-      <SidebarSection title={t("repo.tags.title")} collapsible={collapsible}>
+      {/* Collapsed by default; the repoId key remounts the (uncontrolled)
+          Disclosure on repo switch so it collapses again rather than
+          carrying the previous repo's open state. */}
+      <SidebarSection
+        key={repoId ?? "no-repo"}
+        title={t("repo.tags.title")}
+        collapsible={collapsible}
+        defaultOpen={false}
+      >
         {error ? (
           <p className="px-3 py-1.5 text-xs text-danger">{formatAppError(error)}</p>
         ) : isLoading ? null : tags.length === 0 ? (

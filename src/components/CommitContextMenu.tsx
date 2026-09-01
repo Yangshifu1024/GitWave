@@ -7,7 +7,16 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Cherry, Copy, FileText, GitBranch, RotateCcw, Tag as TagIcon, Undo2 } from "lucide-react";
+import {
+  Cherry,
+  Copy,
+  CornerDownRight,
+  FileText,
+  GitBranch,
+  RotateCcw,
+  Tag as TagIcon,
+  Undo2,
+} from "lucide-react";
 
 import type { CommitSummary } from "@/lib/api";
 import {
@@ -82,6 +91,7 @@ export function CommitMenuItems({
         title={checkoutDisabled ? t("commits.menu.checkoutIsHead") : undefined}
         onSelect={() => onAction(commit, "checkout")}
       >
+        <CornerDownRight size={14} />
         {t("commits.menu.checkoutCommit")}
       </ContextMenuItem>
       <ContextMenuItem

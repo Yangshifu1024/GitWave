@@ -3,13 +3,17 @@ import {
   createContext,
   isValidElement,
   useContext,
+  useEffect,
   useId,
   useState,
   type MouseEvent,
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { Header, Menu, Popover, Separator } from "@heroui/react";
+import { SubmenuTrigger } from "react-aria-components";
+import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ContextMenuState {
@@ -32,6 +36,14 @@ function useContextMenuState(): ContextMenuState {
 export function ContextMenu({ children }: { children: ReactNode }): React.JSX.Element {
   const [isOpen, setOpen] = useState(false);
   const [point, setPoint] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = (): void => setOpen(false);
+    // scroll 不冒泡，capture 才能覆盖任意内部滚动容器
+    window.addEventListener("scroll", close, { capture: true, passive: true });
+    return () => window.removeEventListener("scroll", close, { capture: true });
+  }, [isOpen]);
 
   return (
     <ContextMenuStateContext.Provider value={{ isOpen, setOpen, point, setPoint }}>
@@ -90,11 +102,16 @@ export function ContextMenuContent({
 
   return (
     <Popover isOpen={ctx.isOpen} onOpenChange={ctx.setOpen}>
-      <Popover.Trigger
-        aria-hidden
-        className="fixed z-popover h-px w-px overflow-hidden p-0 pointer-events-none"
-        style={{ left: ctx.point.x, top: ctx.point.y }}
-      />
+      {/* 锚点必须 portal 到 body：CommitGraph 虚拟行 wrapper 带 transform，
+          会成为 fixed 后代的包含块，导致 clientX/clientY 被按行坐标解释、菜单漂移 */}
+      {createPortal(
+        <Popover.Trigger
+          aria-hidden
+          className="fixed z-popover h-px w-px overflow-hidden p-0 pointer-events-none"
+          style={{ left: ctx.point.x, top: ctx.point.y }}
+        />,
+        document.body,
+      )}
       <Popover.Content
         placement="bottom start"
         offset={2}
@@ -127,6 +144,50 @@ export function ContextMenuLabel({
     >
       {children}
     </Header>
+  );
+}
+
+/** Fork-style submenu: a trigger item that opens a nested menu on hover /
+ *  arrow-right. `children` are the nested items; selecting one closes the
+ *  whole menu (handled by ContextMenuItem). */
+export function ContextMenuSub({
+  children,
+  disabled = false,
+  icon,
+  label,
+  title,
+}: {
+  /** Nested menu items. */
+  children: ReactNode;
+  disabled?: boolean;
+  icon?: ReactNode;
+  label: ReactNode;
+  title?: string;
+}): React.JSX.Element {
+  return (
+    <SubmenuTrigger>
+      <Menu.Item
+        textValue={typeof label === "string" ? label : (title ?? "submenu")}
+        isDisabled={disabled}
+        className={cn(
+          "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+          "outline-none text-text-primary",
+        )}
+      >
+        {icon}
+        {label}
+        <ChevronRight size={14} className="ml-auto shrink-0 text-text-muted" />
+      </Menu.Item>
+      <Popover.Content
+        className={cn(
+          "z-popover min-w-[140px] rounded-lg",
+          "bg-bg-elevated border border-border-default shadow-modal",
+          "p-1",
+        )}
+      >
+        <Menu className="outline-none">{children}</Menu>
+      </Popover.Content>
+    </SubmenuTrigger>
   );
 }
 
@@ -187,4 +248,5 @@ export const ContextMenuPrimitive = {
   Item: ContextMenuItem,
   Label: ContextMenuLabel,
   Separator: ContextMenuSeparator,
+  Sub: ContextMenuSub,
 };

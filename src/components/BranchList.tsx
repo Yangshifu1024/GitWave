@@ -2,7 +2,7 @@
 // double-click, merge / rebase / delete via context menu). Toolbar-scoped
 // branch ops (new branch / pull / push) live in the ActionBar.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -19,6 +19,7 @@ import {
   interactiveRebasePaused,
   isCancelledSyncError,
   listWorktrees,
+  listRemotes,
   mergeBranch,
   mergeInProgress,
   mergePreview,
@@ -52,6 +53,7 @@ import {
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
+  ContextMenuSub,
   ContextMenuTrigger,
 } from "@/components/ui/ContextMenu";
 import { InteractiveRebaseDialog } from "@/components/InteractiveRebaseDialog";
@@ -92,12 +94,6 @@ function shortSha(sha: string): string {
   return sha.slice(0, 7);
 }
 
-/** The remote a branch pushes to: its upstream's remote, else the default. */
-function upstreamRemote(branch: BranchInfo): string {
-  const slash = branch.upstream?.indexOf("/") ?? -1;
-  return slash > 0 && branch.upstream ? branch.upstream.slice(0, slash) : "origin";
-}
-
 function BranchIcon({ kind }: { kind: "local" | "remote" }): React.JSX.Element {
   return (
     <GitBranch
@@ -117,7 +113,8 @@ interface BranchRowProps {
   busy: boolean;
   onSelect: (name: string) => void;
   onCheckout: (name: string) => void;
-  onPush: (branch: BranchInfo) => void;
+  /** Pick the push target explicitly (Fork-style submenu on multi-remote). */
+  onPush: (branch: BranchInfo, remote: string) => void;
   onDelete: (name: string) => void;
   onMerge: (name: string) => void;
   onRebaseOnto: (name: string) => void;
@@ -127,6 +124,8 @@ interface BranchRowProps {
   onTracking: (branch: BranchInfo) => void;
   onRename: (branch: BranchInfo) => void;
   onCopyName: (name: string) => void;
+  /** Configured remote names; drives flat item vs submenu on the push entry. */
+  remotes: string[];
 }
 
 function BranchRow({
@@ -147,6 +146,7 @@ function BranchRow({
   onTracking,
   onRename,
   onCopyName,
+  remotes,
 }: BranchRowProps): React.JSX.Element {
   const { t } = useTranslation();
   // Fork-style menu: navigation + branch ops; merge / rebase / delete stay
@@ -234,10 +234,29 @@ function BranchRow({
           <GitBranch size={14} />
           {t("branches.menu.checkout")}
         </ContextMenuItem>
-        <ContextMenuItem disabled={busy} onSelect={() => onPush(branch)}>
-          <ArrowUp size={14} />
-          {t("branches.menu.push", { remote: upstreamRemote(branch) })}
-        </ContextMenuItem>
+        {remotes.length === 1 ? (
+          <ContextMenuItem disabled={busy} onSelect={() => onPush(branch, remotes[0]!)}>
+            <ArrowUp size={14} />
+            {t("branches.menu.push", { remote: remotes[0] })}
+          </ContextMenuItem>
+        ) : remotes.length > 1 ? (
+          <ContextMenuSub
+            disabled={busy}
+            icon={<ArrowUp size={14} />}
+            label={t("branches.menu.pushGeneric")}
+          >
+            {remotes.map((remote) => (
+              <ContextMenuItem key={remote} onSelect={() => onPush(branch, remote)}>
+                {remote}
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSub>
+        ) : (
+          <ContextMenuItem disabled>
+            <ArrowUp size={14} />
+            {t("branches.menu.pushGeneric")}
+          </ContextMenuItem>
+        )}
         <ContextMenuItem
           disabled={busy || !branch.last_commit_sha}
           onSelect={() => onNewBranch(branch.name, branch.last_commit_sha)}
@@ -308,6 +327,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
   const queryClient = useQueryClient();
   const { data: tags = [], invalidate: invalidateTags } = useTags();
+  // Configured remotes for the branch-menu push entry (flat item vs Fork-style
+  // submenu on multi-remote). Shares the ActionBar dialogs' cache.
+  const remotesQuery = useQuery({
+    queryKey: ["remotes", activeWorkspaceId],
+    queryFn: () => listRemotes(activeWorkspaceId!),
+    enabled: Boolean(activeWorkspaceId),
+  });
+  const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data]);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -323,8 +350,11 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const [newBranchBase, setNewBranchBase] = useState<{ name: string; sha: string } | null>(null);
   const [newBranchName, setNewBranchName] = useState("");
   const [newBranchError, setNewBranchError] = useState<string | null>(null);
-  // F011 extension: Fork-style branch menu actions.
-  const [pushConfirm, setPushConfirm] = useState<BranchInfo | null>(null);
+  // F011 extension: Fork-style branch menu actions. pushConfirm carries the
+  // user-chosen remote (submenu pick on multi-remote repos).
+  const [pushConfirm, setPushConfirm] = useState<{ branch: BranchInfo; remote: string } | null>(
+    null,
+  );
   const [tagBranch, setTagBranch] = useState<BranchInfo | null>(null);
   const [renameDialog, setRenameDialog] = useState<{
     branch: BranchInfo;
@@ -551,13 +581,13 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     setTrackingDialog(branch);
   };
 
-  /** Plain (non-force) push of the branch to its upstream remote. */
+  /** Plain (non-force) push of the branch to the user-chosen remote. */
   const submitPush = (): void => {
-    const branch = pushConfirm;
+    const target = pushConfirm;
     // One network op at a time: a second concurrent push would double-claim
     // the "push" status slot and can double-prompt for credentials.
-    if (!activeWorkspaceId || !branch || busy || useSyncStore.getState().isBusy()) return;
-    const remote = upstreamRemote(branch);
+    if (!activeWorkspaceId || !target || busy || useSyncStore.getState().isBusy()) return;
+    const { branch, remote } = target;
     setBusy(true);
     startOp("push", remote);
     pushRemote(activeWorkspaceId, { remote, branch: branch.name })
@@ -732,11 +762,12 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           onRebaseOnto={handleRebaseOnto}
           onInteractiveRebase={(name) => setIrebaseOnto(name)}
           onNewBranch={openNewBranch}
-          onPush={(b) => setPushConfirm(b)}
+          onPush={(b, remote) => setPushConfirm({ branch: b, remote })}
           onNewTag={(b) => setTagBranch(b)}
           onTracking={openTracking}
           onRename={openRename}
           onCopyName={copyBranchName}
+          remotes={remotes}
         />
       ));
     return (
@@ -1046,8 +1077,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         />
       ) : null}
 
-      {/* Push: plain push of the branch to its upstream remote, behind a
-          Fork-style confirm (same product decision as the toolbar push). */}
+      {/* Push: plain push of the branch to the remote picked in the row
+          menu, behind a Fork-style confirm (same product decision as the
+          toolbar push). */}
       {pushConfirm ? (
         <Modal
           open
@@ -1056,8 +1088,8 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           }}
           title={t("commits.sync.pushTitle")}
           description={t("branches.push.confirmDescription", {
-            name: pushConfirm.name,
-            remote: upstreamRemote(pushConfirm),
+            name: pushConfirm.branch.name,
+            remote: pushConfirm.remote,
           })}
           size="sm"
           footer={
