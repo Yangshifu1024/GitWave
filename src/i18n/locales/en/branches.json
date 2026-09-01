@@ -16,6 +16,7 @@
       "copyName": "Copy Branch Name",
       "copyTagName": "Copy Tag Name",
       "push": "Push to '{{remote}}'…",
+      "pushGeneric": "Push…",
       "newTag": "New Tag…",
       "tracking": "Tracking…",
       "rename": "Rename…",

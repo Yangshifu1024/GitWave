@@ -16,6 +16,7 @@
       "copyName": "复制分支名",
       "copyTagName": "复制标签名",
       "push": "推送到「{{remote}}」…",
+      "pushGeneric": "推送…",
       "newTag": "新建标签…",
       "tracking": "跟踪分支…",
       "rename": "重命名…",

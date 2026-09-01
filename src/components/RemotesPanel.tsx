@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Menu, Popover } from "@heroui/react";
 
@@ -44,6 +45,7 @@ export function RemotesPanel(): React.JSX.Element {
   const setStatus = useStatusAreaStore((s) => s.setStatus);
   const startOp = useSyncStore((s) => s.startOp);
   const endOp = useSyncStore((s) => s.endOp);
+  const queryClient = useQueryClient();
 
   const [items, setItems] = useState<RemoteInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -86,6 +88,9 @@ export function RemotesPanel(): React.JSX.Element {
       await fn();
       if (success) setStatus(success);
       await refresh();
+      // Remote CRUD mutates config other panels read: BranchList's push menu
+      // and the ActionBar dialogs consume the ["remotes", …] cache.
+      void queryClient.invalidateQueries({ queryKey: ["remotes", workspaceId] });
     } catch (e) {
       setStatus(formatAppError(e), "danger");
     } finally {
