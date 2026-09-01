@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -7,6 +8,10 @@ const host = process.env["TAURI_DEV_HOST"];
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
+  // Vitest runs in a bare node environment on purpose: store tests stub
+  // window.localStorage themselves (see autoRefreshStore.test.ts).
+  test: { environment: "node" },
+
   plugins: [react(), tailwindcss()],
 
   resolve: {
