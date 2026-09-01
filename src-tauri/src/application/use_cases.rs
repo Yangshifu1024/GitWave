@@ -2311,6 +2311,7 @@ pub fn fetch(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn pull(
     ctx: &AppContext,
     workspace_id: &str,
