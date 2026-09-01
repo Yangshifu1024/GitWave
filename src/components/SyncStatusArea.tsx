@@ -93,11 +93,15 @@ export function SyncStatusArea(): React.JSX.Element {
           "transition-opacity duration-150",
           TEXT_COLOR[state],
           fadeClass,
-          cancellable && "pr-8",
+          // Padding keeps text off the card edges; the cancellable variant
+          // swaps the right inset for the cancel button's reserved space.
+          cancellable ? "pl-3 pr-8" : "px-3",
         )}
       >
-        {/* Long labels (interpolated remote names) wrap; at most two lines. */}
-        <span className="line-clamp-2">{text}</span>
+        {/* Long labels (interpolated remote names) wrap to at most two
+            lines, ellipsis beyond. min-w-0 lets the flex item shrink —
+            without it the raw overflow is clipped, not ellipsized. */}
+        <span className="min-w-0 line-clamp-2">{text}</span>
       </div>
       {cancellable ? (
         <button
