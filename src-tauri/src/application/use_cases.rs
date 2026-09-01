@@ -24,8 +24,8 @@ use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
 use crate::infrastructure::ai::with_reply_language;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
-    checkout_branch as infra_checkout_branch, create_branch as infra_create_branch,
-    delete_branch as infra_delete_branch,
+    checkout_branch as infra_checkout_branch, checkout_commit as infra_checkout_commit,
+    create_branch as infra_create_branch, delete_branch as infra_delete_branch,
 };
 use crate::infrastructure::git::conflict::{
     abort_merge as infra_abort_merge, get_conflict_sides as infra_get_conflict_sides,
@@ -1001,6 +1001,13 @@ pub fn checkout_branch(
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_checkout_branch(&repo, name, force)
+}
+
+/// Check out a commit directly (detached HEAD, updates HEAD and working tree).
+pub fn checkout_commit(ctx: &AppContext, workspace_id: &str, oid: &str, force: bool) -> Result<()> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_checkout_commit(&repo, oid, force)
 }
 
 /// Get ahead/behind counts for a branch against its upstream.

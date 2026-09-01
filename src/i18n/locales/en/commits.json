@@ -19,6 +19,21 @@
       "copyDescription": "Copy description",
       "copyAll": "Copy all"
     },
+    "menu": {
+      "newBranch": "New Branch…",
+      "newTag": "New Tag…",
+      "checkoutCommit": "Checkout Commit",
+      "checkoutIsHead": "Already the current HEAD",
+      "blockedMerge": "A merge is in progress. Finish or abort it before switching commits.",
+      "blockedRebase": "An interactive rebase is paused. Continue or abort it before switching commits.",
+      "resetToHere": "Reset '{{branch}}' to Here…",
+      "resetDetached": "Detached HEAD — checkout a branch before resetting",
+      "cherryPick": "Cherry-pick Commit…",
+      "revert": "Revert Commit…",
+      "copySha": "Copy Commit SHA",
+      "copyInfo": "Copy Commit Info",
+      "copied": "Copied to clipboard"
+    },
     "header": {
       "loading": "Loading commit…",
       "explain": "Explain",

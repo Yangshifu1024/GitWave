@@ -12,6 +12,9 @@
     },
     "menu": {
       "new": "新建",
+      "checkout": "检出",
+      "copyName": "复制分支名",
+      "copyTagName": "复制标签名",
       "mergeIntoCurrent": "合并到当前分支",
       "rebaseCurrentOntoThis": "将当前分支变基到此分支",
       "interactiveRebase": "交互式变基"
@@ -53,6 +56,15 @@
       "alsoDeleteRemote": "同时删除对应的远程分支",
       "deleted": "已删除 {{name}}",
       "deletedWithRemote": "已删除 {{name}} 及其对应的远程分支"
+    },
+    "deleteRemote": {
+      "title": "删除远程分支",
+      "menuItem": "删除远程分支",
+      "description": "从远端删除远程分支“{{name}}”。不影响本地分支。",
+      "deleted": "已删除远程分支 {{name}}"
+    },
+    "guard": {
+      "currentBranch": "不能删除当前分支"
     },
     "merge": {
       "title": "合并分支",

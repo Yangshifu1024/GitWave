@@ -12,6 +12,9 @@
     },
     "menu": {
       "new": "New",
+      "checkout": "Checkout",
+      "copyName": "Copy Branch Name",
+      "copyTagName": "Copy Tag Name",
       "mergeIntoCurrent": "Merge into current",
       "rebaseCurrentOntoThis": "Rebase current onto this",
       "interactiveRebase": "Interactive rebase"
@@ -53,6 +56,15 @@
       "alsoDeleteRemote": "Also delete corresponding remote branch",
       "deleted": "Deleted {{name}}",
       "deletedWithRemote": "Deleted {{name}} and its remote counterpart"
+    },
+    "deleteRemote": {
+      "title": "Delete Remote Branch",
+      "menuItem": "Delete Remote Branch",
+      "description": "Delete remote branch \"{{name}}\" from the remote. Local branches are not affected.",
+      "deleted": "Deleted remote branch {{name}}"
+    },
+    "guard": {
+      "currentBranch": "Cannot delete the current branch"
     },
     "merge": {
       "title": "Merge branch",

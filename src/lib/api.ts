@@ -553,6 +553,11 @@ export function checkoutBranch(workspaceId: string, name: string, force = false)
   return invoke<void>("cmd_checkout_branch", { workspaceId, name, force });
 }
 
+/** Detached checkout of an arbitrary commit (UI must gate dirty worktrees). */
+export function checkoutCommit(workspaceId: string, oid: string, force = false): Promise<void> {
+  return invoke<void>("cmd_checkout_commit", { workspaceId, oid, force });
+}
+
 export function getAheadBehind(workspaceId: string, branchName: string): Promise<AheadBehind> {
   return invoke<AheadBehind>("cmd_get_ahead_behind", { workspaceId, branchName });
 }

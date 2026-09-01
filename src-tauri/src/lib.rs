@@ -20,7 +20,7 @@ use crate::domain::error_codes as codes;
 use application::sync_ops;
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
-    add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch,
+    add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch, checkout_commit,
     cherry_pick_commit, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
     create_branch, create_tag, create_workspace, deinit_submodule, delete_branch,
     delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
@@ -479,6 +479,16 @@ async fn cmd_checkout_branch(
     force: Option<bool>,
 ) -> Result<(), AppError> {
     checkout_branch(&ctx, &workspace_id, &name, force.unwrap_or(false))
+}
+
+#[tauri::command]
+async fn cmd_checkout_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    oid: String,
+    force: Option<bool>,
+) -> Result<(), AppError> {
+    checkout_commit(&ctx, &workspace_id, &oid, force.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -1399,6 +1409,7 @@ pub fn run() {
             cmd_delete_branch,
             cmd_delete_remote_branch,
             cmd_checkout_branch,
+            cmd_checkout_commit,
             cmd_get_ahead_behind,
             cmd_merge_branch,
             cmd_merge_preview,
