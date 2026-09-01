@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import type { BranchInfo } from "@/lib/api";
+import type { BranchInfo, InlineAuth } from "@/lib/api";
 import {
   abortInteractiveRebasePause,
   continueInteractiveRebase,
@@ -17,6 +17,7 @@ import {
   getBranches,
   getWorkingCopy,
   interactiveRebasePaused,
+  isAuthError,
   isCancelledSyncError,
   listWorktrees,
   listRemotes,
@@ -34,6 +35,7 @@ import {
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore, type UiOperation } from "@/stores/syncStore";
+import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useTags } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/commitMenu";
@@ -588,22 +590,29 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     // the "push" status slot and can double-prompt for credentials.
     if (!activeWorkspaceId || !target || busy || useSyncStore.getState().isBusy()) return;
     const { branch, remote } = target;
-    setBusy(true);
-    startOp("push", remote);
-    pushRemote(activeWorkspaceId, { remote, branch: branch.name })
-      .then(() => showNotice(t("branches.push.done", { name: branch.name, remote })))
-      .catch((e) => {
-        if (isCancelledSyncError(e)) {
-          showNotice(t("status.sync.cancelled"));
-        } else {
-          showNotice(formatAppError(e), "danger");
-        }
-      })
-      .finally(() => {
-        setBusy(false);
-        endOp("push");
-        setPushConfirm(null);
-      });
+    const run = (auth?: InlineAuth): void => {
+      setBusy(true);
+      startOp("push", remote);
+      pushRemote(activeWorkspaceId, { remote, branch: branch.name, auth })
+        .then(() => showNotice(t("branches.push.done", { name: branch.name, remote })))
+        .catch((e) => {
+          if (isCancelledSyncError(e)) {
+            showNotice(t("status.sync.cancelled"));
+          } else if (isAuthError(e) && auth === undefined) {
+            // F012: collect credentials in-app and retry once; a second
+            // auth failure surfaces as a plain error (no prompt loop).
+            useAuthPromptStore.getState().show(remote, (a) => run(a));
+          } else {
+            showNotice(formatAppError(e), "danger");
+          }
+        })
+        .finally(() => {
+          setBusy(false);
+          endOp("push");
+          setPushConfirm(null);
+        });
+    };
+    run();
   };
 
   const submitRename = (): void => {

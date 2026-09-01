@@ -24,6 +24,14 @@
     "done": "Done",
     "apply": "Apply",
     "search": "Search",
-    "learnMore": "Learn more"
+    "learnMore": "Learn more",
+    "authPrompt": {
+      "title": "Authentication required",
+      "description": "The remote '{{remote}}' requires authentication: enter your username and access token (PAT) to retry.",
+      "username": "Username",
+      "token": "Access token (PAT)",
+      "remember": "Save to the system keychain (shared with the git CLI)",
+      "submit": "Save and retry"
+    }
   }
 }

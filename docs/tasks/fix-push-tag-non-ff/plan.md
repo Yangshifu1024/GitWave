@@ -70,6 +70,15 @@ tag 更新天然不可 fast-forward（任何指向不同对象的同名 ref 都�
 （凭证此时尚未证明有效）；重试尝试一律不 reject（走到重试说明凭证已通过
 协商认证，后续 401 视为瞬态，绝不能抹掉系统凭证存储）。
 
+## F012 · 应用内凭证恢复（同分支承载的特性）
+
+凭证缺失/失效曾把用户赶去终端。按用户拍板实现「认证失败自动弹窗、
+输入后原地重试」：`InlineCredentialProvider`（approve 落盘 / reject 恒
+no-op）+ 四个网络操作 `auth` 参数透传 + 前端 `isAuthError` 触发
+`AuthPromptDialog`（useRemoteSync 三操作 / BranchList 推送 / RemotesPanel
+单远端 fetch，每个操作至多提示一次，不循环）。详见
+docs/pm/features/F012-in-app-credential-prompt.md。
+
 ## 已知边界
 
 - 分支被拒时 tags 不再尝试（分支是推送主体，错误先解决；避免半交付状态

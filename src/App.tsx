@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
+import { AuthPromptDialog } from "@/components/AuthPromptDialog";
 import { Toolbar } from "@/components/Toolbar";
 import { ActionBar } from "@/components/ActionBar";
 import { WorkspaceRepoTabs } from "@/components/WorkspaceRepoTabs";
@@ -144,6 +145,8 @@ function App(): React.JSX.Element {
       <MergeBanner merge={mergeConflicts} onResolve={() => setConflictPanelOpen(true)} />
 
       <ActionBar />
+
+      <AuthPromptDialog />
 
       <WorkspaceRepoTabs />
 

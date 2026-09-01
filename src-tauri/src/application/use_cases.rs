@@ -33,6 +33,7 @@ use crate::infrastructure::git::conflict::{
     is_merge_in_progress as infra_merge_in_progress, list_conflicts as infra_list_conflicts,
     resolve_conflict as infra_resolve_conflict, ConflictFile, ConflictSides,
 };
+use crate::infrastructure::git::credentials::InlineAuth;
 use crate::infrastructure::git::diff::{
     diff_commit_vs_parent as infra_diff_commit_vs_parent,
     diff_commit_vs_parent_files as infra_diff_commit_vs_parent_files,
@@ -986,10 +987,11 @@ pub fn delete_remote_branch(
     remote: &str,
     branch: &str,
     cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_delete_remote_branch(&repo, remote, branch, cancel)
+    infra_delete_remote_branch(&repo, remote, branch, cancel, auth.as_ref())
 }
 
 /// Check out a branch (updates HEAD and working tree).
@@ -2243,6 +2245,7 @@ pub fn fetch(
     remote: Option<String>,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
 ) -> Result<()> {
     let fetch_lock = workspace_fetch_lock(workspace_id);
     let _serialized = fetch_lock
@@ -2272,6 +2275,7 @@ pub fn fetch(
                 crate::infrastructure::git::remote::SyncOperation::Fetch,
                 cb,
                 cancel.clone(),
+                auth.as_ref(),
             ) {
                 // A cancelled operation must not grind through the remaining
                 // remotes — the user asked for the whole fetch to stop.
@@ -2297,6 +2301,7 @@ pub fn fetch(
         crate::infrastructure::git::remote::SyncOperation::Fetch,
         on_progress,
         cancel,
+        auth.as_ref(),
     )
 }
 
@@ -2309,6 +2314,7 @@ pub fn pull(
     stash: bool,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let mut repo = ctx.open_repo(&repo_path)?;
@@ -2322,6 +2328,7 @@ pub fn pull(
         },
         on_progress,
         cancel,
+        auth.as_ref(),
     )
 }
 
@@ -2341,6 +2348,7 @@ pub fn push(
     branch: Option<String>,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
 ) -> Result<PushOutcome> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -2354,6 +2362,7 @@ pub fn push(
         },
         &on_progress,
         cancel,
+        auth.as_ref(),
     )
 }
 
@@ -3040,7 +3049,7 @@ mod tests {
         .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        fetch(&ctx, &ws.id, None, None, None).expect("fetch without a remote name");
+        fetch(&ctx, &ws.id, None, None, None, None).expect("fetch without a remote name");
 
         let local = git2::Repository::open(&local_path).unwrap();
         assert_eq!(
@@ -3078,7 +3087,7 @@ mod tests {
             .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        fetch(&ctx, &ws.id, None, None, None).expect("no remotes means a silent no-op");
+        fetch(&ctx, &ws.id, None, None, None, None).expect("no remotes means a silent no-op");
         cleanup(&tmp);
     }
 
@@ -3109,8 +3118,8 @@ mod tests {
         .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        let err =
-            fetch(&ctx, &ws.id, None, None, None).expect_err("bad remote must fail the batch");
+        let err = fetch(&ctx, &ws.id, None, None, None, None)
+            .expect_err("bad remote must fail the batch");
         assert_eq!(err.category(), "Network");
 
         // Best-effort semantics: origin was still fetched despite "bad".
@@ -3159,8 +3168,8 @@ mod tests {
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(true)); // pre-set
-        let err =
-            fetch(&ctx, &ws.id, None, None, Some(cancel)).expect_err("cancelled batch must fail");
+        let err = fetch(&ctx, &ws.id, None, None, Some(cancel), None)
+            .expect_err("cancelled batch must fail");
         assert_eq!(err.code(), crate::domain::error_codes::git::SYNC_CANCELLED);
 
         // The batch stopped at the first remote; origin was never reached.

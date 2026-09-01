@@ -946,8 +946,35 @@ export function ignorePath(workspaceId: string, pattern: string): Promise<void> 
   return invoke<void>("cmd_ignore_path", { workspaceId, pattern });
 }
 
-export function fetchRemote(workspaceId: string, remote?: string): Promise<void> {
-  return invoke<void>("cmd_fetch", { workspaceId, remote: remote ?? null });
+export interface PushOptions {
+  remote?: string;
+  tags?: boolean;
+  force?: boolean;
+  /** Push this local branch instead of the current HEAD branch. */
+  branch?: string;
+  /** In-app credentials (F012) used verbatim for this operation. */
+  auth?: InlineAuth;
+}
+
+/** Credentials entered in the auth prompt (F012). `remember` persists them
+ *  through the system credential helper so later operations fill again. */
+export interface InlineAuth {
+  username: string;
+  password: string;
+  remember: boolean;
+}
+
+export interface FetchOptions {
+  remote?: string;
+  auth?: InlineAuth;
+}
+
+export function fetchRemote(workspaceId: string, options?: FetchOptions): Promise<void> {
+  return invoke<void>("cmd_fetch", {
+    workspaceId,
+    remote: options?.remote ?? null,
+    auth: options?.auth ?? null,
+  });
 }
 
 export interface PullOptions {
@@ -956,6 +983,7 @@ export interface PullOptions {
   branch?: string;
   rebase?: boolean;
   stash?: boolean;
+  auth?: InlineAuth;
 }
 
 export function pullRemote(workspaceId: string, options?: PullOptions): Promise<void> {
@@ -965,6 +993,7 @@ export function pullRemote(workspaceId: string, options?: PullOptions): Promise<
     branch: options?.branch ?? null,
     rebase: options?.rebase ?? false,
     stash: options?.stash ?? false,
+    auth: options?.auth ?? null,
   });
 }
 
@@ -1001,6 +1030,7 @@ export function pushRemote(workspaceId: string, options?: PushOptions): Promise<
     tags: options?.tags ?? false,
     force: options?.force ?? false,
     branch: options?.branch ?? null,
+    auth: options?.auth ?? null,
   });
 }
 
@@ -1038,6 +1068,20 @@ export function isCancelledSyncError(err: unknown): boolean {
   return (
     !!err && typeof err === "object" && (err as Partial<AppError>).code === SYNC_CANCELLED_CODE
   );
+}
+
+/** Backend codes for sync operations refused on authentication — the F012
+ *  auth prompt's trigger. */
+const AUTH_FAILED_CODES = new Set([
+  "git.push_auth_failed",
+  "git.pull_auth_failed",
+  "git.fetch_auth_failed",
+]);
+
+/** Whether `err` means the operation needs credentials (re-)entered. */
+export function isAuthError(err: unknown): boolean {
+  const code = !!err && typeof err === "object" ? (err as Partial<AppError>).code : undefined;
+  return code !== undefined && AUTH_FAILED_CODES.has(code);
 }
 
 // ─── Stash ───────────────────────────────────────────────────────────────────

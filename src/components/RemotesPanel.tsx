@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Menu, Popover } from "@heroui/react";
@@ -7,14 +7,17 @@ import {
   addRemote,
   fetchRemote,
   formatAppError,
+  isAuthError,
   listRemoteDetails,
   removeRemote,
   renameRemote,
   setRemotePushUrl,
   setRemoteUrl,
+  type InlineAuth,
   type RemoteInfo,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -62,6 +65,8 @@ export function RemotesPanel(): React.JSX.Element {
 
   // epoch in deps: auto-refresh bumps it to re-run this manual effect.
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
+  // Fetch attempts that already had one in-app auth retry (no loops).
+  const authRetried = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
     void historyEpoch; // re-run trigger: auto-refresh bumps the epoch.
@@ -79,7 +84,11 @@ export function RemotesPanel(): React.JSX.Element {
 
   if (!workspaceId || !repoId) return <></>;
 
-  const run = async (key: string, fn: () => Promise<void>, success?: string): Promise<void> => {
+  const run = async (
+    key: string,
+    fn: (auth?: InlineAuth) => Promise<void>,
+    success?: string,
+  ): Promise<void> => {
     if (busy) return;
     setBusy(key);
     setError(null);
@@ -91,7 +100,18 @@ export function RemotesPanel(): React.JSX.Element {
       // Remote CRUD mutates config other panels read: BranchList's push menu
       // and the ActionBar dialogs consume the ["remotes", …] cache.
       void queryClient.invalidateQueries({ queryKey: ["remotes", workspaceId] });
+      authRetried.current.delete(key);
     } catch (e) {
+      if (isAuthError(e) && key.startsWith("fetch-") && !authRetried.current.has(key)) {
+        // F012: per-remote fetch failed on auth — collect credentials in-app
+        // and retry once through the prompt; a second failure surfaces as-is.
+        authRetried.current.add(key);
+        const name = key.slice("fetch-".length);
+        useAuthPromptStore.getState().show(name, (auth) => {
+          void run(key, () => fn(auth), success);
+        });
+        return;
+      }
       setStatus(formatAppError(e), "danger");
     } finally {
       setBusy(null);
@@ -169,8 +189,8 @@ export function RemotesPanel(): React.JSX.Element {
                     onSelect={() =>
                       void run(
                         `fetch-${r.name}`,
-                        async () => {
-                          await fetchRemote(workspaceId, r.name);
+                        async (auth?: InlineAuth) => {
+                          await fetchRemote(workspaceId, { remote: r.name, auth });
                           bumpHistory(); // remote-tracking refs feed the history graph
                         },
                         t("remotes.fetched", { name: r.name }),

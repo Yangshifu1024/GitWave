@@ -263,6 +263,76 @@ impl CredentialProvider for GitCredentialHelper {
     }
 }
 
+/// User-supplied credentials entered in-app (F012): used verbatim for one
+/// operation; `remember` persists them through the system helper on
+/// `approve` so later operations fill from storage again.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InlineAuth {
+    pub username: String,
+    pub password: String,
+    pub remember: bool,
+}
+
+/// HTTPS credential straight from the app's auth prompt — no helper query,
+/// no prompt loop. `reject` is a no-op by design: the credential was typed
+/// this session and is only stored on `approve`, so there is nothing to
+/// erase and a stored entry for another account must not be touched.
+pub struct InlineCredentialProvider {
+    url: String,
+    username: String,
+    password: String,
+    remember: bool,
+}
+
+impl InlineCredentialProvider {
+    pub fn new(url: String, username: String, password: String, remember: bool) -> Self {
+        Self {
+            url,
+            username,
+            password,
+            remember,
+        }
+    }
+
+    fn build_callbacks(&self) -> RemoteCallbacks<'_> {
+        let username = self.username.clone();
+        let password = self.password.clone();
+        let mut cb = RemoteCallbacks::new();
+        cb.credentials(move |_url, username_from_url, allowed_types| {
+            if allowed_types.contains(CredentialType::USERNAME) {
+                let user = if username.is_empty() {
+                    username_from_url.unwrap_or("anonymous").to_string()
+                } else {
+                    username.clone()
+                };
+                return Cred::username(&user);
+            }
+            if allowed_types.contains(CredentialType::USER_PASS_PLAINTEXT) {
+                return Cred::userpass_plaintext(&username, &password);
+            }
+            Err(auth_error(
+                "inline credentials only cover HTTPS user/pass auth",
+            ))
+        });
+        cb
+    }
+}
+
+impl CredentialProvider for InlineCredentialProvider {
+    fn callbacks(&self) -> RemoteCallbacks<'_> {
+        self.build_callbacks()
+    }
+
+    fn approve(&self) {
+        if self.remember {
+            notify_helper("approve", &self.url, &self.username, &self.password);
+        }
+    }
+
+    fn reject(&self) {}
+}
+
 /// Serialize a `git credential` request for the helper's stdin, or `None`
 /// when a value would break the protocol: it has no escaping, so a newline
 /// in a value would inject fake keys (the same limitation the git CLI

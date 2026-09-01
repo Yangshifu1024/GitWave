@@ -6,15 +6,19 @@ import i18next from "i18next";
 import {
   fetchRemote,
   formatAppError,
+  isAuthError,
   isCancelledSyncError,
   pullRemote,
   pushRemote,
+  type FetchOptions,
+  type InlineAuth,
   type PullOptions,
   type PushOptions,
   type SyncProgress,
 } from "@/lib/api";
 import { useSyncStore } from "@/stores/syncStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
+import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 /** Short result lines written to the ActionBar status area; the area keeps
@@ -44,7 +48,7 @@ function ensureSyncProgressListener(): void {
 }
 
 export interface UseRemoteSyncResult {
-  fetch: () => void;
+  fetch: (options?: FetchOptions) => void;
   pull: (options?: PullOptions) => void;
   push: (options?: PushOptions) => void;
   syncPending: { fetch: boolean; pull: boolean; push: boolean };
@@ -68,11 +72,22 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     void queryClient.invalidateQueries({ queryKey: ["working-copy", workspaceId, repoId] });
   };
 
-  const handleError = (e: unknown, op: "fetch" | "pull" | "push") => {
+  // On authentication failure the F012 auth prompt collects credentials in
+  // the app and re-runs the operation through `retry` — no terminal detour.
+  const handleError = (
+    e: unknown,
+    op: "fetch" | "pull" | "push",
+    retry: (auth: InlineAuth) => void,
+    remote?: string,
+  ) => {
     useSyncStore.getState().endOp(op);
     if (isCancelledSyncError(e)) {
       // User-initiated abort: report neutrally instead of as a failure.
       useStatusAreaStore.getState().setStatus(t("status.sync.cancelled"), "info");
+      return;
+    }
+    if (isAuthError(e)) {
+      useAuthPromptStore.getState().show(remote ?? "origin", retry);
       return;
     }
     useStatusAreaStore.getState().setStatus(t(FAILURE_KEYS[op]), "danger");
@@ -80,14 +95,15 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   };
 
   const fetchMut = useMutation({
-    mutationFn: () => fetchRemote(workspaceId!),
-    onMutate: () => useSyncStore.getState().startOp("fetch"),
+    mutationFn: (options: FetchOptions | undefined) => fetchRemote(workspaceId!, options),
+    onMutate: (options) => useSyncStore.getState().startOp("fetch", options?.remote),
     onSuccess: () => {
       useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.fetch), "success");
       invalidate();
       bumpHistory();
     },
-    onError: (e) => handleError(e, "fetch"),
+    onError: (e, variables) =>
+      handleError(e, "fetch", (auth) => fetchMut.mutate({ ...variables, auth }), variables?.remote),
     onSettled: () => useSyncStore.getState().endOp("fetch"),
   });
 
@@ -101,7 +117,13 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       invalidate();
       bumpHistory();
     },
-    onError: (e) => handleError(e, "pull"),
+    onError: (e, variables) =>
+      handleError(
+        e,
+        "pull",
+        (auth) => pullMut.mutate({ ...(variables ?? {}), auth }),
+        variables?.remote,
+      ),
     onSettled: () => useSyncStore.getState().endOp("pull"),
   });
 
@@ -127,16 +149,22 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       invalidate();
       bumpHistory();
     },
-    onError: (e) => handleError(e, "push"),
+    onError: (e, variables) =>
+      handleError(
+        e,
+        "push",
+        (auth) => pushMut.mutate({ ...(variables ?? {}), auth }),
+        variables?.remote,
+      ),
     onSettled: () => useSyncStore.getState().endOp("push"),
   });
 
   const isSyncBusy = activeOp !== null && !fading;
 
   return {
-    fetch: () => {
+    fetch: (options?: FetchOptions) => {
       if (!workspaceId || isSyncBusy) return;
-      fetchMut.mutate();
+      fetchMut.mutate(options);
     },
     pull: (options?: PullOptions) => {
       if (!workspaceId || isSyncBusy) return;

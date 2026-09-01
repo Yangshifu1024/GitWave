@@ -457,6 +457,7 @@ async fn cmd_delete_remote_branch(
     workspace_id: String,
     remote: String,
     branch: String,
+    auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
     let ws_id = workspace_id.clone();
     run_sync_op(
@@ -465,7 +466,7 @@ async fn cmd_delete_remote_branch(
         codes::cmds::DELETE_REMOTE_BRANCH_TASK_JOIN,
         &ctx,
         move |local_ctx, cancel| {
-            delete_remote_branch(local_ctx, &ws_id, &remote, &branch, Some(cancel))
+            delete_remote_branch(local_ctx, &ws_id, &remote, &branch, Some(cancel), auth)
         },
     )
     .await
@@ -1070,6 +1071,7 @@ async fn cmd_fetch(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     remote: Option<String>,
+    auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
     use application::use_cases::fetch;
     use infrastructure::git::remote::SyncProgress;
@@ -1087,7 +1089,7 @@ async fn cmd_fetch(
         "fetch",
         codes::cmds::FETCH_TASK_JOIN,
         &ctx,
-        move |local_ctx, cancel| fetch(local_ctx, &ws_id, remote, on_progress, Some(cancel)),
+        move |local_ctx, cancel| fetch(local_ctx, &ws_id, remote, on_progress, Some(cancel), auth),
     )
     .await
 }
@@ -1101,6 +1103,7 @@ async fn cmd_pull(
     branch: Option<String>,
     rebase: Option<bool>,
     stash: Option<bool>,
+    auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
     use application::use_cases::pull;
     use infrastructure::git::remote::SyncProgress;
@@ -1128,6 +1131,7 @@ async fn cmd_pull(
                 stash.unwrap_or(false),
                 on_progress,
                 Some(cancel),
+                auth,
             )
         },
     )
@@ -1166,6 +1170,7 @@ async fn cmd_push(
     tags: Option<bool>,
     force: Option<bool>,
     branch: Option<String>,
+    auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<infrastructure::git::remote::PushOutcome, AppError> {
     use application::use_cases::push;
     use infrastructure::git::remote::{PushOutcome, SyncProgress};
@@ -1193,6 +1198,7 @@ async fn cmd_push(
                 branch,
                 on_progress,
                 Some(cancel),
+                auth,
             )
         },
     )

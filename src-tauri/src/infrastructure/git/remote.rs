@@ -9,7 +9,8 @@ use serde::Serialize;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::infrastructure::git::credentials::{
-    run_with_credentials, CredentialProvider, GitCredentialHelper, SshAgentCredential,
+    run_with_credentials, CredentialProvider, GitCredentialHelper, InlineAuth,
+    InlineCredentialProvider, SshAgentCredential,
 };
 
 /// Shared cancellation flag for one network sync operation. The command
@@ -64,6 +65,25 @@ fn provider_for_url(url: &str, cancel: Option<CancelFlag>) -> Arc<dyn Credential
         Arc::new(SshAgentCredential::new())
     } else {
         Arc::new(GitCredentialHelper::new(url.to_string()).with_cancel(cancel))
+    }
+}
+
+/// Pick the credential strategy for one operation: in-app entered
+/// credentials (F012) win — they only cover HTTPS user/pass, so SSH URLs
+/// keep agent auth — otherwise the URL decides as before.
+fn provider_for_operation(
+    url: &str,
+    cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
+) -> Arc<dyn CredentialProvider> {
+    match auth {
+        Some(a) if url.starts_with("http") => Arc::new(InlineCredentialProvider::new(
+            url.to_string(),
+            a.username.clone(),
+            a.password.clone(),
+            a.remember,
+        )),
+        _ => provider_for_url(url, cancel),
     }
 }
 
@@ -137,9 +157,10 @@ pub fn fetch(
     operation: SyncOperation,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url, cancel.clone());
+    let creds = provider_for_operation(&url, cancel.clone(), auth);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let mut fo = FetchOptions::new();
     let cb = attach_transfer_progress(creds.callbacks(), operation, &on_progress, cancel.clone());
@@ -194,9 +215,10 @@ pub fn push_with_options(
     opts: PushRequest,
     on_progress: &Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<PushOutcome> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url, cancel.clone());
+    let creds = provider_for_operation(&url, cancel.clone(), auth);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let branch = match opts.branch.as_deref() {
         Some(name) => {
@@ -473,9 +495,10 @@ pub fn delete_remote_branch(
     remote_name: &str,
     branch_name: &str,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
-    let creds = provider_for_url(&url, cancel.clone());
+    let creds = provider_for_operation(&url, cancel.clone(), auth);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let refspec = format!(":refs/heads/{branch_name}");
     let no_progress: Option<Box<dyn Fn(SyncProgress) + Send>> = None;
@@ -551,6 +574,7 @@ pub fn pull_with_options(
     opts: PullOptions,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
     // Newest stash entry is index 0.
     let mut stashed = false;
@@ -559,7 +583,7 @@ pub fn pull_with_options(
         stashed = true;
     }
 
-    match pull_integrate(repo, remote_name, &opts, on_progress, cancel) {
+    match pull_integrate(repo, remote_name, &opts, on_progress, cancel, auth) {
         Ok(()) => {
             if stashed {
                 crate::infrastructure::git::stash::pop_stash(repo, 0).map_err(|e| {
@@ -594,8 +618,16 @@ fn pull_integrate(
     opts: &PullOptions,
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
-    fetch(repo, remote_name, SyncOperation::Pull, on_progress, cancel)?;
+    fetch(
+        repo,
+        remote_name,
+        SyncOperation::Pull,
+        on_progress,
+        cancel,
+        auth,
+    )?;
 
     let head = repo.head().map_err(map_git_err)?;
     if !head.is_branch() {
@@ -782,7 +814,8 @@ mod tests {
     #[test]
     fn fetch_missing_remote_errors() {
         let (path, repo) = build_linear_repo(1);
-        let err = fetch(&repo, "origin", SyncOperation::Fetch, None, None).expect_err("no origin");
+        let err =
+            fetch(&repo, "origin", SyncOperation::Fetch, None, None, None).expect_err("no origin");
         let _ = fs::remove_dir_all(&path);
         assert_eq!(err.category(), "Unknown");
     }
@@ -800,7 +833,7 @@ mod tests {
                 "create feature",
             )
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None, None).unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None, None, None).unwrap();
         assert!(local.find_reference("refs/remotes/origin/feature").is_ok());
 
         // ...then it is deleted upstream: the next fetch must prune the
@@ -810,7 +843,7 @@ mod tests {
             .unwrap()
             .delete()
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None, None).unwrap();
+        fetch(&local, "origin", SyncOperation::Fetch, None, None, None).unwrap();
         assert!(
             local.find_reference("refs/remotes/origin/feature").is_err(),
             "stale tracking ref must be pruned"
@@ -833,8 +866,15 @@ mod tests {
         make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
 
         let cancel = Arc::new(AtomicBool::new(true)); // pre-set: cancel wins
-        let err = fetch(&local, "origin", SyncOperation::Fetch, None, Some(cancel))
-            .expect_err("cancelled fetch must abort");
+        let err = fetch(
+            &local,
+            "origin",
+            SyncOperation::Fetch,
+            None,
+            Some(cancel),
+            None,
+        )
+        .expect_err("cancelled fetch must abort");
 
         assert_eq!(err.code(), codes::git::SYNC_CANCELLED);
         assert_eq!(err.category(), "Network");
@@ -917,7 +957,7 @@ mod tests {
         let tree = write_and_stage(&server, "file1.txt", "v1\n");
         let server_tip = make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None, None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None).unwrap();
 
         assert_eq!(
             head_oid(&local),
@@ -938,7 +978,7 @@ mod tests {
         let _local_tip = head_oid(&local);
         let server_tip = diverge(&server, &local);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None, None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None).unwrap();
 
         let head = local.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(
@@ -966,7 +1006,7 @@ mod tests {
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None)
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None)
             .expect_err("dirty worktree must refuse");
 
         assert_eq!(err.category(), "Protocol");
@@ -990,7 +1030,7 @@ mod tests {
         fs::write(local.workdir().unwrap().join("file0.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None)
+        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None)
             .expect_err("dirty worktree must refuse even when fast-forwardable");
 
         assert_eq!(err.category(), "Protocol");
@@ -1018,7 +1058,7 @@ mod tests {
             rebase: false,
             stash: false,
         };
-        let err = pull_with_options(&mut local, "origin", opts, None, None)
+        let err = pull_with_options(&mut local, "origin", opts, None, None, None)
             .expect_err("dirty worktree must refuse plain pull too");
 
         assert_eq!(err.category(), "Protocol");
@@ -1037,7 +1077,7 @@ mod tests {
         let server_tip = diverge(&server, &local);
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
 
-        pull_with_options(&mut local, "origin", rebase_opts(true), None, None).unwrap();
+        pull_with_options(&mut local, "origin", rebase_opts(true), None, None, None).unwrap();
 
         assert_eq!(
             local
