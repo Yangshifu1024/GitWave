@@ -4,7 +4,7 @@ English | [简体中文](./README.zh-CN.md)
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)** · See `docs/pm/core/01-features.md` for product scope and `docs/tech/` for engineering decisions.
 
-**Status:** v0.7.0 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized, in-app auto-updates served from GitHub Releases, multi-remote-aware sync (push to any configured remote, fetch across all of them — time-boxed and cancellable, with HTTPS credentials remembered across operations), and a fully bilingual (Chinese / English) UI with selectable AI reply language and adjustable UI / monospace font sizes. Current scope per `docs/pm/core/03-roadmap.md`.
+**Status:** v0.7.1 — three-platform builds (macOS / Windows / Linux) produced by tag-triggered CI, with macOS builds signed and notarized, in-app auto-updates served from GitHub Releases, multi-remote-aware sync (push to any configured remote, fetch across all of them — time-boxed and cancellable, with HTTPS credentials remembered across operations), Fork-style right-click menus across the commit graph and branch list, and a fully bilingual (Chinese / English) UI with selectable AI reply language and adjustable UI / monospace font sizes. Current scope per `docs/pm/core/03-roadmap.md`.
 
 ## Download
 
@@ -14,8 +14,8 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 
 - **Workspace management** — multiple workspaces, repo tabs with drag-reorder, per-workspace AI context; a workspace is an abstraction, not a directory
 - **Working copy** — stage / unstage, discard, ignore, commit with conventional-commit type chips, commit message AI assist
-- **Branches & sync** — create / switch / delete / rename, push / pull with confirm (pick the target remote), fetch across all remotes with stale tracking-ref pruning, time-boxed network syncs with an in-flight cancel button, merge (ff & no-ff) with conflict panel
-- **History** — commit graph with fork-style edges, commit details, blame, reflog, tags
+- **Branches & sync** — create / switch / delete / rename / set upstream tracking, push / pull with confirm (pick the target remote), fetch across all remotes with stale tracking-ref pruning, time-boxed network syncs with an in-flight cancel button, merge (ff & no-ff) with conflict panel
+- **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info)
 - **Diff viewer** — side-by-side and unified views, Shiki syntax highlighting, per-hunk operations
 - **Advanced Git** — stash, interactive rebase, worktrees, submodules, LFS, remotes, .gitignore editor, Git hooks panel, repo health checks
 - **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider. AI replies in Chinese / Japanese / Korean / English per your preference
