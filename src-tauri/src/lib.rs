@@ -34,13 +34,12 @@ use application::{
     list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys, list_stashes,
     list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
     merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch,
-    relink_repo,
-    remove_remote, remove_repo, remove_worktree, rename_branch, rename_remote, rename_workspace,
-    reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook, save_stash,
-    set_active_repo, set_ai_api_key, set_branch_upstream, set_remote_push_url, set_remote_url,
-    stage_all, stage_files, start_ssh_agent_service, test_ssh_connection, unstage_files,
-    update_submodule, update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome,
-    AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
+    relink_repo, remove_remote, remove_repo, remove_worktree, rename_branch, rename_remote,
+    rename_workspace, reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook,
+    save_stash, set_active_repo, set_ai_api_key, set_branch_upstream, set_remote_push_url,
+    set_remote_url, stage_all, stage_files, start_ssh_agent_service, test_ssh_connection,
+    unstage_files, update_submodule, update_workspace_settings, write_gitignore, AheadBehind,
+    AiGenerateOutcome, AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
 };
 use domain::blame::BlameLine;
 use domain::branch::{BranchInfo, CheckoutRemoteOutcome};

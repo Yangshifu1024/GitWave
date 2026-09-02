@@ -127,7 +127,8 @@ pub fn checkout_remote_branch(
         }
     }
     let commit = remote_branch.get().peel_to_commit().map_err(map_git_err)?;
-    repo.branch(&local_name, &commit, false).map_err(map_git_err)?;
+    repo.branch(&local_name, &commit, false)
+        .map_err(map_git_err)?;
     set_branch_upstream(repo, &local_name, Some(remote_name))?;
     // If this fails after the branch/upstream were written, a created branch
     // stays behind (same as a failed `git switch -c`) — retry takes the
@@ -148,7 +149,7 @@ fn local_name_for_remote(repo: &Repository, remote_name: &str) -> Result<String>
     let mut best: Option<&str> = None;
     for i in 0..remotes.len() {
         let Some(name) = remotes.get(i) else { continue };
-        if remote_name.starts_with(&format!("{name}/")) && best.map_or(true, |b| name.len() > b.len())
+        if remote_name.starts_with(&format!("{name}/")) && best.is_none_or(|b| name.len() > b.len())
         {
             best = Some(name);
         }
@@ -792,7 +793,8 @@ mod tests {
 
         assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
         assert!(
-            repo.find_branch("feature", git2::BranchType::Local).is_err(),
+            repo.find_branch("feature", git2::BranchType::Local)
+                .is_err(),
             "refusal must not leave a half-created branch"
         );
         assert_eq!(repo.head().unwrap().shorthand(), Some("main"));
@@ -887,7 +889,9 @@ mod tests {
         assert_eq!(local_name_for_remote(&repo, "foo/main").unwrap(), "main");
         // No configured remote matches the prefix.
         assert_eq!(
-            local_name_for_remote(&repo, "origin/main").unwrap_err().code(),
+            local_name_for_remote(&repo, "origin/main")
+                .unwrap_err()
+                .code(),
             codes::git::GIT_ERROR
         );
         cleanup(&path);

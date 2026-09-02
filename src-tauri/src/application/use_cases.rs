@@ -25,9 +25,9 @@ use crate::infrastructure::ai::with_reply_language;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, checkout_commit as infra_checkout_commit,
-    checkout_remote_branch as infra_checkout_remote_branch,
-    create_branch as infra_create_branch, delete_branch as infra_delete_branch,
-    rename_branch as infra_rename_branch, set_branch_upstream as infra_set_branch_upstream,
+    checkout_remote_branch as infra_checkout_remote_branch, create_branch as infra_create_branch,
+    delete_branch as infra_delete_branch, rename_branch as infra_rename_branch,
+    set_branch_upstream as infra_set_branch_upstream,
 };
 use crate::infrastructure::git::conflict::{
     abort_merge as infra_abort_merge, get_conflict_sides as infra_get_conflict_sides,
