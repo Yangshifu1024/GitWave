@@ -1,5 +1,7 @@
 //! HTTP clients for OpenAI / Anthropic / Ollama chat completions.
 
+use std::sync::{Arc, RwLock};
+
 use serde_json::{json, Value};
 
 use crate::domain::error::{AppError, Result};
@@ -78,16 +80,37 @@ fn ollama_base(base: Option<String>) -> String {
     trim_base(base.as_deref().unwrap_or("http://127.0.0.1:11434"))
 }
 
+/// Shared AI HTTP client slot. `None` = rebuild on next use (see
+/// [`rebuild_http_client`]).
+static AI_HTTP_CLIENT: RwLock<Option<Arc<reqwest::Client>>> = RwLock::new(None);
+
 /// Shared HTTP client: fixed request timeout (a hung provider must not
 /// freeze the UI's generate flow) instead of a fresh client per call.
-fn client() -> &'static reqwest::Client {
-    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
-    CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
-            .build()
-            .expect("reqwest client")
-    })
+///
+/// Rebuildable (F013): saving proxy settings rewrites the process env the
+/// client's proxy config was built from, so [`rebuild_http_client`] drops
+/// this one and the next request constructs a fresh client.
+fn client() -> Arc<reqwest::Client> {
+    if let Some(client) = AI_HTTP_CLIENT.read().expect("ai client lock").as_ref() {
+        return Arc::clone(client);
+    }
+    let mut guard = AI_HTTP_CLIENT.write().expect("ai client lock");
+    guard
+        .get_or_insert_with(|| {
+            Arc::new(
+                reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(60))
+                    .build()
+                    .expect("reqwest client"),
+            )
+        })
+        .clone()
+}
+
+/// Drop the shared AI HTTP client so the next request rebuilds it (picking
+/// up the current process env, i.e. proxy changes).
+pub fn rebuild_http_client() {
+    *AI_HTTP_CLIENT.write().expect("ai client lock") = None;
 }
 
 /// Generate assistant text. Never auto-applies git mutations (P1).
@@ -112,7 +135,7 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     let mut last_err: Option<AppError> = None;
     for attempt in &attempts {
         for pass in 0..2 {
-            let result = attempt_chat(client(), attempt, &system, &user).await;
+            let result = attempt_chat(&client(), attempt, &system, &user).await;
             match result {
                 Ok(text) => return Ok(text),
                 Err(e) => {

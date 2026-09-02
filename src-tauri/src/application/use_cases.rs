@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use crate::domain::app_settings::{ProxyMode, ProxySettings};
 use crate::domain::blame::BlameLine;
 use crate::domain::branch::{BranchInfo, CheckoutRemoteOutcome};
 use crate::domain::diff::{DiffLineKind, FileDiff};
@@ -21,6 +22,7 @@ use crate::domain::workspace::{
 };
 use crate::domain::worktree::WorktreeInfo;
 use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
+use crate::infrastructure::ai::rebuild_http_client as infra_rebuild_http_client;
 use crate::infrastructure::ai::with_reply_language;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
@@ -111,8 +113,13 @@ use crate::infrastructure::git::worktree::{
     add_worktree as infra_add_worktree, list_worktrees as infra_list_worktrees,
     remove_worktree as infra_remove_worktree,
 };
+use crate::infrastructure::persistence::app_settings_repo::AppSettingsRepository;
 use crate::infrastructure::persistence::workspace_repo::WorkspaceRepository;
+use crate::infrastructure::persistence::SqliteAppSettingsRepo;
 use crate::infrastructure::persistence::SqliteWorkspaceRepo;
+use crate::infrastructure::proxy::{
+    apply_to_env as infra_apply_proxy_to_env, normalize_manual_url as infra_normalize_proxy_url,
+};
 use crate::infrastructure::ssh::keys::{expand_tilde, SshKey, SshKeyList, SshTestResult};
 
 // ─── AppContext ──────────────────────────────────────────────────────────────
@@ -121,12 +128,21 @@ use crate::infrastructure::ssh::keys::{expand_tilde, SshKey, SshKeyList, SshTest
 /// cases. Held by Tauri as managed state.
 pub struct AppContext {
     pub workspaces: Arc<Mutex<SqliteWorkspaceRepo>>,
+    /// App-level global settings (`app_settings` table, F013). Own SQLite
+    /// connection — see `SqliteAppSettingsRepo`.
+    pub app_settings: Arc<Mutex<SqliteAppSettingsRepo>>,
 }
 
 impl AppContext {
     #[must_use]
-    pub fn new(workspaces: Arc<Mutex<SqliteWorkspaceRepo>>) -> Self {
-        Self { workspaces }
+    pub fn new(
+        workspaces: Arc<Mutex<SqliteWorkspaceRepo>>,
+        app_settings: Arc<Mutex<SqliteAppSettingsRepo>>,
+    ) -> Self {
+        Self {
+            workspaces,
+            app_settings,
+        }
     }
 
     /// Open a Repository for the given repo path (no caching — git2::Repository
@@ -277,6 +293,82 @@ pub fn update_workspace_settings(
         .lock()
         .expect("workspace repo mutex poisoned")
         .update_settings(&id, &settings)
+}
+
+// ─── Proxy settings (F013) ───────────────────────────────────────────────────
+
+/// The `app_settings` key holding the proxy configuration (F013).
+const PROXY_SETTINGS_KEY: &str = "proxy";
+
+/// Read the proxy settings; unset / corrupt store entries fall back to the
+/// default (follow the system proxy, no manual URL).
+pub fn get_proxy_settings(ctx: &AppContext) -> Result<ProxySettings> {
+    let raw = ctx
+        .app_settings
+        .lock()
+        .expect("app settings repo mutex poisoned")
+        .get(PROXY_SETTINGS_KEY)?;
+    let Some(raw) = raw else {
+        return Ok(ProxySettings::default());
+    };
+    match serde_json::from_str(&raw) {
+        Ok(settings) => Ok(settings),
+        Err(e) => {
+            tracing::warn!("stored proxy settings unreadable, using defaults: {e}");
+            Ok(ProxySettings::default())
+        }
+    }
+}
+
+/// Validate + persist proxy settings and make them take effect immediately:
+/// the env bridge feeds libgit2 (re-read per operation), git subprocesses
+/// (inheritance) and any newly constructed reqwest client; the AI singleton
+/// is rebuilt for good measure. Returns the normalized settings.
+pub fn set_proxy_settings(ctx: &AppContext, settings: ProxySettings) -> Result<ProxySettings> {
+    let settings = validate_and_store_proxy_settings(ctx, settings)?;
+    infra_apply_proxy_to_env(&settings);
+    infra_rebuild_http_client();
+    Ok(settings)
+}
+
+/// Validation + persistence only (no env/client side effects) so tests can
+/// exercise the rules without touching the process environment.
+fn validate_and_store_proxy_settings(
+    ctx: &AppContext,
+    mut settings: ProxySettings,
+) -> Result<ProxySettings> {
+    if matches!(settings.mode, ProxyMode::Manual) {
+        let url = settings.manual_url.as_deref().unwrap_or("").trim();
+        if url.is_empty() {
+            // Manual mode before an address is typed simply means no proxy.
+            settings.manual_url = None;
+        } else {
+            let Some(normalized) = infra_normalize_proxy_url(url) else {
+                return Err(AppError::protocol_with(
+                    codes::usecases::PROXY_URL_INVALID,
+                    format!("invalid manual proxy url: {url:?}"),
+                    &[("url", url.to_string())],
+                ));
+            };
+            settings.manual_url = Some(normalized);
+        }
+    } else if settings.manual_url.as_deref().map(str::trim) == Some("") {
+        // A blank URL in system/off mode means "none", not "empty string".
+        settings.manual_url = None;
+    }
+
+    let json = serde_json::to_string(&settings).map_err(|e| {
+        AppError::unknown_with(
+            codes::usecases::PROXY_SERIALIZE_FAILED,
+            format!("serialize proxy settings: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    ctx.app_settings
+        .lock()
+        .expect("app settings repo mutex poisoned")
+        .set(PROXY_SETTINGS_KEY, &json)?;
+    Ok(settings)
 }
 
 pub fn set_active_repo(
@@ -2511,6 +2603,82 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn proxy_settings_unset_falls_back_to_default() {
+        let ctx = fresh_ctx();
+        assert_eq!(
+            get_proxy_settings(&ctx).expect("get"),
+            ProxySettings::default()
+        );
+    }
+
+    #[test]
+    fn proxy_settings_manual_url_is_normalized_and_persisted() {
+        let ctx = fresh_ctx();
+        let stored = validate_and_store_proxy_settings(
+            &ctx,
+            ProxySettings {
+                mode: ProxyMode::Manual,
+                manual_url: Some(" 127.0.0.1:7890 ".to_string()),
+            },
+        )
+        .expect("manual with valid url");
+        assert_eq!(stored.manual_url.as_deref(), Some("http://127.0.0.1:7890"));
+        assert_eq!(get_proxy_settings(&ctx).expect("get"), stored);
+    }
+
+    #[test]
+    fn proxy_settings_manual_rejects_unusable_url() {
+        let ctx = fresh_ctx();
+        let err = validate_and_store_proxy_settings(
+            &ctx,
+            ProxySettings {
+                mode: ProxyMode::Manual,
+                manual_url: Some("ftp://proxy:21".to_string()),
+            },
+        )
+        .expect_err("manual with ftp url must be rejected");
+        assert_eq!(err.code(), codes::usecases::PROXY_URL_INVALID);
+    }
+
+    #[test]
+    fn proxy_settings_manual_with_blank_url_means_no_proxy() {
+        let ctx = fresh_ctx();
+        let stored = validate_and_store_proxy_settings(
+            &ctx,
+            ProxySettings {
+                mode: ProxyMode::Manual,
+                manual_url: Some("   ".to_string()),
+            },
+        )
+        .expect("manual with blank url is allowed");
+        assert_eq!(stored.manual_url, None);
+    }
+
+    #[test]
+    fn proxy_settings_off_keeps_stored_url_but_system_blanks_it() {
+        let ctx = fresh_ctx();
+        let stored = validate_and_store_proxy_settings(
+            &ctx,
+            ProxySettings {
+                mode: ProxyMode::Off,
+                manual_url: Some("http://127.0.0.1:7890".to_string()),
+            },
+        )
+        .expect("off keeps the url");
+        assert_eq!(stored.manual_url.as_deref(), Some("http://127.0.0.1:7890"));
+
+        let stored = validate_and_store_proxy_settings(
+            &ctx,
+            ProxySettings {
+                mode: ProxyMode::System,
+                manual_url: Some("  ".to_string()),
+            },
+        )
+        .expect("system with blank url");
+        assert_eq!(stored.manual_url, None);
+    }
+
+    #[test]
     fn workspace_fetch_lock_is_per_workspace() {
         let a1 = workspace_fetch_lock("ws-lock-a");
         let a2 = workspace_fetch_lock("ws-lock-a");
@@ -2801,7 +2969,11 @@ mod tests {
     fn fresh_ctx() -> AppContext {
         let conn = Connection::open_in_memory().expect("in-memory sqlite");
         migrations::apply(&conn).expect("migrations");
-        AppContext::new(Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))))
+        let app_settings = SqliteAppSettingsRepo::open_in_memory().expect("in-memory app settings");
+        AppContext::new(
+            Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
+            Arc::new(Mutex::new(app_settings)),
+        )
     }
 
     fn cleanup(path: &std::path::Path) {

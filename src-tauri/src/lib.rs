@@ -28,19 +28,21 @@ use application::{
     explain_health, explain_reflog, export_workspace, fetch, generate_commit_message,
     generate_pr_description, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
     get_commit_details, get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff,
-    get_gitignore, get_health, get_hook, get_repo_ai_rules, get_stash_diff, get_workdir_diff,
-    get_working_copy, get_workspace, ignore_path, import_workspace, init_repo, init_submodule,
-    interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack, list_conflicts,
-    list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys, list_stashes,
-    list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
-    merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch,
-    relink_repo, remove_remote, remove_repo, remove_worktree, rename_branch, rename_remote,
-    rename_workspace, reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook,
-    save_stash, set_active_repo, set_ai_api_key, set_branch_upstream, set_remote_push_url,
-    set_remote_url, stage_all, stage_files, start_ssh_agent_service, test_ssh_connection,
-    unstage_files, update_submodule, update_workspace_settings, write_gitignore, AheadBehind,
-    AiGenerateOutcome, AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
+    get_gitignore, get_health, get_hook, get_proxy_settings, get_repo_ai_rules, get_stash_diff,
+    get_workdir_diff, get_working_copy, get_workspace, ignore_path, import_workspace, init_repo,
+    init_submodule, interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack,
+    list_conflicts, list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys,
+    list_stashes, list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch,
+    merge_in_progress, merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
+    rebase_branch, relink_repo, remove_remote, remove_repo, remove_worktree, rename_branch,
+    rename_remote, rename_workspace, reorder_repos, reset_hard, resolve_conflict, revert_commit,
+    save_hook, save_stash, set_active_repo, set_ai_api_key, set_branch_upstream,
+    set_proxy_settings, set_remote_push_url, set_remote_url, stage_all, stage_files,
+    start_ssh_agent_service, test_ssh_connection, unstage_files, update_submodule,
+    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
+    AppContext, PaletteIntent, PrDescriptionOutcome,
 };
+use domain::app_settings::ProxySettings;
 use domain::blame::BlameLine;
 use domain::branch::{BranchInfo, CheckoutRemoteOutcome};
 use domain::diff::FileDiff;
@@ -59,7 +61,9 @@ use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, Interacti
 use infrastructure::git::merge::{MergePreview, MergeResult};
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
-use infrastructure::persistence::{migrations, open as open_state, state_dir, SqliteWorkspaceRepo};
+use infrastructure::persistence::{
+    migrations, open as open_state, state_dir, SqliteAppSettingsRepo, SqliteWorkspaceRepo,
+};
 use infrastructure::ssh::keys::{SshKey, SshKeyList, SshTestResult};
 use std::fmt::Display;
 use tauri::WebviewWindow;
@@ -149,6 +153,23 @@ fn cmd_update_workspace_settings(
     settings: WorkspaceSettings,
 ) -> Result<(), AppError> {
     update_workspace_settings(&ctx, id, settings)
+}
+
+/// F013: read the app-wide proxy settings.
+#[tauri::command]
+fn cmd_get_proxy_settings(ctx: tauri::State<'_, AppContext>) -> Result<ProxySettings, AppError> {
+    get_proxy_settings(&ctx)
+}
+
+/// F013: save the app-wide proxy settings. Applies the env bridge and
+/// rebuilds the AI HTTP client immediately — the frontend gets the
+/// normalized settings back so the UI shows what is actually in effect.
+#[tauri::command]
+fn cmd_set_proxy_settings(
+    ctx: tauri::State<'_, AppContext>,
+    settings: ProxySettings,
+) -> Result<ProxySettings, AppError> {
+    set_proxy_settings(&ctx, settings)
 }
 
 #[tauri::command]
@@ -252,8 +273,9 @@ async fn cmd_clone_repo(
         }));
 
     let workspaces = Arc::clone(&ctx.workspaces);
+    let app_settings = Arc::clone(&ctx.app_settings);
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let local_ctx = AppContext::new(workspaces);
+        let local_ctx = AppContext::new(workspaces, app_settings);
         clone_repo(
             &local_ctx,
             workspace_id,
@@ -313,8 +335,9 @@ async fn cmd_list_repos(
     // runs on the UI thread — the whole window would freeze (workspace
     // deletion included). Keep the sweep off the main thread, like clone.
     let workspaces = Arc::clone(&ctx.workspaces);
+    let app_settings = Arc::clone(&ctx.app_settings);
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let local_ctx = AppContext::new(workspaces);
+        let local_ctx = AppContext::new(workspaces, app_settings);
         list_repos(&local_ctx, workspace_id)
     })
     .await
@@ -1047,6 +1070,7 @@ where
     F: FnOnce(&AppContext, Arc<AtomicBool>) -> Result<T, AppError> + Send + 'static,
 {
     let workspaces = Arc::clone(&ctx.workspaces);
+    let app_settings = Arc::clone(&ctx.app_settings);
     let flag = Arc::new(AtomicBool::new(false));
     let inner = Arc::clone(&flag);
     // The guard lives inside the closure so the registry entry matches the
@@ -1055,7 +1079,7 @@ where
     let guard = sync_ops::register(workspace_id, &flag);
     let handle = tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
-        let local_ctx = AppContext::new(workspaces);
+        let local_ctx = AppContext::new(workspaces, app_settings);
         op(&local_ctx, inner)
     });
     match tokio::time::timeout(sync_ops::SYNC_OP_TIMEOUT, handle).await {
@@ -1159,8 +1183,9 @@ async fn cmd_list_remotes(
     use std::sync::Arc;
 
     let workspaces = Arc::clone(&ctx.workspaces);
+    let app_settings = Arc::clone(&ctx.app_settings);
     tauri::async_runtime::spawn_blocking(move || {
-        let local_ctx = AppContext::new(workspaces);
+        let local_ctx = AppContext::new(workspaces, app_settings);
         list_remotes(&local_ctx, &workspace_id)
     })
     .await
@@ -1392,15 +1417,39 @@ pub fn run() {
     let _guard = init_tracing();
     info!("GitWave starting (version {})", env!("CARGO_PKG_VERSION"));
 
+    let app_settings = match SqliteAppSettingsRepo::open() {
+        Ok(repo) => Arc::new(Mutex::new(repo)),
+        Err(e) => {
+            tracing::error!("failed to open app settings store, falling back to in-memory: {e}");
+            Arc::new(Mutex::new(
+                SqliteAppSettingsRepo::open_in_memory().expect("in-memory app settings store"),
+            ))
+        }
+    };
+
     let ctx = match open_state() {
-        Ok(conn) => AppContext::new(Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn)))),
+        Ok(conn) => AppContext::new(
+            Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
+            Arc::clone(&app_settings),
+        ),
         Err(e) => {
             tracing::error!("failed to open SQLite state, falling back to in-memory: {e}");
             let conn = rusqlite::Connection::open_in_memory().expect("in-memory fallback");
             migrations::apply(&conn).expect("fallback migrations");
-            AppContext::new(Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))))
+            AppContext::new(
+                Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
+                app_settings,
+            )
         }
     };
+
+    // F013: bridge the configured proxy into the process environment before
+    // anything can construct a network client (AI singletons are lazy, the
+    // updater plugin checks on a timer, libgit2 reads env per operation).
+    // UI stays fully functional if this fails — only the proxy defaults off.
+    if let Err(e) = get_proxy_settings(&ctx).map(|s| infrastructure::proxy::apply_to_env(&s)) {
+        tracing::warn!("failed to read proxy settings, env bridge skipped: {e}");
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -1424,6 +1473,8 @@ pub fn run() {
             cmd_set_active_repo,
             cmd_get_workspace,
             cmd_update_workspace_settings,
+            cmd_get_proxy_settings,
+            cmd_set_proxy_settings,
             cmd_set_ai_api_key,
             cmd_clear_ai_api_key,
             cmd_get_ai_key_status,

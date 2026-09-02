@@ -58,6 +58,15 @@ export interface AiGenerateOutcome {
   used_fallback: boolean;
 }
 
+/** Proxy source selection (F013): follow the OS proxy, a manual URL, or none. */
+export type ProxyMode = "system" | "manual" | "off";
+
+export interface ProxySettings {
+  mode: ProxyMode;
+  /** Proxy URL for mode "manual", e.g. "http://127.0.0.1:7890". */
+  manual_url: string | null;
+}
+
 /** AI-generated PR description (title + markdown body). Never creates a PR. */
 export interface PrDescriptionOutcome {
   title: string;
@@ -195,6 +204,19 @@ export function getWorkspace(id: string): Promise<Workspace> {
 
 export function updateWorkspaceSettings(id: string, settings: WorkspaceSettings): Promise<void> {
   return invoke<void>("cmd_update_workspace_settings", { id, settings });
+}
+
+/** Read the app-wide proxy settings (F013). */
+export function getProxySettings(): Promise<ProxySettings> {
+  return invoke<ProxySettings>("cmd_get_proxy_settings");
+}
+
+/**
+ * Save the app-wide proxy settings. The backend applies the env bridge and
+ * rebuilds its AI client immediately; the returned value is normalized.
+ */
+export function updateProxySettings(settings: ProxySettings): Promise<ProxySettings> {
+  return invoke<ProxySettings>("cmd_set_proxy_settings", { settings });
 }
 
 export interface AiKeyStatus {

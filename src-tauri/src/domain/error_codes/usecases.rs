@@ -47,6 +47,12 @@ pub const AI_ALL_PROVIDERS_FAILED: &str = "usecases.ai.all_providers_failed";
 /// 健康报告序列化失败。
 pub const HEALTH_SERIALIZE_FAILED: &str = "usecases.health.serialize_failed";
 
+/// 手动代理地址无效（缺 scheme 补齐后仍无法解析出主机）。
+pub const PROXY_URL_INVALID: &str = "usecases.proxy.url_invalid";
+
+/// 代理设置序列化失败。
+pub const PROXY_SERIALIZE_FAILED: &str = "usecases.proxy.serialize_failed";
+
 // ─── Commit / diff ──────────────────────────────────────────────────────────
 
 /// 生成 commit message 前没有已暂存的变更。

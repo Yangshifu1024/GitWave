@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Globe,
   KeyRound,
   Monitor,
   Moon,
@@ -15,7 +16,14 @@ import { useAutoUpdateSetting, useCheckForUpdates } from "@/hooks/useUpdater";
 import { useFonts } from "@/hooks/useFonts";
 import { usePalette } from "@/hooks/usePalette";
 import { useTheme, type Theme } from "@/hooks/useTheme";
-import { getAppVersion } from "@/lib/api";
+import {
+  formatAppError,
+  getAppVersion,
+  getProxySettings,
+  updateProxySettings,
+  type ProxyMode,
+  type ProxySettings,
+} from "@/lib/api";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import {
   DEFAULT_FONT_LEADS,
@@ -45,17 +53,19 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
-type SettingsSection = "general" | "appearance" | "ssh";
+type SettingsSection = "general" | "appearance" | "network" | "ssh";
 
 const SECTION_KEY: Record<SettingsSection, string> = {
   general: "settings.sections.general",
   appearance: "settings.sections.appearance",
+  network: "settings.sections.network",
   ssh: "settings.sections.ssh",
 };
 
 const SECTIONS: { id: SettingsSection; icon: typeof PaletteIcon }[] = [
   { id: "general", icon: Settings2 },
   { id: "appearance", icon: PaletteIcon },
+  { id: "network", icon: Globe },
   { id: "ssh", icon: KeyRound },
 ];
 
@@ -110,6 +120,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
         <div className="min-w-0 flex-1 overflow-auto pl-5">
           {section === "general" ? <GeneralSection /> : null}
           {section === "appearance" ? <AppearanceSection /> : null}
+          {section === "network" ? <NetworkSection /> : null}
           {section === "ssh" ? <SshKeyManager /> : null}
         </div>
       </div>
@@ -240,6 +251,124 @@ function UpdatesSection(): React.JSX.Element {
         </span>
       </div>
     </section>
+  );
+}
+
+// ─── Network ──────────────────────────────────────────────────────────────
+
+const PROXY_MODES: { value: ProxyMode; labelKey: string; icon: typeof Globe }[] = [
+  { value: "system", labelKey: "settings.network.modeSystem", icon: Globe },
+  { value: "manual", labelKey: "settings.network.modeManual", icon: Settings2 },
+  { value: "off", labelKey: "settings.network.modeOff", icon: Monitor },
+];
+
+const MODE_HINT_KEY: Record<ProxyMode, string> = {
+  system: "settings.network.modeSystemHint",
+  manual: "settings.network.modeManualHint",
+  off: "settings.network.modeOffHint",
+};
+
+function NetworkSection(): React.JSX.Element {
+  const { t } = useTranslation();
+  // Null until the backend answer arrives; rendered as a disabled skeleton.
+  const [settings, setSettings] = useState<ProxySettings | null>(null);
+  const [urlDraft, setUrlDraft] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getProxySettings()
+      .then((loaded) => {
+        setSettings(loaded);
+        setUrlDraft(loaded.manual_url ?? "");
+      })
+      .catch((err) => {
+        // Fall back to the documented default (follow system) so the
+        // section stays usable even when the store is unreadable.
+        setSettings({ mode: "system", manual_url: null });
+        setError(formatAppError(err));
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
+
+  const save = (next: ProxySettings): void => {
+    updateProxySettings(next)
+      .then((normalized) => {
+        setSettings(normalized);
+        setUrlDraft(normalized.manual_url ?? "");
+        setSaved(true);
+        setError(null);
+      })
+      .catch((err) => {
+        setSaved(false);
+        setError(formatAppError(err));
+      });
+  };
+
+  const commitUrl = (): void => {
+    if (!settings) return;
+    if ((settings.manual_url ?? "") === urlDraft.trim()) return;
+    save({ ...settings, manual_url: urlDraft.trim() || null });
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted">
+          {t("settings.network.proxy")}
+        </h3>
+        <RadioGroup
+          value={settings?.mode}
+          onChange={(value) => {
+            if (!settings) return;
+            save({ ...settings, mode: value as ProxyMode });
+          }}
+          aria-label={t("settings.network.proxy")}
+          className="grid grid-cols-3 gap-2 [&_[data-slot=radio]]:mt-0"
+          style={{ display: "grid" }}
+        >
+          {PROXY_MODES.map(({ value, labelKey, icon: Icon }) => (
+            <CardOption
+              key={value}
+              value={value}
+              selected={settings?.mode === value}
+              label={t(labelKey)}
+            >
+              <Icon
+                size={18}
+                className={settings?.mode === value ? "text-accent" : "text-text-secondary"}
+              />
+            </CardOption>
+          ))}
+        </RadioGroup>
+        {settings ? (
+          <p className="text-xs text-text-muted">{t(MODE_HINT_KEY[settings.mode])}</p>
+        ) : null}
+        {settings?.mode === "manual" ? (
+          <div className="flex flex-col gap-1">
+            <Input
+              label={t("settings.network.manualUrl")}
+              placeholder={t("settings.network.manualUrlPlaceholder")}
+              value={urlDraft}
+              onChange={setUrlDraft}
+              onBlur={commitUrl}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitUrl();
+              }}
+            />
+            <p className="text-xs text-text-muted">{t("settings.network.loopbackHint")}</p>
+          </div>
+        ) : null}
+        <span aria-live="polite" className="text-xs text-text-muted">
+          {error ?? (saved ? t("settings.network.saved") : null)}
+        </span>
+      </section>
+    </div>
   );
 }
 

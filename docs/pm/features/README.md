@@ -64,6 +64,7 @@
 | [F010](./F010-i18n.md) | 完整国际化（UI 中英双语 + AI 回复语言） | 接受 | v0.6.0 |
 | [F011](./F011-commit-context-menu.md) | History 提交右键菜单（参考 Fork） | 接受 | v0.7.x |
 | [F012](./F012-checkout-remote-branch.md) | 双击远程分支：创建同名本地分支并切换（DWIM） | 接受 | v0.7.x |
+| [F013](./F013-system-proxy.md) | 支持系统代理（网络设置节：跟随系统 / 手动 / 关闭） | 接受 | v0.7.x |
 
 ## 相关文档
 

@@ -10,7 +10,7 @@ pub mod scrubber;
 pub mod secrets;
 
 pub use language::{sanitize as sanitize_ai_language, with_reply_language};
-pub use provider::{generate_text, probe_ollama, AiGenerateRequest};
+pub use provider::{generate_text, probe_ollama, rebuild_http_client, AiGenerateRequest};
 pub use rules::read_ai_rules;
 pub use scrubber::scrub_secrets;
 pub use secrets::{clear_api_key, get_api_key, has_api_key, set_api_key};
