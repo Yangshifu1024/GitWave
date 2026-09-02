@@ -35,13 +35,12 @@ pub enum CommitRefKind {
     LocalBranch,
     RemoteBranch,
     Tag,
-    Head,
 }
 
-/// A branch / tag / HEAD label attached to a commit tip.
+/// A branch / tag label attached to a commit tip.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommitRef {
-    /// Short display name (`main`, `origin/main`, `v1.0.0`, `HEAD`).
+    /// Short display name (`main`, `origin/main`, `v1.0.0`).
     pub name: String,
     pub kind: CommitRefKind,
 }
@@ -65,7 +64,7 @@ pub struct CommitSummary {
     /// input (e.g. for root commits or partial server output).
     #[serde(default)]
     pub parents: Vec<String>,
-    /// Branch / tag / HEAD decorations pointing at this commit.
+    /// Branch / tag decorations pointing at this commit.
     #[serde(default)]
     pub refs: Vec<CommitRef>,
 }

@@ -55,7 +55,7 @@ export interface CommitCheckoutGateInput {
 /**
  * Decide whether a detached checkout of a commit can proceed, needs the
  * dirty-work dialog, or is blocked — the commit-side twin of
- * `gateCheckout` (worktree occupancy / remote-kind checks don't apply).
+ * `gateCheckout` (worktree occupancy doesn't apply to detached checkouts).
  * Blocked reasons render localized via the caller (unlike `gateCheckout`,
  * whose English literals predate i18n).
  */

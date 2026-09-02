@@ -1,7 +1,7 @@
 // Badge-scoped context menu on history-row refs (F011): checkout / delete /
 // copy without scrolling the sidebar lists. Wraps a RefBadge in its own
 // ContextMenu — the trigger stops propagation so the row menu doesn't also
-// open. The `head` badge (current-branch pointer) gets no menu.
+// open.
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,9 +48,6 @@ export function RefBadgeContextMenu({
   const checkout = useBranchCheckout();
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<DeleteTarget | null>(null);
-
-  // Hooks run for every badge; the head badge just renders without a menu.
-  if (r.kind === "head") return <>{children}</>;
 
   const isCurrent = r.name === currentBranch;
   const remoteRef = r.kind === "remote_branch" ? parseRemoteBranchName(r.name) : null;
@@ -164,14 +161,27 @@ export function RefBadgeContextMenu({
             </>
           ) : null}
           {r.kind === "remote_branch" ? (
-            <ContextMenuItem
-              destructive
-              disabled={busy || !remoteRef}
-              onSelect={() => setConfirm("remote")}
-            >
-              <Trash2 size={14} />
-              {t("branches.deleteRemote.menuItem")}
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem
+                disabled={checkout.busy}
+                onSelect={() => {
+                  onSelect?.();
+                  // F012 DWIM: creates/tracks the local branch via the hook.
+                  checkout.request(r.name, { kind: "remote", isCurrent: false });
+                }}
+              >
+                <GitBranch size={14} />
+                {t("branches.menu.checkout")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                destructive
+                disabled={busy || !remoteRef}
+                onSelect={() => setConfirm("remote")}
+              >
+                <Trash2 size={14} />
+                {t("branches.deleteRemote.menuItem")}
+              </ContextMenuItem>
+            </>
           ) : null}
           {r.kind === "tag" ? (
             <ContextMenuItem destructive disabled={busy} onSelect={() => setConfirm("tag")}>

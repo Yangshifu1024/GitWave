@@ -30,6 +30,7 @@
     "checkout": {
       "stashMessage": "切换到 {{name}}",
       "success": "已检出 {{name}}",
+      "createdFromRemote": "已创建并切换到 {{name}}（跟踪 {{remote}}）",
       "withStash": "已检出 {{name}} 并重新应用贮藏",
       "stashFailed": "已检出 {{name}}。重新应用贮藏失败，贮藏已保留。"
     },

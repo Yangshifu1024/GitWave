@@ -2,28 +2,24 @@ export type CheckoutGate =
   | { kind: "noop" }
   | { kind: "proceed" }
   | { kind: "dirty"; fileCount: number }
-  | { kind: "blocked"; reason: "remote" | "merge" | "rebase" | "worktree"; message: string };
+  | { kind: "blocked"; reason: "merge" | "rebase" | "worktree"; message: string };
 
 export interface CheckoutGateInput {
   isCurrent: boolean;
-  branchKind: "local" | "remote";
   dirtyCount: number;
   mergeInProgress: boolean;
   rebasePaused: boolean;
   occupiedWorktree: string | null;
 }
 
-/** Decide whether a branch switch can proceed, needs a dirty-work dialog, or is blocked. */
+/**
+ * Decide whether a branch switch can proceed, needs a dirty-work dialog, or
+ * is blocked. Remote-tracking branches are resolved to their local DWIM
+ * target (F012) by the caller before gating, so this only ever sees local
+ * branch checks.
+ */
 export function gateCheckout(input: CheckoutGateInput): CheckoutGate {
   if (input.isCurrent) return { kind: "noop" };
-  if (input.branchKind === "remote") {
-    return {
-      kind: "blocked",
-      reason: "remote",
-      message:
-        "Create or check out a local branch. Remote-tracking branches cannot be checked out directly.",
-    };
-  }
   if (input.mergeInProgress) {
     return {
       kind: "blocked",

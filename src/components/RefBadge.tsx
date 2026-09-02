@@ -29,10 +29,11 @@ function truncateRefName(name: string): string {
 
 /**
  * Branch / tag chip for a commit, shared by the history rows and the
- * inspector header. Colors follow the history conventions: HEAD wears solid
- * current-branch, tags a warning tint, remote branches the fixed
- * --color-branch-remote, local branches their lane color — or, when no lane
- * context exists (inspector header), the current-branch color.
+ * inspector header. Colors follow the history conventions: the current
+ * branch (emphasize) wears a current-branch tint, tags a warning tint,
+ * remote branches the fixed --color-branch-remote, local branches their
+ * lane color — or, when no lane context exists (inspector header), the
+ * current-branch color.
  */
 export function RefBadge({
   r,
@@ -56,18 +57,6 @@ export function RefBadge({
     "rounded px-1 py-0 text-xs leading-none font-medium border shadow-none",
   );
   const displayName = r.kind === "tag" ? r.name : truncate ? truncateRefName(r.name) : r.name;
-
-  if (r.kind === "head") {
-    return (
-      <Chip
-        size="sm"
-        title={r.name}
-        className={cn(chrome, "bg-branch-current text-text-inverse border-branch-current")}
-      >
-        <Chip.Label className="min-w-0 truncate">{displayName}</Chip.Label>
-      </Chip>
-    );
-  }
 
   if (r.kind === "tag") {
     return (
