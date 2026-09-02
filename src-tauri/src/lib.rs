@@ -21,19 +21,20 @@ use application::sync_ops;
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
     add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch, checkout_commit,
-    cherry_pick_commit, clear_ai_api_key, clone_repo, commit, continue_interactive_rebase,
-    create_branch, create_tag, create_workspace, deinit_submodule, delete_branch,
-    delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace, discard_changes,
-    drop_stash, execute_interactive_rebase, explain_commit, explain_conflict, explain_health,
-    explain_reflog, export_workspace, fetch, generate_commit_message, generate_pr_description,
-    get_ahead_behind, get_ai_key_status, get_blame, get_branches, get_commit_details,
-    get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff, get_gitignore, get_health,
-    get_hook, get_repo_ai_rules, get_stash_diff, get_workdir_diff, get_working_copy, get_workspace,
-    ignore_path, import_workspace, init_repo, init_submodule, interactive_rebase_paused,
-    lfs_install, lfs_status, lfs_track, lfs_untrack, list_conflicts, list_hooks, list_reflog,
-    list_remote_details, list_repos, list_ssh_keys, list_stashes, list_submodules, list_tags,
-    list_workspaces, list_worktrees, merge_branch, merge_in_progress, merge_preview,
-    plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch, relink_repo,
+    checkout_remote_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit,
+    continue_interactive_rebase, create_branch, create_tag, create_workspace, deinit_submodule,
+    delete_branch, delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace,
+    discard_changes, drop_stash, execute_interactive_rebase, explain_commit, explain_conflict,
+    explain_health, explain_reflog, export_workspace, fetch, generate_commit_message,
+    generate_pr_description, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
+    get_commit_details, get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff,
+    get_gitignore, get_health, get_hook, get_repo_ai_rules, get_stash_diff, get_workdir_diff,
+    get_working_copy, get_workspace, ignore_path, import_workspace, init_repo, init_submodule,
+    interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack, list_conflicts,
+    list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys, list_stashes,
+    list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
+    merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch,
+    relink_repo,
     remove_remote, remove_repo, remove_worktree, rename_branch, rename_remote, rename_workspace,
     reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook, save_stash,
     set_active_repo, set_ai_api_key, set_branch_upstream, set_remote_push_url, set_remote_url,
@@ -42,7 +43,7 @@ use application::{
     AiKeyStatus, AppContext, PaletteIntent, PrDescriptionOutcome,
 };
 use domain::blame::BlameLine;
-use domain::branch::BranchInfo;
+use domain::branch::{BranchInfo, CheckoutRemoteOutcome};
 use domain::diff::FileDiff;
 use domain::error::AppError;
 use domain::history::{CommitDetails, CommitSummary};
@@ -507,6 +508,18 @@ async fn cmd_checkout_branch(
     force: Option<bool>,
 ) -> Result<(), AppError> {
     checkout_branch(&ctx, &workspace_id, &name, force.unwrap_or(false))
+}
+
+/// F012 DWIM checkout of a remote-tracking branch: reuse the same-named
+/// local branch or create it with upstream tracking, then switch to it.
+#[tauri::command]
+async fn cmd_checkout_remote_branch(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    name: String,
+    force: Option<bool>,
+) -> Result<CheckoutRemoteOutcome, AppError> {
+    checkout_remote_branch(&ctx, &workspace_id, &name, force.unwrap_or(false))
 }
 
 #[tauri::command]
@@ -1444,6 +1457,7 @@ pub fn run() {
             cmd_delete_branch,
             cmd_delete_remote_branch,
             cmd_checkout_branch,
+            cmd_checkout_remote_branch,
             cmd_checkout_commit,
             cmd_rename_branch,
             cmd_set_branch_upstream,

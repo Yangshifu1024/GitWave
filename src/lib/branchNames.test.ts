@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "./branchNames";
+import {
+  filterRemoteBranches,
+  localNameForRemote,
+  remoteShortName,
+  splitBranchPrefix,
+} from "./branchNames";
 
 describe("remoteShortName", () => {
   it("strips the remote prefix from a remote-tracking name", () => {
@@ -21,6 +26,27 @@ describe("remoteShortName", () => {
   it("degrades to an empty short name for degenerate inputs", () => {
     expect(remoteShortName("")).toBe("");
     expect(remoteShortName("origin/")).toBe("");
+  });
+});
+
+describe("localNameForRemote", () => {
+  it("strips the configured remote prefix", () => {
+    expect(localNameForRemote("origin/feat/x", ["origin"])).toBe("feat/x");
+  });
+
+  it("uses the longest configured prefix for nested remote names", () => {
+    expect(localNameForRemote("foo/bar/x", ["foo", "foo/bar"])).toBe("x");
+    expect(localNameForRemote("foo/bar/x", ["foo/bar", "foo"])).toBe("x");
+  });
+
+  it("prefers the configured remote over a same-named branch prefix", () => {
+    // Remote `foo` + branch `foo/bar` on it: `foo/bar` is the branch name.
+    expect(localNameForRemote("foo/bar", ["foo"])).toBe("bar");
+  });
+
+  it("falls back to the first-segment split without a matching remote", () => {
+    expect(localNameForRemote("origin/main", [])).toBe("main");
+    expect(localNameForRemote("orphan/feature", ["origin"])).toBe("feature");
   });
 });
 

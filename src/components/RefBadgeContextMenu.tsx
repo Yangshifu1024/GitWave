@@ -164,14 +164,27 @@ export function RefBadgeContextMenu({
             </>
           ) : null}
           {r.kind === "remote_branch" ? (
-            <ContextMenuItem
-              destructive
-              disabled={busy || !remoteRef}
-              onSelect={() => setConfirm("remote")}
-            >
-              <Trash2 size={14} />
-              {t("branches.deleteRemote.menuItem")}
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem
+                disabled={checkout.busy}
+                onSelect={() => {
+                  onSelect?.();
+                  // F012 DWIM: creates/tracks the local branch via the hook.
+                  checkout.request(r.name, { kind: "remote", isCurrent: false });
+                }}
+              >
+                <GitBranch size={14} />
+                {t("branches.menu.checkout")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                destructive
+                disabled={busy || !remoteRef}
+                onSelect={() => setConfirm("remote")}
+              >
+                <Trash2 size={14} />
+                {t("branches.deleteRemote.menuItem")}
+              </ContextMenuItem>
+            </>
           ) : null}
           {r.kind === "tag" ? (
             <ContextMenuItem destructive disabled={busy} onSelect={() => setConfirm("tag")}>

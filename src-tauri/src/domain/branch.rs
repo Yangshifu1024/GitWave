@@ -30,6 +30,23 @@ pub struct BranchInfo {
     pub last_commit_time: i64,
 }
 
+/// Result of `cmd_checkout_remote_branch` (F012 DWIM checkout). The local
+/// branch name is the remote shorthand minus its remote prefix — the branch
+/// the user ends up on, whether it was created or reused.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckoutRemoteOutcome {
+    /// `true` when the local branch was created from the remote tip (with
+    /// upstream tracking set); `false` when an existing local branch was
+    /// checked out instead.
+    pub created: bool,
+    /// `true` when the target local branch was already HEAD — the worktree
+    /// was left untouched (guards against a pointless discard on dirty trees).
+    pub already_current: bool,
+    /// Local branch the repository is on after the call, e.g. `feat/x`.
+    pub local_name: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

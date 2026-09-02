@@ -30,6 +30,7 @@
     "checkout": {
       "stashMessage": "switch to {{name}}",
       "success": "Checked out {{name}}",
+      "createdFromRemote": "Created and switched to {{name}} (tracking {{remote}})",
       "withStash": "Checked out {{name}} and re-applied stash",
       "stashFailed": "Checked out {{name}}. Stash re-apply failed; the stash was kept."
     },

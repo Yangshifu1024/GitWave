@@ -3,7 +3,6 @@ import { gateCheckout, type CheckoutGateInput } from "./checkoutGate";
 
 const base: CheckoutGateInput = {
   isCurrent: false,
-  branchKind: "local",
   dirtyCount: 0,
   mergeInProgress: false,
   rebasePaused: false,
@@ -13,12 +12,6 @@ const base: CheckoutGateInput = {
 describe("gateCheckout", () => {
   it("no-ops when the branch is already current", () => {
     expect(gateCheckout({ ...base, isCurrent: true })).toEqual({ kind: "noop" });
-  });
-
-  it("blocks remote-tracking branches", () => {
-    const gate = gateCheckout({ ...base, branchKind: "remote" });
-    expect(gate.kind).toBe("blocked");
-    if (gate.kind === "blocked") expect(gate.reason).toBe("remote");
   });
 
   it("blocks merge in progress before dirty work", () => {

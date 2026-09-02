@@ -7,6 +7,7 @@
 
 use git2::Repository;
 
+use crate::domain::branch::CheckoutRemoteOutcome;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
@@ -62,6 +63,104 @@ pub fn checkout_branch(repo: &Repository, name: &str, force: bool) -> Result<()>
     repo.set_head(&format!("refs/heads/{name}"))
         .map_err(map_git_err)?;
     Ok(())
+}
+
+/// Check out a remote-tracking branch the way `git switch` does (F012
+/// DWIM): reuse the same-named local branch when one exists, otherwise
+/// create it at the remote tip with upstream tracking set.
+///
+/// `remote_name` is the remote-tracking shorthand, e.g. `origin/feat/x`.
+/// The local branch name is the shorthand minus the longest configured
+/// `<remote>/` prefix.
+///
+/// `force = false` refuses to overwrite local changes. On the create path
+/// the dirty-worktree check runs *before* any ref is written, so a refusal
+/// leaves no half-created branch. `force = true` discards tracked and
+/// untracked worktree files — UI must confirm.
+pub fn checkout_remote_branch(
+    repo: &Repository,
+    remote_name: &str,
+    force: bool,
+) -> Result<CheckoutRemoteOutcome> {
+    let local_name = local_name_for_remote(repo, remote_name)?;
+    if local_name == "HEAD" {
+        // `origin/HEAD` is a symref, not a real branch — double-clicking it
+        // gets F004's current-branch semantics (silent no-op), not a bare
+        // git error from trying to create a branch named HEAD.
+        return Ok(CheckoutRemoteOutcome {
+            created: false,
+            already_current: true,
+            local_name,
+        });
+    }
+    let remote_branch = repo
+        .find_branch(remote_name, git2::BranchType::Remote)
+        .map_err(map_git_err)?;
+
+    if let Ok(branch) = repo.find_branch(&local_name, git2::BranchType::Local) {
+        if branch.is_head() {
+            // Leave the worktree alone: double-clicking the remote badge of
+            // the branch you're on must never turn into a discard.
+            return Ok(CheckoutRemoteOutcome {
+                created: false,
+                already_current: true,
+                local_name,
+            });
+        }
+        checkout_branch(repo, &local_name, force)?;
+        return Ok(CheckoutRemoteOutcome {
+            created: false,
+            already_current: false,
+            local_name,
+        });
+    }
+
+    if !force {
+        let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(true).recurse_untracked_dirs(true);
+        let statuses = repo.statuses(Some(&mut opts)).map_err(map_git_err)?;
+        if statuses.iter().next().is_some() {
+            return Err(AppError::protocol(
+                codes::git::DIRTY_WORKTREE,
+                "working tree is dirty — commit or stash before checking out a remote branch",
+            ));
+        }
+    }
+    let commit = remote_branch.get().peel_to_commit().map_err(map_git_err)?;
+    repo.branch(&local_name, &commit, false).map_err(map_git_err)?;
+    set_branch_upstream(repo, &local_name, Some(remote_name))?;
+    // If this fails after the branch/upstream were written, a created branch
+    // stays behind (same as a failed `git switch -c`) — retry takes the
+    // reuse path above and self-heals.
+    checkout_branch(repo, &local_name, force)?;
+    Ok(CheckoutRemoteOutcome {
+        created: true,
+        already_current: false,
+        local_name,
+    })
+}
+
+/// `origin/feat/x` → `feat/x`: strip the longest configured `<remote>/`
+/// prefix. Remote names may themselves contain slashes (e.g. `foo/bar`),
+/// so a naive first-segment split would mangle them.
+fn local_name_for_remote(repo: &Repository, remote_name: &str) -> Result<String> {
+    let remotes = repo.remotes().map_err(map_git_err)?;
+    let mut best: Option<&str> = None;
+    for i in 0..remotes.len() {
+        let Some(name) = remotes.get(i) else { continue };
+        if remote_name.starts_with(&format!("{name}/")) && best.map_or(true, |b| name.len() > b.len())
+        {
+            best = Some(name);
+        }
+    }
+    match best {
+        Some(name) => Ok(remote_name[name.len() + 1..].to_string()),
+        None => Err(AppError::protocol_with(
+            codes::git::GIT_ERROR,
+            format!("no configured remote matches branch {remote_name}"),
+            &[("branch", remote_name.to_string())],
+        )),
+    }
 }
 
 /// Check out a commit directly (detached HEAD, updates the working tree).
@@ -560,6 +659,284 @@ mod tests {
             .find_branch("feature", git2::BranchType::Local)
             .unwrap();
         assert!(feature.upstream().is_err());
+        cleanup(&path);
+    }
+
+    /// Stand in for a fetched remote-tracking ref (`refs/remotes/<remote>/
+    /// <branch>` at `sha`), registering the remote if needed.
+    fn add_remote_tracking_ref(repo: &Repository, remote: &str, branch: &str, sha: &str) {
+        if repo.find_remote(remote).is_err() {
+            repo.remote(remote, "https://example.com/repo.git").unwrap();
+        }
+        repo.reference(
+            &format!("refs/remotes/{remote}/{branch}"),
+            repo.revparse_single(sha).unwrap().id(),
+            true,
+            "test: fake remote-tracking ref",
+        )
+        .unwrap();
+    }
+
+    /// Rewrite the worktree and index from HEAD — the fixture commits
+    /// directly, leaving a racy index that trips libgit2's SAFE checkout
+    /// (see `rename_current_branch_keeps_head_on_it`).
+    fn freshen_worktree(repo: &Repository) {
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+    }
+
+    #[test]
+    fn checkout_remote_branch_creates_local_and_tracks() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "origin", "feature", &sha);
+        freshen_worktree(&repo);
+
+        let outcome = checkout_remote_branch(&repo, "origin/feature", false).unwrap();
+
+        assert!(outcome.created);
+        assert!(!outcome.already_current);
+        assert_eq!(outcome.local_name, "feature");
+        assert_eq!(repo.head().unwrap().name().unwrap(), "refs/heads/feature");
+        let feature = repo
+            .find_branch("feature", git2::BranchType::Local)
+            .unwrap();
+        assert_eq!(
+            feature.upstream().unwrap().name().unwrap(),
+            Some("origin/feature")
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_reuses_existing_local_and_keeps_upstream() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "origin", "feature", &sha);
+        add_remote_tracking_ref(&repo, "origin", "other", &sha);
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        set_branch_upstream(&repo, "feature", Some("origin/other")).unwrap();
+        freshen_worktree(&repo);
+
+        let outcome = checkout_remote_branch(&repo, "origin/feature", false).unwrap();
+
+        assert!(!outcome.created);
+        assert!(!outcome.already_current);
+        assert_eq!(repo.head().unwrap().name().unwrap(), "refs/heads/feature");
+        let feature = repo
+            .find_branch("feature", git2::BranchType::Local)
+            .unwrap();
+        assert_eq!(
+            feature.upstream().unwrap().name().unwrap(),
+            Some("origin/other"),
+            "reusing an existing local branch must not touch its upstream"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_current_target_is_noop() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "origin", "feature", &sha);
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        repo.set_head("refs/heads/feature").unwrap();
+        let tracked = repo.workdir().unwrap().join("file0.txt");
+        fs::write(&tracked, "dirty\n").unwrap();
+
+        let outcome = checkout_remote_branch(&repo, "origin/feature", false).unwrap();
+
+        assert!(!outcome.created);
+        assert!(outcome.already_current);
+        assert_eq!(repo.head().unwrap().shorthand(), Some("feature"));
+        assert_eq!(
+            fs::read_to_string(&tracked).unwrap(),
+            "dirty\n",
+            "double-clicking the remote of the current branch must never discard"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_dirty_refusal_leaves_no_branch() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "origin", "feature", &sha);
+        fs::write(repo.workdir().unwrap().join("file0.txt"), "dirty\n").unwrap();
+
+        let err = checkout_remote_branch(&repo, "origin/feature", false).unwrap_err();
+
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert!(
+            repo.find_branch("feature", git2::BranchType::Local).is_err(),
+            "refusal must not leave a half-created branch"
+        );
+        assert_eq!(repo.head().unwrap().shorthand(), Some("main"));
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_force_discards_on_create_path() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "origin", "feature", &sha);
+        let tracked = repo.workdir().unwrap().join("file0.txt");
+        fs::write(&tracked, "dirty\n").unwrap();
+
+        let outcome = checkout_remote_branch(&repo, "origin/feature", true).unwrap();
+
+        assert!(outcome.created);
+        assert_eq!(repo.head().unwrap().name().unwrap(), "refs/heads/feature");
+        assert_ne!(
+            fs::read_to_string(&tracked).unwrap(),
+            "dirty\n",
+            "force must actually swap the worktree"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_missing_remote_branch_errors() {
+        let (path, repo) = build_linear_repo(2);
+        assert!(checkout_remote_branch(&repo, "origin/missing", false).is_err());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_without_configured_remote_errors() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        // Stale remote-tracking ref whose remote was removed from config.
+        repo.reference(
+            "refs/remotes/orphan/feature",
+            repo.revparse_single(&sha).unwrap().id(),
+            true,
+            "test: stale remote-tracking ref",
+        )
+        .unwrap();
+
+        assert!(checkout_remote_branch(&repo, "orphan/feature", false).is_err());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_remote_head_is_noop() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "origin", "HEAD", &sha);
+
+        let outcome = checkout_remote_branch(&repo, "origin/HEAD", true).unwrap();
+
+        assert!(!outcome.created);
+        assert!(outcome.already_current);
+        assert_eq!(repo.head().unwrap().shorthand(), Some("main"));
+        assert!(repo.find_branch("HEAD", git2::BranchType::Local).is_err());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn local_name_for_remote_uses_longest_prefix() {
+        let (path, repo) = build_linear_repo(2);
+        repo.remote("foo", "https://example.com/foo.git").unwrap();
+        repo.remote("foo/bar", "https://example.com/foobar.git")
+            .unwrap();
+
+        assert_eq!(local_name_for_remote(&repo, "foo/bar/x").unwrap(), "x");
+        assert_eq!(local_name_for_remote(&repo, "foo/main").unwrap(), "main");
+        // No configured remote matches the prefix.
+        assert_eq!(
+            local_name_for_remote(&repo, "origin/main").unwrap_err().code(),
+            codes::git::GIT_ERROR
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_current_target_noop_even_with_force() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "origin", "feature", &sha);
+        create_branch(&repo, "feature", &sha, false).unwrap();
+        repo.set_head("refs/heads/feature").unwrap();
+        let tracked = repo.workdir().unwrap().join("file0.txt");
+        fs::write(&tracked, "dirty\n").unwrap();
+
+        // The key anti-data-loss invariant: force must not turn "already on
+        // the target" into a discard.
+        let outcome = checkout_remote_branch(&repo, "origin/feature", true).unwrap();
+
+        assert!(!outcome.created);
+        assert!(outcome.already_current);
+        assert_eq!(fs::read_to_string(&tracked).unwrap(), "dirty\n");
+        cleanup(&path);
+    }
+
+    #[test]
+    fn checkout_remote_branch_handles_nested_remote_names() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo
+            .head()
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string();
+        add_remote_tracking_ref(&repo, "foo/bar", "x", &sha);
+        freshen_worktree(&repo);
+
+        let outcome = checkout_remote_branch(&repo, "foo/bar/x", true).unwrap();
+
+        assert!(outcome.created);
+        assert_eq!(outcome.local_name, "x");
+        assert_eq!(repo.head().unwrap().name().unwrap(), "refs/heads/x");
         cleanup(&path);
     }
 }

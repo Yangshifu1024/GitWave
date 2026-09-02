@@ -13,6 +13,24 @@ export function remoteShortName(name: string): string {
 }
 
 /**
+ * Resolve the local branch a remote-tracking branch checks out to (F012
+ * DWIM): strip the longest configured `<remote>/` prefix. Mirrors the
+ * backend `local_name_for_remote` so both sides agree on nested remote
+ * names (`foo/bar/x` -> `x` when a remote is literally named `foo/bar`).
+ * Without a matching configured remote, falls back to the first-segment
+ * split — good enough for display and best-effort pre-checks.
+ */
+export function localNameForRemote(name: string, remotes: string[]): string {
+  let best: string | null = null;
+  for (const remote of remotes) {
+    if (name.startsWith(`${remote}/`) && (best === null || remote.length > best.length)) {
+      best = remote;
+    }
+  }
+  return best === null ? remoteShortName(name) : name.slice(best.length + 1);
+}
+
+/**
  * Split a display branch name into its first path segment (the prefix
  * folder in the sidebar) and the remainder
  * (`feat/login-flow` -> `feat` + `login-flow`, `main` -> `null` + `main`).

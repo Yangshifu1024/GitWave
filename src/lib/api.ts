@@ -479,6 +479,16 @@ export interface AheadBehind {
   behind: number;
 }
 
+/** Result of the F012 DWIM checkout of a remote-tracking branch. */
+export interface CheckoutRemoteOutcome {
+  /** True when a local branch was created from the remote tip (+ upstream). */
+  created: boolean;
+  /** True when the target local branch was already HEAD — nothing happened. */
+  alreadyCurrent: boolean;
+  /** Local branch the repository is on after the call, e.g. `feat/x`. */
+  localName: string;
+}
+
 export type MergeKind = "fast_forward" | "three_way" | "already_up_to_date";
 
 export interface MergeResult {
@@ -551,6 +561,15 @@ export function deleteBranch(workspaceId: string, name: string): Promise<void> {
 
 export function checkoutBranch(workspaceId: string, name: string, force = false): Promise<void> {
   return invoke<void>("cmd_checkout_branch", { workspaceId, name, force });
+}
+
+/** F012 DWIM checkout: `name` is the remote shorthand, e.g. `origin/feat/x`. */
+export function checkoutRemoteBranch(
+  workspaceId: string,
+  name: string,
+  force = false,
+): Promise<CheckoutRemoteOutcome> {
+  return invoke<CheckoutRemoteOutcome>("cmd_checkout_remote_branch", { workspaceId, name, force });
 }
 
 /** Detached checkout of an arbitrary commit (UI must gate dirty worktrees). */

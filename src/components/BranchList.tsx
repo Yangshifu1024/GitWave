@@ -3,32 +3,26 @@
 // branch ops (new branch / pull / push) live in the ActionBar.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { BranchInfo, InlineAuth } from "@/lib/api";
 import {
   abortInteractiveRebasePause,
   continueInteractiveRebase,
-  checkoutBranch,
   deleteBranch,
   deleteRemoteBranch,
   formatAppError,
   getBranches,
-  getWorkingCopy,
   interactiveRebasePaused,
   isAuthError,
   isCancelledSyncError,
-  listWorktrees,
   listRemotes,
   mergeBranch,
-  mergeInProgress,
   mergePreview,
-  popStash,
   pushRemote,
   rebaseBranch,
   renameBranch,
-  saveStash,
   createBranch,
   setBranchUpstream,
 } from "@/lib/api";
@@ -37,9 +31,9 @@ import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore, type UiOperation } from "@/stores/syncStore";
 import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useTags } from "@/hooks/useTags";
+import { useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/commitMenu";
-import { gateCheckout } from "@/lib/checkoutGate";
 import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -151,9 +145,6 @@ function BranchRow({
   remotes,
 }: BranchRowProps): React.JSX.Element {
   const { t } = useTranslation();
-  // Fork-style menu: navigation + branch ops; merge / rebase / delete stay
-  // hidden on the current branch (they don't apply to HEAD).
-  const hasActions = branch.kind === "local";
 
   const row = (
     <ListItem
@@ -218,14 +209,13 @@ function BranchRow({
     </ListItem>
   );
 
-  if (!hasActions) return row;
-
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <div>{row}</div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="max-w-[260px]">
+  // Local rows get the full Fork-style menu (navigation + branch ops; merge /
+  // rebase / delete stay hidden on the current branch — they don't apply to
+  // HEAD). Remote rows (F012) get a minimal menu: DWIM checkout — same flow
+  // as double-click — plus copy name.
+  const menuContent =
+    branch.kind === "local" ? (
+      <>
         <ContextMenuLabel title={branch.name}>{branch.name}</ContextMenuLabel>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -311,7 +301,28 @@ function BranchRow({
             </ContextMenuItem>
           </>
         ) : null}
-      </ContextMenuContent>
+      </>
+    ) : (
+      <>
+        <ContextMenuLabel title={branch.name}>{branch.name}</ContextMenuLabel>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={busy} onSelect={() => onCheckout(branch.name)}>
+          <GitBranch size={14} />
+          {t("branches.menu.checkout")}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onCopyName(branch.name)}>
+          <Copy size={14} />
+          {t("branches.menu.copyName")}
+        </ContextMenuItem>
+      </>
+    );
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div>{row}</div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="max-w-[260px]">{menuContent}</ContextMenuContent>
     </ContextMenu>
   );
 }
@@ -327,7 +338,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
-  const queryClient = useQueryClient();
   const { data: tags = [], invalidate: invalidateTags } = useTags();
   // Configured remotes for the branch-menu push entry (flat item vs Fork-style
   // submenu on multi-remote). Shares the ActionBar dialogs' cache.
@@ -365,11 +375,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   } | null>(null);
   const [trackingDialog, setTrackingDialog] = useState<BranchInfo | null>(null);
   const [trackingPick, setTrackingPick] = useState("");
-  const [switchDialog, setSwitchDialog] = useState<
-    | { kind: "dirty"; name: string; fileCount: number }
-    | { kind: "blocked"; name: string; message: string }
-    | null
-  >(null);
 
   const refresh = useCallback(() => {
     bumpHistoryEpoch();
@@ -383,6 +388,19 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   const showNotice = (text: string, variant: "success" | "danger" = "success") => {
     setStatus(text, variant);
   };
+
+  // F004/F012 checkout flow (gate + dirty three-choice + DWIM remote
+  // checkout) lives in the shared hook; the sidebar used to keep its own copy.
+  const {
+    busy: checkoutBusy,
+    request: requestCheckout,
+    renderDialogs: renderCheckoutDialogs,
+  } = useBranchCheckout({
+    onSwitched: (target) => {
+      setSelectedName(target);
+      refresh();
+    },
+  });
 
   useEffect(() => {
     // Repo switch: drop the previous repo's selection immediately, but keep
@@ -447,60 +465,11 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     }
   };
 
-  const checkoutOnto = async (name: string, mode: "safe" | "force" | "stash") => {
-    if (!activeWorkspaceId) return;
-    if (mode === "stash") {
-      await saveStash(activeWorkspaceId, t("branches.checkout.stashMessage", { name }));
-      await checkoutBranch(activeWorkspaceId, name, false);
-      try {
-        await popStash(activeWorkspaceId, 0);
-        setStatus(t("branches.checkout.withStash", { name }));
-      } catch {
-        setStatus(t("branches.checkout.stashFailed", { name }), "danger");
-      }
-    } else {
-      await checkoutBranch(activeWorkspaceId, name, mode === "force");
-      setStatus(t("branches.checkout.success", { name }));
-    }
-    setSelectedName(name);
-    void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
-  };
-
+  /** Resolve the row's branch, then let the shared hook gate and switch. */
   const handleCheckout = (name: string) => {
-    if (!activeWorkspaceId || busy) return;
     const branch = branches.find((b) => b.name === name);
     if (!branch) return;
-    void (async () => {
-      setError(null);
-      try {
-        const [merging, worktrees, workingCopy] = await Promise.all([
-          mergeInProgress(activeWorkspaceId),
-          listWorktrees(activeWorkspaceId).catch(() => []),
-          getWorkingCopy(activeWorkspaceId).catch(() => null),
-        ]);
-        const occupied = worktrees.find((w) => !w.is_main && w.branch === name);
-        const gate = gateCheckout({
-          isCurrent: branch.is_current,
-          branchKind: branch.kind,
-          dirtyCount: workingCopy?.files.length ?? 0,
-          mergeInProgress: merging,
-          rebasePaused: irebasePaused,
-          occupiedWorktree: occupied?.name ?? null,
-        });
-        if (gate.kind === "noop") return;
-        if (gate.kind === "blocked") {
-          setSwitchDialog({ kind: "blocked", name, message: gate.message });
-          return;
-        }
-        if (gate.kind === "dirty") {
-          setSwitchDialog({ kind: "dirty", name, fileCount: gate.fileCount });
-          return;
-        }
-        await run("checkout", () => checkoutOnto(name, "safe"));
-      } catch (e) {
-        setError(formatAppError(e));
-      }
-    })();
+    requestCheckout(name, { kind: branch.kind, isCurrent: branch.is_current });
   };
 
   const handleSelect = (name: string) => {
@@ -763,7 +732,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           displayName={nameOf(branch)}
           indented={indented}
           selected={branch.name === selectedName}
-          busy={busy || loading}
+          busy={busy || loading || checkoutBusy}
           onSelect={handleSelect}
           onCheckout={handleCheckout}
           onDelete={(name) => setDeleteDialog({ name, deleteRemote: false })}
@@ -886,77 +855,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
 
-      {switchDialog?.kind === "dirty" ? (
-        <Modal
-          open
-          onOpenChange={(open) => {
-            if (!open) setSwitchDialog(null);
-          }}
-          title={t("branches.switch.dirtyTitle", { name: switchDialog.name })}
-          description={t("branches.switch.dirtyDescription", { count: switchDialog.fileCount })}
-          size="sm"
-          footer={
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="min-w-0 flex-[3]"
-                onClick={() => setSwitchDialog(null)}
-              >
-                {t("branches.cancel")}
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                className="min-w-0 flex-[3]"
-                disabled={busy}
-                onClick={() => {
-                  const target = switchDialog.name;
-                  setSwitchDialog(null);
-                  void run("checkout", () => checkoutOnto(target, "force"));
-                }}
-              >
-                {t("branches.switch.discard")}
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                className="min-w-0 flex-[4]"
-                disabled={busy}
-                onClick={() => {
-                  const target = switchDialog.name;
-                  setSwitchDialog(null);
-                  void run("checkout", () => checkoutOnto(target, "stash"));
-                }}
-              >
-                {t("branches.switch.stashAndSwitch")}
-              </Button>
-            </>
-          }
-        />
-      ) : null}
-
-      {switchDialog?.kind === "blocked" ? (
-        <Modal
-          open
-          onOpenChange={(open) => {
-            if (!open) setSwitchDialog(null);
-          }}
-          title={t("branches.switch.blockedTitle", { name: switchDialog.name })}
-          description={switchDialog.message}
-          size="sm"
-          footer={
-            <Button
-              variant="primary"
-              size="sm"
-              className="w-full"
-              onClick={() => setSwitchDialog(null)}
-            >
-              {t("branches.ok")}
-            </Button>
-          }
-        />
-      ) : null}
+      {renderCheckoutDialogs()}
 
       {newBranchBase ? (
         <Modal

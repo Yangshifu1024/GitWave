@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::domain::blame::BlameLine;
-use crate::domain::branch::BranchInfo;
+use crate::domain::branch::{BranchInfo, CheckoutRemoteOutcome};
 use crate::domain::diff::{DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
@@ -25,6 +25,7 @@ use crate::infrastructure::ai::with_reply_language;
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, checkout_commit as infra_checkout_commit,
+    checkout_remote_branch as infra_checkout_remote_branch,
     create_branch as infra_create_branch, delete_branch as infra_delete_branch,
     rename_branch as infra_rename_branch, set_branch_upstream as infra_set_branch_upstream,
 };
@@ -1004,6 +1005,19 @@ pub fn checkout_branch(
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_checkout_branch(&repo, name, force)
+}
+
+/// Check out a remote-tracking branch DWIM-style (F012): reuse the
+/// same-named local branch or create it with upstream tracking, then switch.
+pub fn checkout_remote_branch(
+    ctx: &AppContext,
+    workspace_id: &str,
+    name: &str,
+    force: bool,
+) -> Result<CheckoutRemoteOutcome> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    infra_checkout_remote_branch(&repo, name, force)
 }
 
 /// Check out a commit directly (detached HEAD, updates HEAD and working tree).
