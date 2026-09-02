@@ -62,6 +62,11 @@
   --color-diff-del-bg: color-mix(in srgb, var(--color-danger) 12%, white);
   --color-diff-del-word: color-mix(in srgb, var(--color-danger) 30%, white);
   --color-diff-hunk-bg: #f0f0f3;
+  /* Opaque twins of add/del bg for the sticky line-number gutter, which must
+   * mask code scrolling underneath (the dark add/del bg above are translucent).
+   * See 07-theme.md §3.1 */
+  --color-diff-add-bg-solid: color-mix(in srgb, var(--color-success) 12%, white);
+  --color-diff-del-bg-solid: color-mix(in srgb, var(--color-danger) 12%, white);
 
   /* Merge-conflict marker surfaces — conflict panel editor highlight (dark
    * overrides below follow the diff tokens' translucent pattern). */
@@ -178,6 +183,9 @@
     --color-diff-del-bg: color-mix(in srgb, var(--color-danger) 14%, transparent);
     --color-diff-del-word: color-mix(in srgb, var(--color-danger) 30%, transparent);
     --color-diff-hunk-bg: rgb(255 255 255 / 0.05);
+    /* Opaque so the sticky line-number gutter masks content scrolling under it. */
+    --color-diff-add-bg-solid: color-mix(in srgb, var(--color-success) 14%, var(--color-bg-panel));
+    --color-diff-del-bg-solid: color-mix(in srgb, var(--color-danger) 14%, var(--color-bg-panel));
     --color-conflict-region-bg: color-mix(in srgb, var(--color-danger) 12%, transparent);
     --color-conflict-marker-bg: color-mix(in srgb, var(--color-danger) 28%, transparent);
     --color-lane-1: #ff4d4f;
