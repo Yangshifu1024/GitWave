@@ -109,7 +109,10 @@ export function SyncStatusArea(): React.JSX.Element {
           aria-label={label ? `${label} — cancel` : "Cancel operation"}
           onClick={handleCancel}
           className={cn(
-            "absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded",
+            // pointer-events-auto opts the button back into hit-testing: the
+            // ActionBar wrapper is pointer-events-none (so the idle card
+            // never blocks the buttons it overlaps) and the property inherits.
+            "pointer-events-auto absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded",
             "text-text-muted transition-colors hover:bg-danger/10 hover:text-danger",
           )}
         >

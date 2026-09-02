@@ -695,8 +695,9 @@ export function ActionBar(): React.JSX.Element {
 
         {/* Status area: absolutely centered in the whole bar so it stays on
             the window's center axis regardless of the selector / buttons
-            widths. Non-interactive, so pointer-events-none keeps the buttons
-            clickable even if a narrow window overlaps them. */}
+            widths. pointer-events-none keeps the buttons clickable even if a
+            narrow window overlaps them; the cancel button opts back in with
+            pointer-events-auto inside SyncStatusArea. */}
         <div className="absolute inset-x-0 flex justify-center pointer-events-none">
           <SyncStatusArea />
         </div>
