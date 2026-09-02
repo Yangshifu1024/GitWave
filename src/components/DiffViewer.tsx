@@ -111,7 +111,7 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       ) : (
         <span
           className={cn(
-            "flex-1 px-2 whitespace-pre-wrap",
+            "flex-1 px-2 whitespace-pre",
             line.kind === "removed" && "bg-diff-del-bg",
             line.kind === "context" && "text-text-primary",
           )}
@@ -126,7 +126,7 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
       ) : (
         <span
           className={cn(
-            "flex-1 px-2 whitespace-pre-wrap",
+            "flex-1 px-2 whitespace-pre",
             line.kind === "added" && "bg-diff-add-bg",
             line.kind === "context" && "text-text-primary",
           )}
@@ -137,11 +137,11 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
 
     return (
       <div className="flex text-xs font-mono leading-5 border-b border-border-subtle/40">
-        <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
+        <span className="sticky left-0 z-10 bg-bg-elevated text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
           {line.kind === "added" ? "" : (line.old_line_no ?? "")}
         </span>
         <div className="flex-1 min-w-0 border-r border-border-subtle">{leftContent}</div>
-        <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
+        <span className="sticky left-9 z-10 bg-bg-elevated text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
           {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
         </span>
         <div className="flex-1 min-w-0">{rightContent}</div>
@@ -166,13 +166,13 @@ function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): R
         line.kind === "removed" && "bg-diff-del-bg",
       )}
     >
-      <span className="shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
+      <span className="sticky left-0 z-10 shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "added" ? "" : (line.old_line_no ?? "")}
       </span>
-      <span className="shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
+      <span className="sticky left-9 z-10 shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
         {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
       </span>
-      <span className={cn("flex-1 px-2 min-w-0 whitespace-pre-wrap", bgClass)}>
+      <span className={cn("flex-1 px-2 min-w-0 whitespace-pre", bgClass)}>
         {prefix} {line.content}
       </span>
     </div>
@@ -189,20 +189,20 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
       rendered.push(
         <div key={`w-${i}`}>
           <div className="flex text-xs font-mono leading-5 bg-diff-del-bg">
-            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
+            <span className="sticky left-0 z-10 bg-diff-del-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
               {line.old_line_no ?? ""}
             </span>
-            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
-            <span className="flex-1 px-2 text-danger whitespace-pre-wrap">
+            <span className="sticky left-9 z-10 bg-diff-del-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
+            <span className="flex-1 px-2 text-danger whitespace-pre">
               - <WordDiffSpans before={line.content} after={next.content} side="removed" />
             </span>
           </div>
           <div className="flex text-xs font-mono leading-5 bg-diff-add-bg">
-            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
-            <span className="text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
+            <span className="sticky left-0 z-10 bg-diff-add-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
+            <span className="sticky left-9 z-10 bg-diff-add-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
               {next.new_line_no ?? ""}
             </span>
-            <span className="flex-1 px-2 text-success whitespace-pre-wrap">
+            <span className="flex-1 px-2 text-success whitespace-pre">
               + <WordDiffSpans before={line.content} after={next.content} side="added" />
             </span>
           </div>
@@ -215,7 +215,7 @@ function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): R
   }
 
   return (
-    <div className="border border-border-subtle overflow-hidden mb-3">
+    <div className="border border-border-subtle mb-3">
       <div className="bg-diff-hunk-bg px-3 py-1 text-xs text-text-muted font-mono border-b border-border-subtle">
         @@ -{hunk.old_start},{hunk.old_lines} +{hunk.new_start},{hunk.new_lines} @@
       </div>
@@ -315,24 +315,28 @@ function FileDiffView({
 
       {/* Hunks */}
       {!collapsed ? (
-        <div className="border-x border-b border-border-subtle px-0 pt-0">
-          {fileDiff.hunks.length > 0 ? (
-            fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
-          ) : (
-            // Fallback: show additions/deletions summary when no hunk detail available
-            <div className="py-4 text-center text-sm text-text-muted">
-              {fileDiff.additions > 0 || fileDiff.deletions > 0 ? (
-                <>
-                  <span className="text-success">+{fileDiff.additions}</span>
-                  {" / "}
-                  <span className="text-danger">-{fileDiff.deletions}</span>{" "}
-                  <span className="text-text-muted">{t("diff.file.noHunkDetail")}</span>
-                </>
-              ) : (
-                t("diff.file.noChanges")
-              )}
-            </div>
-          )}
+        <div className="isolate overflow-x-auto border-x border-b border-border-subtle px-0 pt-0">
+          {/* w-max wrapper: every hunk stretches to the widest hunk's width so
+              borders stay continuous while scrolling horizontally. */}
+          <div className="w-max min-w-full">
+            {fileDiff.hunks.length > 0 ? (
+              fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
+            ) : (
+              // Fallback: show additions/deletions summary when no hunk detail available
+              <div className="py-4 text-center text-sm text-text-muted">
+                {fileDiff.additions > 0 || fileDiff.deletions > 0 ? (
+                  <>
+                    <span className="text-success">+{fileDiff.additions}</span>
+                    {" / "}
+                    <span className="text-danger">-{fileDiff.deletions}</span>{" "}
+                    <span className="text-text-muted">{t("diff.file.noHunkDetail")}</span>
+                  </>
+                ) : (
+                  t("diff.file.noChanges")
+                )}
+              </div>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
