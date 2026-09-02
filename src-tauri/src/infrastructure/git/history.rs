@@ -482,23 +482,10 @@ fn collect_commit_refs(repo: &Repository) -> HashMap<String, Vec<CommitRef>> {
         }
     }
 
-    if let Ok(head) = repo.head() {
-        if let Some(oid) = head.target() {
-            push(
-                oid.to_string(),
-                CommitRef {
-                    name: "HEAD".into(),
-                    kind: CommitRefKind::Head,
-                },
-            );
-        }
-    }
-
-    // Stable-ish order: HEAD, local, remote, tag; then by name.
+    // Stable-ish order: local, remote, tag; then by name.
     for refs in map.values_mut() {
         refs.sort_by(|a, b| {
             let rank = |k: CommitRefKind| match k {
-                CommitRefKind::Head => 0,
                 CommitRefKind::LocalBranch => 1,
                 CommitRefKind::RemoteBranch => 2,
                 CommitRefKind::Tag => 3,
@@ -744,10 +731,8 @@ mod tests {
         }
         let tip = &log[0];
         assert!(
-            tip.refs.iter().any(|r| {
-                r.name == "main" || (r.kind == CommitRefKind::Head && r.name == "HEAD")
-            }),
-            "tip should carry main or HEAD refs, got {:?}",
+            tip.refs.iter().any(|r| r.name == "main"),
+            "tip should carry the main ref, got {:?}",
             tip.refs
         );
     }

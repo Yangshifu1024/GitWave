@@ -558,7 +558,7 @@ export function CommitGraph({
                     maxLane={maxLane}
                     onSelect={handleSelect}
                     isSelected={selectedSha === commit.sha}
-                    isHead={(commit.refs ?? []).some((r) => r.kind === "head")}
+                    isHead={menu.headSha === commit.sha}
                     menu={menu}
                   />
                 </div>

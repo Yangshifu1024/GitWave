@@ -394,7 +394,7 @@ export interface FileSummary {
 
 export interface CommitRef {
   name: string;
-  kind: "local_branch" | "remote_branch" | "tag" | "head";
+  kind: "local_branch" | "remote_branch" | "tag";
 }
 
 export interface CommitSummary {

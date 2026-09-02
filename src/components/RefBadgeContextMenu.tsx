@@ -1,7 +1,7 @@
 // Badge-scoped context menu on history-row refs (F011): checkout / delete /
 // copy without scrolling the sidebar lists. Wraps a RefBadge in its own
 // ContextMenu — the trigger stops propagation so the row menu doesn't also
-// open. The `head` badge (current-branch pointer) gets no menu.
+// open.
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,9 +48,6 @@ export function RefBadgeContextMenu({
   const checkout = useBranchCheckout();
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<DeleteTarget | null>(null);
-
-  // Hooks run for every badge; the head badge just renders without a menu.
-  if (r.kind === "head") return <>{children}</>;
 
   const isCurrent = r.name === currentBranch;
   const remoteRef = r.kind === "remote_branch" ? parseRemoteBranchName(r.name) : null;

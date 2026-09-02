@@ -87,18 +87,20 @@ export function CommitInfoHeader({
   const shortSha = data.sha.slice(0, 7);
 
   // Everything pointing at this commit: branch tips whose tip sha matches
-  // (current branch renders as head) plus tags — the same shapes the history
-  // rows badge, so colors and icons stay consistent.
-  const commitRefs: CommitRef[] = [
+  // plus tags — the same shapes the history rows badge, so colors and icons
+  // stay consistent. The current branch stands out via `emphasize` instead
+  // of a literal HEAD badge.
+  const commitRefs: Array<CommitRef & { emphasize?: boolean }> = [
     ...branches
       .filter((b) => b.last_commit_sha === data.sha)
-      .map((b): CommitRef => ({
+      .map((b) => ({
         name: b.name,
-        kind: b.is_current ? "head" : b.kind === "remote" ? "remote_branch" : "local_branch",
+        kind: b.kind === "remote" ? ("remote_branch" as const) : ("local_branch" as const),
+        emphasize: b.is_current,
       })),
     ...tags
       .filter((tag) => tag.sha === data.sha)
-      .map((tag): CommitRef => ({ name: tag.name, kind: "tag" })),
+      .map((tag) => ({ name: tag.name, kind: "tag" as const })),
   ];
 
   const run = (op: CommitAction): void => {
@@ -150,7 +152,7 @@ export function CommitInfoHeader({
       {commitRefs.length > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {commitRefs.map((r) => (
-            <RefBadge key={`${r.kind}:${r.name}`} r={r} truncate={false} />
+            <RefBadge key={`${r.kind}:${r.name}`} r={r} truncate={false} emphasize={r.emphasize} />
           ))}
         </div>
       ) : null}
