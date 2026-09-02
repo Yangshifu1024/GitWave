@@ -4,6 +4,7 @@
     "sections": {
       "general": "通用",
       "appearance": "外观",
+      "network": "网络",
       "ssh": "SSH 密钥"
     },
     "general": {
@@ -38,6 +39,19 @@
       "size": "大小",
       "resetSize": "重置大小",
       "saved": "已保存——全局生效"
+    },
+    "network": {
+      "proxy": "代理",
+      "modeSystem": "跟随系统",
+      "modeManual": "手动",
+      "modeOff": "关闭",
+      "modeSystemHint": "使用操作系统网络设置中配置的代理。Linux 遵循代理环境变量。",
+      "modeManualHint": "所有网络访问——AI、fetch/push/clone、LFS、更新检查——都使用下方地址。",
+      "modeOffHint": "不使用代理。启动环境中已设置的代理变量仍然有效。",
+      "manualUrl": "代理地址",
+      "manualUrlPlaceholder": "http://127.0.0.1:7890",
+      "saved": "已保存——立即生效",
+      "loopbackHint": "GitWave 应用的代理始终跳过本地地址（localhost / 127.0.0.1）。"
     }
   }
 }

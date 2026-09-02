@@ -48,13 +48,30 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # launch (missing dylib / Team-ID mismatch under library validation).
 git2 = { version = "0.20", features = ["vendored-libgit2", "ssh", "vendored-openssl"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# `system-proxy` lets reqwest read the OS proxy (Windows registry / macOS
+# SystemConfiguration) as a fallback on top of the env vars injected by
+# infrastructure/proxy.rs — covers formats our own parser rejects.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "system-proxy"] }
+# Feature unification only — never imported. tauri-plugin-updater builds its
+# own reqwest 0.13 client with default-features = false and exposes no proxy
+# option at plugin-build time; this dependency flips `system-proxy` on for the
+# single shared reqwest 0.13 build so update checks follow the proxy too.
+# NOTE: if the updater plugin ever moves to reqwest 0.14, this stops
+# unifying and its proxy support silently regresses — re-check on upgrade.
+reqwest-updater-unification = { package = "reqwest", version = "0.13", default-features = false, features = ["system-proxy"] }
 tauri-plugin-decoration = "3"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-os = "2"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+# System proxy probe (F013). Version range matches hyper-util's optional dep
+# so the graph resolves a single shared build.
+windows-registry = "0.6"
+
 [target.'cfg(target_os = "macos")'.dependencies]
+# System proxy probe (F013), same crate + API hyper-util uses for reqwest.
+system-configuration = "0.7"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen"] }

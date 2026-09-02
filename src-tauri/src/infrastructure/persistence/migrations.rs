@@ -30,6 +30,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "repos-position",
         sql: include_str!("../../../migrations/0003-repos-position.sql"),
     },
+    Migration {
+        version: 4,
+        name: "app-settings",
+        sql: include_str!("../../../migrations/0004-app-settings.sql"),
+    },
 ];
 
 struct Migration {
@@ -128,7 +133,7 @@ mod tests {
             .unwrap()
             .filter_map(std::result::Result::ok)
             .collect();
-        assert_eq!(versions, vec![1, 2, 3]);
+        assert_eq!(versions, vec![1, 2, 3, 4]);
     }
 
     #[test]

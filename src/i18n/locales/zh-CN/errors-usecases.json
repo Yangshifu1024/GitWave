@@ -24,6 +24,10 @@
       "health": {
         "serialize_failed": "序列化健康报告失败：{{error}}"
       },
+      "proxy": {
+        "url_invalid": "代理地址无效——请使用 http://127.0.0.1:7890 这样的格式",
+        "serialize_failed": "序列化代理设置失败：{{error}}"
+      },
       "commit": {
         "no_staged": "没有已暂存的变更——生成 commit message 前请先暂存文件",
         "oid_invalid": "无效的 commit OID：{{error}}"

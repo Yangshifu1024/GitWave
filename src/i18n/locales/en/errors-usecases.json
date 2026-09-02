@@ -24,6 +24,10 @@
       "health": {
         "serialize_failed": "Failed to serialize the health report: {{error}}"
       },
+      "proxy": {
+        "url_invalid": "Invalid proxy address — use a form like http://127.0.0.1:7890",
+        "serialize_failed": "Failed to serialize the proxy settings: {{error}}"
+      },
       "commit": {
         "no_staged": "No staged changes — stage files before generating a commit message",
         "oid_invalid": "Invalid commit OID: {{error}}"

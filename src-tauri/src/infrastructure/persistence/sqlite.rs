@@ -49,6 +49,11 @@ pub fn open() -> Result<Connection> {
         .map_err(map_sqlite_err)?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(map_sqlite_err)?;
+    // Two connections share state.db (workspace repo + F013 app settings
+    // repo); a 5s busy wait turns rare write collisions into a short pause
+    // instead of an immediate SQLITE_BUSY error.
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(map_sqlite_err)?;
     super::migrations::apply(&conn)?;
     Ok(conn)
 }

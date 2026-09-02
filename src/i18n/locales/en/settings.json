@@ -4,6 +4,7 @@
     "sections": {
       "general": "General",
       "appearance": "Appearance",
+      "network": "Network",
       "ssh": "SSH Keys"
     },
     "general": {
@@ -38,6 +39,19 @@
       "size": "Size",
       "resetSize": "Reset size",
       "saved": "Saved — applied app-wide"
+    },
+    "network": {
+      "proxy": "Proxy",
+      "modeSystem": "Follow system",
+      "modeManual": "Manual",
+      "modeOff": "Off",
+      "modeSystemHint": "Uses the proxy configured in the OS network settings. Linux follows proxy environment variables.",
+      "modeManualHint": "All network access — AI, fetch/push/clone, LFS, update checks — uses the address below.",
+      "modeOffHint": "No proxy is applied. Proxy variables from the launch environment keep working.",
+      "manualUrl": "Proxy address",
+      "manualUrlPlaceholder": "http://127.0.0.1:7890",
+      "saved": "Saved — effective immediately",
+      "loopbackHint": "The proxy GitWave applies always skips local addresses (localhost / 127.0.0.1)."
     }
   }
 }
