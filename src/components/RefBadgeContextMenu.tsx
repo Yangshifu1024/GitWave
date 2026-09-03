@@ -9,8 +9,15 @@ import { useTranslation } from "react-i18next";
 import { Copy, GitBranch, Trash2 } from "lucide-react";
 
 import type { CommitRef } from "@/lib/api";
-import { deleteBranch, deleteRemoteBranch, deleteTag, formatAppError } from "@/lib/api";
+import {
+  deleteBranch,
+  deleteRemoteBranch,
+  deleteTag,
+  formatAppError,
+  isCancelledSyncError,
+} from "@/lib/api";
 import { copyToClipboard, parseRemoteBranchName } from "@/lib/commitMenu";
+import { withAuthRetry } from "@/lib/authRetry";
 import { useActiveRepoState } from "@/hooks/useActiveRepoState";
 import { useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
@@ -73,7 +80,10 @@ export function RefBadgeContextMenu({
         invalidate();
         bumpHistory();
       })
-      .catch((e) => setStatus(formatAppError(e), "danger"))
+      .catch((e) => {
+        // A dismissed auth prompt is a user cancel, not a failure.
+        if (!isCancelledSyncError(e)) setStatus(formatAppError(e), "danger");
+      })
       .finally(() => setBusy(false));
   };
 
@@ -107,8 +117,12 @@ export function RefBadgeContextMenu({
         invalidateBranches,
       );
     } else if (confirm === "remote" && remoteRef) {
+      // F012: an auth-challenged remote delete opens the in-app prompt and
+      // retries with the entered credentials (at most one prompt).
+      const { remote, branch } = remoteRef;
       run(
-        () => deleteRemoteBranch(workspaceId!, remoteRef.remote, remoteRef.branch),
+        () =>
+          withAuthRetry(remote, (auth) => deleteRemoteBranch(workspaceId!, remote, branch, auth)),
         t("branches.deleteRemote.deleted", {
           name: `${remoteRef.remote}/${remoteRef.branch}`,
         }),
