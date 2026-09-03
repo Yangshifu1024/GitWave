@@ -31,7 +31,9 @@
       "pushFailed": "Push failed",
       "cancelled": "Cancelled",
       "refreshing": "Refreshing…",
-      "refreshed": "Refreshed"
+      "refreshed": "Refreshed",
+      "credentialFallback": "Credentials saved to the app keychain (the system credential helper did not confirm); GitWave will reuse them automatically",
+      "credentialSaveFailed": "Credentials could not be saved — you may be asked to sign in again on the next operation"
     }
   }
 }

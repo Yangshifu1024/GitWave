@@ -1,24 +1,215 @@
 //! Credential callbacks for libgit2 clone / fetch operations.
-//!
-//! Two strategies:
-//! - `SshAgentCredential`: SSH key from ssh-agent (libgit2 default).
-//! - `GitCredentialHelper`: HTTPS user/password via the system
-//!   `git credential fill`.
-//!
-//! Both produce a `RemoteCallbacks` that can be plugged into
-//! `git2::FetchOptions::remote_callbacks`.
+//!!
+//!! Three storage layers cooperate (see docs/tasks/fix-auth-credential-not-persisted/):
+//!! - `SshAgentCredential`: SSH key from ssh-agent (libgit2 default).
+//!! - `GitCredentialHelper`: HTTPS user/password via the system
+//!!   `git credential fill`, with the app keyring (`CredentialVault`) as a
+//!!   fallback when the helper has nothing.
+//!! - `InlineCredentialProvider`: credentials typed in the F012 auth prompt,
+//!!   remembered into both the helper (approve) and the app keyring.
+//!!
+//!! All providers produce a `RemoteCallbacks` that can be plugged into
+//!! `git2::FetchOptions::remote_callbacks`.
 
 use std::io::Write;
 use std::process::Stdio;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use git2::{Cred, CredentialType, RemoteCallbacks};
 
 use crate::domain::error::{AppError, Result};
+use crate::infrastructure::ai::secrets::entry_in_service;
 use crate::infrastructure::process::{hidden_command, wait_timeout, wait_with_output_timeout};
 
+/// How a `git credential approve` round trip ended. `ExitFailed` also covers
+/// the exit-0-but-did-not-store case (observed with GCM on Windows): the
+/// helper cannot prove it stored anything, so callers must treat the helper
+/// as unreliable and lean on the vault fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HelperNotifyOutcome {
+    /// The helper process confirmed the store.
+    Stored,
+    /// The helper process could not be spawned.
+    SpawnFailed,
+    /// The helper ran but exited non-zero.
+    ExitFailed,
+    /// The helper did not answer within [`CREDENTIAL_NOTIFY_TIMEOUT`].
+    TimedOut,
+}
+
+impl HelperNotifyOutcome {
+    #[must_use]
+    pub fn stored(self) -> bool {
+        matches!(self, Self::Stored)
+    }
+}
+
+/// Result of one credential persistence attempt, consumed by the UI through
+/// the `credential-storage` event so a silent persistence failure can never
+/// degrade back into an unexplained prompt loop.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase", tag = "status")]
+pub enum CredentialStorageOutcome {
+    /// The system helper confirmed the credential.
+    Stored,
+    /// The helper did not confirm, but the app keyring now holds the
+    /// credential — GitWave will reuse it silently.
+    Fallback,
+    /// Neither storage accepted the credential; the next operation will
+    /// prompt again.
+    Failed,
+}
+
+/// Snapshot of the last persistence attempt, drained by the command layer
+/// after the sync operation returns. A slot — not a queue — because the
+/// status area shows only the last message anyway.
+#[derive(Debug, Clone, Default)]
+pub struct CredentialStorageSlot(Arc<Mutex<Option<CredentialStorageOutcome>>>);
+
+impl CredentialStorageSlot {
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(None)))
+    }
+
+    fn record(&self, outcome: CredentialStorageOutcome) {
+        if let Ok(mut slot) = self.0.lock() {
+            *slot = Some(outcome);
+        }
+    }
+
+    /// Take (and clear) the recorded outcome, if any. Empty means the
+    /// operation neither approved nor rejected a credential.
+    #[must_use]
+    pub fn take(&self) -> Option<CredentialStorageOutcome> {
+        let mut slot = self.0.lock().ok()?;
+        slot.take()
+    }
+}
+
+/// Storage for remembered HTTPS credentials, shared with nothing — entries
+/// live under the app-owned `gitwave.remote` keyring service, so the system
+/// credential helper stays the source of truth and the vault only catches
+/// the cases the helper silently drops.
+pub(crate) trait CredentialVault: Send + Sync {
+    fn store(&self, host: &str, username: &str, password: &str) -> std::result::Result<(), String>;
+    fn load(&self, host: &str) -> std::result::Result<Option<(String, String)>, String>;
+    fn erase(&self, host: &str) -> std::result::Result<(), String>;
+}
+
+/// OS keychain-backed vault (Windows Credential Manager / macOS Keychain /
+/// Secret Service). One entry per host, keyed `https/<host>`; the payload is
+/// the username and password on separate lines.
+struct KeyringVault;
+
+impl CredentialVault for KeyringVault {
+    fn store(&self, host: &str, username: &str, password: &str) -> std::result::Result<(), String> {
+        entry(host)?
+            .set_password(&encode_secret(username, password))
+            .map_err(|e| format!("keychain set: {e}"))
+    }
+
+    fn load(&self, host: &str) -> std::result::Result<Option<(String, String)>, String> {
+        match entry(host) {
+            Ok(e) => match e.get_password() {
+                Ok(payload) => decode_secret(&payload)
+                    .map(Some)
+                    .map_err(|e| format!("keychain payload: {e}")),
+                Err(keyring::Error::NoEntry) => Ok(None),
+                Err(e) => Err(format!("keychain get: {e}")),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    fn erase(&self, host: &str) -> std::result::Result<(), String> {
+        match entry(host) {
+            Ok(e) => match e.delete_credential() {
+                Ok(()) => Ok(()),
+                Err(keyring::Error::NoEntry) => Ok(()),
+                Err(e) => Err(format!("keychain delete: {e}")),
+            },
+            Err(e) => Err(e),
+        }
+    }
+}
+
+/// Keyring entry for one host under the app-owned remote-credential service.
+/// The `https/` prefix namespaces the account; hosts are scheme-agnostic
+/// here because vault keys only carry host+port (git credential protocol
+/// scope is effectively per-host for the app's HTTPS remotes).
+fn entry(host: &str) -> std::result::Result<keyring::Entry, String> {
+    entry_in_service(
+        crate::infrastructure::ai::secrets::SERVICE_REMOTE,
+        &format!("https/{host}"),
+    )
+    .map_err(|e| e.message())
+}
+
+/// Two-line `username\npassword` payload; rejects values that would break
+/// the line-based split (the same protocol limitation the git credential
+/// helper itself has).
+fn encode_secret(username: &str, password: &str) -> String {
+    format!("{username}\n{password}")
+}
+
+fn decode_secret(payload: &str) -> std::result::Result<(String, String), String> {
+    let (username, password) = payload
+        .split_once('\n')
+        .ok_or_else(|| "payload missing separator".to_string())?;
+    if password.contains('\n') {
+        return Err("payload has extra lines".to_string());
+    }
+    Ok((username.to_string(), password.to_string()))
+}
+
+/// Storage host key for a remote URL: strip scheme and userinfo, keep host
+/// and port, lowercase, drop any path. Credentials are host-scoped (the git
+/// credential protocol treats them that way too). scp-style remotes
+/// (`git@host:path`) separate host from path with a colon, not a slash.
+pub(crate) fn vault_host(url: &str) -> Option<String> {
+    let (rest, scp_style) = match url.split_once("://") {
+        Some((_, rest)) => (rest, false),
+        None => (url, true),
+    };
+    let rest = rest.split_once('@').map_or(rest, |(_, host)| host);
+    let host = if scp_style {
+        rest.split(':').next().unwrap_or(rest)
+    } else {
+        rest.split('/').next().unwrap_or(rest)
+    };
+    let host = host.trim_end_matches('.');
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_ascii_lowercase())
+    }
+}
+
+/// The process-wide vault. `set_vault` aims it at different storage (tests
+/// inject an in-memory double); `None` restores the real keyring.
+static VAULT: Mutex<Option<&'static dyn CredentialVault>> = Mutex::new(None);
+
+static REAL_VAULT: KeyringVault = KeyringVault;
+
+fn vault() -> &'static dyn CredentialVault {
+    VAULT
+        .lock()
+        .ok()
+        .and_then(|guard| *guard)
+        .unwrap_or(&REAL_VAULT)
+}
+
+#[cfg(test)]
+fn set_vault(vault: Option<&'static dyn CredentialVault>) {
+    *VAULT.lock().expect("vault mutex poisoned") = vault;
+}
+
+/// Where persistence results are reported for the current operation; the
+/// command layer drains it into the `credential-storage` event.
+static STORAGE_SLOT: LazyLock<CredentialStorageSlot> = LazyLock::new(CredentialStorageSlot::new);
 /// Upper bound for one `git credential fill`. A GUI helper (GCM) may hold
 /// the process open while its dialog waits for the user; without a cap, a
 /// dismissed or forgotten prompt hangs the whole fetch forever.
@@ -136,7 +327,8 @@ struct FillOnce {
 enum Fill {
     /// First query; the helper returned this username/password.
     Answer((String, String)),
-    /// First query; the helper had nothing (not configured or cancelled).
+    /// First query; neither the helper nor the app keyring had anything
+    /// (not configured, cancelled, or simply never saved).
     Empty,
     /// The gate already ran once this operation — fail instead of prompting.
     AlreadyQueried,
@@ -147,7 +339,12 @@ impl FillOnce {
         Self::default()
     }
 
-    fn take(&mut self, fill: impl FnOnce(&str) -> Option<(String, String)>, url: &str) -> Fill {
+    fn take(
+        &mut self,
+        fill: impl FnOnce(&str) -> Option<(String, String)>,
+        vault_lookup: impl FnOnce(&str) -> Option<(String, String)>,
+        url: &str,
+    ) -> Fill {
         // Once the helper answered, that answer is THE credential for the
         // whole operation: replay it for follow-up auth rounds and for the
         // push retry ladder instead of re-querying (which would re-prompt).
@@ -158,7 +355,10 @@ impl FillOnce {
             return Fill::AlreadyQueried;
         }
         self.queried = true;
-        match fill(url) {
+        // Helper first, app keyring second: a credential the helper silently
+        // failed to store (the fix-auth-credential-not-persisted case) still
+        // lives in the vault and must keep working.
+        match fill(url).or_else(|| vault_lookup(url)) {
             Some(creds) => {
                 self.answer = Some(creds.clone());
                 Fill::Answer(creds)
@@ -218,7 +418,11 @@ impl GitCredentialHelper {
                 let Ok(mut gate) = gate.lock() else {
                     return Err(auth_error("credential fill state poisoned"));
                 };
-                match gate.take(|url| query_helper(url, cancel.as_deref()), &url) {
+                match gate.take(
+                    |url| query_helper(url, cancel.as_deref()),
+                    remember_vault,
+                    &url,
+                ) {
                     Fill::Answer((user, pass)) => {
                         return Cred::userpass_plaintext(&user, &pass);
                     }
@@ -252,13 +456,27 @@ impl CredentialProvider for GitCredentialHelper {
 
     fn approve(&self) {
         if let Some((user, pass)) = self.helper_answer() {
-            notify_helper("approve", &self.url, &user, &pass);
+            remember_credential(&self.url, &user, &pass);
         }
     }
 
     fn reject(&self) {
         if let Some((user, pass)) = self.helper_answer() {
             notify_helper("reject", &self.url, &user, &pass);
+            // A refused credential must not keep coming back from the vault:
+            // erase the fallback entry too, or the next operation would
+            // replay the stale secret forever (the helper's own storage is
+            // the helper's business — ours is the vault).
+            erase_vault_entry(&self.url);
+        }
+    }
+}
+
+/// Erase the vault fallback entry for a remote's host.
+fn erase_vault_entry(url: &str) {
+    if let Some(host) = vault_host(url) {
+        if let Err(e) = vault().erase(&host) {
+            tracing::warn!("app keyring erase after reject failed: {e}");
         }
     }
 }
@@ -338,7 +556,7 @@ impl CredentialProvider for InlineCredentialProvider {
 
     fn approve(&self) {
         if self.remember {
-            notify_helper("approve", &self.url, &self.username, &self.password);
+            remember_credential(&self.url, &self.username, &self.password);
         }
     }
 
@@ -375,10 +593,18 @@ fn credential_request(url: &str, user: Option<&str>, pass: Option<&str>) -> Opti
 fn query_helper(url: &str, cancel: Option<&AtomicBool>) -> Option<(String, String)> {
     let mut child = hidden_command("git")
         .args(["credential", "fill"])
-        // The GUI helper (GCM) is controlled by its own settings; this only
-        // stops git's terminal fallback from hanging on a prompt the piped
-        // stdin can never answer.
         .env("GIT_TERMINAL_PROMPT", "0")
+        // The environment for credential prompts must be dead: any helper
+        // that falls back to an interactive prompt would open a dialog we
+        // cannot control (the "Git for Windows" askpass box), and cancelling
+        // that dialog yields an empty answer anyway — the app keyring
+        // fallback and the in-app F012 prompt are the UX. git's prompt chain
+        // is GIT_ASKPASS → core.askpass → SSH_ASKPASS → terminal; pointing
+        // the two askpass env vars at a nonexistent program makes every
+        // fallback fail immediately (GCM still opens its own GUI when it
+        // decides to interact; that is the helper's call, not ours).
+        .env("GIT_ASKPASS", "gitwave-disabled-askpass")
+        .env("SSH_ASKPASS", "gitwave-disabled-askpass")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -428,20 +654,105 @@ fn query_helper(url: &str, cancel: Option<&AtomicBool>) -> Option<(String, Strin
     }
 }
 
+/// Helper had nothing: fall back to the app keyring so a remembered
+/// credential keeps working when the system helper silently drops storage.
+fn remember_vault(url: &str) -> Option<(String, String)> {
+    let host = vault_host(url)?;
+    match vault().load(&host) {
+        Ok(Some(creds)) => {
+            tracing::info!("credential helper empty; using app keyring fallback for {host}");
+            Some(creds)
+        }
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!("app keyring fallback read failed for {host}: {e}");
+            None
+        }
+    }
+}
+
+/// Persist a credential the remote just accepted: the system helper first
+/// (`git credential approve`), the app keyring always. The helper path is
+/// unreliable in the wild — GCM on Windows has been observed exiting 0
+/// without storing anything — so the vault write is not conditional on the
+/// helper's answer, and the difference is only reported to the UI. A
+/// no-op-keyring write (the vault already holds exactly this credential)
+/// keeps per-fetch approves from churning the OS keychain.
+fn remember_credential(url: &str, user: &str, pass: &str) {
+    let helper = notify_helper("approve", url, user, pass);
+    let vault_stored = store_in_vault(url, user, pass);
+    STORAGE_SLOT.record(map_storage_outcome(helper, vault_stored));
+}
+
+/// The UI-facing classification: the helper's word only counts when it says
+/// it stored; otherwise the vault decides between graceful fallback and a
+/// visible failure.
+fn map_storage_outcome(
+    helper: HelperNotifyOutcome,
+    vault_stored: bool,
+) -> CredentialStorageOutcome {
+    match (helper.stored(), vault_stored) {
+        (true, _) => CredentialStorageOutcome::Stored,
+        (false, true) => CredentialStorageOutcome::Fallback,
+        (false, false) => CredentialStorageOutcome::Failed,
+    }
+}
+
+/// Take (and clear) the outcome recorded by the last sync operation so the
+/// command layer can surface it in the UI. Empty when the operation never
+/// approved a credential.
+pub fn drain_storage_outcome() -> Option<CredentialStorageOutcome> {
+    STORAGE_SLOT.take()
+}
+
+/// Write the credential into the app keyring unless it is already there
+/// (per-fetch approves must not churn the OS keychain). `false` on failure
+/// or for values that could never be read back (a newline would break the
+/// line-based payload — storing them would silently disable the fallback,
+/// exactly the failure mode this module exists to kill).
+fn store_in_vault(url: &str, user: &str, pass: &str) -> bool {
+    if user.contains(['\n', '\r']) || pass.contains(['\n', '\r']) {
+        tracing::warn!("app keyring store skipped: value would break the payload format");
+        return false;
+    }
+    let Some(host) = vault_host(url) else {
+        return false;
+    };
+    let v = vault();
+    let already = matches!(
+        v.load(&host),
+        Ok(Some((ref u, ref p))) if u == user && p == pass
+    );
+    if already {
+        return true;
+    }
+    match v.store(&host, user, pass) {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::warn!("app keyring store failed for {host}: {e}");
+            false
+        }
+    }
+}
+
 /// Run `git credential approve|reject` for a credential the remote just
 /// accepted or refused. `fill` alone never stores anything — without this
 /// return trip a helper-prompted credential is lost and the next operation
 /// prompts again. Best effort: the operation's own result already stands,
-/// but failures are logged — a silent one degrades back to prompting on
-/// every operation.
-fn notify_helper(action: &str, url: &str, user: &str, pass: &str) {
+/// failures are logged and classified — a silent one used to degrade back
+/// to prompting on every operation.
+fn notify_helper(action: &str, url: &str, user: &str, pass: &str) -> HelperNotifyOutcome {
     let Some(input) = credential_request(url, Some(user), Some(pass)) else {
         tracing::warn!("git credential {action} skipped: value would break the protocol");
-        return;
+        return HelperNotifyOutcome::SpawnFailed;
     };
     let mut child = match hidden_command("git")
         .args(["credential", action])
         .env("GIT_TERMINAL_PROMPT", "0")
+        // Same dead-prompt-environment rule as `query_helper`: approve/reject
+        // must never pop an interactive fallback dialog either.
+        .env("GIT_ASKPASS", "gitwave-disabled-askpass")
+        .env("SSH_ASKPASS", "gitwave-disabled-askpass")
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -450,7 +761,7 @@ fn notify_helper(action: &str, url: &str, user: &str, pass: &str) {
         Ok(child) => child,
         Err(e) => {
             tracing::warn!("git credential {action} failed to spawn: {e}");
-            return;
+            return HelperNotifyOutcome::SpawnFailed;
         }
     };
     if let Some(stdin) = child.stdin.as_mut() {
@@ -461,15 +772,22 @@ fn notify_helper(action: &str, url: &str, user: &str, pass: &str) {
     match wait_timeout(&mut child, CREDENTIAL_NOTIFY_TIMEOUT) {
         Ok(Some(status)) if !status.success() => {
             tracing::warn!("git credential {action} exited with {status}");
+            HelperNotifyOutcome::ExitFailed
         }
-        Ok(Some(_)) => {}
+        // The process saying yes is still no proof it stored anything (the
+        // GCM case) — callers must keep the vault fallback warm regardless.
+        Ok(Some(_)) => HelperNotifyOutcome::Stored,
         Ok(None) => {
             tracing::warn!(
                 "git credential {action} gave no answer within {}s — killed",
                 CREDENTIAL_NOTIFY_TIMEOUT.as_secs()
             );
+            HelperNotifyOutcome::TimedOut
         }
-        Err(e) => tracing::warn!("git credential {action} wait failed: {e}"),
+        Err(e) => {
+            tracing::warn!("git credential {action} wait failed: {e}");
+            HelperNotifyOutcome::SpawnFailed
+        }
     }
 }
 
@@ -601,6 +919,9 @@ mod tests {
                 assert!(url.starts_with("https://"));
                 Some(("user".to_string(), "pass".to_string()))
             },
+            |_: &str| -> Option<(String, String)> {
+                panic!("vault must not run while the helper answers")
+            },
             "https://example.com/repo.git",
         ) {
             Fill::Answer((user, pass)) => {
@@ -616,6 +937,9 @@ mod tests {
                 calls += 1;
                 Some(("never".to_string(), "never".to_string()))
             },
+            |_: &str| -> Option<(String, String)> {
+                panic!("vault must not run once an answer exists")
+            },
             "https://example.com/repo.git",
         );
         assert!(matches!(retry, Fill::Answer((ref u, ref p)) if u == "user" && p == "pass"));
@@ -628,11 +952,49 @@ mod tests {
     }
 
     #[test]
+    fn fill_once_falls_back_to_the_vault_when_the_helper_is_empty() {
+        let mut gate = FillOnce::new();
+        match gate.take(
+            |_: &str| -> Option<(String, String)> { None },
+            |url: &str| {
+                assert_eq!(url, "https://example.com/repo.git");
+                Some(("vault-user".to_string(), "vault-pass".to_string()))
+            },
+            "https://example.com/repo.git",
+        ) {
+            Fill::Answer((user, pass)) => {
+                assert_eq!((user.as_str(), pass.as_str()), ("vault-user", "vault-pass"));
+            }
+            _ => panic!("the vault fallback must satisfy the query"),
+        }
+        // The vault answer becomes THE answer for the operation.
+        assert!(matches!(
+            gate.answer.as_ref().map(|(u, _)| u.as_str()),
+            Some("vault-user")
+        ));
+    }
+
+    #[test]
+    fn fill_once_reports_empty_when_neither_storage_answers() {
+        let mut gate = FillOnce::new();
+        assert!(matches!(
+            gate.take(
+                |_: &str| -> Option<(String, String)> { None },
+                |_: &str| -> Option<(String, String)> { None },
+                "https://example.com/repo.git"
+            ),
+            Fill::Empty
+        ));
+        assert!(gate.answer.is_none());
+    }
+
+    #[test]
     fn fill_once_latches_even_when_helper_returns_nothing() {
         // A cancelled prompt must not re-show within the same operation.
         let mut gate = FillOnce::new();
         assert!(matches!(
             gate.take(
+                |_: &str| -> Option<(String, String)> { None },
                 |_: &str| -> Option<(String, String)> { None },
                 "https://example.com/repo.git"
             ),
@@ -641,6 +1003,7 @@ mod tests {
         assert!(matches!(
             gate.take(
                 |_: &str| -> Option<(String, String)> { Some(("u".to_string(), "p".to_string())) },
+                |_: &str| -> Option<(String, String)> { Some(("v".to_string(), "p".to_string())) },
                 "https://example.com/repo.git"
             ),
             Fill::AlreadyQueried
@@ -655,5 +1018,243 @@ mod tests {
         assert!(provider.helper_answer().is_none());
         provider.approve();
         provider.reject();
+    }
+
+    // ─── fix-auth-credential-not-persisted ─────────────────────────────────────
+
+    use std::collections::HashMap;
+
+    /// In-memory vault double; `fail_store` / `fail_load` simulate an
+    /// unreachable keychain so the fallback and failure paths stay testable
+    /// without touching the real OS storage.
+    struct MockVault {
+        entries: Mutex<HashMap<String, (String, String)>>,
+        fail_store: bool,
+        fail_load: bool,
+        store_calls: AtomicU32,
+    }
+
+    impl MockVault {
+        fn new(fail_store: bool, fail_load: bool) -> Self {
+            Self {
+                entries: Mutex::new(HashMap::new()),
+                fail_store,
+                fail_load,
+                store_calls: AtomicU32::new(0),
+            }
+        }
+    }
+
+    impl CredentialVault for MockVault {
+        fn store(
+            &self,
+            host: &str,
+            username: &str,
+            password: &str,
+        ) -> std::result::Result<(), String> {
+            self.store_calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail_store {
+                return Err("mock store failure".to_string());
+            }
+            self.entries.lock().unwrap().insert(
+                host.to_string(),
+                (username.to_string(), password.to_string()),
+            );
+            Ok(())
+        }
+
+        fn load(&self, host: &str) -> std::result::Result<Option<(String, String)>, String> {
+            if self.fail_load {
+                return Err("mock load failure".to_string());
+            }
+            Ok(self.entries.lock().unwrap().get(host).cloned())
+        }
+
+        fn erase(&self, host: &str) -> std::result::Result<(), String> {
+            self.entries.lock().unwrap().remove(host);
+            Ok(())
+        }
+    }
+
+    /// The vault is a process-global: vault-touching tests serialize on this
+    /// lock, and the guard restores the real keyring even on panic.
+    static VAULT_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    struct VaultGuard;
+
+    impl Drop for VaultGuard {
+        fn drop(&mut self) {
+            set_vault(None);
+        }
+    }
+
+    #[test]
+    fn vault_host_normalizes_remote_urls() {
+        assert_eq!(
+            vault_host("https://github.com/owner/repo.git").as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(
+            vault_host("https://user@github.com/owner/repo.git").as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(
+            vault_host("https://user:pass@GitHub.COM:8443/r.git").as_deref(),
+            Some("github.com:8443")
+        );
+        assert_eq!(
+            vault_host("HTTPS://Example.COM/").as_deref(),
+            Some("example.com")
+        );
+        // scp-style: the colon after the host is the path separator.
+        assert_eq!(
+            vault_host("git@github.com:owner/repo.git").as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(
+            vault_host("ssh://git@host.example/path").as_deref(),
+            Some("host.example")
+        );
+        assert_eq!(vault_host("https://"), None);
+    }
+
+    #[test]
+    fn secret_payload_roundtrip_and_rejects_malformed_values() {
+        assert_eq!(encode_secret("u", "p"), "u\np");
+        assert_eq!(
+            decode_secret("u\np").unwrap(),
+            ("u".to_string(), "p".to_string())
+        );
+        assert!(decode_secret("u").is_err(), "missing separator");
+        assert!(decode_secret("u\np\nq").is_err(), "extra lines");
+    }
+
+    #[test]
+    fn storage_outcome_maps_helper_and_vault_results() {
+        assert!(matches!(
+            map_storage_outcome(HelperNotifyOutcome::Stored, false),
+            CredentialStorageOutcome::Stored
+        ));
+        assert!(matches!(
+            map_storage_outcome(HelperNotifyOutcome::ExitFailed, true),
+            CredentialStorageOutcome::Fallback
+        ));
+        assert!(matches!(
+            map_storage_outcome(HelperNotifyOutcome::TimedOut, true),
+            CredentialStorageOutcome::Fallback
+        ));
+        assert!(matches!(
+            map_storage_outcome(HelperNotifyOutcome::SpawnFailed, false),
+            CredentialStorageOutcome::Failed
+        ));
+    }
+
+    #[test]
+    fn store_in_vault_writes_skips_identical_rewrites_and_overwrites_changes() {
+        let _serialization = VAULT_TEST_LOCK.lock().unwrap();
+        let mock: &'static MockVault = Box::leak(Box::new(MockVault::new(false, false)));
+        set_vault(Some(mock));
+        let _guard = VaultGuard;
+        let url = "https://github.com/owner/repo.git";
+
+        assert!(store_in_vault(url, "u", "p"));
+        assert_eq!(mock.store_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            mock.entries.lock().unwrap().get("github.com").cloned(),
+            Some(("u".to_string(), "p".to_string()))
+        );
+
+        // The same credential again: no second keychain write.
+        assert!(store_in_vault(url, "u", "p"));
+        assert_eq!(mock.store_calls.load(Ordering::SeqCst), 1);
+
+        // A rotated password must overwrite.
+        assert!(store_in_vault(url, "u", "p2"));
+        assert_eq!(mock.store_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            mock.entries.lock().unwrap().get("github.com").cloned(),
+            Some(("u".to_string(), "p2".to_string()))
+        );
+    }
+
+    #[test]
+    fn store_in_vault_reports_failure_instead_of_panicking() {
+        let _serialization = VAULT_TEST_LOCK.lock().unwrap();
+        let mock: &'static MockVault = Box::leak(Box::new(MockVault::new(true, false)));
+        set_vault(Some(mock));
+        let _guard = VaultGuard;
+        assert!(!store_in_vault("https://github.com/x.git", "u", "p"));
+    }
+
+    #[test]
+    fn remember_vault_serves_the_fallback_entry_per_host() {
+        let _serialization = VAULT_TEST_LOCK.lock().unwrap();
+        let mock: &'static MockVault = Box::leak(Box::new(MockVault::new(false, false)));
+        set_vault(Some(mock));
+        let _guard = VaultGuard;
+        mock.entries
+            .lock()
+            .unwrap()
+            .insert("github.com".to_string(), ("u".to_string(), "p".to_string()));
+
+        assert_eq!(
+            remember_vault("https://github.com/owner/repo.git"),
+            Some(("u".to_string(), "p".to_string()))
+        );
+        // A different host has no entry.
+        assert_eq!(remember_vault("https://gitlab.com/x.git"), None);
+        // A broken keychain must not fabricate credentials.
+        let broken: &'static MockVault = Box::leak(Box::new(MockVault::new(false, true)));
+        set_vault(Some(broken));
+        assert_eq!(remember_vault("https://github.com/owner/repo.git"), None);
+    }
+
+    #[test]
+    fn store_in_vault_rejects_line_breaking_values() {
+        let _serialization = VAULT_TEST_LOCK.lock().unwrap();
+        let mock: &'static MockVault = Box::leak(Box::new(MockVault::new(false, false)));
+        set_vault(Some(mock));
+        let _guard = VaultGuard;
+        // Such a payload could never be read back — storing it would
+        // silently disable the fallback.
+        assert!(!store_in_vault("https://github.com/x.git", "u", "p\nq"));
+        assert!(!store_in_vault("https://github.com/x.git", "u\r", "p"));
+        assert!(mock.entries.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn helper_reject_also_erases_the_vault_fallback() {
+        let _serialization = VAULT_TEST_LOCK.lock().unwrap();
+        let mock: &'static MockVault = Box::leak(Box::new(MockVault::new(false, false)));
+        set_vault(Some(mock));
+        let _guard = VaultGuard;
+        mock.entries.lock().unwrap().insert(
+            "github.com".to_string(),
+            ("stale".to_string(), "old".to_string()),
+        );
+
+        // The 401 path: the helper answered, the remote refused — the vault
+        // entry must not come back on the next fill.
+        let provider = GitCredentialHelper::new("https://github.com/owner/repo.git".into());
+        {
+            let mut gate = provider.fill.lock().unwrap();
+            gate.answer = Some(("stale".to_string(), "old".to_string()));
+        }
+        provider.reject();
+        assert!(!mock.entries.lock().unwrap().contains_key("github.com"));
+    }
+
+    #[test]
+    fn storage_slot_take_clears_so_outcomes_do_not_leak_across_operations() {
+        let slot = CredentialStorageSlot::new();
+        assert!(slot.take().is_none(), "fresh slot is empty");
+        slot.record(CredentialStorageOutcome::Failed);
+        assert!(matches!(
+            slot.take(),
+            Some(CredentialStorageOutcome::Failed)
+        ));
+        // The recorded outcome must be consumed exactly once; a sticky slot
+        // would replay stale outcomes on every later sync operation.
+        assert!(slot.take().is_none());
     }
 }
