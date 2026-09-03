@@ -3,7 +3,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use git2::{AutotagOption, BranchType, FetchOptions, PushOptions, Repository, StatusOptions};
+use git2::{
+    AutotagOption, BranchType, FetchOptions, ProxyOptions, PushOptions, Repository, StatusOptions,
+};
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
@@ -146,6 +148,38 @@ fn attach_transfer_progress<'cb>(
     callbacks
 }
 
+/// Bridge the F013 proxy settings into fetch/push/clone options.
+///
+/// git2's `FetchOptions`/`PushOptions` default to `GIT_PROXY_NONE`, which
+/// tells libgit2 to *never* use a proxy: the git-config → environment
+/// fallback never runs, so the `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` env
+/// vars injected by `infrastructure::proxy` (F013) were silently ignored
+/// by every git network operation — only the AI/updater reqwest paths
+/// honored them. `GIT_PROXY_AUTO` restores git CLI semantics: `http.proxy`
+/// / `remote.<name>.proxy` config first, then the injected environment
+/// (keeping per-host `NO_PROXY` exemptions; loopback always excluded).
+pub(super) trait ProxyOptionsCarrier<'cb> {
+    fn set_proxy_options(&mut self, proxy: ProxyOptions<'cb>);
+}
+
+impl<'cb> ProxyOptionsCarrier<'cb> for FetchOptions<'cb> {
+    fn set_proxy_options(&mut self, proxy: ProxyOptions<'cb>) {
+        FetchOptions::proxy_options(self, proxy);
+    }
+}
+
+impl<'cb> ProxyOptionsCarrier<'cb> for PushOptions<'cb> {
+    fn set_proxy_options(&mut self, proxy: ProxyOptions<'cb>) {
+        PushOptions::proxy_options(self, proxy);
+    }
+}
+
+pub(super) fn attach_auto_proxy<'cb, O: ProxyOptionsCarrier<'cb>>(options: &mut O) {
+    let mut proxy = ProxyOptions::new();
+    proxy.auto();
+    options.set_proxy_options(proxy);
+}
+
 /// Fetch from `remote_name` (typically `origin`). Does not update the working
 /// tree. Prunes the remote's own tracking refs (`refs/remotes/<name>/*`) that
 /// no longer exist upstream; tags stay add-only (`AutotagOption::Auto` never
@@ -167,6 +201,7 @@ pub fn fetch(
     fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
     fo.prune(git2::FetchPrune::On);
+    attach_auto_proxy(&mut fo);
     cancelled_if_flagged(
         cancel.as_deref(),
         run_with_credentials(
@@ -301,6 +336,7 @@ pub fn push_with_options(
                 attempt_cancel.clone(),
             );
             po.remote_callbacks(cb);
+            attach_auto_proxy(&mut po);
             match remote.push(&refs, Some(&mut po)) {
                 Ok(()) => {
                     creds.approve();
@@ -516,6 +552,7 @@ pub fn delete_remote_branch(
         cancel.clone(),
     );
     po.remote_callbacks(cb);
+    attach_auto_proxy(&mut po);
     cancelled_if_flagged(
         cancel.as_deref(),
         run_with_credentials(

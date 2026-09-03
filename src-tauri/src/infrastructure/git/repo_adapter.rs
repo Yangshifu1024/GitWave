@@ -15,6 +15,7 @@ use crate::domain::error_codes as codes;
 use super::credentials::{
     run_with_credentials, CredentialProvider, GitCredentialHelper, SshAgentCredential,
 };
+use super::remote::attach_auto_proxy;
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +93,7 @@ fn clone_with_creds(
 
     let mut fo = git2::FetchOptions::new();
     fo.remote_callbacks(cb);
+    attach_auto_proxy(&mut fo);
 
     let mut builder = RepoBuilder::new();
     builder.fetch_options(fo);
