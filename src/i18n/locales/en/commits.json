@@ -36,6 +36,8 @@
     },
     "header": {
       "loading": "Loading commit…",
+      "expandMessage": "Expand commit message",
+      "collapseMessage": "Collapse commit message",
       "explain": "Explain",
       "explainTitle": "Explain with AI",
       "explainAria": "Explain this commit with AI",

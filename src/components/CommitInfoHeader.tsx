@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Chip } from "@heroui/react";
-import { Cherry, Sparkles, Tag as TagIcon, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Cherry, Sparkles, Tag as TagIcon, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -12,6 +12,7 @@ import {
   revertCommit,
 } from "@/lib/api";
 import type { CommitRef } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useTags } from "@/hooks/useTags";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Button } from "@/components/ui/Button";
@@ -56,6 +57,10 @@ export function CommitInfoHeader({
   const [busy, setBusy] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
+  // Collapsed state survives commit switches (no remount on sha change) but
+  // resets when the repo tab changes (wrapper key); session-scoped, not
+  // persisted across restarts.
+  const [messageExpanded, setMessageExpanded] = useState(true);
 
   // Tags on this commit (listed inside the tag manager modal).
   const { data: tags = [], invalidate: invalidateTags } = useTags();
@@ -103,6 +108,8 @@ export function CommitInfoHeader({
       .map((tag) => ({ name: tag.name, kind: "tag" as const })),
   ];
 
+  const Chevron = messageExpanded ? ChevronDown : ChevronRight;
+
   const run = (op: CommitAction): void => {
     setBusy(true);
     const request =
@@ -129,7 +136,31 @@ export function CommitInfoHeader({
   return (
     <div className="shrink-0 select-text border-b border-border-subtle bg-bg-elevated px-4 py-2.5">
       <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-sm font-semibold break-words text-text-primary">{subject}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={messageExpanded}
+          title={t(
+            messageExpanded ? "commits.header.collapseMessage" : "commits.header.expandMessage",
+          )}
+          onClick={() => setMessageExpanded((value) => !value)}
+          className={cn(
+            "h-auto min-w-0 flex-1 flex items-start justify-start gap-1.5 p-0 text-left",
+            "rounded-none border-0 shadow-none bg-transparent",
+            "text-text-muted hover:text-text-secondary hover:bg-bg-primary/60",
+          )}
+        >
+          <Chevron size={14} className="mt-0.5 shrink-0" />
+          <span
+            className={cn(
+              "min-w-0 text-sm font-semibold text-text-primary",
+              messageExpanded ? "break-words" : "truncate",
+            )}
+          >
+            {subject}
+          </span>
+        </Button>
         <Chip
           size="sm"
           className="shrink-0 rounded-sm bg-bg-primary px-1.5 py-0.5 font-mono text-xs text-text-muted tabular-nums shadow-none"
@@ -138,7 +169,7 @@ export function CommitInfoHeader({
           <Chip.Label>{shortSha}</Chip.Label>
         </Chip>
       </div>
-      {body ? (
+      {messageExpanded && body ? (
         <p className="mt-1 text-xs leading-5 whitespace-pre-wrap break-words text-text-secondary">
           {body}
         </p>
