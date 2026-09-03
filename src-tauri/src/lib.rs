@@ -476,6 +476,7 @@ async fn cmd_delete_branch(
 
 #[tauri::command]
 async fn cmd_delete_remote_branch(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     remote: String,
@@ -483,7 +484,7 @@ async fn cmd_delete_remote_branch(
     auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
     let ws_id = workspace_id.clone();
-    run_sync_op(
+    let result = run_sync_op(
         &workspace_id,
         "delete remote branch",
         codes::cmds::DELETE_REMOTE_BRANCH_TASK_JOIN,
@@ -492,7 +493,9 @@ async fn cmd_delete_remote_branch(
             delete_remote_branch(local_ctx, &ws_id, &remote, &branch, Some(cancel), auth)
         },
     )
-    .await
+    .await;
+    emit_storage_outcome(&app);
+    result
 }
 
 #[tauri::command]
@@ -1120,14 +1123,31 @@ async fn cmd_fetch(
         }));
 
     let ws_id = workspace_id.clone();
-    run_sync_op(
+    let result = run_sync_op(
         &workspace_id,
         "fetch",
         codes::cmds::FETCH_TASK_JOIN,
         &ctx,
         move |local_ctx, cancel| fetch(local_ctx, &ws_id, remote, on_progress, Some(cancel), auth),
     )
-    .await
+    .await;
+    emit_storage_outcome(&app);
+    result
+}
+
+/// Surface how (and whether) accepted credentials were persisted during a
+/// sync op. Emitted after the operation settles — success or failure —
+/// because a silent persistence failure must not resurface as an
+/// unexplained auth prompt on the next operation. Silence itself (no
+/// outcome) is the common all-clear case.
+fn emit_storage_outcome(app: &tauri::AppHandle) {
+    use infrastructure::git::credentials::drain_storage_outcome;
+    use tauri::Emitter;
+    if let Some(outcome) = drain_storage_outcome() {
+        if let Err(e) = app.emit("credential-storage", &outcome) {
+            tracing::warn!("credential-storage emit failed: {e}");
+        }
+    }
 }
 
 #[tauri::command]
@@ -1152,7 +1172,7 @@ async fn cmd_pull(
         }));
 
     let ws_id = workspace_id.clone();
-    run_sync_op(
+    let result = run_sync_op(
         &workspace_id,
         "pull",
         codes::cmds::PULL_TASK_JOIN,
@@ -1171,7 +1191,9 @@ async fn cmd_pull(
             )
         },
     )
-    .await
+    .await;
+    emit_storage_outcome(&app);
+    result
 }
 
 #[tauri::command]
@@ -1220,7 +1242,7 @@ async fn cmd_push(
         }));
 
     let ws_id = workspace_id.clone();
-    run_sync_op(
+    let result = run_sync_op(
         &workspace_id,
         "push",
         codes::cmds::PUSH_TASK_JOIN,
@@ -1239,7 +1261,9 @@ async fn cmd_push(
             )
         },
     )
-    .await
+    .await;
+    emit_storage_outcome(&app);
+    result
 }
 
 /// Abort the workspace's in-flight sync operation (fetch / pull / push /

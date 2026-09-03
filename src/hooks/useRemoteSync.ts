@@ -11,6 +11,7 @@ import {
   isCancelledSyncError,
   pullRemote,
   pushRemote,
+  type CredentialStorageOutcome,
   type FetchOptions,
   type InlineAuth,
   type PullOptions,
@@ -45,6 +46,19 @@ function ensureSyncProgressListener(): void {
   syncListenerReady = true;
   void listen<SyncProgress>("sync-progress", (event) => {
     useSyncStore.getState().updateProgress(event.payload);
+  });
+  // How accepted credentials were persisted (F012 fix: the system helper
+  // can silently drop them). The backend confirms with `stored` — the
+  // common case stays quiet; anything else gets a status-area note so a
+  // persistence failure never resurfaces as a mysterious prompt loop.
+  void listen<CredentialStorageOutcome>("credential-storage", (event) => {
+    const t = i18next.t.bind(i18next);
+    const setStatus = useStatusAreaStore.getState().setStatus;
+    if (event.payload === "fallback") {
+      setStatus(t("status.sync.credentialFallback"), "info");
+    } else if (event.payload === "failed") {
+      setStatus(t("status.sync.credentialSaveFailed"), "danger");
+    }
   });
 }
 

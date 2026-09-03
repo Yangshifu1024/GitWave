@@ -52,3 +52,4 @@ Thumbs.db
 # Deepwork state (git-local; OpenCode-readable via .ignore)
 .slim/deepwork/
 .zcode/plans/
+.wavestudio/

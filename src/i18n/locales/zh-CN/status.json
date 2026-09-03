@@ -31,7 +31,9 @@
       "pushFailed": "推送失败",
       "cancelled": "已取消",
       "refreshing": "正在刷新…",
-      "refreshed": "已刷新"
+      "refreshed": "已刷新",
+      "credentialFallback": "凭据已保存到应用钥匙串（系统 credential helper 未确认），GitWave 将自动复用",
+      "credentialSaveFailed": "凭据暂未能保存——下次操作可能需要重新输入"
     }
   }
 }

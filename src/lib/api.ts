@@ -998,12 +998,19 @@ export interface PushOptions {
 }
 
 /** Credentials entered in the auth prompt (F012). `remember` persists them
- *  through the system credential helper so later operations fill again. */
+ *  through the system credential helper and the app keyring fallback so
+ *  later operations fill again. */
 export interface InlineAuth {
   username: string;
   password: string;
   remember: boolean;
 }
+
+/** How accepted credentials were persisted during a sync op
+ *  (`credential-storage` event): `stored` — the system helper confirmed;
+ *  `fallback` — the helper did not, but the app keyring now holds the
+ *  credential; `failed` — neither storage accepted it. */
+export type CredentialStorageOutcome = "stored" | "fallback" | "failed";
 
 export interface FetchOptions {
   remote?: string;
