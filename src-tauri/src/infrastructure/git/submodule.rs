@@ -8,6 +8,8 @@ use std::path::Path;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
+use super::remote::attach_auto_proxy;
+
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::unknown_with(
         codes::git::GIT_ERROR,
@@ -95,7 +97,10 @@ pub fn update_submodule(repo: &Repository, name: &str, recursive: bool) -> Resul
     let mut opts = git2::SubmoduleUpdateOptions::new();
     let mut checkout = git2::build::CheckoutBuilder::new();
     checkout.allow_conflicts(true);
-    opts.checkout(checkout).allow_fetch(true);
+    let mut fo = git2::FetchOptions::new();
+    attach_auto_proxy(&mut fo);
+    // `.fetch` implies allow_fetch(true), matching `git submodule update`.
+    opts.fetch(fo).checkout(checkout);
     sm.update(true, Some(&mut opts)).map_err(map_git_err)?;
     if recursive {
         // Open the submodule's worktree and update whatever it declares.
@@ -140,7 +145,9 @@ pub fn add_submodule(repo: &Repository, url: &str, path: &str) -> Result<()> {
     let mut opts = git2::SubmoduleUpdateOptions::new();
     let mut checkout = git2::build::CheckoutBuilder::new();
     checkout.allow_conflicts(true);
-    opts.checkout(checkout);
+    let mut fo = git2::FetchOptions::new();
+    attach_auto_proxy(&mut fo);
+    opts.fetch(fo).checkout(checkout);
     if let Err(e) = sm.clone(Some(&mut opts)) {
         // Best-effort rollback of the half-cloned worktree directory;
         // `git_submodule_add_setup` has already touched .gitmodules, which
