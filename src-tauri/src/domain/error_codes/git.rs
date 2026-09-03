@@ -212,6 +212,9 @@ pub const SUBMODULE_CLONE_FAILED: &str = "git.submodule.clone_failed";
 /// 子模块未初始化。
 pub const SUBMODULE_NOT_INITIALIZED: &str = "git.submodule.not_initialized";
 
+/// 子模块远端认证失败。
+pub const SUBMODULE_AUTH_FAILED: &str = "git.submodule.auth_failed";
+
 // ─── hooks（hooks.rs） ────────────────────────────────────────────────
 
 /// hook 名称无效。

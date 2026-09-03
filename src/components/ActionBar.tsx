@@ -25,6 +25,7 @@ import {
   importWorkspace,
   getBranches,
   initRepo,
+  isAuthError,
   listRemotes,
   listTags,
   listWorkspaces,
@@ -32,10 +33,13 @@ import {
   saveStash,
   setActiveRepo,
   type CloneProgress,
+  type InlineAuth,
 } from "@/lib/api";
+import { remoteHost } from "@/lib/authRetry";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore } from "@/stores/syncStore";
+import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
@@ -333,11 +337,13 @@ export function ActionBar(): React.JSX.Element {
       url,
       dest,
       replaceDest,
+      auth,
     }: {
       url: string;
       dest: string;
       replaceDest?: boolean;
-    }) => cloneRepo(activeWorkspaceId!, url, dest, replaceDest ?? false),
+      auth?: InlineAuth;
+    }) => cloneRepo(activeWorkspaceId!, url, dest, replaceDest ?? false, auth),
     onMutate: () => {
       setCloneFailed(false);
       setCloneProgress(null);
@@ -350,7 +356,21 @@ export function ActionBar(): React.JSX.Element {
       endAdd();
       void activateRepo(repo.id);
     },
-    onError: (e: unknown) => {
+    onError: (e: unknown, variables) => {
+      // Same F012 contract as fetch/pull/push: an HTTPS auth failure opens
+      // the in-app prompt once (identified by host — no remote name exists
+      // yet) and retries the clone with the entered credentials; a second
+      // auth failure surfaces as a plain error instead of looping.
+      if (isAuthError(e) && variables.auth === undefined) {
+        useAuthPromptStore.getState().show(
+          remoteHost(variables.url),
+          (auth) => cloneMut.mutate({ ...variables, auth }),
+          // Dismissed prompt: the clone simply didn't happen — neutral
+          // status, the add form stays open for another attempt.
+          () => useStatusAreaStore.getState().setStatus(t("status.sync.cancelled")),
+        );
+        return;
+      }
       setActionError(formatAppError(e));
       setCloneFailed(true);
     },

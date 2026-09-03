@@ -21,4 +21,10 @@ pub const PUSH_TASK_JOIN: &str = "cmds.push_task_join";
 /// 等待删除远程分支后台任务结束失败。
 pub const DELETE_REMOTE_BRANCH_TASK_JOIN: &str = "cmds.delete_remote_branch_task_join";
 
+/// 等待更新子模块后台任务结束失败。
+pub const UPDATE_SUBMODULE_TASK_JOIN: &str = "cmds.update_submodule_task_join";
+
+/// 等待添加子模块后台任务结束失败。
+pub const ADD_SUBMODULE_TASK_JOIN: &str = "cmds.add_submodule_task_join";
+
 // Populated by the i18n error-key migration (docs/tasks/feat-i18n/plan.md).

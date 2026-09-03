@@ -5,6 +5,7 @@
 //! `git2_adapter.rs` (open_local, head).
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use git2::{build::RepoBuilder, Repository, RepositoryInitOptions};
@@ -12,10 +13,8 @@ use git2::{build::RepoBuilder, Repository, RepositoryInitOptions};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
-use super::credentials::{
-    run_with_credentials, CredentialProvider, GitCredentialHelper, SshAgentCredential,
-};
-use super::remote::attach_auto_proxy;
+use super::credentials::{run_with_credentials, CredentialProvider, InlineAuth};
+use super::remote::{attach_auto_proxy, cancelled_if_flagged, provider_for_operation, CancelFlag};
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,25 +46,21 @@ pub fn init(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Clone an HTTPS repository. Credentials are obtained from the system
-/// `git credential helper`.
-pub fn clone_https(
+/// Clone a remote repository. HTTPS credentials come from the system
+/// `git credential helper` (interactivity disabled — see `credentials.rs`)
+/// with the app keyring as fallback, or straight from the F012 in-app
+/// prompt when `auth` is supplied; SSH URLs keep ssh-agent auth.
+/// `cancel` aborts the transfer at the progress checkpoint and maps the
+/// abort to `git.sync_cancelled`.
+pub fn clone_remote(
     url: &str,
     dest: &Path,
     on_progress: Option<Box<dyn Fn(CloneProgress) + Send>>,
+    cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
 ) -> Result<()> {
-    let provider: Arc<dyn CredentialProvider> = Arc::new(GitCredentialHelper::new(url.to_string()));
-    clone_with_creds(url, dest, provider, on_progress)
-}
-
-/// Clone an SSH repository. Credentials are obtained from ssh-agent.
-pub fn clone_ssh(
-    url: &str,
-    dest: &Path,
-    on_progress: Option<Box<dyn Fn(CloneProgress) + Send>>,
-) -> Result<()> {
-    let provider: Arc<dyn CredentialProvider> = Arc::new(SshAgentCredential::new());
-    clone_with_creds(url, dest, provider, on_progress)
+    let provider = provider_for_operation(url, cancel.clone(), auth);
+    clone_with_creds(url, dest, provider, on_progress, cancel)
 }
 
 fn clone_with_creds(
@@ -73,12 +68,20 @@ fn clone_with_creds(
     dest: &Path,
     creds: Arc<dyn CredentialProvider>,
     on_progress: Option<Box<dyn Fn(CloneProgress) + Send>>,
+    cancel: Option<CancelFlag>,
 ) -> Result<()> {
     let mut cb = creds.callbacks();
-    if let Some(progress) = on_progress {
-        let progress = std::sync::Mutex::new(progress);
+    if on_progress.is_some() || cancel.is_some() {
+        let progress = on_progress.map(std::sync::Mutex::new);
+        let flag = cancel.clone().unwrap_or_default();
         cb.transfer_progress(move |stats| {
-            if let Ok(guard) = progress.lock() {
+            // Same checkpoint contract as fetch: returning false aborts the
+            // transfer so a cancel (or the run_sync_op timeout's flag flip)
+            // cannot hang until the next libgit2 call.
+            if flag.load(Ordering::Relaxed) {
+                return false;
+            }
+            if let Some(guard) = progress.as_ref().and_then(|p| p.lock().ok()) {
                 guard(CloneProgress {
                     received_objects: stats.received_objects() as u64,
                     total_objects: stats.total_objects() as u64,
@@ -98,28 +101,31 @@ fn clone_with_creds(
     let mut builder = RepoBuilder::new();
     builder.fetch_options(fo);
 
-    run_with_credentials(
-        &*creds,
-        || builder.clone(url, dest),
-        |e| {
-            AppError::credential_with(
-                codes::git::CLONE_AUTH_FAILED,
-                format!("auth failed for {url}: {e}"),
-                &[("url", url.to_string()), ("error", e.to_string())],
-            )
-        },
-        |e| match e.code() {
-            git2::ErrorCode::NotFound => AppError::protocol_with(
-                codes::git::CLONE_NOT_FOUND,
-                format!("not found: {url}"),
-                &[("url", url.to_string())],
-            ),
-            _ => AppError::network_with(
-                codes::git::CLONE_NETWORK,
-                format!("network error cloning {url}: {e}"),
-                &[("url", url.to_string()), ("error", e.to_string())],
-            ),
-        },
+    cancelled_if_flagged(
+        cancel.as_deref(),
+        run_with_credentials(
+            &*creds,
+            || builder.clone(url, dest),
+            |e| {
+                AppError::credential_with(
+                    codes::git::CLONE_AUTH_FAILED,
+                    format!("auth failed for {url}: {e}"),
+                    &[("url", url.to_string()), ("error", e.to_string())],
+                )
+            },
+            |e| match e.code() {
+                git2::ErrorCode::NotFound => AppError::protocol_with(
+                    codes::git::CLONE_NOT_FOUND,
+                    format!("not found: {url}"),
+                    &[("url", url.to_string())],
+                ),
+                _ => AppError::network_with(
+                    codes::git::CLONE_NETWORK,
+                    format!("network error cloning {url}: {e}"),
+                    &[("url", url.to_string()), ("error", e.to_string())],
+                ),
+            },
+        ),
     )?;
     Ok(())
 }
@@ -213,9 +219,11 @@ mod tests {
         let dest = tmp.join("repo");
         // Non-routable URL triggers network/protocol failure without
         // requiring real network in CI.
-        let err = clone_https(
+        let err = clone_remote(
             "https://this-host-does-not-exist.invalid/repo.git",
             &dest,
+            None,
+            None,
             None,
         )
         .expect_err("should fail");

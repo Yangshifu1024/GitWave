@@ -9,10 +9,12 @@ import {
   deinitSubmodule,
   formatAppError,
   initSubmodule,
+  isCancelledSyncError,
   listSubmodules,
   updateSubmodule,
   type SubmoduleInfo,
 } from "@/lib/api";
+import { remoteHost, withAuthRetry } from "@/lib/authRetry";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { Button } from "@/components/ui/Button";
@@ -58,15 +60,26 @@ export function SubmodulesPanel(): React.JSX.Element {
     setBusy(name);
     setError(null);
     try {
-      if (op === "init") await initSubmodule(workspaceId, name);
-      else await updateSubmodule(workspaceId, name, true);
+      if (op === "init") {
+        await initSubmodule(workspaceId, name);
+      } else {
+        // F012: an auth-challenged submodule remote opens the in-app prompt
+        // and retries with the entered credentials (at most one prompt).
+        const host = remoteHost(items.find((i) => i.name === name)?.url ?? "") || name;
+        await withAuthRetry(host, (auth) => updateSubmodule(workspaceId, name, true, auth));
+      }
       setStatus(
         t(op === "init" ? "submodules.status.initialized" : "submodules.status.updated", { name }),
       );
       bumpHistory();
       await refresh();
     } catch (e) {
-      setStatus(formatAppError(e), "danger");
+      // A dismissed auth prompt is a user cancel, not a failure.
+      if (isCancelledSyncError(e)) {
+        setStatus(t("status.sync.cancelled"));
+      } else {
+        setStatus(formatAppError(e), "danger");
+      }
     } finally {
       setBusy(null);
     }
@@ -77,14 +90,20 @@ export function SubmodulesPanel(): React.JSX.Element {
     setBusy("add");
     setError(null);
     try {
-      await addSubmodule(workspaceId, url.trim(), path.trim());
+      await withAuthRetry(remoteHost(url.trim()) || url.trim(), (auth) =>
+        addSubmodule(workspaceId, url.trim(), path.trim(), auth),
+      );
       setStatus(t("submodules.status.added", { path: path.trim() }));
       setUrl("");
       setPath("");
       setAdding(false);
       await refresh();
     } catch (e) {
-      setStatus(formatAppError(e), "danger");
+      if (isCancelledSyncError(e)) {
+        setStatus(t("status.sync.cancelled"));
+      } else {
+        setStatus(formatAppError(e), "danger");
+      }
     } finally {
       setBusy(null);
     }

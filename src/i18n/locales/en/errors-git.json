@@ -78,7 +78,8 @@
         "path_invalid": "Submodule path must be a relative path inside the repository",
         "add_failed": "Could not add the submodule: {{error}}",
         "clone_failed": "Submodule clone failed: {{error}} — the half-cloned directory was removed, but .gitmodules may have been modified (discard it to revert)",
-        "not_initialized": "Submodule not initialized: {{name}}"
+        "not_initialized": "Submodule not initialized: {{name}}",
+        "auth_failed": "Submodule authentication failed for {{url}}: {{error}}"
       },
       "hook": {
         "invalid_name": "Invalid hook name: {{name}}",

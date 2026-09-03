@@ -354,12 +354,14 @@ export function cloneRepo(
   url: string,
   destPath: string,
   replaceDest = false,
+  auth?: InlineAuth,
 ): Promise<RepoRef> {
   return invoke<RepoRef>("cmd_clone_repo", {
     workspaceId,
     url,
     destPath,
     replaceDest,
+    auth: auth ?? null,
   });
 }
 
@@ -777,13 +779,24 @@ export function updateSubmodule(
   workspaceId: string,
   name: string,
   recursive = false,
+  auth?: InlineAuth,
 ): Promise<void> {
-  return invoke<void>("cmd_update_submodule", { workspaceId, name, recursive });
+  return invoke<void>("cmd_update_submodule", {
+    workspaceId,
+    name,
+    recursive,
+    auth: auth ?? null,
+  });
 }
 
 /** `git submodule add` — clones and stages gitlink + .gitmodules. */
-export function addSubmodule(workspaceId: string, url: string, path: string): Promise<void> {
-  return invoke<void>("cmd_add_submodule", { workspaceId, url, path });
+export function addSubmodule(
+  workspaceId: string,
+  url: string,
+  path: string,
+  auth?: InlineAuth,
+): Promise<void> {
+  return invoke<void>("cmd_add_submodule", { workspaceId, url, path, auth: auth ?? null });
 }
 
 /** `git submodule deinit` — unregisters; the worktree is left untouched. */
@@ -1053,8 +1066,14 @@ export function deleteRemoteBranch(
   workspaceId: string,
   remote: string,
   branch: string,
+  auth?: InlineAuth,
 ): Promise<void> {
-  return invoke<void>("cmd_delete_remote_branch", { workspaceId, remote, branch });
+  return invoke<void>("cmd_delete_remote_branch", {
+    workspaceId,
+    remote,
+    branch,
+    auth: auth ?? null,
+  });
 }
 
 /** Tags that diverged from the remote and were skipped by the push
@@ -1093,8 +1112,9 @@ export function setBranchUpstream(
   return invoke<void>("cmd_set_branch_upstream", { workspaceId, branch, upstream });
 }
 
-/** Ask the backend to abort the workspace's in-flight fetch/pull/push
- * (also delete-remote-branch). Resolves to false when no cancellable
+/** Ask the backend to abort the workspace's in-flight sync operation
+ * (fetch / pull / push / clone / delete-remote-branch / submodule
+ * update/add). Resolves to false when no cancellable
  * operation was active. */
 export function cancelSync(workspaceId: string): Promise<boolean> {
   return invoke<boolean>("cmd_cancel_sync", { workspaceId });
@@ -1116,6 +1136,8 @@ const AUTH_FAILED_CODES = new Set([
   "git.push_auth_failed",
   "git.pull_auth_failed",
   "git.fetch_auth_failed",
+  "git.clone.auth_failed",
+  "git.submodule.auth_failed",
 ]);
 
 /** Whether `err` means the operation needs credentials (re-)entered. */

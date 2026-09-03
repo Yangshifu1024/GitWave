@@ -7,7 +7,9 @@
       "list_remotes_task_join": "列出远程仓库失败：{{error}}",
       "list_repos_task_join": "列出仓库失败：{{error}}",
       "push_task_join": "推送（push）任务失败：{{error}}",
-      "delete_remote_branch_task_join": "删除远程分支任务失败：{{error}}"
+      "delete_remote_branch_task_join": "删除远程分支任务失败：{{error}}",
+      "update_submodule_task_join": "子模块更新任务失败：{{error}}",
+      "add_submodule_task_join": "子模块添加任务失败：{{error}}"
     }
   }
 }
