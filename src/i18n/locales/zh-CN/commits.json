@@ -36,6 +36,8 @@
     },
     "header": {
       "loading": "正在加载提交…",
+      "expandMessage": "展开提交消息",
+      "collapseMessage": "折叠提交消息",
       "explain": "解释",
       "explainTitle": "用 AI 解释",
       "explainAria": "用 AI 解释此提交",
