@@ -4,17 +4,68 @@
 use git2::Repository;
 use serde::Serialize;
 use std::path::Path;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
-use super::remote::attach_auto_proxy;
+use super::credentials::{run_with_credentials, CredentialProvider, InlineAuth};
+use super::remote::{attach_auto_proxy, provider_for_operation, CancelFlag};
 
 fn map_git_err(e: git2::Error) -> AppError {
+    map_git_err_ref(&e)
+}
+
+fn map_git_err_ref(e: &git2::Error) -> AppError {
     AppError::unknown_with(
         codes::git::GIT_ERROR,
         format!("git: {e}"),
         &[("error", e.to_string())],
+    )
+}
+
+/// Drive one submodule fetch-backed operation through the same credential
+/// strategy as fetch/push/clone: the provider's callbacks go into the
+/// options (F012 in-app credentials win, SSH keeps ssh-agent, HTTPS falls
+/// through helper-without-interaction → app keyring) and the outcome drives
+/// helper approve/reject. `Auth` maps to the dedicated credential code the
+/// frontend's F012 prompt keys on; without all this an authenticated
+/// submodule remote failed with a bare libgit2 error and no recovery path.
+/// `cancel` is observed both at the credential-fill wait and at transfer
+/// progress — the run_sync_op timeout flips it, and an in-flight transfer
+/// aborts at the next callback instead of running to network completion.
+fn update_with_credentials<T>(
+    provider: &dyn CredentialProvider,
+    url: &str,
+    cancel: Option<CancelFlag>,
+    build: impl FnOnce(&mut git2::SubmoduleUpdateOptions) -> std::result::Result<T, git2::Error>,
+    other_error: impl FnOnce(&git2::Error) -> AppError,
+) -> Result<T> {
+    // `.fetch` implies allow_fetch(true), matching `git submodule update`.
+    let mut opts = git2::SubmoduleUpdateOptions::new();
+    let mut checkout = git2::build::CheckoutBuilder::new();
+    checkout.allow_conflicts(true);
+    let mut cb = provider.callbacks();
+    if let Some(flag) = &cancel {
+        let flag = Arc::clone(flag);
+        cb.transfer_progress(move |_stats| !flag.load(Ordering::Relaxed));
+    }
+    let mut fo = git2::FetchOptions::new();
+    fo.remote_callbacks(cb);
+    attach_auto_proxy(&mut fo);
+    opts.fetch(fo).checkout(checkout);
+    run_with_credentials(
+        provider,
+        || build(&mut opts),
+        |e| {
+            AppError::credential_with(
+                codes::git::SUBMODULE_AUTH_FAILED,
+                format!("submodule auth failed for {url}: {e}"),
+                &[("url", url.to_string()), ("error", e.to_string())],
+            )
+        },
+        other_error,
     )
 }
 
@@ -92,16 +143,23 @@ pub fn init_submodule(repo: &Repository, name: &str) -> Result<()> {
 /// Clone / fetch / checkout the submodule worktree
 /// (`git submodule update --init`); with `recursive`, repeat for every
 /// nested submodule of the freshly checked-out worktree.
-pub fn update_submodule(repo: &Repository, name: &str, recursive: bool) -> Result<()> {
+pub fn update_submodule(
+    repo: &Repository,
+    name: &str,
+    recursive: bool,
+    cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
+) -> Result<()> {
     let mut sm = find(repo, name)?;
-    let mut opts = git2::SubmoduleUpdateOptions::new();
-    let mut checkout = git2::build::CheckoutBuilder::new();
-    checkout.allow_conflicts(true);
-    let mut fo = git2::FetchOptions::new();
-    attach_auto_proxy(&mut fo);
-    // `.fetch` implies allow_fetch(true), matching `git submodule update`.
-    opts.fetch(fo).checkout(checkout);
-    sm.update(true, Some(&mut opts)).map_err(map_git_err)?;
+    let url = sm.url().unwrap_or_default().to_string();
+    let provider = provider_for_operation(&url, cancel.clone(), auth);
+    update_with_credentials(
+        &*provider,
+        &url,
+        cancel.clone(),
+        |opts| sm.update(true, Some(opts)),
+        map_git_err_ref,
+    )?;
     if recursive {
         // Open the submodule's worktree and update whatever it declares.
         let sub_repo = sm.open().map_err(map_git_err)?;
@@ -112,7 +170,7 @@ pub fn update_submodule(repo: &Repository, name: &str, recursive: bool) -> Resul
             .map(|s| s.name().unwrap_or("").to_string())
             .collect();
         for nested_name in nested {
-            update_submodule(&sub_repo, &nested_name, true)?;
+            update_submodule(&sub_repo, &nested_name, true, cancel.clone(), auth)?;
         }
     }
     Ok(())
@@ -121,7 +179,13 @@ pub fn update_submodule(repo: &Repository, name: &str, recursive: bool) -> Resul
 /// Add a submodule at `path` cloning from `url`, staging the gitlink and
 /// `.gitmodules` entry (`git submodule add` semantics). Changes are
 /// staged, NOT committed — the user commits them through the normal flow.
-pub fn add_submodule(repo: &Repository, url: &str, path: &str) -> Result<()> {
+pub fn add_submodule(
+    repo: &Repository,
+    url: &str,
+    path: &str,
+    cancel: Option<CancelFlag>,
+    auth: Option<&InlineAuth>,
+) -> Result<()> {
     if url.trim().is_empty() || path.trim().is_empty() {
         return Err(AppError::protocol(
             codes::git::SUBMODULE_ARGS_REQUIRED,
@@ -142,27 +206,31 @@ pub fn add_submodule(repo: &Repository, url: &str, path: &str) -> Result<()> {
             &[("error", e.to_string())],
         )
     })?;
-    let mut opts = git2::SubmoduleUpdateOptions::new();
-    let mut checkout = git2::build::CheckoutBuilder::new();
-    checkout.allow_conflicts(true);
-    let mut fo = git2::FetchOptions::new();
-    attach_auto_proxy(&mut fo);
-    opts.fetch(fo).checkout(checkout);
-    if let Err(e) = sm.clone(Some(&mut opts)) {
+    let provider = provider_for_operation(url, cancel.clone(), auth);
+    let cloned = update_with_credentials(
+        &*provider,
+        url,
+        cancel,
+        |opts| sm.clone(Some(opts)).map(|_| ()),
+        |e| {
+            AppError::unknown_with(
+                codes::git::SUBMODULE_CLONE_FAILED,
+                format!(
+                    "submodule clone failed: {e} — the half-cloned directory was removed, \
+                     but .gitmodules may have been modified (discard it to revert)"
+                ),
+                &[("error", e.to_string())],
+            )
+        },
+    );
+    if cloned.is_err() {
         // Best-effort rollback of the half-cloned worktree directory;
         // `git_submodule_add_setup` has already touched .gitmodules, which
-        // cannot be rolled back safely from here — say so explicitly.
+        // cannot be rolled back safely from here — the error text says so.
         if let Some(workdir) = repo.workdir() {
             let _ = std::fs::remove_dir_all(workdir.join(path));
         }
-        return Err(AppError::unknown_with(
-            codes::git::SUBMODULE_CLONE_FAILED,
-            format!(
-                "submodule clone failed: {e} — the half-cloned directory was removed, \
-                 but .gitmodules may have been modified (discard it to revert)"
-            ),
-            &[("error", e.to_string())],
-        ));
+        return cloned;
     }
     sm.add_to_index(true).map_err(map_git_err)?;
     sm.add_finalize().map_err(map_git_err)?;
@@ -229,7 +297,7 @@ mod tests {
         let (path, repo) = build_linear_repo(1);
         let err = init_submodule(&repo, "nope").unwrap_err();
         assert_eq!(err.category(), "Protocol");
-        let err = update_submodule(&repo, "nope", false).unwrap_err();
+        let err = update_submodule(&repo, "nope", false, None, None).unwrap_err();
         assert_eq!(err.category(), "Protocol");
         cleanup(&path);
     }
@@ -240,7 +308,7 @@ mod tests {
         let (parent_path, repo) = build_linear_repo(1);
         let url = child_path.to_str().expect("utf8 temp path");
 
-        add_submodule(&repo, url, "libs/child").expect("add");
+        add_submodule(&repo, url, "libs/child", None, None).expect("add");
         let subs = list_submodules(&repo).expect("list");
         assert_eq!(subs.len(), 1, "one submodule after add: {subs:?}");
         assert_eq!(subs[0].path, "libs/child");
@@ -255,8 +323,8 @@ mod tests {
         assert!(subs[0].in_sync);
 
         // Bad paths are rejected before touching git.
-        assert!(add_submodule(&repo, url, "../escape").is_err());
-        assert!(add_submodule(&repo, url, "").is_err());
+        assert!(add_submodule(&repo, url, "../escape", None, None).is_err());
+        assert!(add_submodule(&repo, url, "", None, None).is_err());
 
         cleanup(&parent_path);
         cleanup(&child_path);

@@ -261,6 +261,7 @@ async fn cmd_clone_repo(
     url: String,
     dest_path: String,
     replace_dest: Option<bool>,
+    auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<RepoRef, AppError> {
     use infrastructure::git::repo_adapter::CloneProgress;
     use tauri::Emitter;
@@ -272,28 +273,29 @@ async fn cmd_clone_repo(
             let _ = app_emit.emit("clone-progress", &p);
         }));
 
-    let workspaces = Arc::clone(&ctx.workspaces);
-    let app_settings = Arc::clone(&ctx.app_settings);
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let local_ctx = AppContext::new(workspaces, app_settings);
-        clone_repo(
-            &local_ctx,
-            workspace_id,
-            url,
-            dest_path,
-            replace,
-            on_progress,
-        )
-    })
-    .await
-    .map_err(|e| {
-        AppError::unknown_with(
-            codes::cmds::CLONE_TASK_JOIN,
-            format!("clone task join: {e}"),
-            &[("error", e.to_string())],
-        )
-    })?;
-
+    // Same network-op contract as fetch/pull/push: 180s budget, cancellable,
+    // credential-storage outcome surfaced (F012 retry needs all three).
+    let ws_id = workspace_id.clone();
+    let result = run_sync_op(
+        &workspace_id,
+        "clone",
+        codes::cmds::CLONE_TASK_JOIN,
+        &ctx,
+        move |local_ctx, cancel| {
+            clone_repo(
+                local_ctx,
+                ws_id,
+                url,
+                dest_path,
+                replace,
+                on_progress,
+                Some(cancel),
+                auth,
+            )
+        },
+    )
+    .await;
+    emit_storage_outcome(&app);
     result
 }
 
@@ -712,22 +714,57 @@ async fn cmd_init_submodule(
 
 #[tauri::command]
 async fn cmd_update_submodule(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     name: String,
     recursive: Option<bool>,
+    auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
-    update_submodule(&ctx, &workspace_id, &name, recursive.unwrap_or(false))
+    // Network operation (authenticated submodule remotes): same 180s
+    // budget + credential-storage surfacing as the other sync ops.
+    let ws_id = workspace_id.clone();
+    let result = run_sync_op(
+        &workspace_id,
+        "update submodule",
+        codes::cmds::UPDATE_SUBMODULE_TASK_JOIN,
+        &ctx,
+        move |local_ctx, cancel| {
+            update_submodule(
+                local_ctx,
+                &ws_id,
+                &name,
+                recursive.unwrap_or(false),
+                Some(cancel),
+                auth,
+            )
+        },
+    )
+    .await;
+    emit_storage_outcome(&app);
+    result
 }
 
 #[tauri::command]
 async fn cmd_add_submodule(
+    app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     url: String,
     path: String,
+    auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
-    add_submodule(&ctx, &workspace_id, url, path)
+    let ws_id = workspace_id.clone();
+    let result = run_sync_op(
+        &workspace_id,
+        "add submodule",
+        codes::cmds::ADD_SUBMODULE_TASK_JOIN,
+        &ctx,
+        move |local_ctx, cancel| add_submodule(local_ctx, &ws_id, url, path, Some(cancel), auth),
+    )
+    .await;
+    emit_storage_outcome(&app);
+    result
 }
 
 #[tauri::command]
@@ -1053,7 +1090,8 @@ async fn cmd_ignore_path(
     ignore_path(&ctx, &workspace_id, pattern)
 }
 
-/// Run a network sync operation (fetch / pull / push / delete-remote-branch)
+/// Run a network sync operation (fetch / pull / push / clone /
+/// delete-remote-branch / submodule update / submodule add)
 /// on the blocking pool behind its workspace's cancel flag and a total
 /// timeout, so a hung libgit2 transport can never pin the UI at "Fetching…"
 /// forever. On timeout the flag is set — the blocking task aborts at its

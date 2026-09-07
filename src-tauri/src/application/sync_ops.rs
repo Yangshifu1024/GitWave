@@ -1,5 +1,6 @@
 //! Cancel registry and timeout budget for network sync operations
-//! (fetch / pull / push / delete-remote-branch).
+//! (fetch / pull / push / clone / delete-remote-branch / submodule update
+//! / submodule add).
 //!
 //! libgit2 has no socket timeouts: a hung transport blocks its thread
 //! forever, which used to pin the UI at "Fetching…" and — via the

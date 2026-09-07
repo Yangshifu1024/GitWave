@@ -34,6 +34,7 @@ import { useTags } from "@/hooks/useTags";
 import { useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/commitMenu";
+import { withAuthRetry } from "@/lib/authRetry";
 import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -493,14 +494,27 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       if (!deleteDialog) return;
       const { name, deleteRemote } = deleteDialog;
       await deleteBranch(activeWorkspaceId!, name);
+      let remoteDeleted = false;
       if (deleteRemote) {
-        for (const remote of deleteCounterparts) {
-          await deleteRemoteBranch(activeWorkspaceId!, remote, name);
+        try {
+          for (const remote of deleteCounterparts) {
+            // F012: an auth-challenged remote delete opens the in-app
+            // prompt and retries with the entered credentials.
+            await withAuthRetry(remote, (auth) =>
+              deleteRemoteBranch(activeWorkspaceId!, remote, name, auth),
+            );
+            remoteDeleted = true;
+          }
+        } catch (e) {
+          // Dismissing the prompt keeps the (already applied) local
+          // deletion — a user cancel, not an error; the remaining remote
+          // counterparts simply stay.
+          if (!isCancelledSyncError(e)) throw e;
         }
       }
       setDeleteDialog(null);
       showNotice(
-        deleteRemote && deleteCounterparts.length > 0
+        remoteDeleted
           ? t("branches.deleteDialog.deletedWithRemote", { name })
           : t("branches.deleteDialog.deleted", { name }),
       );

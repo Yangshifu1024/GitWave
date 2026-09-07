@@ -93,7 +93,7 @@ Workspace = 数据库中的一行；零 FS 实体。
 采用 **混合方案**：
 
 - **AI provider API key** → OS Keychain
-- **HTTPS git 凭证** → 系统 `git credential helper`（用户在系统 git 已配置的自动复用）；自 fix-auth-credential-not-persisted 起，GitWave 在应用侧 Keychain（`gitwave.remote` 服务，per-host）恒镜像一份作为兑底——helper 可能静默不落盘（实测 Windows GCM 对程序化 `git credential approve` exit 0 却不存储），镜像保证应用内凭证仍被记住；凭证被远端拒绝时同步清除镜像；helper 为主、镜像为辅的策略不变
+- **HTTPS git 凭证** → 系统 `git credential helper`（用户在系统 git 已配置的自动复用）；自 fix-auth-credential-not-persisted 起，GitWave 在应用侧 Keychain（`gitwave.remote` 服务，per-host）恒镜像一份作为兑底——helper 可能静默不落盘（实测 Windows GCM 对程序化 `git credential approve` exit 0 却不存储），镜像保证应用内凭证仍被记住；凭证被远端拒绝时同步清除镜像；helper 为主、镜像为辅的策略不变。自 fix-credential-dialog-convergence 起，helper 的交互能力被显式禁止（`GCM_INTERACTIVE=never` + `credential.interactive=never`）：helper 只做静默的存储与读取（已存凭证含 OAuth token 照常返回），需要用户输入凭证时一律由应用内 F012 弹窗承接，不再允许 GCM 等弹出自带 GUI
 - **SSH** → ssh-agent + 用户配置的 key
 
 ### 后果

@@ -12,7 +12,7 @@
 //!! `git2::FetchOptions::remote_callbacks`.
 
 use std::io::Write;
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
@@ -369,8 +369,10 @@ impl FillOnce {
 }
 
 /// HTTPS credential: query the system `git credential fill` for
-/// user/password. The helper may itself prompt the user; we surface the
-/// resulting credentials to libgit2.
+/// user/password. Helper interactivity is disabled — a GUI helper answers
+/// only from its stored credentials or fails fast — and an empty answer
+/// falls through to the app keyring; the F012 in-app prompt is the only
+/// credential UX.
 pub struct GitCredentialHelper {
     url: String,
     fill: Arc<Mutex<FillOnce>>,
@@ -586,25 +588,45 @@ fn credential_request(url: &str, user: Option<&str>, pass: Option<&str>) -> Opti
     Some(request)
 }
 
+/// Build the `git credential …` subprocess for the helper protocol. Every
+/// interactive channel is dead by construction:
+///
+/// - `GIT_TERMINAL_PROMPT=0` plus the two askpass vars pointed at a
+///   nonexistent program kill git's own prompt chain
+///   (GIT_ASKPASS → core.askpass → SSH_ASKPASS → terminal) — cancelling a
+///   native askpass box yields an empty answer anyway; the app keyring
+///   fallback and the in-app F012 prompt are the UX.
+/// - `GCM_INTERACTIVE=never` and `-c credential.interactive=never` (the
+///   latter travels down to helper subprocesses through git's config
+///   propagation) tell a GUI helper like GCM to *fail immediately* when it
+///   has no stored credential, instead of opening its own dialog and
+///   holding the fill open for up to [`CREDENTIAL_FILL_TIMEOUT`]. Cached
+///   credentials — including GCM OAuth tokens — are still returned
+///   silently: `never` only refuses *interaction*. The empty answer falls
+///   through to the vault lookup and, if that misses, the F012 prompt.
+///
+/// Shared by `fill` and `approve`/`reject` so the two call sites cannot
+/// drift apart (approve/reject never prompt today, but the same guarantee
+/// is cheap to enforce).
+fn helper_command(args: &[&str]) -> Command {
+    let mut cmd = hidden_command("git");
+    cmd.args(["-c", "credential.interactive=never"]);
+    cmd.args(args);
+    cmd.env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "never")
+        .env("GIT_ASKPASS", "gitwave-disabled-askpass")
+        .env("SSH_ASKPASS", "gitwave-disabled-askpass");
+    cmd
+}
+
 /// Invoke `git credential fill` for the URL and return parsed user/pass.
 /// Returns `None` if the helper is not configured / fails / does not answer
-/// within [`CREDENTIAL_FILL_TIMEOUT`] (a GUI prompt nobody answers) or the
-/// operation was cancelled.
+/// within [`CREDENTIAL_FILL_TIMEOUT`] or the operation was cancelled. With
+/// helper interactivity disabled ([`helper_command`]) the realistic timeout
+/// case is a helper that ignores the `interactive` opt-out; a conforming
+/// GCM fails within milliseconds instead of holding the dialog open.
 fn query_helper(url: &str, cancel: Option<&AtomicBool>) -> Option<(String, String)> {
-    let mut child = hidden_command("git")
-        .args(["credential", "fill"])
-        .env("GIT_TERMINAL_PROMPT", "0")
-        // The environment for credential prompts must be dead: any helper
-        // that falls back to an interactive prompt would open a dialog we
-        // cannot control (the "Git for Windows" askpass box), and cancelling
-        // that dialog yields an empty answer anyway — the app keyring
-        // fallback and the in-app F012 prompt are the UX. git's prompt chain
-        // is GIT_ASKPASS → core.askpass → SSH_ASKPASS → terminal; pointing
-        // the two askpass env vars at a nonexistent program makes every
-        // fallback fail immediately (GCM still opens its own GUI when it
-        // decides to interact; that is the helper's call, not ours).
-        .env("GIT_ASKPASS", "gitwave-disabled-askpass")
-        .env("SSH_ASKPASS", "gitwave-disabled-askpass")
+    let mut child = helper_command(&["credential", "fill"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -746,13 +768,7 @@ fn notify_helper(action: &str, url: &str, user: &str, pass: &str) -> HelperNotif
         tracing::warn!("git credential {action} skipped: value would break the protocol");
         return HelperNotifyOutcome::SpawnFailed;
     };
-    let mut child = match hidden_command("git")
-        .args(["credential", action])
-        .env("GIT_TERMINAL_PROMPT", "0")
-        // Same dead-prompt-environment rule as `query_helper`: approve/reject
-        // must never pop an interactive fallback dialog either.
-        .env("GIT_ASKPASS", "gitwave-disabled-askpass")
-        .env("SSH_ASKPASS", "gitwave-disabled-askpass")
+    let mut child = match helper_command(&["credential", action])
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -814,6 +830,41 @@ mod tests {
     fn query_helper_returns_none_for_unconfigured_helper() {
         let result = query_helper("https://this-domain-does-not-exist.invalid/repo.git", None);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn helper_command_disables_every_interactive_channel() {
+        // The GCM external dialog leak (fix-credential-dialog-convergence):
+        // the helper subprocess must refuse interaction from every side —
+        // git's own terminal/askpass chain AND the helper's own GUI (GCM),
+        // which otherwise opens its dialog whenever it has no stored
+        // credential and holds the fill open for the full timeout.
+        let cmd = helper_command(&["credential", "fill"]);
+        let args: Vec<String> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args,
+            ["-c", "credential.interactive=never", "credential", "fill"],
+            "`-c` must precede the subcommand so git parses it as config"
+        );
+
+        let env_val = |key: &str| {
+            cmd.get_envs()
+                .find(|(k, _)| *k == std::ffi::OsStr::new(key))
+                .and_then(|(_, v)| v.map(|v| v.to_string_lossy().into_owned()))
+        };
+        assert_eq!(env_val("GCM_INTERACTIVE").as_deref(), Some("never"));
+        assert_eq!(env_val("GIT_TERMINAL_PROMPT").as_deref(), Some("0"));
+        assert_eq!(
+            env_val("GIT_ASKPASS").as_deref(),
+            Some("gitwave-disabled-askpass")
+        );
+        assert_eq!(
+            env_val("SSH_ASKPASS").as_deref(),
+            Some("gitwave-disabled-askpass")
+        );
     }
 
     #[test]

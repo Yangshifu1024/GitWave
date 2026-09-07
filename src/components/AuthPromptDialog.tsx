@@ -18,6 +18,7 @@ export function AuthPromptDialog(): React.JSX.Element | null {
   const remoteName = useAuthPromptStore((s) => s.remoteName);
   const retry = useAuthPromptStore((s) => s.retry);
   const close = useAuthPromptStore((s) => s.close);
+  const cancel = useAuthPromptStore((s) => s.cancel);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -45,14 +46,17 @@ export function AuthPromptDialog(): React.JSX.Element | null {
     <Modal
       open
       onOpenChange={(open) => {
-        if (!open) close();
+        // User-initiated close (esc / overlay): notify the registrar so an
+        // awaited operation settles instead of waiting on a retry that
+        // will never come. The submit path calls `close` directly.
+        if (!open) cancel();
       }}
       title={t("common.authPrompt.title")}
       description={t("common.authPrompt.description", { remote: remoteName })}
       size="sm"
       footer={
         <>
-          <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={close}>
+          <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={cancel}>
             {t("common.cancel")}
           </Button>
           <Button

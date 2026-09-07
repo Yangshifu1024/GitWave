@@ -73,7 +73,7 @@ fn provider_for_url(url: &str, cancel: Option<CancelFlag>) -> Arc<dyn Credential
 /// Pick the credential strategy for one operation: in-app entered
 /// credentials (F012) win — they only cover HTTPS user/pass, so SSH URLs
 /// keep agent auth — otherwise the URL decides as before.
-fn provider_for_operation(
+pub(super) fn provider_for_operation(
     url: &str,
     cancel: Option<CancelFlag>,
     auth: Option<&InlineAuth>,
@@ -102,7 +102,7 @@ fn remote_url(repo: &Repository, remote_name: &str) -> Result<String> {
 
 /// Report a cancelled operation as such instead of whatever libgit2 error
 /// the abort happened to surface as.
-fn cancelled_if_flagged<T>(cancel: Option<&AtomicBool>, result: Result<T>) -> Result<T> {
+pub(super) fn cancelled_if_flagged<T>(cancel: Option<&AtomicBool>, result: Result<T>) -> Result<T> {
     if result.is_err() && cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
         return Err(AppError::network_with(
             codes::git::SYNC_CANCELLED,

@@ -78,7 +78,8 @@
         "path_invalid": "子模块路径必须是仓库内的相对路径",
         "add_failed": "添加子模块失败：{{error}}",
         "clone_failed": "子模块克隆失败：{{error}}——已删除克隆到一半的目录，但 .gitmodules 可能已被修改（丢弃该文件即可还原）",
-        "not_initialized": "子模块未初始化：{{name}}"
+        "not_initialized": "子模块未初始化：{{name}}",
+        "auth_failed": "子模块认证失败：{{url}}：{{error}}"
       },
       "hook": {
         "invalid_name": "hook 名称无效：{{name}}",

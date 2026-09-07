@@ -414,6 +414,8 @@ pub fn clone_repo(
     on_progress: Option<
         Box<dyn Fn(crate::infrastructure::git::repo_adapter::CloneProgress) + Send>,
     >,
+    cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
 ) -> Result<RepoRef> {
     let dest = PathBuf::from(&dest_path);
     if replace_dest && dest.exists() {
@@ -425,11 +427,13 @@ pub fn clone_repo(
             )
         })?;
     }
-    if url.starts_with("ssh://") || url.starts_with("git@") {
-        crate::infrastructure::git::repo_adapter::clone_ssh(&url, &dest, on_progress)?;
-    } else {
-        crate::infrastructure::git::repo_adapter::clone_https(&url, &dest, on_progress)?;
-    }
+    crate::infrastructure::git::repo_adapter::clone_remote(
+        &url,
+        &dest,
+        on_progress,
+        cancel,
+        auth.as_ref(),
+    )?;
 
     let repo = RepoRef {
         id: new_repo_id(),
@@ -1998,10 +2002,12 @@ pub fn update_submodule(
     workspace_id: &str,
     name: &str,
     recursive: bool,
+    cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_submodule_update(&repo, name, recursive)
+    infra_submodule_update(&repo, name, recursive, cancel, auth.as_ref())
 }
 
 /// `git submodule add <url> <path>` — clones and stages the gitlink +
@@ -2011,10 +2017,12 @@ pub fn add_submodule(
     workspace_id: &str,
     url: String,
     path: String,
+    cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_submodule_add(&repo, &url, &path)
+    infra_submodule_add(&repo, &url, &path, cancel, auth.as_ref())
 }
 
 /// `git submodule deinit <name>` — unregisters from `.git/config`. Milder
