@@ -360,11 +360,14 @@ export function ActionBar(): React.JSX.Element {
       // Same F012 contract as fetch/pull/push: an HTTPS auth failure opens
       // the in-app prompt once (identified by host — no remote name exists
       // yet) and retries the clone with the entered credentials; a second
-      // auth failure surfaces as a plain error instead of looping.
+      // auth failure surfaces as a plain error instead of looping. The
+      // retry forces replaceDest like the retry button: the failed attempt
+      // already initialized .git in the destination, and libgit2 refuses
+      // to clone into a non-empty directory.
       if (isAuthError(e) && variables.auth === undefined) {
         useAuthPromptStore.getState().show(
           remoteHost(variables.url),
-          (auth) => cloneMut.mutate({ ...variables, auth }),
+          (auth) => cloneMut.mutate({ ...variables, replaceDest: true, auth }),
           // Dismissed prompt: the clone simply didn't happen — neutral
           // status, the add form stays open for another attempt.
           () => useStatusAreaStore.getState().setStatus(t("status.sync.cancelled")),
