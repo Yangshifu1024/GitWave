@@ -51,9 +51,11 @@ F012。fetch/pull/push 手动操作如此；60s 自动刷新触发的 fetch 连 
 2. **clone 收敛**：`clone_https` 加 `auth` + `cancel` 参数（provider 选择
    复用 `remote.rs` `provider_for_operation`，提取为 `pub(super)`）；
    `cmd_clone_repo` 套 `run_sync_op`（补 180s 超时 + 取消 +
-   `emit_storage_outcome`）；错误码 `git.clone.auth_failed` 统一为
-   `git.clone_auth_failed` 并加入前端 `AUTH_FAILED_CODES`；ActionBar
-   clone 认证失败 → F012 重试一次。
+   `emit_storage_outcome`）；错误码沿用 `git.clone.auth_failed`
+   （i18n 嵌套键 `errors.git.clone.auth_failed` 无需迁移；实施时放弃
+   改名为 `git.clone_auth_failed` 的方案）并加入前端
+   `AUTH_FAILED_CODES`；ActionBar clone 认证失败 → F012 重试一次
+   （重试强制 `replaceDest` 清理半成品目录）。
 3. **删除远端分支收敛**：`deleteRemoteBranch` 前端 api 加 auth 透传，
    BranchList / RefBadgeContextMenu 两处调用接 F012 重试一次。
 4. **submodule 收敛**：`update_submodule` / `add_submodule` 的

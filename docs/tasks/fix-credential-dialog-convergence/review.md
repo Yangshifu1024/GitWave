@@ -54,3 +54,19 @@
 
 🔴 必修项与高价值 🟡 已全部修复并补充单测；遗留项均为既有问题或后续任务
 （已在 plan.md 注明）。**审查通过，可交用户提交并发起 PR。**
+
+## 复查（用户报告克隆认证无弹窗，验尸本分支覆盖度）
+
+用真实缺陷报告（Windows，克隆 `https://git.chongdian.xyz/...` 报
+「no credentials available; class=Http (34); code=Auth (-16)」且无弹窗）
+反向核对本分支：两层根因（后端 clone 无 auth 通道 + 前端不触发 F012）
+均已被本分支修复。复查发现并处置：
+
+| 级别 | 位置 | 问题 | 处置 |
+|---|---|---|---|
+| 🟡 | `ActionBar.tsx` clone F012 重试闭包 | 重试 `{...variables, auth}` 未强制 `replaceDest: true`——首次提交不带该参数，认证失败时 libgit2 已在目标目录初始化 .git（半成品），带凭证重试会撞「目录非空」以误导性网络错误收场（既有「重试」按钮正是因此强制清理） | ✅ 已修：重试统一 `replaceDest: true` |
+| 🟢 | 本目录 plan.md | 「错误码统一为 `git.clone_auth_failed`」与实现不符：实施沿用 `git.clone.auth_failed`（前后端一致、功能正确） | ✅ plan.md 已更正 |
+| 🟢 | `docs/pm/features/F012-in-app-credential-prompt.md` | 触发点清单未含 clone / 删远端分支 / submodule；未记录 helper 交互禁止 | ✅ 已同步（含取消弹窗 = 用户取消的语义） |
+
+复查后前端 vitest 161 passed、tsc 干净；cargo test 289 passed（与上轮一致，
+本复查未触碰 Rust 代码）。

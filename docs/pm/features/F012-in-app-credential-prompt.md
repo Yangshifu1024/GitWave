@@ -1,7 +1,9 @@
 # F012 · 应用内凭证恢复（认证失败自动弹窗）
 
-> 状态：已实现（并入 fix/push-tag-non-ff 分支）
-> 关联任务：docs/tasks/fix-push-tag-non-ff/plan.md
+> 状态：已实现（并入 fix/push-tag-non-ff 分支；触发面扩全见
+> docs/tasks/fix-credential-dialog-convergence/）
+> 关联任务：docs/tasks/fix-push-tag-non-ff/plan.md、
+> docs/tasks/fix-credential-dialog-convergence/plan.md
 
 ## 问题
 
@@ -12,10 +14,14 @@ keychain 条目丢失后，应用内 push 无任何自救途径。
 
 ## 目标
 
-- 同步操作（push / pull / fetch）认证失败时，应用内自动弹出认证对话框，
-  输入用户名 + 访问令牌（PAT）后**原地重试原操作**。
+- 网络操作（push / pull / fetch / clone / 删除远端分支 / submodule
+  update·add）认证失败时，应用内自动弹出认证对话框，输入用户名 +
+  访问令牌（PAT）后**原地重试原操作**。
 - 可勾选「保存到系统钥匙串」：通过 `git credential approve` 落盘到用户
   已配置的 credential helper（osxkeychain 等），与 git CLI 共享。
+- 自 fix-credential-dialog-convergence 起：helper 的交互能力显式禁止
+  （`GCM_INTERACTIVE=never` + `credential.interactive=never`），GCM 等
+  不再弹自带 GUI；需要用户输入凭证时一律由本弹窗承接（ADR-0003）。
 
 ## 非目标
 
@@ -27,12 +33,14 @@ keychain 条目丢失后，应用内 push 无任何自救途径。
 ## UX 流程
 
 ```
-push/pull/fetch 撞到认证失败（*_auth_failed）
+网络操作撞到认证失败（*_auth_failed / git.clone.auth_failed）
         │ 自动弹窗（每个操作至多一次，不循环）
         ▼
-「需要认证」对话框：远端名 / 用户名 / 访问令牌 / ☑保存到钥匙串
+「需要认证」对话框：远端名（clone/submodule 场景为 URL host）/
+用户名 / 访问令牌 / ☑保存到钥匙串
         │ 保存并重试
         ├─ 成功 → 状态区成功文案（勾选保存时 approve 落盘）
+        ├─ 取消弹窗 → 操作按用户取消收场（不挂起）
         └─ 再次认证失败 → 状态区普通错误（不再弹窗，可再次手动触发）
 ```
 
@@ -41,8 +49,12 @@ push/pull/fetch 撞到认证失败（*_auth_failed）
 - Rust：`InlineCredentialProvider`（credentials.rs）按次操作使用输入凭证；
   `approve` 仅在 `remember=true` 时通知 helper 落盘，`reject` 恒为 no-op
   （会话输入的凭证未落盘，无可抹除，绝不误删系统存储）。
-- `cmd_push / cmd_fetch / cmd_pull / cmd_delete_remote_branch` 增加
-  `auth` 入参，逐层透传到四个网络操作。
-- 前端：`isAuthError` 识别三个认证失败码；`authPromptStore` +
-  `AuthPromptDialog`（App 全局单实例）；触发点 = useRemoteSync 三操作、
-  BranchList 推送、RemotesPanel 单远端 fetch（均一次操作仅提示一次）。
+- `cmd_push / cmd_fetch / cmd_pull / cmd_delete_remote_branch /
+  cmd_clone_repo / cmd_update_submodule / cmd_add_submodule` 增加
+  `auth` 入参，逐层透传到各网络操作。
+- 前端：`isAuthError` 识别各认证失败码（含 `git.clone.auth_failed`、
+  `git.submodule.auth_failed`）；`authPromptStore` + `AuthPromptDialog`
+  （App 全局单实例，`cancel`/`onDismiss` 保证取消即结算）；触发点 =
+  useRemoteSync 三操作、BranchList 推送与删远端分支、RefBadgeContextMenu
+  删远端分支、RemotesPanel 单远端 fetch、ActionBar 克隆、SubmodulesPanel
+  update/add（均一次操作仅提示一次）。
