@@ -153,8 +153,14 @@ export function RemotesPanel(): React.JSX.Element {
   return (
     <>
       <SidebarSection
+        // A single remote (the common lone "origin") defaults collapsed — the
+        // card earns its vertical space from the second remote on. Keyed by
+        // that threshold so crossing it re-applies the default (TagsPanel's
+        // per-repo key pattern).
+        key={items.length > 1 ? "multi" : "single"}
         title={t("remotes.title")}
         collapsible={items.length > 0}
+        defaultOpen={items.length > 1}
         onHeaderContextMenu={(e) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY });

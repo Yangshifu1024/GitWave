@@ -77,7 +77,7 @@
 | **code-reviewer** | 代码审查（正确性 / 安全 / 性能 / 可维护性 / 可读性 / 测试覆盖 / 最佳实践） |
 | **tester** | 测试用例设计、测试策略、缺陷分析、自动化建议 |
 
-代理详细行为约定见 `.opencode/agents/<name>.md`
+代理详细行为约定见 `.agents/agents/<name>.md`
 
 按场景调用对应的专门代理。
 
@@ -85,7 +85,7 @@
 
 触发：用户提出新需求 / 功能想法
 
-1. 调用 `@.opencode/agents/product-manager.md`
+1. 调用 `@.agents/agents/product-manager.md`
 2. PM 分析需求、必要时提问澄清
 3. PM 整理为结构化需求文档，写入 `docs/pm/features/F<编号>-<短描述>.md`
 4. 工程团队分析需求、生成技术方案
@@ -96,7 +96,7 @@
 
 触发：用户报告问题、bug 或异常行为
 
-1. 调用 `@.opencode/agents/tester.md`
+1. 调用 `@.agents/agents/tester.md`
 2. Tester 复现问题、分析根因
 3. Tester 给出最佳修复方案（含修改建议、回归测试要点）
 4. 修改方案写入 `docs/tasks/<fix-任务名>/plan.md`
@@ -106,7 +106,7 @@
 
 触发：开发完成、新代码待入库
 
-1. 自动调用 `@.opencode/agents/code-reviewer.md`
+1. 自动调用 `@.agents/agents/code-reviewer.md`
 2. Reviewer 按 7 个维度审查：正确性 / 安全 / 性能 / 可维护性 / 可读性 / 测试覆盖 / 最佳实践
 3. 严重问题（🔴）必须修复后再合入
 4. 审查报告写入 `docs/tasks/任务名/review.md`

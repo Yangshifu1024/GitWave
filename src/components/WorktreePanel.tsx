@@ -76,9 +76,18 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
   // Empty dataset = static header (nothing to expand); worktrees are created
   // from the Repository menu ("New worktree").
   const collapsible = !loading && items.length > 0;
+  // The lone main worktree is the repo itself — default the card collapsed;
+  // from the second worktree on, the switch list earns the space. Keyed by
+  // that threshold so crossing it re-applies the default.
+  const defaultOpen = items.length > 1;
 
   return (
-    <SidebarSection title={t("repo.worktrees.title")} collapsible={collapsible}>
+    <SidebarSection
+      key={defaultOpen ? "multi" : "single"}
+      title={t("repo.worktrees.title")}
+      collapsible={collapsible}
+      defaultOpen={defaultOpen}
+    >
       {error ? <ErrorAlert message={error} onDismiss={() => setError(null)} /> : null}
 
       <div className={cn("min-h-0 overflow-auto", compact ? "max-h-52" : "flex-1")}>
