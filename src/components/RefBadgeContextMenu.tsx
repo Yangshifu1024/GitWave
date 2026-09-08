@@ -195,9 +195,7 @@ export function RefBadgeContextMenu({
               </ContextMenuItem>
               <ContextMenuItem
                 disabled={busy || checkout.busy || isCurrent || !currentBranch}
-                title={
-                  isCurrent || !currentBranch ? t("branches.guard.current") : undefined
-                }
+                title={isCurrent || !currentBranch ? t("branches.guard.current") : undefined}
                 onSelect={() => {
                   onSelect?.();
                   setMergeDialog(true);
