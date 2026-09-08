@@ -6,10 +6,13 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-import { getDirtyRepos, type DirtyRepoSummary } from "@/lib/api";
+import { getDirtyRepos, quitApp, type DirtyRepoSummary } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 const STATUS_TIMEOUT_MS = 500;
+
+// Guards against StrictMode double-mount registering two close listeners.
+let closeListenerRegistered = false;
 
 export interface QuitGuardState {
   open: boolean;
@@ -56,7 +59,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 function destroyApp(): void {
-  void getCurrentWindow().destroy();
+  // window.destroy() requires core:window:allow-destroy, which is not in the
+  // app capabilities — the call fails silently and the window gets stuck.
+  // quit_app (app.exit(0)) is a custom command and always works; destroy is
+  // only a last-resort fallback.
+  void quitApp()
+    .catch(() => getCurrentWindow().destroy())
+    .catch(() => undefined);
 }
 
 /** Unified quit entry: window close button and File → Exit both land here. */
@@ -93,16 +102,19 @@ export function useQuitGuard(): QuitGuardState {
   const snapshot = useSyncExternalStore(subscribe, () => state);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    // The effect body runs twice under StrictMode; the async unlisten dance
+    // races the cleanup and can leave two close listeners behind. Register
+    // exactly once for the process lifetime instead.
+    if (closeListenerRegistered) return;
+    closeListenerRegistered = true;
     void getCurrentWindow()
       .onCloseRequested(async (event) => {
         event.preventDefault();
         await requestQuit();
       })
-      .then((fn) => {
-        unlisten = fn;
+      .catch(() => {
+        closeListenerRegistered = false;
       });
-    return () => unlisten?.();
   }, []);
 
   return snapshot;
