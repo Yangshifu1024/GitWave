@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Copy, GitBranch, Trash2 } from "lucide-react";
+import { Copy, GitBranch, GitMerge, Trash2 } from "lucide-react";
 
 import type { CommitRef } from "@/lib/api";
 import {
@@ -15,6 +15,7 @@ import {
   deleteTag,
   formatAppError,
   isCancelledSyncError,
+  mergeBranch,
 } from "@/lib/api";
 import { copyToClipboard, parseRemoteBranchName } from "@/lib/commitMenu";
 import { withAuthRetry } from "@/lib/authRetry";
@@ -23,6 +24,7 @@ import { useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
+import { MergeConfirmDialog } from "@/components/MergeConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import {
   ContextMenu,
@@ -55,6 +57,7 @@ export function RefBadgeContextMenu({
   const checkout = useBranchCheckout();
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<DeleteTarget | null>(null);
+  const [mergeDialog, setMergeDialog] = useState(false);
 
   const isCurrent = r.name === currentBranch;
   const remoteRef = r.kind === "remote_branch" ? parseRemoteBranchName(r.name) : null;
@@ -78,6 +81,33 @@ export function RefBadgeContextMenu({
         // Invalidate only after the delete lands, so a racing refetch
         // doesn't resurrect the deleted ref in the sidebar lists.
         invalidate();
+        bumpHistory();
+      })
+      .catch((e) => {
+        // A dismissed auth prompt is a user cancel, not a failure.
+        if (!isCancelledSyncError(e)) setStatus(formatAppError(e), "danger");
+      })
+      .finally(() => setBusy(false));
+  };
+
+  const handleMerge = (name: string, noFf: boolean): void => {
+    if (!workspaceId) return;
+    setBusy(true);
+    mergeBranch(workspaceId, name, noFf)
+      .then((result) => {
+        if (result.conflicts.length > 0) {
+          setStatus(
+            t("branches.merge.withConflicts", {
+              name,
+              n: result.conflicts.length,
+              files: result.conflicts.join(", "),
+            }),
+            "danger",
+          );
+        } else {
+          setStatus(t("branches.merge.success", { name, kind: result.kind.replace(/_/g, " ") }));
+        }
+        void queryClient.invalidateQueries({ queryKey: ["branches", workspaceId] });
         bumpHistory();
       })
       .catch((e) => {
@@ -164,6 +194,19 @@ export function RefBadgeContextMenu({
                 {t("branches.menu.checkout")}
               </ContextMenuItem>
               <ContextMenuItem
+                disabled={busy || checkout.busy || isCurrent || !currentBranch}
+                title={
+                  isCurrent || !currentBranch ? t("branches.guard.current") : undefined
+                }
+                onSelect={() => {
+                  onSelect?.();
+                  setMergeDialog(true);
+                }}
+              >
+                <GitMerge size={14} />
+                {t("branches.menu.mergeIntoCurrent")}
+              </ContextMenuItem>
+              <ContextMenuItem
                 destructive
                 disabled={busy || isCurrent}
                 title={isCurrent ? t("branches.guard.currentBranch") : undefined}
@@ -240,6 +283,19 @@ export function RefBadgeContextMenu({
               </Button>
             </>
           }
+        />
+      ) : null}
+
+      {mergeDialog && workspaceId && currentBranch ? (
+        <MergeConfirmDialog
+          workspaceId={workspaceId}
+          name={r.name}
+          currentBranch={currentBranch}
+          onClose={() => setMergeDialog(false)}
+          onConfirm={(noFf) => {
+            setMergeDialog(false);
+            handleMerge(r.name, noFf);
+          }}
         />
       ) : null}
 
