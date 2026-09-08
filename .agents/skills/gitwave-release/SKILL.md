@@ -20,7 +20,7 @@ description: GitWave 版本升级与发布同步流程。每当用户要升级/b
 
 | 文件 | 位置 | 说明 |
 |---|---|---|
-| `package.json` | `"version"` | 改完执行 `npm i` 同步 package-lock.json（CI 用 `npm ci`，锁文件与 package.json 不一致会直接失败） |
+| `package.json` | `"version"` | 仓库用 pnpm，锁文件是 pnpm-lock.yaml（**没有 package-lock.json**），CI 用 `pnpm install --frozen-lockfile`。改完跑一次 `pnpm install` 确认报 "Lockfile is up to date"——pnpm 锁文件不记录根包自身版本，纯版本 bump 不会改锁文件，跑一遍是为了确认依赖没有意外漂移 |
 | `src-tauri/tauri.conf.json` | `"version"` | Tauri 打包版本 |
 | `src-tauri/Cargo.toml` | `version = "…"` | Rust crate 版本 |
 | `src-tauri/Cargo.lock` | `name = "gitwave"` 条目 | **不要手改**，改完 Cargo.toml 后跑 `cargo check --manifest-path src-tauri/Cargo.toml` 自动同步 |
@@ -41,7 +41,8 @@ description: GitWave 版本升级与发布同步流程。每当用户要升级/b
 
 ```bash
 # 旧版本号残留检查（依赖包自身恰好的版本号不算，重点看 gitwave 自己的）
-grep -rn "<旧版本>" README.md site/ package.json package-lock.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+grep -rn "<旧版本>" README.md site/ package.json pnpm-lock.yaml src-tauri/tauri.conf.json src-tauri/Cargo.toml
+pnpm install --frozen-lockfile                      # CI 同款安装检查，锁文件与 package.json 不一致会直接失败
 grep -A 1 'name = "gitwave"' src-tauri/Cargo.lock   # 确认已同步为新版本
 cargo check --manifest-path src-tauri/Cargo.toml    # 锁文件同步 + 编译无恙
 ```
