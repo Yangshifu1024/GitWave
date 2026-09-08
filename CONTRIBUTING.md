@@ -32,10 +32,10 @@ cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
 
 # Frontend
-npm run lint
-npm run format:check
-npm run typecheck
-npm test
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test
 ```
 
 ## PR checklist

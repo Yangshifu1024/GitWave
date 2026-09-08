@@ -41,24 +41,24 @@ Prerequisites:
 - Windows: WebView2 runtime + MSVC build tools
 
 ```bash
-npm install
-npm run tauri dev
+pnpm install
+pnpm tauri dev
 ```
 
 ## Scripts
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Vite dev server (frontend only, no IPC) |
-| `npm run build` | TypeScript check + Vite production build |
-| `npm run tauri dev` | Tauri app in dev mode (frontend + Rust core) |
-| `npm run tauri build` | Tauri production build (.dmg / .exe / .deb / .rpm / .AppImage) |
-| `npm run lint` | ESLint (`lint:fix` to auto-fix) |
-| `npm run format:check` | Prettier check (no write) |
-| `npm run format` | Prettier write |
-| `npm run typecheck` | TypeScript check |
-| `npm test` | Vitest (unit) |
-| `npm run test:e2e` | Playwright e2e tests |
+| `pnpm dev` | Vite dev server (frontend only, no IPC) |
+| `pnpm build` | TypeScript check + Vite production build |
+| `pnpm tauri dev` | Tauri app in dev mode (frontend + Rust core) |
+| `pnpm tauri build` | Tauri production build (.dmg / .exe / .deb / .rpm / .AppImage) |
+| `pnpm lint` | ESLint (`lint:fix` to auto-fix) |
+| `pnpm format:check` | Prettier check (no write) |
+| `pnpm format` | Prettier write |
+| `pnpm typecheck` | TypeScript check |
+| `pnpm test` | Vitest (unit) |
+| `pnpm test:e2e` | Playwright e2e tests |
 
 Rust commands (run inside `src-tauri/`):
 
