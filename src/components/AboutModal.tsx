@@ -57,7 +57,10 @@ export function AboutModal({ open, onOpenChange }: AboutModalProps): React.JSX.E
         />
         <div>
           <p className="text-lg font-semibold text-text-primary">GitWave</p>
-          <p className="text-sm text-text-muted tabular-nums">v{version}</p>
+          <p className="text-sm text-text-muted tabular-nums">
+            v{version}
+            {__GIT_SHA__ ? ` (${__GIT_SHA__})` : ""}
+          </p>
         </div>
         <p className="max-w-xs text-sm text-text-secondary">{t("about.slogan")}</p>
         <div className="mt-2 flex items-center gap-2">
