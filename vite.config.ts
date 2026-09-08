@@ -1,10 +1,23 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vite";
+import { execSync } from "node:child_process";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
 const host = process.env["TAURI_DEV_HOST"];
+
+// Short commit SHA baked into the frontend bundle at build time (About dialog).
+// Falls back to an empty string outside a git checkout (e.g. source archives).
+function gitShortSha(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "";
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -13,6 +26,10 @@ export default defineConfig(async () => ({
   test: { environment: "node" },
 
   plugins: [react(), tailwindcss()],
+
+  define: {
+    __GIT_SHA__: JSON.stringify(gitShortSha()),
+  },
 
   resolve: {
     alias: {
