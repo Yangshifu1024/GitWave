@@ -47,9 +47,7 @@ export function QuitConfirmModal({
             key={repo.repo_id}
             className="flex items-center justify-between gap-3 rounded-md bg-bg-elevated px-3 py-2"
           >
-            <span className="truncate text-sm text-text-primary">
-              {repo.nickname ?? repo.path}
-            </span>
+            <span className="truncate text-sm text-text-primary">{repo.nickname ?? repo.path}</span>
             <span className="shrink-0 text-xs text-text-muted tabular-nums">
               {t("quitGuard.fileCount", { count: repo.file_count })}
             </span>
