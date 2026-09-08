@@ -1,7 +1,8 @@
 // ActionBar center status area — the single sync/operation status surface.
 // Priority: in-flight op (label + indeterminate progress bar + cancel
-// button for backend-cancellable ops) > last operation result (persists
-// until overwritten) > current branch name. The bottom bar is always
+// button for backend-cancellable ops) > last operation result (auto-clears
+// to the idle state after 15s, see statusAreaStore STATUS_TTL_MS) >
+// current branch name. The bottom bar is always
 // visible and takes the state's color: gray when idle, accent while
 // syncing, success/danger/info for the last result.
 
@@ -82,8 +83,7 @@ export function SyncStatusArea(): React.JSX.Element {
     <HeroCard
       aria-live="polite"
       className={cn(
-        // 48px trial height (user comparing proportions vs the 28px buttons).
-        "relative h-12 w-72 rounded-md border border-border-subtle bg-bg-elevated",
+        "relative h-9 w-144 rounded-md border border-border-subtle bg-bg-elevated",
         "shadow-none p-0 gap-0 overflow-hidden",
       )}
     >
@@ -98,10 +98,10 @@ export function SyncStatusArea(): React.JSX.Element {
           cancellable ? "pl-3 pr-8" : "px-3",
         )}
       >
-        {/* Long labels (interpolated remote names) wrap to at most two
-            lines, ellipsis beyond. min-w-0 lets the flex item shrink —
-            without it the raw overflow is clipped, not ellipsized. */}
-        <span className="min-w-0 line-clamp-2">{text}</span>
+        {/* Long labels (interpolated remote names) ellipsize on one line —
+            the 36px card keeps a single text line. min-w-0 lets the flex item
+            shrink — without it the raw overflow is clipped, not ellipsized. */}
+        <span className="min-w-0 truncate">{text}</span>
       </div>
       {cancellable ? (
         <button
@@ -112,11 +112,11 @@ export function SyncStatusArea(): React.JSX.Element {
             // pointer-events-auto opts the button back into hit-testing: the
             // ActionBar wrapper is pointer-events-none (so the idle card
             // never blocks the buttons it overlaps) and the property inherits.
-            "pointer-events-auto absolute right-1 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded",
+            "pointer-events-auto absolute right-1 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded",
             "text-text-muted transition-colors hover:bg-danger/10 hover:text-danger",
           )}
         >
-          <X className="h-3.5 w-3.5" aria-hidden />
+          <X className="h-3 w-3" aria-hidden />
         </button>
       ) : null}
       {state === "sync" ? (
@@ -127,7 +127,7 @@ export function SyncStatusArea(): React.JSX.Element {
           value={0}
           isIndeterminate
           className={cn(
-            "absolute bottom-0 inset-x-0 h-1 transition-opacity duration-150",
+            "absolute bottom-0 inset-x-0 h-0.5 transition-opacity duration-150",
             fadeClass,
           )}
         >
@@ -135,7 +135,7 @@ export function SyncStatusArea(): React.JSX.Element {
               animation owns both the 40% width and the translate sweep —
               overriding the width makes the full-width fill slide out of the
               clipped track and the bar vanish most of the cycle. */}
-          <ProgressBar.Track className="h-1 rounded-none bg-accent/25 overflow-hidden">
+          <ProgressBar.Track className="h-0.5 rounded-none bg-accent/25 overflow-hidden">
             <ProgressBar.Fill className="h-full rounded-none bg-accent" />
           </ProgressBar.Track>
         </ProgressBar>
@@ -143,7 +143,7 @@ export function SyncStatusArea(): React.JSX.Element {
         <div
           aria-hidden
           className={cn(
-            "absolute bottom-0 inset-x-0 h-1 transition-opacity duration-150",
+            "absolute bottom-0 inset-x-0 h-0.5 transition-opacity duration-150",
             fadeClass,
           )}
         >

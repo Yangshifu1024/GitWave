@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, CornerDownLeft, Download, Search, Settings, Sparkles } from "lucide-react";
+import { ArrowRight, CornerDownLeft, Download, Settings, Sparkles } from "lucide-react";
 import {
   aiPaletteIntent,
   checkoutBranch,
@@ -208,16 +208,15 @@ export function CommandPalette({
 
   if (!open) return null;
 
-  const showResults = query.trim().length === 0 || filtered.length > 0;
   const actionLabelKey = ACTION_LABEL_KEYS[intent?.action ?? ""];
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-[12vh] animate-in fade-in-0"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-bg-overlay pt-[12vh] backdrop-blur-sm animate-in fade-in-0"
       onMouseDown={() => setOpen(false)}
     >
       <div
-        className="w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-subtle bg-bg-overlay shadow-xl animate-in zoom-in-95"
+        className="w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-default bg-bg-elevated shadow-modal animate-in zoom-in-95"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <form
@@ -231,24 +230,32 @@ export function CommandPalette({
           }}
         >
           <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            <Search size={15} className="shrink-0 text-text-muted" />
-            <Input
-              ref={inputRef}
-              value={query}
-              onChange={(v) => {
-                setQuery(v);
-                setIntent(null);
-                setIntentError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.stopPropagation();
-                  setOpen(false);
-                }
-              }}
-              placeholder={t("palette.placeholder")}
-              variant="search"
-            />
+            {/* flex-1 makes the field span the row: the TextField is a plain
+                flex child and would otherwise shrink to content width,
+                stopping short of the Ask AI button's edge. */}
+            <div className="min-w-0 flex-1">
+              <Input
+                ref={inputRef}
+                value={query}
+                onChange={(v) => {
+                  setQuery(v);
+                  setIntent(null);
+                  setIntentError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setOpen(false);
+                  }
+                }}
+                placeholder={t("palette.placeholder")}
+                variant="search"
+                /* Borderless transparent field: the palette header row is the
+                   field — a filled InputGroup inside the elevated panel reads
+                   as a glaring white box (and doubles the prefix search icon). */
+                className="border-0 bg-transparent shadow-none hover:bg-transparent focus-within:bg-transparent focus-visible:bg-transparent"
+              />
+            </div>
             {query.trim() ? (
               <Button type="submit" variant="primary" size="sm" disabled={askAi.isPending}>
                 <Sparkles size={13} />
@@ -264,7 +271,7 @@ export function CommandPalette({
           ) : null}
 
           {intent ? (
-            <div className="border-b border-border-subtle px-3 py-2.5">
+            <div className="mx-3 my-2 rounded-lg border border-border-subtle bg-bg-primary px-3 py-2.5">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
                 <ArrowRight size={13} />
                 {actionLabelKey ? t(actionLabelKey) : intent.action}
@@ -295,14 +302,10 @@ export function CommandPalette({
             </div>
           ) : null}
 
-          {intentError ? (
-            <p className="border-b border-border-subtle px-3 py-2 text-xs text-danger">
-              {intentError}
-            </p>
-          ) : null}
+          {intentError ? <p className="px-3 py-2 text-xs text-danger">{intentError}</p> : null}
 
-          {showResults && !askAi.isPending ? (
-            <div className="py-1">
+          {!askAi.isPending ? (
+            <div className="px-1.5 py-1">
               {filtered.length > 0 ? (
                 filtered.map((c) => (
                   <button
@@ -310,25 +313,27 @@ export function CommandPalette({
                     type="button"
                     onClick={c.run}
                     className={cn(
-                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-text-secondary",
+                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
                       "hover:bg-bg-secondary hover:text-text-primary",
                     )}
                   >
                     {c.icon}
                     <span className="flex-1">{c.label}</span>
                     {c.hint ? (
-                      <span className="font-mono text-[10px] text-text-muted">{c.hint}</span>
+                      <span className="rounded border border-border-subtle bg-bg-primary px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
+                        {c.hint}
+                      </span>
                     ) : null}
                   </button>
                 ))
               ) : (
-                <p className="px-3 py-2 text-xs text-text-muted">
+                <p className="px-2.5 py-2 text-xs text-text-muted">
                   <Sparkles size={11} className="mr-1 inline" />
                   {t("palette.askHint")}
                 </p>
               )}
               {query.trim() ? (
-                <p className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-text-muted">
+                <p className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-text-muted">
                   <CornerDownLeft size={11} />
                   {t("palette.enterAsks")}
                 </p>

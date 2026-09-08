@@ -74,6 +74,7 @@ type AddKind = "init" | "clone" | "local" | null;
 function ActionBarButton({
   icon,
   label,
+  count,
   title,
   onClick,
   disabled = false,
@@ -83,6 +84,10 @@ function ActionBarButton({
   icon: React.ReactNode;
   /** Visible button text (short — the tooltip carries the full description). */
   label: string;
+  /** Reserved fixed-width count slot: a positive count renders "(N)", 0 or
+   * null leaves the slot empty, and undefined omits it (no-count buttons).
+   * The width is reserved either way so repo switches never shift layout. */
+  count?: number | null;
   /** Full description for tooltip / aria-label; defaults to `label`. */
   title?: string;
   onClick: () => void;
@@ -117,6 +122,11 @@ function ActionBarButton({
       >
         {icon}
         {label}
+        {count !== undefined && (
+          <span className="tabular-nums inline-block min-w-9 text-center">
+            {count ? `(${count})` : ""}
+          </span>
+        )}
       </Button>
     </Tooltip>
   );
@@ -667,11 +677,8 @@ export function ActionBar(): React.JSX.Element {
         <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<FileDiff size={14} />}
-            label={
-              changeCount > 0
-                ? t("changes.actionBar.changesWithCount", { total: changeCount })
-                : t("changes.actionBar.changes")
-            }
+            label={t("changes.actionBar.changes")}
+            count={changeCount}
             title={t("changes.actionBar.localChangesTitle")}
             tone={changeCount > 0 ? "warning" : "success"}
             disabled={localChangesDisabled}
@@ -695,22 +702,16 @@ export function ActionBar(): React.JSX.Element {
           />
           <ActionBarButton
             icon={<ArrowDown size={14} />}
-            label={
-              wc.data && wc.data.behind > 0
-                ? t("commits.sync.pullWithCount", { total: wc.data.behind })
-                : t("commits.sync.pull")
-            }
+            label={t("commits.sync.pull")}
+            count={wc.data ? wc.data.behind : null}
             title={t("commits.sync.pullTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPullDialog}
           />
           <ActionBarButton
             icon={<ArrowUp size={14} />}
-            label={
-              wc.data && wc.data.ahead > 0
-                ? t("commits.sync.pushWithCount", { total: wc.data.ahead })
-                : t("commits.sync.push")
-            }
+            label={t("commits.sync.push")}
+            count={wc.data ? wc.data.ahead : null}
             title={t("commits.sync.pushTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={openPushDialog}

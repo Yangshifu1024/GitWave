@@ -98,7 +98,6 @@
     },
     "actionBar": {
       "changes": "Changes",
-      "changesWithCount": "Changes({{total}})",
       "localChangesTitle": "Local changes"
     },
     "panel": {

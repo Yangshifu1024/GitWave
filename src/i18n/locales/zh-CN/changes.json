@@ -98,7 +98,6 @@
     },
     "actionBar": {
       "changes": "变更",
-      "changesWithCount": "变更({{total}})",
       "localChangesTitle": "本地变更"
     },
     "panel": {
