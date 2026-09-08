@@ -104,10 +104,10 @@ use crate::infrastructure::git::tag::{
     create_tag as infra_create_tag, delete_tag as infra_delete_tag, list_tags as infra_list_tags,
 };
 use crate::infrastructure::git::working_copy::{
-    commit as infra_commit, amend_commit as infra_amend_commit,
-    discard_worktree_changes as infra_discard_worktree_changes,
-    ignore_path as infra_ignore_path, reset_head_hard as infra_reset_head_hard,
-    stage_all as infra_stage_all, stage_paths as infra_stage_paths, status as infra_wc_status,
+    amend_commit as infra_amend_commit, commit as infra_commit,
+    discard_worktree_changes as infra_discard_worktree_changes, ignore_path as infra_ignore_path,
+    reset_head_hard as infra_reset_head_hard, stage_all as infra_stage_all,
+    stage_paths as infra_stage_paths, status as infra_wc_status,
     unstage_paths as infra_unstage_paths,
 };
 use crate::infrastructure::git::worktree::{

@@ -37,10 +37,7 @@ export interface UseWorkingCopyResult {
   discard: (paths: string[]) => void;
   /** Append a pattern to the repo-root `.gitignore`. */
   ignore: (pattern: string) => void;
-  commitMessage: (
-    message: string,
-    options?: { onSuccess?: () => void; amend?: boolean },
-  ) => void;
+  commitMessage: (message: string, options?: { onSuccess?: () => void; amend?: boolean }) => void;
   fetch: (options?: FetchOptions) => void;
   pull: (options?: PullOptions) => void;
   push: (options?: PushOptions) => void;
@@ -137,10 +134,7 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     discard: (paths) => discardMut.mutate(paths),
     ignore: (pattern) => ignoreMut.mutate(pattern),
     commitMessage: (message, options) =>
-      commitMut.mutate(
-        { msg: message, amend: options?.amend },
-        { onSuccess: options?.onSuccess },
-      ),
+      commitMut.mutate({ msg: message, amend: options?.amend }, { onSuccess: options?.onSuccess }),
     fetch: remoteSync.fetch,
     pull: remoteSync.pull,
     push: remoteSync.push,

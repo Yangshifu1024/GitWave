@@ -367,8 +367,13 @@ pub fn amend_commit(repo: &Repository, message: &str) -> Result<String> {
     // checked out (same as git), so the Reflog panel sees it without extra
     // bookkeeping here.
     let reflog_msg = format!("commit (amend): {}", trimmed.lines().next().unwrap_or(""));
-    repo.reference(branch_ref.as_deref().unwrap_or("HEAD"), oid, true, &reflog_msg)
-        .map_err(map_git_err)?;
+    repo.reference(
+        branch_ref.as_deref().unwrap_or("HEAD"),
+        oid,
+        true,
+        &reflog_msg,
+    )
+    .map_err(map_git_err)?;
 
     Ok(oid.to_string())
 }
@@ -611,7 +616,11 @@ mod tests {
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         assert_ne!(head.id(), old_sha, "HEAD must move to the rewritten commit");
         assert_eq!(head.id().to_string(), new_sha);
-        assert_eq!(head.parent_id(0).unwrap(), old_parent, "parents must be preserved");
+        assert_eq!(
+            head.parent_id(0).unwrap(),
+            old_parent,
+            "parents must be preserved"
+        );
         assert_eq!(head.message().unwrap(), "amended: two files");
         // The forgotten file is now part of HEAD and the worktree is clean.
         assert!(status(&repo, "r-1").unwrap().files.is_empty());
@@ -622,8 +631,7 @@ mod tests {
         assert_eq!(log[0].action, "amend");
         assert_eq!(log[0].old_oid, old_sha.to_string());
         assert_eq!(log[0].new_oid, new_sha);
-        let branch_log =
-            crate::infrastructure::git::reflog::list_reflog(&repo, "main").unwrap();
+        let branch_log = crate::infrastructure::git::reflog::list_reflog(&repo, "main").unwrap();
         assert_eq!(branch_log[0].action, "amend");
 
         cleanup(&path);
