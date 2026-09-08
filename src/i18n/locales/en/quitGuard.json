@@ -1,0 +1,9 @@
+{
+  "quitGuard": {
+    "title": "Uncommitted changes",
+    "description": "The following repositories in this workspace have uncommitted changes:",
+    "fileCount": "{{count}} uncommitted file(s)",
+    "cancel": "Cancel",
+    "confirm": "Quit anyway"
+  }
+}

@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/DropdownMenu";
 import { Button } from "@/components/ui/Button";
 import { useAppMenuGating } from "@/hooks/useAppMenuGating";
-import { quitApp } from "@/lib/api";
+import { requestQuit } from "@/hooks/useQuitGuard";
 import { runUpdateCheck } from "@/hooks/useUpdater";
 import {
   buildAppMenuSpec,
@@ -183,7 +183,7 @@ export function AppMenuBar({ onAbout }: { onAbout: () => void }): React.JSX.Elem
         runUpdateCheck();
       },
       quit: () => {
-        quitApp().catch(() => undefined);
+        void requestQuit();
       },
     });
   };

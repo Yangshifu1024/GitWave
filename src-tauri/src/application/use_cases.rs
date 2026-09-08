@@ -2299,6 +2299,58 @@ pub fn get_working_copy(ctx: &AppContext, workspace_id: &str) -> Result<WorkingC
     infra_wc_status(&repo, &repo_id)
 }
 
+/// Summary of one repo with uncommitted changes, used by the quit guard.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DirtyRepoSummary {
+    pub repo_id: String,
+    pub nickname: Option<String>,
+    pub path: String,
+    pub file_count: usize,
+}
+
+/// Check every repo in the workspace for uncommitted changes (staged,
+/// unstaged, untracked). Repos that are missing or fail to open/status are
+/// skipped — the quit guard must never block on a broken repo.
+pub fn get_dirty_repos(ctx: &AppContext, workspace_id: &str) -> Result<Vec<DirtyRepoSummary>> {
+    let workspaces = ctx
+        .workspaces
+        .lock()
+        .expect("workspace repo mutex poisoned");
+    let ws = workspaces.get(workspace_id)?.ok_or_else(|| {
+        AppError::protocol_with(
+            codes::usecases::WORKSPACE_NOT_FOUND,
+            format!("workspace not found: {workspace_id}"),
+            &[("id", workspace_id.to_string())],
+        )
+    })?;
+    let _ = ws;
+    let repos = workspaces.list_repos(workspace_id)?;
+    drop(workspaces);
+
+    let mut dirty = Vec::new();
+    for repo_ref in repos {
+        if repo_ref.status != RepoStatus::Active {
+            continue;
+        }
+        let Ok(repo) = ctx.open_repo(&repo_ref.path) else {
+            continue;
+        };
+        let Ok(wc) = infra_wc_status(&repo, repo_ref.id.as_str()) else {
+            continue;
+        };
+        let file_count = wc.files.len();
+        if file_count > 0 {
+            dirty.push(DirtyRepoSummary {
+                repo_id: repo_ref.id.clone(),
+                nickname: repo_ref.nickname.clone(),
+                path: repo_ref.path.clone(),
+                file_count,
+            });
+        }
+    }
+    Ok(dirty)
+}
+
 pub fn stage_files(ctx: &AppContext, workspace_id: &str, paths: Vec<String>) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;

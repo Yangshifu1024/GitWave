@@ -29,7 +29,8 @@ use application::{
     generate_pr_description, get_ahead_behind, get_ai_key_status, get_blame, get_branches,
     get_commit_details, get_commit_diff, get_commit_log, get_conflict_sides, get_file_diff,
     get_gitignore, get_health, get_hook, get_proxy_settings, get_repo_ai_rules, get_stash_diff,
-    get_workdir_diff, get_working_copy, get_workspace, ignore_path, import_workspace, init_repo,
+    get_workdir_diff, get_dirty_repos, get_working_copy, get_workspace, ignore_path,
+    import_workspace, init_repo,
     init_submodule, interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack,
     list_conflicts, list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys,
     list_stashes, list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch,
@@ -40,7 +41,7 @@ use application::{
     set_proxy_settings, set_remote_push_url, set_remote_url, stage_all, stage_files,
     start_ssh_agent_service, test_ssh_connection, unstage_files, update_submodule,
     update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
-    AppContext, PaletteIntent, PrDescriptionOutcome,
+    AppContext, DirtyRepoSummary, PaletteIntent, PrDescriptionOutcome,
 };
 use domain::app_settings::ProxySettings;
 use domain::blame::BlameLine;
@@ -1038,6 +1039,14 @@ async fn cmd_get_working_copy(
 }
 
 #[tauri::command]
+async fn cmd_get_dirty_repos(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+) -> Result<Vec<DirtyRepoSummary>, AppError> {
+    get_dirty_repos(&ctx, &workspace_id)
+}
+
+#[tauri::command]
 async fn cmd_stage_files(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -1611,6 +1620,7 @@ pub fn run() {
             cmd_abort_interactive_rebase_pause,
             cmd_interactive_rebase_paused,
             cmd_get_working_copy,
+            cmd_get_dirty_repos,
             cmd_stage_files,
             cmd_unstage_files,
             cmd_stage_all,

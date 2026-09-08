@@ -36,6 +36,8 @@ import { MergeBanner } from "@/components/MergeBanner";
 import { useMergeConflicts } from "@/hooks/useMergeConflicts";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useTitlebarActivation } from "@/hooks/useTitlebar";
+import { useQuitGuard, cancelQuit, confirmQuit } from "@/hooks/useQuitGuard";
+import { QuitConfirmModal } from "@/components/QuitConfirmModal";
 import { cn } from "@/lib/utils";
 
 function App(): React.JSX.Element {
@@ -60,6 +62,7 @@ function App(): React.JSX.Element {
   useTheme();
   useAutoRefreshLoop();
   useStartupUpdateCheck();
+  const quitGuard = useQuitGuard();
 
   useEffect(() => {
     setInspectorMaximized(false);
@@ -204,6 +207,13 @@ function App(): React.JSX.Element {
       />
 
       <CommandPalette requestLocate={handlePaletteLocate} />
+
+      <QuitConfirmModal
+        open={quitGuard.open}
+        dirtyRepos={quitGuard.dirtyRepos}
+        onCancel={cancelQuit}
+        onConfirm={confirmQuit}
+      />
 
       <UpdateModal />
     </div>

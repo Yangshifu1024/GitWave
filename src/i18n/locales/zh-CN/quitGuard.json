@@ -1,0 +1,9 @@
+{
+  "quitGuard": {
+    "title": "存在未提交的改动",
+    "description": "当前工作区中以下仓库存在未提交的改动：",
+    "fileCount": "{{count}} 个未提交文件",
+    "cancel": "取消",
+    "confirm": "仍要退出"
+  }
+}
