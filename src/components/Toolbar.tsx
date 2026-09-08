@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { AppMenuBar } from "@/components/AppMenuBar";
 import { SettingsModal } from "@/components/SettingsModal";
 import { AboutModal } from "@/components/AboutModal";
-import { ToolbarAppTitle } from "@/components/ToolbarAppTitle";
 import { useRefreshRepo } from "@/hooks/useAutoRefresh";
 import { useMacTitlebarWindow } from "@/hooks/useMacTitlebarWindow";
 import { useNativeAppMenu } from "@/hooks/useNativeAppMenu";
@@ -72,8 +71,6 @@ export function Toolbar(): React.JSX.Element {
       <div className="relative z-10 flex flex-1 min-w-0 items-center pointer-events-none">
         {!isMacOS() && <AppMenuBar onAbout={() => setAboutOpen(true)} />}
         {isMacOS() && <NativeAppMenu onAbout={() => setAboutOpen(true)} />}
-
-        <ToolbarAppTitle />
       </div>
 
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
