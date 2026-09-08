@@ -171,8 +171,9 @@ export function ActionBar(): React.JSX.Element {
 
   const createMut = useMutation({
     mutationFn: (name: string) => createWorkspace(name),
-    onSuccess: () => {
+    onSuccess: (ws) => {
       refreshWorkspaces();
+      switchWorkspace(ws.id, null);
       setCreateName("");
       setCreateError(null);
       setCreateOpen(false);

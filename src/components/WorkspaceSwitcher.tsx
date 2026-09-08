@@ -45,8 +45,9 @@ export function WorkspaceSwitcher(): React.JSX.Element {
 
   const createMut = useMutation({
     mutationFn: (name: string) => createWorkspace(name),
-    onSuccess: () => {
+    onSuccess: (ws) => {
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      switchWorkspace(ws.id, null);
       setShowCreate(false);
       setCreateName("");
       setCreateError(null);
