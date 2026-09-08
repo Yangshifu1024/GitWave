@@ -312,6 +312,7 @@ export function ChangesPanel({
   const {
     workspaceId,
     repoId,
+    data,
     isLoading,
     isError,
     error,
@@ -327,6 +328,11 @@ export function ChangesPanel({
     commitPending,
   } = useWorkingCopy();
   const [message, setMessage] = useState("");
+  /** Amend mode: prefill HEAD message and rewrite HEAD on submit. */
+  const [amendMode, setAmendMode] = useState(false);
+  const [amendConfirmOpen, setAmendConfirmOpen] = useState(false);
+  const headMessage = data?.head_message ?? null;
+  const canAmend = headMessage != null && data?.branch !== "(detached)";
   const [aiBusy, setAiBusy] = useState(false);
   const [aiPromptOpen, setAiPromptOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
@@ -470,14 +476,18 @@ export function ChangesPanel({
           // commit, so its presence means the modal should stay open.
           const hasLeftoverUnstaged = unstagedFiles.length > 0;
           commitMessage(message, {
+            amend: amendMode,
             onSuccess: () => {
               setMessage("");
+              setAmendMode(false);
               if (!hasLeftoverUnstaged) onCommitted?.();
             },
           });
         }}
         onAiGenerate={handleAiGenerate}
         aiLoading={aiBusy}
+        amendMessage={amendMode ? headMessage : null}
+        onAmend={canAmend ? () => setAmendConfirmOpen(true) : undefined}
         disabled={stagedFiles.length === 0 || commitPending || aiBusy}
         className={bar ? "h-full" : undefined}
       />
@@ -555,6 +565,18 @@ export function ChangesPanel({
 
   const closePending = (): void => setPendingAction(null);
 
+  const amendConfirm = amendConfirmOpen && headMessage != null && (
+    <AmendConfirmModal
+      hasUpstream={data?.upstream != null}
+      onCancel={() => setAmendConfirmOpen(false)}
+      onConfirm={() => {
+        setMessage(headMessage);
+        setAmendMode(true);
+        setAmendConfirmOpen(false);
+      }}
+    />
+  );
+
   const confirmDialogs =
     pendingAction?.type === "discard" ? (
       <DiscardConfirmModal
@@ -583,11 +605,51 @@ export function ChangesPanel({
       {gitignoreEntry}
       {commitBox}
       {aiDialogs}
+      {amendConfirm}
       {confirmDialogs}
       <div className={bar ? "col-span-3" : undefined}>
         <ErrorAlert message={wcAlert} onDismiss={() => setActionError(null)} />
       </div>
     </div>
+  );
+}
+
+/** Confirmation before entering amend mode (rewrites history, §7.4). */
+function AmendConfirmModal({
+  hasUpstream,
+  onCancel,
+  onConfirm,
+}: {
+  hasUpstream: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+
+  return (
+    <Modal
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title={t("changes.amend.title")}
+      description={t("changes.amend.description")}
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" className="min-w-0 flex-[3]" onClick={onCancel}>
+            {t("changes.action.cancel")}
+          </Button>
+          <Button variant="primary" size="sm" className="min-w-0 flex-[7]" onClick={onConfirm}>
+            {t("changes.amend.confirm")}
+          </Button>
+        </>
+      }
+    >
+      {hasUpstream ? (
+        <p className="rounded-md border border-warning/50 bg-warning/5 p-2 text-xs text-text-secondary">
+          {t("changes.amend.pushedWarning")}
+        </p>
+      ) : null}
+    </Modal>
   );
 }
 

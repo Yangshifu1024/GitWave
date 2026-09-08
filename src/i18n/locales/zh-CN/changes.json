@@ -69,6 +69,14 @@
       "generating": "生成中…",
       "generateTitle": "用 AI 生成提交信息"
     },
+    "amend": {
+      "button": "修正",
+      "buttonTitle": "修正最近一次提交",
+      "title": "修正最近一次提交？",
+      "description": "这将改写历史：已暂存的变更和编辑后的提交信息将替换上一次提交。原提交仍可从 Reflog 恢复。",
+      "pushedWarning": "该分支已设置 upstream——提交可能已推送。修正将改写已发布的历史，下次 push 可能被拒绝。",
+      "confirm": "修正"
+    },
     "stash": {
       "title": "贮藏",
       "buttonTitle": "贮藏本地变更",

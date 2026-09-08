@@ -39,6 +39,7 @@
       "read_gitignore": "Could not read .gitignore: {{error}}",
       "write_gitignore": "Could not write .gitignore: {{error}}",
       "reset_detached_head": "HEAD is detached — check out a branch before resetting",
+      "amend_merge_in_progress": "Amend is not allowed while a merge is in progress — finish or abort the merge first",
       "bare_repo": "This is a bare repository without a worktree",
       "invalid_oid": "Invalid commit id: {{error}}",
       "commit_not_found": "Commit not found: {{oid}}",

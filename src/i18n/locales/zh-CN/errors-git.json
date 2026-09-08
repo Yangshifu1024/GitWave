@@ -39,6 +39,7 @@
       "read_gitignore": "读取 .gitignore 失败：{{error}}",
       "write_gitignore": "写入 .gitignore 失败：{{error}}",
       "reset_detached_head": "HEAD 处于 detached 状态——请先检出分支再重置",
+      "amend_merge_in_progress": "合并进行中不允许修正提交——请先完成或中止合并",
       "bare_repo": "这是一个裸仓库，没有工作区",
       "invalid_oid": "提交 id 无效：{{error}}",
       "commit_not_found": "提交不存在：{{oid}}",

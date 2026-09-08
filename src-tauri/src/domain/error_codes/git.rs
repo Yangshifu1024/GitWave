@@ -112,6 +112,9 @@ pub const WRITE_GITIGNORE: &str = "git.write_gitignore";
 /// HEAD 处于 detached 状态，无法重置。
 pub const RESET_DETACHED_HEAD: &str = "git.reset_detached_head";
 
+/// merge 进行中，禁止 amend（amend 会丢弃合并状态）。
+pub const AMEND_MERGE_IN_PROGRESS: &str = "git.amend_merge_in_progress";
+
 // ─── git 层共用 ───────────────────────────────────────────────────────
 
 /// 裸仓库没有工作区。
