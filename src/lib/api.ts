@@ -976,6 +976,18 @@ export function getWorkingCopy(workspaceId: string): Promise<WorkingCopy> {
   return invoke<WorkingCopy>("cmd_get_working_copy", { workspaceId });
 }
 
+export interface DirtyRepoSummary {
+  repo_id: string;
+  nickname: string | null;
+  path: string;
+  file_count: number;
+}
+
+/** Repos in the workspace with uncommitted changes (quit guard). */
+export function getDirtyRepos(workspaceId: string): Promise<DirtyRepoSummary[]> {
+  return invoke<DirtyRepoSummary[]>("cmd_get_dirty_repos", { workspaceId });
+}
+
 export function stageFiles(workspaceId: string, paths: string[]): Promise<void> {
   return invoke<void>("cmd_stage_files", { workspaceId, paths });
 }
