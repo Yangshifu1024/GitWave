@@ -39,7 +39,7 @@ importers:
         specifier: ^2.3.1
         version: 2.3.1
       '@tauri-apps/plugin-updater':
-        specifier: ^2.10.1
+        specifier: ^2.11.0
         version: 2.11.0
       class-variance-authority:
         specifier: ^0.7

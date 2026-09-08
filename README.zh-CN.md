@@ -40,24 +40,24 @@ macOS（Apple silicon，已签名公证）、Windows（NSIS）与 Linux（deb / 
 - Windows：WebView2 runtime + MSVC build tools
 
 ```bash
-npm install
-npm run tauri dev
+pnpm install
+pnpm tauri dev
 ```
 
 ## 脚本
 
 | 命令 | 作用 |
 |---|---|
-| `npm run dev` | Vite 开发服务器（仅前端，无 IPC） |
-| `npm run build` | TypeScript 检查 + Vite 生产构建 |
-| `npm run tauri dev` | Tauri 开发模式（前端 + Rust 核心） |
-| `npm run tauri build` | Tauri 生产构建（.dmg / .exe / .deb / .rpm / .AppImage） |
-| `npm run lint` | ESLint（`lint:fix` 自动修复） |
-| `npm run format:check` | Prettier 检查（不写入） |
-| `npm run format` | Prettier 写入 |
-| `npm run typecheck` | TypeScript 检查 |
-| `npm test` | Vitest（单元） |
-| `npm run test:e2e` | Playwright e2e 测试 |
+| `pnpm dev` | Vite 开发服务器（仅前端，无 IPC） |
+| `pnpm build` | TypeScript 检查 + Vite 生产构建 |
+| `pnpm tauri dev` | Tauri 开发模式（前端 + Rust 核心） |
+| `pnpm tauri build` | Tauri 生产构建（.dmg / .exe / .deb / .rpm / .AppImage） |
+| `pnpm lint` | ESLint（`lint:fix` 自动修复） |
+| `pnpm format:check` | Prettier 检查（不写入） |
+| `pnpm format` | Prettier 写入 |
+| `pnpm typecheck` | TypeScript 检查 |
+| `pnpm test` | Vitest（单元） |
+| `pnpm test:e2e` | Playwright e2e 测试 |
 
 Rust 命令（在 `src-tauri/` 内执行）：
 
