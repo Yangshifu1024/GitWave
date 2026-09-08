@@ -33,6 +33,9 @@ pub struct WorkingCopy {
     pub branch: String,
     pub upstream: Option<String>,
     pub sha: String,
+    /// Full message of HEAD (used to prefill Amend); `None` when HEAD is
+    /// unborn or detached — the UI hides the Amend entry in both cases.
+    pub head_message: Option<String>,
     pub ahead: u32,
     pub behind: u32,
     pub files: Vec<FileChange>,

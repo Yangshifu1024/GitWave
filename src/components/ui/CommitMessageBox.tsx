@@ -14,6 +14,10 @@ export interface CommitMessageBoxProps {
    *  shows a spinner and locks. */
   aiLoading?: boolean;
   amendMessage?: string | null;
+  /** Present when an Amend entry should be offered (HEAD exists, on a
+   *  branch); invoking it asks the parent to confirm the history rewrite.
+   *  Parent then sets `amendMessage` to enter amend mode. */
+  onAmend?: () => void;
   disabled?: boolean;
   className?: string;
 }
@@ -42,6 +46,7 @@ export function CommitMessageBox({
   onAiGenerate,
   aiLoading = false,
   amendMessage = null,
+  onAmend,
   disabled = false,
   className,
 }: CommitMessageBoxProps): React.JSX.Element {
@@ -129,6 +134,17 @@ export function CommitMessageBox({
         </p>
       ) : null}
       <div className="flex items-center justify-end gap-2">
+        {onAmend && amendMessage == null && (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={disabled}
+            onClick={onAmend}
+            title={t("changes.amend.buttonTitle")}
+          >
+            {t("changes.amend.button")}
+          </Button>
+        )}
         {amendMessage != null && (
           <Button
             variant="secondary"

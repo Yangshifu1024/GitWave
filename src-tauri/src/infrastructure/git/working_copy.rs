@@ -21,7 +21,7 @@ fn map_git_err(e: git2::Error) -> AppError {
 
 /// Build a `WorkingCopy` snapshot for `repo_id`.
 pub fn status(repo: &Repository, repo_id: &str) -> Result<WorkingCopy> {
-    let (branch, upstream, sha) = head_meta(repo)?;
+    let (branch, upstream, sha, head_message) = head_meta(repo)?;
     let (ahead, behind) = if branch != "(detached)" && branch != "(unborn)" && upstream.is_some() {
         ahead_behind(repo, &branch).unwrap_or((0, 0))
     } else {
@@ -77,19 +77,21 @@ pub fn status(repo: &Repository, repo_id: &str) -> Result<WorkingCopy> {
         branch,
         upstream,
         sha,
+        head_message,
         ahead,
         behind,
         files,
     })
 }
 
-fn head_meta(repo: &Repository) -> Result<(String, Option<String>, String)> {
+fn head_meta(repo: &Repository) -> Result<(String, Option<String>, String, Option<String>)> {
     match repo.head() {
         Ok(head) => {
-            let sha = head
-                .peel_to_commit()
-                .map(|c| c.id().to_string())
-                .unwrap_or_default();
+            let commit = head.peel_to_commit().map_err(map_git_err)?;
+            let sha = commit.id().to_string();
+            // Full message (not just summary) so Amend can prefill the exact
+            // text the user wrote last time.
+            let message = Some(commit.message().unwrap_or("").trim_end().to_string());
 
             if head.is_branch() {
                 let branch = head.shorthand().unwrap_or("(unknown)").to_string();
@@ -98,9 +100,11 @@ fn head_meta(repo: &Repository) -> Result<(String, Option<String>, String)> {
                     .ok()
                     .and_then(|b| b.upstream().ok())
                     .and_then(|u| u.name().ok().flatten().map(str::to_string));
-                Ok((branch, upstream, sha))
+                Ok((branch, upstream, sha, message))
             } else {
-                Ok(("(detached)".into(), None, sha))
+                // Detached HEAD: amend is hidden by the UI (message stays but
+                // branch name signals the state).
+                Ok(("(detached)".into(), None, sha, None))
             }
         }
         Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
@@ -112,7 +116,7 @@ fn head_meta(repo: &Repository) -> Result<(String, Option<String>, String)> {
                         .map(|t| t.trim_start_matches("refs/heads/").to_string())
                 })
                 .unwrap_or_else(|| "main".into());
-            Ok((branch, None, String::new()))
+            Ok((branch, None, String::new(), None))
         }
         Err(e) => Err(map_git_err(e)),
     }
@@ -291,6 +295,81 @@ pub fn commit(repo: &Repository, message: &str) -> Result<String> {
     if merge_head.is_some() {
         let _ = repo.cleanup_state();
     }
+    Ok(oid.to_string())
+}
+
+/// Amend HEAD: replace it with a new commit that has the same parents but
+/// the current index as tree and `message` as message (`git commit --amend`).
+/// Returns the new commit SHA. Never auto-runs: caller must pass an explicit
+/// message after the user confirmed the history rewrite (P1).
+///
+/// Semantics match git: the original author (name/email/time) is preserved,
+/// only the committer identity/timestamp is refreshed. Allowed with an empty
+/// staged set — amending message-only is a legal `--amend` use.
+pub fn amend_commit(repo: &Repository, message: &str) -> Result<String> {
+    let trimmed = message.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::protocol(
+            codes::git::COMMIT_MESSAGE_EMPTY,
+            "commit message cannot be empty",
+        ));
+    }
+    if super::conflict::is_merge_in_progress(repo) {
+        return Err(AppError::protocol(
+            codes::git::AMEND_MERGE_IN_PROGRESS,
+            "amend is not allowed while a merge is in progress — finish or abort the merge first",
+        ));
+    }
+
+    let head = match repo.head() {
+        Ok(h) => h,
+        Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
+            return Err(AppError::protocol(
+                codes::git::HEAD_UNBORN,
+                "no commit to amend — HEAD is unborn",
+            ));
+        }
+        Err(e) => return Err(map_git_err(e)),
+    };
+    let branch_ref = if head.is_branch() {
+        Some(head.name().unwrap_or("HEAD").to_string())
+    } else {
+        // Detached HEAD has no branch to move; refuse like `reset_head_hard`.
+        return Err(AppError::protocol(
+            codes::git::RESET_DETACHED_HEAD,
+            "detached HEAD — checkout a branch before amending",
+        ));
+    };
+    let old_commit = head.peel_to_commit().map_err(map_git_err)?;
+
+    let mut index = repo.index().map_err(map_git_err)?;
+    let tree_oid = index.write_tree().map_err(map_git_err)?;
+    let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
+
+    // Preserve the original author (identity + time); refresh only the
+    // committer signature, matching `git commit --amend`.
+    let original_author = old_commit.author();
+    let committer = commit_signature(repo)?;
+
+    let parent_commits: Vec<git2::Commit<'_>> = (0..old_commit.parent_count())
+        .filter_map(|i| old_commit.parent(i).ok())
+        .collect();
+    let parents: Vec<&git2::Commit<'_>> = parent_commits.iter().collect();
+
+    let oid = repo
+        .commit(None, &original_author, &committer, trimmed, &tree, &parents)
+        .map_err(map_git_err)?;
+
+    // Move the branch to the rewritten commit, recording a dedicated
+    // `commit (amend)` reflog entry (what `git commit --amend` writes) so
+    // the undo panel classifies and can restore the pre-amend commit.
+    // libgit2 mirrors the update into HEAD's reflog too when the branch is
+    // checked out (same as git), so the Reflog panel sees it without extra
+    // bookkeeping here.
+    let reflog_msg = format!("commit (amend): {}", trimmed.lines().next().unwrap_or(""));
+    repo.reference(branch_ref.as_deref().unwrap_or("HEAD"), oid, true, &reflog_msg)
+        .map_err(map_git_err)?;
+
     Ok(oid.to_string())
 }
 
@@ -515,6 +594,104 @@ mod tests {
         assert!(err.message().contains("octopus"));
         assert!(is_merge_in_progress(&repo));
 
+        cleanup(&path);
+    }
+
+    #[test]
+    fn amend_replaces_head_and_reflogs_amend() {
+        let (path, repo) = build_linear_repo(2);
+        let old_head = repo.head().unwrap().peel_to_commit().unwrap();
+        let old_sha = old_head.id();
+        let old_parent = old_head.parent_id(0).unwrap();
+
+        fs::write(path.join("late.txt"), "forgotten\n").unwrap();
+        stage_paths(&repo, &["late.txt".into()]).unwrap();
+        let new_sha = amend_commit(&repo, "amended: two files").unwrap();
+
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        assert_ne!(head.id(), old_sha, "HEAD must move to the rewritten commit");
+        assert_eq!(head.id().to_string(), new_sha);
+        assert_eq!(head.parent_id(0).unwrap(), old_parent, "parents must be preserved");
+        assert_eq!(head.message().unwrap(), "amended: two files");
+        // The forgotten file is now part of HEAD and the worktree is clean.
+        assert!(status(&repo, "r-1").unwrap().files.is_empty());
+
+        // Reflog panel (reads HEAD) classifies the rewrite as amend and can
+        // restore the pre-amend commit.
+        let log = crate::infrastructure::git::reflog::list_reflog(&repo, "HEAD").unwrap();
+        assert_eq!(log[0].action, "amend");
+        assert_eq!(log[0].old_oid, old_sha.to_string());
+        assert_eq!(log[0].new_oid, new_sha);
+        let branch_log =
+            crate::infrastructure::git::reflog::list_reflog(&repo, "main").unwrap();
+        assert_eq!(branch_log[0].action, "amend");
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn amend_preserves_author_and_refreshes_committer() {
+        let (path, repo) = build_linear_repo(1);
+        let old_head = repo.head().unwrap().peel_to_commit().unwrap();
+        let old_author = old_head.author();
+
+        fs::write(path.join("late.txt"), "x\n").unwrap();
+        stage_paths(&repo, &["late.txt".into()]).unwrap();
+        amend_commit(&repo, "amended: author kept").unwrap();
+
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        let author = head.author();
+        assert_eq!(author.name(), old_author.name(), "author name preserved");
+        assert_eq!(author.email(), old_author.email(), "author email preserved");
+        assert_eq!(
+            author.when().seconds(),
+            old_author.when().seconds(),
+            "author time preserved (git --amend semantics)"
+        );
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn amend_with_empty_index_only_rewrites_message() {
+        let (path, repo) = build_linear_repo(2);
+        let old_head = repo.head().unwrap().peel_to_commit().unwrap();
+        let old_tree = old_head.tree().unwrap().id();
+
+        // Nothing staged — message-only amend is a legal `--amend` use.
+        amend_commit(&repo, "amended: fix typo").unwrap();
+
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        assert_eq!(head.tree().unwrap().id(), old_tree, "tree unchanged");
+        assert_eq!(head.message().unwrap(), "amended: fix typo");
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn amend_refuses_unborn_and_detached_and_merge() {
+        let (path, repo) = build_linear_repo(1);
+
+        // Detached HEAD.
+        let tip = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.set_head_detached(tip.id()).unwrap();
+        let err = amend_commit(&repo, "nope").unwrap_err();
+        assert_eq!(err.code(), codes::git::RESET_DETACHED_HEAD);
+
+        // Merge in progress.
+        repo.set_head("refs/heads/main").unwrap();
+        fs::write(repo.path().join("MERGE_HEAD"), format!("{}\n", tip.id())).unwrap();
+        let err = amend_commit(&repo, "nope").unwrap_err();
+        assert_eq!(err.code(), codes::git::AMEND_MERGE_IN_PROGRESS);
+
+        cleanup(&path);
+    }
+
+    #[test]
+    fn amend_refuses_empty_message() {
+        let (path, repo) = build_linear_repo(1);
+        let err = amend_commit(&repo, "   ").unwrap_err();
+        assert_eq!(err.code(), codes::git::COMMIT_MESSAGE_EMPTY);
         cleanup(&path);
     }
 

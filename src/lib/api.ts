@@ -967,6 +967,8 @@ export interface WorkingCopy {
   branch: string;
   upstream: string | null;
   sha: string;
+  /** Full HEAD message (Amend prefill); null when HEAD is unborn/detached. */
+  head_message: string | null;
   ahead: number;
   behind: number;
   files: FileChange[];
@@ -1002,6 +1004,11 @@ export function stageAll(workspaceId: string): Promise<void> {
 
 export function commit(workspaceId: string, message: string): Promise<string> {
   return invoke<string>("cmd_commit", { workspaceId, message });
+}
+
+/** Amend HEAD (rewrites history — caller must have confirmed upstream). */
+export function amendCommit(workspaceId: string, message: string): Promise<string> {
+  return invoke<string>("cmd_amend_commit", { workspaceId, message });
 }
 
 export function discardChanges(workspaceId: string, paths: string[]): Promise<void> {

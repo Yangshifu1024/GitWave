@@ -8,7 +8,7 @@ pub mod use_cases;
 pub use use_cases::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
     add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch, checkout_commit,
-    checkout_remote_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit,
+    checkout_remote_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit, amend_commit,
     continue_interactive_rebase, create_branch, create_tag, create_workspace, deinit_submodule,
     delete_branch, delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace,
     discard_changes, drop_stash, execute_interactive_rebase, explain_commit, explain_conflict,

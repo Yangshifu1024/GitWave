@@ -69,6 +69,14 @@
       "generating": "Generating…",
       "generateTitle": "Generate commit message with AI"
     },
+    "amend": {
+      "button": "Amend",
+      "buttonTitle": "Amend the most recent commit",
+      "title": "Amend the most recent commit?",
+      "description": "This rewrites history: staged changes and the edited message will replace your last commit. The previous commit stays recoverable from the Reflog.",
+      "pushedWarning": "This commit has an upstream — it may already be pushed. Amending will rewrite published history and the next push may be rejected.",
+      "confirm": "Amend"
+    },
     "stash": {
       "title": "Stash",
       "buttonTitle": "Stash local changes",

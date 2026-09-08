@@ -21,7 +21,7 @@ use application::sync_ops;
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
     add_submodule, add_worktree, ai_palette_intent, apply_stash, checkout_branch, checkout_commit,
-    checkout_remote_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit,
+    checkout_remote_branch, cherry_pick_commit, clear_ai_api_key, clone_repo, commit, amend_commit,
     continue_interactive_rebase, create_branch, create_tag, create_workspace, deinit_submodule,
     delete_branch, delete_remote_branch, delete_ssh_key, delete_tag, delete_workspace,
     discard_changes, drop_stash, execute_interactive_rebase, explain_commit, explain_conflict,
@@ -1082,6 +1082,15 @@ async fn cmd_commit(
 }
 
 #[tauri::command]
+async fn cmd_amend_commit(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    message: String,
+) -> Result<String, AppError> {
+    amend_commit(&ctx, &workspace_id, message)
+}
+
+#[tauri::command]
 async fn cmd_discard_changes(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
@@ -1625,6 +1634,7 @@ pub fn run() {
             cmd_unstage_files,
             cmd_stage_all,
             cmd_commit,
+            cmd_amend_commit,
             cmd_discard_changes,
             cmd_ignore_path,
             cmd_fetch,
