@@ -1497,6 +1497,17 @@ pub fn run() {
     let _guard = init_tracing();
     info!("GitWave starting (version {})", env!("CARGO_PKG_VERSION"));
 
+    // libgit2's owner check (the safe.directory equivalent) rejects repos
+    // owned by another local account — e.g. an elevated clone leaves the dir
+    // owned by BUILTIN\Administrators. Root repo paths always come from the
+    // user's explicit folder pick; derived paths (submodules, worktrees)
+    // share the parent repo's trust decision. libgit2 doesn't auto-run hooks,
+    // so disable the check process-wide. The check is cross-platform (uid on
+    // POSIX, SID on Windows); the git2 wrapper always returns Ok, so failure
+    // is not observable.
+    let _ = unsafe { git2::opts::set_verify_owner_validation(false) };
+    info!("libgit2 owner validation disabled");
+
     let app_settings = match SqliteAppSettingsRepo::open() {
         Ok(repo) => Arc::new(Mutex::new(repo)),
         Err(e) => {
