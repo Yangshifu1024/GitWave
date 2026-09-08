@@ -4,7 +4,7 @@
 
 > 本地优先、AI 协作的 Git 客户端。官网：**[gitwave.work](https://gitwave.work)** · 产品范围见 `docs/pm/core/01-features.md`，工程决策见 `docs/tech/`。
 
-**状态：** v0.7.7 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供，退出守卫：工作区仓库存在未提交更改时退出前先弹确认，新建工作区后自动切换到该工作区，关于弹框在版本号后显示编译时 commit short-sha，代理感知网络（AI 请求、同步、LFS 与更新检查遵循系统代理或「设置 → 网络」中的手动代理 URL），凭证处理全量收敛应用内（不再弹出外部凭证管理器 GUI；远端要求 HTTPS 认证时由应用内弹窗收集用户名 / 访问令牌——覆盖 clone、fetch / pull / push、删除远端分支与 submodule 操作——凭证跨操作记忆，clone 与其他网络同步一样限时且可取消），多远端同步（推送可选目标 remote、fetch 覆盖全部远端），Fork 风格右键菜单覆盖提交图与分支列表，双击远程分支创建其 tracked 本地分支并切换（git-switch 式 DWIM），tag 推送只发送被推提交上的标签（冲突标签点名跳过而非整批失败），提交图 ref 徽章将 tracked 远端合并为单个同步标记并采用九色 lane 调色板，界面完整支持中文 / English 双语，AI 回复语言可选，界面 / 等宽字体大小独立可调。
+**状态：** v0.7.8 —— 三平台构建（macOS / Windows / Linux）由 tag 触发的 CI 产出，macOS 构建已签名公证，应用内自动更新由 GitHub Releases 提供，退出守卫：工作区仓库存在未提交更改时退出前先弹确认，提交流程支持 amend（修改上一次提交而不新增记录），新建工作区后自动切换到该工作区，关于弹框在版本号后显示编译时 commit short-sha，代理感知网络（AI 请求、同步、LFS 与更新检查遵循系统代理或「设置 → 网络」中的手动代理 URL），凭证处理全量收敛应用内（不再弹出外部凭证管理器 GUI；远端要求 HTTPS 认证时由应用内弹窗收集用户名 / 访问令牌——覆盖 clone、fetch / pull / push、删除远端分支与 submodule 操作——凭证跨操作记忆，clone 与其他网络同步一样限时且可取消），多远端同步（推送可选目标 remote、fetch 覆盖全部远端），Fork 风格右键菜单覆盖提交图与分支列表，双击远程分支创建其 tracked 本地分支并切换（git-switch 式 DWIM），tag 推送只发送被推提交上的标签（冲突标签点名跳过而非整批失败），提交图 ref 徽章将 tracked 远端合并为单个同步标记并采用九色 lane 调色板，界面完整支持中文 / English 双语，AI 回复语言可选，界面 / 等宽字体大小独立可调。
 
 ## 下载
 
@@ -13,7 +13,7 @@ macOS（Apple silicon，已签名公证）、Windows（NSIS）与 Linux（deb / 
 ## 功能
 
 - **Workspace 管理** —— 多工作区、仓库 Tab 拖动排序、按工作区隔离的 AI 上下文；Workspace 是抽象概念，不依赖任何目录
-- **工作副本** —— 暂存 / 取消暂存、丢弃、忽略、带 conventional commit 类型徽标的提交、commit message AI 辅助
+- **工作副本** —— 暂存 / 取消暂存、丢弃、忽略、带 conventional commit 类型徽标的提交（支持 amend 修改上一次提交）、commit message AI 辅助
 - **分支与同步** —— 新建 / 切换 / 删除 / 重命名、带确认的 push / pull（可选目标 remote）、fetch 覆盖全部远端并清理失效追踪引用、限时且可随时取消的网络同步（进行中状态区显示取消按钮）、merge（ff 与 no-ff）及冲突面板
 - **历史** —— 提交图（Fork 风格连线）、commit 详情、blame、reflog、tag
 - **Diff 查看器** —— 分栏与统一视图、Shiki 语法高亮、按 hunk 操作
