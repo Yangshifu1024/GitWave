@@ -71,7 +71,7 @@ windows-registry = "0.6"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # System proxy probe (F013), same crate + API hyper-util uses for reqwest.
-system-configuration = "0.7"
+system-configuration = "0.8"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen"] }
