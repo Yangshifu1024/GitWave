@@ -324,7 +324,7 @@ mod tests {
         assert_eq!(res.kind, MergeKind::ThreeWay);
         assert_eq!(head.parent_count(), 2, "no-ff must create a merge commit");
         assert_eq!(
-            head.summary(),
+            head.summary().unwrap(),
             Some("Merge branch \"main\""),
             "merge subject follows the git default style"
         );

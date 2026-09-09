@@ -108,8 +108,8 @@ pub fn list_reflog(repo: &Repository, reference: &str) -> Result<Vec<ReflogEntry
         .map(|entry| ReflogEntry {
             old_oid: entry.id_old().to_string(),
             new_oid: entry.id_new().to_string(),
-            action: classify(entry.message().unwrap_or("")).to_string(),
-            message: entry.message().unwrap_or("").to_string(),
+            action: classify(entry.message().ok().flatten().unwrap_or("")).to_string(),
+            message: entry.message().ok().flatten().unwrap_or("").to_string(),
             committer: entry.committer().name().unwrap_or("").to_string(),
             time: entry.committer().when().seconds(),
         })

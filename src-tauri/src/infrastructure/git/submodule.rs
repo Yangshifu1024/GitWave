@@ -115,7 +115,7 @@ pub fn list_submodules(repo: &Repository) -> Result<Vec<SubmoduleInfo>> {
         out.push(SubmoduleInfo {
             name,
             path: sm.path().to_string_lossy().into_owned(),
-            url: sm.url().map(str::to_string),
+            url: sm.url().ok().flatten().map(str::to_string),
             initialized,
             head_sha,
             in_sync,
@@ -151,7 +151,7 @@ pub fn update_submodule(
     auth: Option<&InlineAuth>,
 ) -> Result<()> {
     let mut sm = find(repo, name)?;
-    let url = sm.url().unwrap_or_default().to_string();
+    let url = sm.url().ok().flatten().unwrap_or_default().to_string();
     let provider = provider_for_operation(&url, cancel.clone(), auth);
     update_with_credentials(
         &*provider,
@@ -255,7 +255,7 @@ pub fn deinit_submodule(repo: &Repository, name: &str) -> Result<()> {
         // ConfigEntries has a custom `next()` rather than the Iterator trait.
         while let Some(entry) = entries.next() {
             if let Ok(entry) = entry {
-                if let Some(key) = entry.name() {
+                if let Ok(key) = entry.name() {
                     keys.push(key.to_string());
                 }
             }

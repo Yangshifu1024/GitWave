@@ -107,7 +107,7 @@ pub fn revert_commit(repo: &Repository, oid_str: &str) -> Result<String> {
 
     let tree_oid = merged.write_tree_to(repo).map_err(map_git_err)?;
     let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
-    let subject = commit.summary().unwrap_or("");
+    let subject = commit.summary().ok().flatten().unwrap_or("");
     let message = format!("Revert \"{subject}\"\n\nThis reverts commit {oid}.");
     let sig = commit_signature(repo)?;
     let new_oid = repo
@@ -198,7 +198,11 @@ mod tests {
         let sha = revert_commit(&repo, &tip_sha).unwrap();
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         assert_ne!(head.id().to_string(), tip_sha);
-        assert!(head.summary().unwrap().starts_with("Revert \"commit 2\""));
+        assert!(head
+            .summary()
+            .unwrap()
+            .unwrap()
+            .starts_with("Revert \"commit 2\""));
         assert!(head.message().unwrap().contains(&tip_sha));
         assert!(
             !repo.workdir().unwrap().join("file2.txt").exists(),
@@ -286,7 +290,7 @@ mod tests {
         let sha = cherry_pick_commit(&repo, &picked.to_string()).unwrap();
         let head = repo.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(head.id().to_string(), sha);
-        assert_eq!(head.summary(), Some("pick me"));
+        assert_eq!(head.summary().unwrap(), Some("pick me"));
         assert_eq!(head.author().name().unwrap(), "Original Author");
         assert!(head.message().unwrap().contains("(cherry picked from"));
         assert!(repo.workdir().unwrap().join("picked.txt").exists());

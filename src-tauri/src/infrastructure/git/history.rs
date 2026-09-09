@@ -465,7 +465,7 @@ fn collect_commit_refs(repo: &Repository) -> HashMap<String, Vec<CommitRef>> {
             if !reference.is_tag() {
                 continue;
             }
-            let Some(name) = reference.shorthand().map(|s| s.to_string()) else {
+            let Some(name) = reference.shorthand().ok().map(|s| s.to_string()) else {
                 continue;
             };
             // Peel annotated tags to the commit they point at.
@@ -571,6 +571,8 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
     if let Ok(head_ref) = repo.find_reference("HEAD") {
         if let Some(name) = head_ref
             .symbolic_target()
+            .ok()
+            .flatten()
             .and_then(|t| t.strip_prefix("refs/heads/"))
         {
             if !name.is_empty() && !local_names.contains(&name.to_string()) {

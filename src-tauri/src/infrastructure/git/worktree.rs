@@ -27,7 +27,7 @@ pub fn list_worktrees(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
     let main_branch = repo
         .head()
         .ok()
-        .and_then(|h| h.shorthand().map(str::to_string));
+        .and_then(|h| h.shorthand().ok().map(str::to_string));
     out.push(WorktreeInfo {
         name: "(main)".into(),
         path: main_path,
@@ -37,7 +37,7 @@ pub fn list_worktrees(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
     });
 
     let names = repo.worktrees().map_err(map_git_err)?;
-    for name in names.iter().flatten() {
+    for name in names.iter().flatten().flatten() {
         let wt = repo.find_worktree(name).map_err(map_git_err)?;
         let path = wt.path().to_string_lossy().into_owned();
         let is_locked = wt
@@ -47,7 +47,7 @@ pub fn list_worktrees(repo: &Repository) -> Result<Vec<WorktreeInfo>> {
         let branch = Repository::open(wt.path()).ok().and_then(|r| {
             r.head()
                 .ok()
-                .and_then(|h| h.shorthand().map(str::to_string))
+                .and_then(|h| h.shorthand().ok().map(str::to_string))
         });
         out.push(WorktreeInfo {
             name: name.to_string(),

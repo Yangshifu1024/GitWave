@@ -148,7 +148,9 @@ fn local_name_for_remote(repo: &Repository, remote_name: &str) -> Result<String>
     let remotes = repo.remotes().map_err(map_git_err)?;
     let mut best: Option<&str> = None;
     for i in 0..remotes.len() {
-        let Some(name) = remotes.get(i) else { continue };
+        let Some(name) = remotes.get(i).ok().flatten() else {
+            continue;
+        };
         if remote_name.starts_with(&format!("{name}/")) && best.is_none_or(|b| name.len() > b.len())
         {
             best = Some(name);
@@ -541,7 +543,7 @@ mod tests {
         rename_branch(&repo, "feature", "renamed", false).unwrap();
 
         let head = repo.head().unwrap();
-        assert_eq!(head.shorthand(), Some("renamed"));
+        assert_eq!(head.shorthand().unwrap(), "renamed");
         cleanup(&path);
     }
 
@@ -767,7 +769,7 @@ mod tests {
 
         assert!(!outcome.created);
         assert!(outcome.already_current);
-        assert_eq!(repo.head().unwrap().shorthand(), Some("feature"));
+        assert_eq!(repo.head().unwrap().shorthand().unwrap(), "feature");
         assert_eq!(
             fs::read_to_string(&tracked).unwrap(),
             "dirty\n",
@@ -797,7 +799,7 @@ mod tests {
                 .is_err(),
             "refusal must not leave a half-created branch"
         );
-        assert_eq!(repo.head().unwrap().shorthand(), Some("main"));
+        assert_eq!(repo.head().unwrap().shorthand().unwrap(), "main");
         cleanup(&path);
     }
 
@@ -873,7 +875,7 @@ mod tests {
 
         assert!(!outcome.created);
         assert!(outcome.already_current);
-        assert_eq!(repo.head().unwrap().shorthand(), Some("main"));
+        assert_eq!(repo.head().unwrap().shorthand().unwrap(), "main");
         assert!(repo.find_branch("HEAD", git2::BranchType::Local).is_err());
         cleanup(&path);
     }

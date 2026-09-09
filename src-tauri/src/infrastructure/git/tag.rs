@@ -39,6 +39,7 @@ pub fn list_tags(repo: &Repository) -> Result<Vec<TagInfo>> {
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .map(str::to_string)
         .collect();
     names.sort();
@@ -50,7 +51,7 @@ pub fn list_tags(repo: &Repository) -> Result<Vec<TagInfo>> {
             .find_reference(&format!("refs/tags/{name}"))
             .ok()
             .and_then(|r| r.peel_to_tag().ok())
-            .and_then(|t| t.message().map(str::to_string));
+            .and_then(|t| t.message().ok().flatten().map(str::to_string));
         out.push(TagInfo {
             sha: tag_target_sha(repo, &name).unwrap_or_default(),
             name,
