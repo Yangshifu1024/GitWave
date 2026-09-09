@@ -1371,7 +1371,7 @@ pub async fn generate_pr_description(
         let branch = repo
             .head()
             .ok()
-            .and_then(|h| h.shorthand().map(str::to_string))
+            .and_then(|h| h.shorthand().ok().map(str::to_string))
             .unwrap_or_else(|| "HEAD (detached)".to_string());
 
         let base_name = match base.filter(|b| !b.trim().is_empty()) {
@@ -1684,7 +1684,7 @@ pub async fn ai_palette_intent(
         let current_branch = repo
             .head()
             .ok()
-            .and_then(|h| h.shorthand().map(str::to_string))
+            .and_then(|h| h.shorthand().ok().map(str::to_string))
             .unwrap_or_else(|| "HEAD (detached)".to_string());
         let mut local = Vec::new();
         let mut remote = Vec::new();
@@ -1743,7 +1743,7 @@ fn subject_of(repo: &git2::Repository, oid: &str) -> String {
     git2::Oid::from_str(oid)
         .ok()
         .and_then(|o| repo.find_commit(o).ok())
-        .and_then(|c| c.summary().map(str::to_string))
+        .and_then(|c| c.summary().ok().flatten().map(str::to_string))
         .unwrap_or_else(|| "(not resolvable — maybe zero oid or pruned)".into())
 }
 

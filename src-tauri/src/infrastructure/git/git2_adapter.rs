@@ -42,7 +42,7 @@ pub fn head(repo: &Repository) -> Result<HeadSummary> {
     let commit = head.peel_to_commit().map_err(map_git_err)?;
     Ok(HeadSummary {
         sha: commit.id().to_string(),
-        summary: commit.summary().unwrap_or("").to_string(),
+        summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
     })
 }
 

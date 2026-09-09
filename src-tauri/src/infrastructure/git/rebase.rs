@@ -183,6 +183,7 @@ pub fn finalize_rebase(repo: &Repository, oid: &str) -> Result<()> {
     }
     let refname = head
         .name()
+        .ok()
         .ok_or_else(|| AppError::protocol(codes::git::REF_NO_NAME, "branch ref has no name"))?
         .to_string();
     let mut reference = repo.find_reference(&refname).map_err(map_git_err)?;

@@ -91,7 +91,7 @@ pub(super) fn provider_for_operation(
 
 fn remote_url(repo: &Repository, remote_name: &str) -> Result<String> {
     let remote = repo.find_remote(remote_name).map_err(map_git_err)?;
-    remote.url().map(str::to_string).ok_or_else(|| {
+    remote.url().ok().map(str::to_string).ok_or_else(|| {
         AppError::protocol_with(
             codes::git::REMOTE_NO_URL,
             format!("remote '{remote_name}' has no URL"),
@@ -296,7 +296,7 @@ pub fn push_with_options(
         let tags = repo.references_glob("refs/tags/*").map_err(map_git_err)?;
         for tag in tags {
             let tag = tag.map_err(map_git_err)?;
-            let Some(name) = tag.name() else { continue };
+            let Ok(name) = tag.name() else { continue };
             let Some(oid) = tag.target() else { continue };
             // Peel annotated tags to the commit they point at.
             let peeled = repo
@@ -414,7 +414,12 @@ pub fn push_with_options(
 /// Remote names configured on the repository.
 pub fn list_remotes(repo: &Repository) -> Result<Vec<String>> {
     let remotes = repo.remotes().map_err(map_git_err)?;
-    Ok(remotes.iter().flatten().map(str::to_string).collect())
+    Ok(remotes
+        .iter()
+        .flatten()
+        .flatten()
+        .map(str::to_string)
+        .collect())
 }
 
 /// One configured remote with its URLs (`git remote -v` equivalent).
@@ -429,12 +434,12 @@ pub struct RemoteInfo {
 pub fn list_remote_details(repo: &Repository) -> Result<Vec<RemoteInfo>> {
     let names = repo.remotes().map_err(map_git_err)?;
     let mut out = Vec::new();
-    for name in names.iter().flatten() {
+    for name in names.iter().flatten().flatten() {
         let remote = repo.find_remote(name).map_err(map_git_err)?;
         out.push(RemoteInfo {
             name: name.to_string(),
-            fetch_url: remote.url().map(str::to_string),
-            push_url: remote.pushurl().map(str::to_string),
+            fetch_url: remote.url().ok().map(str::to_string),
+            push_url: remote.pushurl().ok().flatten().map(str::to_string),
         });
     }
     Ok(out)

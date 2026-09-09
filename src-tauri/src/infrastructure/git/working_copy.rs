@@ -113,6 +113,8 @@ fn head_meta(repo: &Repository) -> Result<(String, Option<String>, String, Optio
                 .ok()
                 .and_then(|r| {
                     r.symbolic_target()
+                        .ok()
+                        .flatten()
                         .map(|t| t.trim_start_matches("refs/heads/").to_string())
                 })
                 .unwrap_or_else(|| "main".into());

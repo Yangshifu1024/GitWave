@@ -46,7 +46,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # `vendored-openssl` static-links OpenSSL: libssh2-sys pulls openssl-sys,
 # which on macOS otherwise links Homebrew's libssl and the app crashes on
 # launch (missing dylib / Team-ID mismatch under library validation).
-git2 = { version = "0.20", features = ["vendored-libgit2", "ssh", "vendored-openssl"] }
+git2 = { version = "0.21", features = ["vendored-libgit2", "ssh", "vendored-openssl"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 # `system-proxy` lets reqwest read the OS proxy (Windows registry / macOS
 # SystemConfiguration) as a fallback on top of the env vars injected by

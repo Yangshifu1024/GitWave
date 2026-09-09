@@ -101,7 +101,12 @@ pub fn plan_interactive_rebase(
     for oid_res in walk {
         let oid = oid_res.map_err(map_git_err)?;
         let commit = repo.find_commit(oid).map_err(map_git_err)?;
-        let summary = commit.summary().unwrap_or("(no message)").to_string();
+        let summary = commit
+            .summary()
+            .ok()
+            .flatten()
+            .unwrap_or("(no message)")
+            .to_string();
         todos.push(InteractiveRebaseTodo {
             oid: oid.to_string(),
             summary,
