@@ -291,7 +291,7 @@ toast({ title: "Clone failed", description: error.message, variant: "danger" });
 | `BranchTree` | `components/BranchTree.tsx` | Branches tab 内容（Sprint 3）|
 | `BlameView` | `components/BlameView.tsx` | 文件 blame 行内注释（Sprint 3）|
 | `ConflictResolver` | `components/ConflictResolver.tsx` | 3-way merge UI（Sprint 6）|
-| `CommandPalette` | `components/CommandPalette.tsx` | Cmd+K 浮层（Sprint 6）|
+| `CommandPalette` | `components/CommandPalette.tsx` | Cmd+K 浮层：静态命令 + commit 搜索（选择后定位到 History 图中）+ Ask AI（Sprint 6）|
 | `WorkingCopyBar` | `components/WorkingCopyBar.tsx` | 底部复合组件：branch 状态 + 文件列表 + commit 框（Sprint 4）|
 | `SyncButtons` | `components/SyncButtons.tsx` | REPOS Fetch + BRANCHES Pull/Push（Sprint 4）|
 

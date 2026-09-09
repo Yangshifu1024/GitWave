@@ -25,6 +25,8 @@
     "command": {
       "openSettings": "Open settings",
       "fetchRemote": "Fetch from remote"
-    }
+    },
+    "commitsTitle": "Commits",
+    "searchingCommits": "Searching commits…"
   }
 }

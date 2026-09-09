@@ -139,10 +139,7 @@
       "selectRepoTitle": "Select a repository",
       "selectRepoDesc": "Pick a repository from the sidebar to view commit history.",
       "loading": "Loading history...",
-      "noMatch": "No commits match “{{filter}}”",
-      "clearSearch": "Clear search",
       "empty": "No commits yet",
-      "searchPlaceholder": "Search commits (message or author)",
       "loadingOlder": "Loading older commits…",
       "endOfHistory": "End of history · {{total}} commits"
     }

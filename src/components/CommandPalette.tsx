@@ -1,6 +1,9 @@
-// Global command palette (Cmd+K / Ctrl+K). Two layers:
+// Global command palette (Cmd+K / Ctrl+K). Three layers:
 //  1. Static commands — navigation and quick ops, no AI needed.
-//  2. "Ask AI" — the typed request is interpreted into ONE whitelisted
+//  2. Commit search — the typed query also matches commit message/author
+//     (backend filter of cmd_get_commit_log); selecting a result locates
+//     that commit in the History graph via requestLocate.
+//  3. "Ask AI" — the typed request is interpreted into ONE whitelisted
 //     action (cmd_ai_palette_intent). Mutating actions show a confirm card
 //     before executing; commit / push / merge / rebase are rejected
 //     server-side and never executable from here (P1).
@@ -8,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, CornerDownLeft, Download, Settings, Sparkles } from "lucide-react";
+import { ArrowRight, CornerDownLeft, Download, GitCommitHorizontal, Settings, Sparkles } from "lucide-react";
 import {
   aiPaletteIntent,
   checkoutBranch,
@@ -16,8 +19,10 @@ import {
   createTag,
   fetchRemote,
   formatAppError,
+  getCommitLog,
   getWorkingCopy,
   saveStash,
+  type CommitSummary,
   type PaletteIntent,
 } from "@/lib/api";
 import { useUiStore } from "@/stores/uiStore";
@@ -58,6 +63,10 @@ export function CommandPalette({
   const [intent, setIntent] = useState<PaletteIntent | null>(null);
   const [intentError, setIntentError] = useState<string | null>(null);
   const [explain, setExplain] = useState<{ sha: string } | null>(null);
+  const [commitResults, setCommitResults] = useState<CommitSummary[]>([]);
+  const [commitsLoading, setCommitsLoading] = useState(false);
+  const [commitsError, setCommitsError] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // App-standard global shortcut, same modifier check as Toolbar's Ctrl+,.
@@ -78,6 +87,10 @@ export function CommandPalette({
     setQuery("");
     setIntent(null);
     setIntentError(null);
+    setCommitResults([]);
+    setCommitsLoading(false);
+    setCommitsError(null);
+    setSelectedIndex(-1);
     // Focus after mount so the input is attached.
     window.setTimeout(() => inputRef.current?.focus(), 0);
   }, [open]);
@@ -119,6 +132,67 @@ export function CommandPalette({
   const filtered = staticCommands.filter((c) =>
     c.label.toLowerCase().includes(query.trim().toLowerCase()),
   );
+
+  // Commit search (F003 history search, moved here from the History toolbar):
+  // debounced top-N match on message/author via the backend filter. Selecting
+  // a result only locates the commit in the graph — it never filters the list.
+  useEffect(() => {
+    if (!open) return;
+    const needle = query.trim();
+    if (!needle || !workspaceId) {
+      setCommitResults([]);
+      setCommitsLoading(false);
+      setCommitsError(null);
+      setSelectedIndex(-1);
+      return;
+    }
+    let cancelled = false;
+    setCommitsLoading(true);
+    const timer = window.setTimeout(() => {
+      getCommitLog(workspaceId, 10, needle)
+        .then((list) => {
+          if (!cancelled) {
+            setCommitResults(list);
+            setCommitsError(null);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) {
+            setCommitResults([]);
+            setCommitsError(formatAppError(e));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setCommitsLoading(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, query, workspaceId]);
+
+  const locateCommit = (sha: string): void => {
+    setOpen(false);
+    requestLocate(sha);
+  };
+
+  // Arrow keys walk commands and commit results as one list; Enter on an
+  // unselected input falls through to the form submit (Ask AI).
+  type PaletteRow =
+    | { kind: "command"; id: string; run: () => void }
+    | { kind: "commit"; id: string; sha: string };
+  const rows: PaletteRow[] = [
+    ...filtered.map((c) => ({ kind: "command" as const, id: c.id, run: c.run })),
+    ...commitResults.map((c) => ({ kind: "commit" as const, id: c.sha, sha: c.sha })),
+  ];
+  const clampSelection = (next: number): void => {
+    setSelectedIndex(rows.length === 0 ? -1 : Math.min(Math.max(next, 0), rows.length - 1));
+  };
+  const runRow = (row: PaletteRow): void => {
+    if (row.kind === "command") row.run();
+    else locateCommit(row.sha);
+  };
 
   const askAi = useMutation({
     mutationFn: () => {
@@ -241,11 +315,21 @@ export function CommandPalette({
                   setQuery(v);
                   setIntent(null);
                   setIntentError(null);
+                  setSelectedIndex(-1);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") {
                     e.stopPropagation();
                     setOpen(false);
+                  } else if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    clampSelection(selectedIndex + 1);
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    clampSelection(selectedIndex - 1);
+                  } else if (e.key === "Enter" && selectedIndex >= 0 && rows[selectedIndex]) {
+                    e.preventDefault();
+                    runRow(rows[selectedIndex]);
                   }
                 }}
                 placeholder={t("palette.placeholder")}
@@ -306,32 +390,70 @@ export function CommandPalette({
 
           {!askAi.isPending ? (
             <div className="px-1.5 py-1">
-              {filtered.length > 0 ? (
-                filtered.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={c.run}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
-                      "hover:bg-bg-secondary hover:text-text-primary",
-                    )}
-                  >
-                    {c.icon}
-                    <span className="flex-1">{c.label}</span>
-                    {c.hint ? (
-                      <span className="rounded border border-border-subtle bg-bg-primary px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
-                        {c.hint}
-                      </span>
-                    ) : null}
-                  </button>
-                ))
-              ) : (
+              {filtered.map((c, i) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={c.run}
+                  onMouseEnter={() => setSelectedIndex(i)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
+                    "hover:bg-bg-secondary hover:text-text-primary",
+                    selectedIndex === i && "bg-bg-secondary text-text-primary",
+                  )}
+                >
+                  {c.icon}
+                  <span className="flex-1">{c.label}</span>
+                  {c.hint ? (
+                    <span className="rounded border border-border-subtle bg-bg-primary px-1.5 py-0.5 font-mono text-[10px] text-text-muted">
+                      {c.hint}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+
+              {commitsLoading ? (
+                <p className="px-2.5 py-2 text-xs text-text-muted">{t("palette.searchingCommits")}</p>
+              ) : null}
+              {commitsError ? (
+                <p className="px-2.5 py-2 text-xs text-danger">{commitsError}</p>
+              ) : null}
+
+              {!commitsLoading && commitResults.length > 0 ? (
+                <>
+                  <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                    {t("palette.commitsTitle")}
+                  </p>
+                  {commitResults.map((c, i) => {
+                    const rowIndex = filtered.length + i;
+                    return (
+                      <button
+                        key={c.sha}
+                        type="button"
+                        onClick={() => locateCommit(c.sha)}
+                        onMouseEnter={() => setSelectedIndex(rowIndex)}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
+                          "hover:bg-bg-secondary hover:text-text-primary",
+                          selectedIndex === rowIndex && "bg-bg-secondary text-text-primary",
+                        )}
+                      >
+                        <GitCommitHorizontal size={14} />
+                        <span className="font-mono text-[11px] text-text-muted">{c.sha.slice(0, 7)}</span>
+                        <span className="min-w-0 flex-1 truncate">{c.message_summary}</span>
+                        <span className="shrink-0 text-[11px] text-text-muted">{c.author}</span>
+                      </button>
+                    );
+                  })}
+                </>
+              ) : null}
+
+              {filtered.length === 0 && !commitsLoading && commitResults.length === 0 && !commitsError ? (
                 <p className="px-2.5 py-2 text-xs text-text-muted">
                   <Sparkles size={11} className="mr-1 inline" />
                   {t("palette.askHint")}
                 </p>
-              )}
+              ) : null}
               {query.trim() ? (
                 <p className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-text-muted">
                   <CornerDownLeft size={11} />

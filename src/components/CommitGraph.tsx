@@ -11,8 +11,6 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { FolderOpen } from "lucide-react";
 import { laneColor, RefBadge } from "@/components/RefBadge";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/ContextMenu";
@@ -345,19 +343,8 @@ export function CommitGraph({
   const [localSelected, setLocalSelected] = useState<string | null>(null);
   const [limit, setLimit] = useState(INITIAL_LIMIT);
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const [searchInput, setSearchInput] = useState("");
-  const [filter, setFilter] = useState<string | null>(null);
   // F011: one shared row-menu controller; its modals render once below.
   const menu = useCommitMenuActions(activeWorkspaceId);
-
-  // Debounce keystrokes so each character doesn't trigger a backend walk.
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const needle = searchInput.trim();
-      setFilter(needle ? needle : null);
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [searchInput]);
 
   const selectedSha = selectedShaProp !== undefined ? selectedShaProp : localSelected;
 
@@ -374,7 +361,7 @@ export function CommitGraph({
 
   // Pagination key: context (workspace/repo/epoch) switch resets the window;
   // growing `limit` refetches a larger prefix of the same deterministic walk.
-  const fetchKey = `${activeWorkspaceId ?? ""}|${activeRepoId ?? ""}|${historyEpoch}|${filter ?? ""}`;
+  const fetchKey = `${activeWorkspaceId ?? ""}|${activeRepoId ?? ""}|${historyEpoch}`;
   const prevFetchKeyRef = React.useRef<string | null>(null);
 
   useEffect(() => {
@@ -394,7 +381,7 @@ export function CommitGraph({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getCommitLog(activeWorkspaceId, limit, filter)
+    getCommitLog(activeWorkspaceId, limit)
       .then(setCommits)
       .catch((e) => {
         if (!cancelled) {
@@ -408,7 +395,7 @@ export function CommitGraph({
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspaceId, activeRepoId, historyEpoch, limit, fetchKey, filter]);
+  }, [activeWorkspaceId, activeRepoId, historyEpoch, limit, fetchKey]);
 
   const virtualizer = useVirtualizer({
     count: commits.length,
@@ -428,10 +415,12 @@ export function CommitGraph({
     }
   };
 
-  // Locate request from the sidebar (branch click): center the commit in the
-  // viewport. One-shot per seq — history refreshes must not yank the scroll
-  // position back. A commit missing from the log window (async load still in
-  // flight) stays unhandled and retries when shaToIndex updates.
+  // Locate request from the sidebar (branch click) or the palette commit
+  // search: center the commit in the viewport. One-shot per seq — history
+  // refreshes must not yank the scroll position back. A commit missing from
+  // the loaded window (async load still in flight, or a palette match beyond
+  // the initial 200-commit page) stays unhandled and retries when shaToIndex
+  // updates; while a fuller page might still contain it, grow the window.
   const handledLocateSeq = useRef(-1);
   useEffect(() => {
     if (!locateRequest) return;
@@ -441,10 +430,23 @@ export function CommitGraph({
       activeRepoId,
       shaToIndex,
     );
-    if (index === null) return;
+    if (index === null) {
+      // Pending request for this repo and the log is idle but possibly
+      // truncated: widen the window so the retry can find the target. A short
+      // page (commits.length < limit) means the walk hit the root — give up.
+      if (
+        locateRequest.repoId === activeRepoId &&
+        locateRequest.seq !== handledLocateSeq.current &&
+        !loading &&
+        commits.length >= limit
+      ) {
+        setLimit((l) => l + PAGE_SIZE);
+      }
+      return;
+    }
     handledLocateSeq.current = locateRequest.seq;
     virtualizer.scrollToIndex(index, { align: "center" });
-  }, [locateRequest, activeRepoId, shaToIndex, virtualizer]);
+  }, [locateRequest, activeRepoId, shaToIndex, virtualizer, loading, commits.length, limit]);
 
   const handleSelect = (sha: string) => {
     setLocalSelected(sha);
@@ -475,9 +477,6 @@ export function CommitGraph({
     );
   }
 
-  // The search toolbar must stay mounted in every state: the filter lives in
-  // this input, and a zero-hit search that replaced the whole panel used to
-  // strand it (the input vanished along with the graph, no way to clear).
   const showGraph = !error && !(loading && commits.length === 0) && commits.length > 0;
 
   let stateContent: React.JSX.Element | null = null;
@@ -495,21 +494,7 @@ export function CommitGraph({
         </div>
       );
     } else if (commits.length === 0) {
-      stateContent = filter ? (
-        <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted text-sm">
-          <span>{t("branches.graph.noMatch", { filter })}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSearchInput("");
-              setFilter(null);
-            }}
-          >
-            {t("branches.graph.clearSearch")}
-          </Button>
-        </div>
-      ) : (
+      stateContent = (
         <div className="flex items-center justify-center h-full text-text-muted text-sm">
           {t("branches.graph.empty")}
         </div>
@@ -519,15 +504,6 @@ export function CommitGraph({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="shrink-0 border-b border-border-subtle px-3 py-1.5">
-        <Input
-          variant="search"
-          value={searchInput}
-          onChange={setSearchInput}
-          placeholder={t("branches.graph.searchPlaceholder")}
-          className="h-7 bg-bg-panel hover:bg-bg-panel focus-within:bg-bg-panel focus-visible:bg-bg-panel"
-        />
-      </div>
       {showGraph ? (
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
           <div
