@@ -67,7 +67,7 @@ tauri-plugin-os = "2"
 [target.'cfg(target_os = "windows")'.dependencies]
 # System proxy probe (F013). Version range matches hyper-util's optional dep
 # so the graph resolves a single shared build.
-windows-registry = "0.6"
+windows-registry = "0.100"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # System proxy probe (F013), same crate + API hyper-util uses for reqwest.
