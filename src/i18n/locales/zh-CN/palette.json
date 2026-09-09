@@ -25,6 +25,8 @@
     "command": {
       "openSettings": "打开设置",
       "fetchRemote": "从远程获取"
-    }
+    },
+    "commitsTitle": "提交",
+    "searchingCommits": "正在搜索提交…"
   }
 }
