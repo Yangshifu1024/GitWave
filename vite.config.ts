@@ -45,7 +45,9 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    // Pin IPv4: Node ≥17 resolves `localhost` to ::1 first, Vite then binds
+    // IPv6 only while the Tauri CLI probes 127.0.0.1 and waits forever.
+    host: host || "127.0.0.1",
     hmr: host
       ? {
           protocol: "ws",
