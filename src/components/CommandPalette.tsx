@@ -11,7 +11,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, CornerDownLeft, Download, GitCommitHorizontal, Settings, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  CornerDownLeft,
+  Download,
+  GitCommitHorizontal,
+  Settings,
+  Sparkles,
+} from "lucide-react";
 import {
   aiPaletteIntent,
   checkoutBranch,
@@ -180,8 +187,7 @@ export function CommandPalette({
   // Arrow keys walk commands and commit results as one list; Enter on an
   // unselected input falls through to the form submit (Ask AI).
   type PaletteRow =
-    | { kind: "command"; id: string; run: () => void }
-    | { kind: "commit"; id: string; sha: string };
+    { kind: "command"; id: string; run: () => void } | { kind: "commit"; id: string; sha: string };
   const rows: PaletteRow[] = [
     ...filtered.map((c) => ({ kind: "command" as const, id: c.id, run: c.run })),
     ...commitResults.map((c) => ({ kind: "commit" as const, id: c.sha, sha: c.sha })),
@@ -413,7 +419,9 @@ export function CommandPalette({
               ))}
 
               {commitsLoading ? (
-                <p className="px-2.5 py-2 text-xs text-text-muted">{t("palette.searchingCommits")}</p>
+                <p className="px-2.5 py-2 text-xs text-text-muted">
+                  {t("palette.searchingCommits")}
+                </p>
               ) : null}
               {commitsError ? (
                 <p className="px-2.5 py-2 text-xs text-danger">{commitsError}</p>
@@ -439,7 +447,9 @@ export function CommandPalette({
                         )}
                       >
                         <GitCommitHorizontal size={14} />
-                        <span className="font-mono text-[11px] text-text-muted">{c.sha.slice(0, 7)}</span>
+                        <span className="font-mono text-[11px] text-text-muted">
+                          {c.sha.slice(0, 7)}
+                        </span>
                         <span className="min-w-0 flex-1 truncate">{c.message_summary}</span>
                         <span className="shrink-0 text-[11px] text-text-muted">{c.author}</span>
                       </button>
@@ -448,7 +458,10 @@ export function CommandPalette({
                 </>
               ) : null}
 
-              {filtered.length === 0 && !commitsLoading && commitResults.length === 0 && !commitsError ? (
+              {filtered.length === 0 &&
+              !commitsLoading &&
+              commitResults.length === 0 &&
+              !commitsError ? (
                 <p className="px-2.5 py-2 text-xs text-text-muted">
                   <Sparkles size={11} className="mr-1 inline" />
                   {t("palette.askHint")}
