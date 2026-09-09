@@ -33,7 +33,7 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-appender = "0.2"
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 
 # Sprint 2 step 6: persistence + git backend
