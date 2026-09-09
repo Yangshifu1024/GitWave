@@ -96,6 +96,10 @@ jobs:
           cache: pnpm
       - name: Install Tauri Linux deps
         run: |
+          # The runner image ships Google's Chrome apt source, which
+          # intermittently fails `apt-get update` with a hash mismatch;
+          # it is irrelevant to this job, so drop it before updating.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.*
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
