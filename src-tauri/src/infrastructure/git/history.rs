@@ -414,6 +414,15 @@ fn primary_branch(refs: &[CommitRef]) -> Option<&str> {
         .map(|r| r.name.as_str())
 }
 
+/// True for the remote's default-branch ref (`origin/HEAD`) — a symref that
+/// `git clone` writes, or a direct ref under a `fetch +HEAD:` refspec. It is
+/// not a real branch, so listing/decorating code must skip it. A real remote
+/// branch literally named `*/HEAD` would also be hidden — accepted, since git
+/// reserves that name for the default-branch pointer.
+pub fn is_remote_head(name: &str) -> bool {
+    name == "HEAD" || name.ends_with("/HEAD")
+}
+
 /// Map commit SHA → decorations (local/remote branches, tags, HEAD).
 fn collect_commit_refs(repo: &Repository) -> HashMap<String, Vec<CommitRef>> {
     let mut map: HashMap<String, Vec<CommitRef>> = HashMap::new();
@@ -447,6 +456,9 @@ fn collect_commit_refs(repo: &Repository) -> HashMap<String, Vec<CommitRef>> {
             let Some(name) = branch.name().ok().flatten().map(|s| s.to_string()) else {
                 continue;
             };
+            if is_remote_head(&name) {
+                continue;
+            }
             let Some(oid) = branch.get().target() else {
                 continue;
             };
@@ -595,6 +607,9 @@ pub fn list_branches(repo: &Repository) -> Result<Vec<BranchInfo>> {
         let (branch, _kind) = branch_result.map_err(map_git_err)?;
         let name = branch.name()?.map(|n| n.to_string()).unwrap_or_default();
         if name.is_empty() {
+            continue;
+        }
+        if is_remote_head(&name) {
             continue;
         }
         let last_commit_sha = branch
@@ -976,5 +991,74 @@ mod tests {
         assert_eq!(branches[0].kind, BranchKind::Local);
         assert!(branches[0].is_current, "the unborn branch is HEAD's target");
         assert!(branches[0].last_commit_sha.is_empty());
+    }
+
+    #[test]
+    fn list_branches_hides_origin_head() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo.head().unwrap().peel_to_commit().unwrap().id();
+        repo.reference(
+            "refs/remotes/origin/main",
+            sha,
+            true,
+            "test: seed remote-tracking ref",
+        )
+        .unwrap();
+        // What `git clone` writes: origin/HEAD as a symref to the default
+        // remote branch, not a branch of its own.
+        repo.reference_symbolic(
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+            true,
+            "test: seed clone default-branch symref",
+        )
+        .unwrap();
+
+        let branches = list_branches(&repo).unwrap();
+        cleanup(&path);
+
+        let names: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
+        assert!(
+            names.contains(&"origin/main"),
+            "real remote branch must survive, got {names:?}"
+        );
+        assert!(
+            !names.contains(&"origin/HEAD"),
+            "origin/HEAD must not be listed as a branch, got {names:?}"
+        );
+    }
+
+    #[test]
+    fn list_branches_hides_direct_ref_origin_head() {
+        let (path, repo) = build_linear_repo(2);
+        let sha = repo.head().unwrap().peel_to_commit().unwrap().id();
+        // `fetch +HEAD:refs/remotes/origin/HEAD` produces a direct ref rather
+        // than a symref — the name-based filter must catch this form too
+        // (an `is_symbolic()` check would miss it).
+        repo.reference(
+            "refs/remotes/origin/HEAD",
+            sha,
+            true,
+            "test: seed direct default-branch ref",
+        )
+        .unwrap();
+
+        let branches = list_branches(&repo).unwrap();
+        cleanup(&path);
+
+        assert!(
+            !branches.iter().any(|b| b.name == "origin/HEAD"),
+            "direct-ref origin/HEAD must not be listed"
+        );
+    }
+
+    #[test]
+    fn is_remote_head_matches_default_branch_refs_only() {
+        for name in ["HEAD", "origin/HEAD", "foo/bar/HEAD"] {
+            assert!(is_remote_head(name), "{name} should match");
+        }
+        for name in ["origin/main", "origin/HEADX", "head", "origin/head"] {
+            assert!(!is_remote_head(name), "{name} should not match");
+        }
     }
 }
