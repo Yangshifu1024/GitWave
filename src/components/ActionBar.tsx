@@ -10,7 +10,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import { ArrowDown, ArrowDownUp, ArrowUp, Archive, FileDiff } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowDownUp,
+  ArrowUp,
+  Archive,
+  FileDiff,
+  FolderOpen,
+  SquareTerminal,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -24,8 +32,11 @@ import {
   formatAppError,
   importWorkspace,
   getBranches,
+  openInFileManager,
+  openInTerminal,
   initRepo,
   isAuthError,
+  listRepos,
   listRemotes,
   listTags,
   listWorkspaces,
@@ -590,6 +601,20 @@ export function ActionBar(): React.JSX.Element {
 
   const noRepo = !activeRepoId;
 
+  // External-tool buttons (F014) act on the active repo; a missing path would
+  // just fail in the backend, so resolve and gate on it here.
+  const { data: repos = [] } = useQuery({
+    queryKey: ["repos", activeWorkspaceId],
+    queryFn: () => listRepos(activeWorkspaceId!),
+    enabled: !!activeWorkspaceId,
+  });
+  const activeRepo = activeRepoId ? repos.find((r) => r.id === activeRepoId) : null;
+  const externalRepo = activeRepo && activeRepo.status !== "missing" ? activeRepo : null;
+  const openExternal = (op: (path: string) => Promise<void>): void => {
+    if (!externalRepo) return;
+    op(externalRepo.path).catch((e: unknown) => wc.setActionError(formatAppError(e)));
+  };
+
   // ── Menu bar requests ──────────────────────────────────────────────────
   // AppMenuBar dispatches AppMenuAction requests; route each one to the same
   // handler its (former) ActionBar button used, so menu and button behavior
@@ -671,6 +696,24 @@ export function ActionBar(): React.JSX.Element {
       <div className="relative flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
         <WorkspaceDropdown />
 
+        {/* External tools for the active repo (F014). */}
+        <div className="flex items-center gap-1">
+          <ActionBarButton
+            icon={<FolderOpen size={14} />}
+            label={t("workspace.openFileManager.label")}
+            title={t("workspace.openFileManager.title")}
+            disabled={!externalRepo}
+            onClick={() => openExternal(openInFileManager)}
+          />
+          <ActionBarButton
+            icon={<SquareTerminal size={14} />}
+            label={t("workspace.openTerminal.label")}
+            title={t("workspace.openTerminal.title")}
+            disabled={!externalRepo}
+            onClick={() => openExternal(openInTerminal)}
+          />
+        </div>
+
         {/* Reserved middle zone between the selector and the ops. */}
         <div className="flex-1" />
 
@@ -691,15 +734,15 @@ export function ActionBar(): React.JSX.Element {
             disabled={localChangesDisabled}
             onClick={() => setStashOpen(true)}
           />
-        </div>
-        <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
-        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDownUp size={14} />}
             label={t("commits.sync.fetch")}
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
           />
+        </div>
+        <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
+        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDown size={14} />}
             label={t("commits.sync.pull")}

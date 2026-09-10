@@ -10,6 +10,14 @@
     },
     "itemRenameAria": "重命名 {{name}}",
     "itemDeleteAria": "删除 {{name}}",
+    "openFileManager": {
+      "label": "文件",
+      "title": "在文件管理器中打开"
+    },
+    "openTerminal": {
+      "label": "终端",
+      "title": "在终端中打开"
+    },
     "create": {
       "namePlaceholder": "工作区名称",
       "submit": "创建"

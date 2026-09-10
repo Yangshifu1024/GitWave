@@ -102,6 +102,123 @@ fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Opens a repo working tree in the OS file manager. Same ACL-bypassing
+/// opener route as `open_data_dir`.
+#[tauri::command]
+fn open_in_file_manager(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let dir = std::path::Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("not a directory: {path}"));
+    }
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+/// Absolute path of `prog` if it sits in a PATH directory (std-only `which`).
+fn find_in_path(prog: &str) -> Option<std::path::PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|dir| dir.join(prog))
+        .find(|candidate| candidate.is_file())
+}
+
+/// Full terminal launch argv per platform; the repo is also set as the
+/// child's cwd, so entries that take no dir flag (cmd.exe, `$TERMINAL`,
+/// kitty / alacritty / foot) still start in the repo.
+fn detect_terminal_command() -> Option<(String, Vec<String>)> {
+    let dir_arg = |flags: &[&str]| -> Vec<String> { flags.iter().map(|f| f.to_string()).collect() };
+    if cfg!(target_os = "windows") {
+        if find_in_path("wt.exe").is_some() {
+            Some(("wt.exe".into(), vec!["-d".into()]))
+        } else {
+            // Pre-Windows-Terminal boxes: a plain console on the repo dir.
+            Some(("cmd.exe".into(), vec![]))
+        }
+    } else if cfg!(target_os = "macos") {
+        let iterm = ["/Applications/iTerm.app", "~/Applications/iTerm.app"]
+            .iter()
+            .any(|p| {
+                let p = std::path::Path::new(p);
+                let p = p
+                    .strip_prefix("~")
+                    .map(|rest| {
+                        std::env::var("HOME").map(|h| std::path::PathBuf::from(h).join(rest))
+                    })
+                    .unwrap_or_else(|_| Ok(p.to_path_buf()));
+                p.map(|p| p.exists()).unwrap_or(false)
+            });
+        let prog = if iterm { "iTerm" } else { "Terminal" };
+        Some(("open".into(), vec!["-a".into(), prog.into()]))
+    } else {
+        // Linux/BSD: $TERMINAL first, then common emulators. Flag-less
+        // entries rely on the cwd set by the caller.
+        if let Ok(t) = std::env::var("TERMINAL") {
+            if !t.is_empty() {
+                return Some((t, vec![]));
+            }
+        }
+        let candidates: [(&str, &[&str]); 8] = [
+            ("gnome-terminal", &["--working-directory"]),
+            ("konsole", &["--workdir"]),
+            ("xfce4-terminal", &["--working-directory"]),
+            ("kgx", &["--working-directory"]),
+            ("kitty", &[]),
+            ("alacritty", &[]),
+            ("foot", &[]),
+            ("wezterm", &["start", "--cwd"]),
+        ];
+        candidates
+            .iter()
+            .find(|(prog, _)| find_in_path(prog).is_some())
+            .map(|(prog, flags)| ((*prog).to_string(), dir_arg(flags)))
+    }
+}
+
+/// Opens a repo working tree in a detected terminal emulator with the repo
+/// as the working directory. Detached from the app: windows gets a new
+/// console, unix a new process group.
+#[tauri::command]
+fn open_in_terminal(path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    let dir = std::path::PathBuf::from(&path);
+    if !dir.is_dir() {
+        return Err(format!("not a directory: {path}"));
+    }
+    let (prog, mut args) =
+        detect_terminal_command().ok_or_else(|| "no terminal emulator found".to_string())?;
+    // cmd.exe / `$TERMINAL` pass no dir flag — their argv stays empty so the
+    // cwd (set below) is the only directory source; everything else takes the
+    // repo as its final argument.
+    if !args.is_empty() {
+        args.push(dir.display().to_string());
+    }
+    let mut cmd = Command::new(&prog);
+    cmd.args(&args).current_dir(&dir);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // wt.exe relays to WindowsTerminal.exe and exits; a hidden relay avoids
+        // a console flash. cmd.exe needs a real new console of its own.
+        cmd.creation_flags(if prog == "wt.exe" {
+            CREATE_NO_WINDOW
+        } else {
+            CREATE_NEW_CONSOLE
+        });
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    cmd.spawn()
+        .map_err(|e| format!("failed to launch {prog}: {e}"))?;
+    Ok(())
+}
+
 // ─── Workspace commands (Sprint 1) ───────────────────────────────────────
 
 #[tauri::command]
@@ -1557,6 +1674,8 @@ pub fn run() {
             get_app_version,
             is_appimage,
             open_data_dir,
+            open_in_file_manager,
+            open_in_terminal,
             cmd_list_workspaces,
             cmd_create_workspace,
             cmd_rename_workspace,
