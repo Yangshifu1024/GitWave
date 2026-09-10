@@ -48,8 +48,8 @@ use crate::infrastructure::git::health::{collect_health as infra_collect_health,
 use crate::infrastructure::git::history::{
     ahead_behind as infra_ahead_behind, commit_details as infra_commit_details,
     commit_log as infra_commit_log, commit_recent_messages as infra_commit_recent_messages,
-    commits_ahead_of as infra_commits_ahead_of, list_branches as infra_list_branches,
-    resolve_ref_oid as infra_resolve_ref_oid,
+    commits_ahead_of as infra_commits_ahead_of, is_remote_head as infra_is_remote_head,
+    list_branches as infra_list_branches, resolve_ref_oid as infra_resolve_ref_oid,
 };
 use crate::infrastructure::git::hooks::{
     list_hooks as infra_list_hooks, read_hook as infra_read_hook, write_hook as infra_write_hook,
@@ -1694,6 +1694,9 @@ pub async fn ai_palette_intent(
                 let Some(name) = branch.name().ok().flatten() else {
                     continue;
                 };
+                if matches!(kind, git2::BranchType::Remote) && infra_is_remote_head(name) {
+                    continue;
+                }
                 match kind {
                     git2::BranchType::Local if local.len() < 20 => local.push(name.to_string()),
                     git2::BranchType::Remote if remote.len() < 15 => remote.push(name.to_string()),
