@@ -1,118 +1,127 @@
 # GitWave · AGENTS.md
 
-> 项目入口指南。
+> Project entry guide.
 
-## 必读文档
+## Required reading
 
-按以下顺序阅读：
+Read in this order:
 
-1. [docs/pm/core/README.md](./docs/pm/core/README.md) — PM 文档索引
-2. [01-features.md](./docs/pm/core/01-features.md) — 产品应具备的功能与不做清单
-3. [02-scope.md](./docs/pm/core/02-scope.md) — 优先级与版本范围
-4. [03-roadmap.md](./docs/pm/core/03-roadmap.md) — 版本路线
-5. [docs/pm/features/README.md](./docs/pm/features/README.md) — 功能提案流程
-6. [docs/tech/README.md](./docs/tech/README.md) — 技术文档索引（架构 / 选型 / ADR）
-7. [docs/design/00-overview.md](./docs/design/00-overview.md) — UI/UX 设计总览（3-pane / token / 组件 / 布局）
-8. [docs/tasks/README.md](./docs/tasks/README.md) — 任务追踪（plan / review）
+1. [docs/pm/core/README.md](./docs/pm/core/README.md) — PM docs index
+2. [01-features.md](./docs/pm/core/01-features.md) — product features and the out-of-scope list
+3. [02-scope.md](./docs/pm/core/02-scope.md) — priorities and version scope
+4. [03-roadmap.md](./docs/pm/core/03-roadmap.md) — release roadmap
+5. [docs/pm/features/README.md](./docs/pm/features/README.md) — feature proposal workflow
+6. [docs/tech/README.md](./docs/tech/README.md) — tech docs index (architecture / selection / ADRs)
+7. [docs/design/00-overview.md](./docs/design/00-overview.md) — UI/UX design overview (3-pane / tokens / components / layout)
+8. [docs/tasks/README.md](./docs/tasks/README.md) — task tracking (plan / review)
 
-## 核心约束（来自产品原则）
+## Core constraints (from product principles)
 
-- **AI 是协作者不是替代者**：禁止自动 commit / push / merge
-- **本地优先 + 隐私可控**：diff 默认不离开本机；HTTPS 凭证走 `git credential helper`；SSH 走配置的 key
-- **Workspace 是第一入口**：单 active 仓库 + 多 Workspace 同时开 + Workspace-scoped AI
-- **Workspace 是抽象概念**：在文件系统中无实体，不依赖任何 root 目录
+- **AI is a collaborator, not a replacement**: no automatic commit / push / merge
+- **Local-first + privacy under control**: diffs never leave the machine by default; HTTPS credentials go through the `git credential helper`; SSH uses the configured key
+- **Workspace is the primary entry**: one active repo + multiple Workspaces open at once + Workspace-scoped AI
+- **Workspace is an abstraction**: it has no filesystem entity and depends on no root directory
 
-## PM / 工程边界
+## PM / engineering boundary
 
-技术选型（Tauri / SwiftUI / Electron 等）属于工程决策，**不在 PM 文档范围内**。工程团队应基于 PM 给出的用户可感知约束（性能、平台、隐私等）做架构文档。PM 不输出选型，工程不输出原则。
+Technology choices (Tauri / SwiftUI / Electron, …) are engineering decisions and **out of PM scope**. Engineering teams write architecture docs based on the user-perceivable constraints PM provides (performance, platforms, privacy, …). PM does not output tech choices; engineering does not output principles.
 
-## 技术文档归属（`docs/tech/` vs `docs/tasks/`）
+## Tech docs ownership (`docs/tech/` vs `docs/tasks/`)
 
-工程文档按"跨任务 vs 单任务"分两个目录，避免归属混乱：
+Engineering docs split across two directories by "cross-task vs single-task" to keep ownership clear:
 
-| 目录 | 性质 | 一份文档对应 | 典型内容 |
+| Directory | Nature | One doc corresponds to | Typical content |
 |---|---|---|---|
-| `docs/tech/` | 跨任务工程文档 | 可被多个任务 / PR 引用 | 系统架构、技术选型、ADR、系统设计、工程约定 |
-| `docs/tasks/<feat\|fix>-<name>/` | 单任务执行产物 | 一个 PR / 一个任务 | `plan.md`、`review.md` |
+| `docs/tech/` | Cross-task engineering docs | Referenced by multiple tasks / PRs | System architecture, technology selection, ADRs, system design, engineering conventions |
+| `docs/tasks/<feat\|fix>-<name>/` | Single-task execution artifacts | One PR / one task | `plan.md`, `review.md` |
 
-判定规则：
+Decision rules:
 
-- 长期有效、被多次任务复用的内容（架构图、选型记录、ADR、命名 / 工程约定）→ `docs/tech/`
-- 与某个具体 PR / 任务强绑定的执行过程（实施计划、审查报告）→ `docs/tasks/<任务名>/`
+- Long-lived content reused across tasks (architecture diagrams, selection records, ADRs, naming / engineering conventions) → `docs/tech/`
+- Execution process tightly bound to a specific PR / task (implementation plan, review report) → `docs/tasks/<task-name>/`
 
-`docs/tasks/<任务名>/plan.md` 中如需引用既有技术决策，按 `docs/tech/<分类>/<文档名>` 链接。
+When `docs/tasks/<task-name>/plan.md` references an existing technical decision, link it as `docs/tech/<category>/<doc-name>`.
 
-## Git Workflow
+## Git workflow
 
-### 分支策略（GitHub Flow）
+### Branch strategy (GitHub Flow)
 
-- `main` 为唯一常驻分支
-- 新功能 / 修复从 `main` 拉分支：`feature/<name>` 或 `fix/<name>`
-- 命名对齐 `docs/pm/features/F<编号>.md` 或 `docs/tasks/<feat|fix>-<name>/`
+- `main` is the only long-lived branch
+- New features / fixes branch off `main`: `feature/<name>` or `fix/<name>`
+- Names align with `docs/pm/features/F<number>.md` or `docs/tasks/<feat|fix>-<name>/`
 
-### Commit 约定（Conventional Commits）
+### Commit convention (Conventional Commits)
 
-`<type>(<scope>): <subject>`，type ∈ `feat` · `fix` · `docs` · `refactor` · `test` · `chore`
+`<type>(<scope>): <subject>`, type ∈ `feat` · `fix` · `docs` · `refactor` · `test` · `chore`
 
-例：`feat(workspace): add lastActiveRepo persistence on workspace switch`
+**Commit messages must be written in English.**
 
-### PR 合并（Squash Merge）
+Example: `feat(workspace): add lastActiveRepo persistence on workspace switch`
 
-所有 PR squash merge 合入 `main`，squash commit message 遵循 Conventional Commits。
+### PR merging (squash merge)
 
-### 关键约束
+All PRs squash-merge into `main`; the squash commit message follows Conventional Commits. **PR titles and descriptions (summary, change list, test plan) must be written in English** — they are the public face of the repository history.
 
-- **AI 代理禁止自动 commit / push / merge**（符合 P1）
-- **main 分支保护**：禁止 force push；PR 必须经 code-reviewer 审查通过
-- **每个 PR 关联 proposal 或 task**：描述引用 `docs/pm/features/F<编号>.md` 或 `docs/tasks/<任务名>/plan.md`
-- **新需求 / 新问题先确认分支**：处理前询问用户是否使用新分支
-  - 不使用：在当前分支继续工作
-  - 使用：给出推荐分支名（`feature/<name>` 或 `fix/<name>`，对齐 `docs/pm/features/F<编号>.md` 或 `docs/tasks/<feat|fix>-<name>/`），并接受用户自定义；确认后再创建
+### Key constraints
 
-## 可用专门代理
+- **AI agents must not commit / push / merge automatically** (per P1) — exception: the user explicitly asks the agent to commit
+- **main branch protection**: no force push; PRs must pass code-reviewer review
+- **Every PR links a proposal or task**: the description references `docs/pm/features/F<number>.md` or `docs/tasks/<task-name>/plan.md`
+- **Confirm the branch before new work / new issues**: before handling, ask whether to use a new branch
+  - No: continue on the current branch
+  - Yes: suggest a branch name (`feature/<name>` or `fix/<name>`, aligned with `docs/pm/features/F<number>.md` or `docs/tasks/<feat|fix>-<name>/`) and accept custom names; create it after confirmation
 
-| 代理 | 触发场景 |
+## Specialized agents
+
+| Agent | When to use |
 |---|---|
-| **product-manager** | 需求分析、PRD、用户故事、竞品分析、优先级排序 |
-| **code-reviewer** | 代码审查（正确性 / 安全 / 性能 / 可维护性 / 可读性 / 测试覆盖 / 最佳实践） |
-| **tester** | 测试用例设计、测试策略、缺陷分析、自动化建议 |
+| **product-manager** | Requirements analysis, PRD, user stories, competitive analysis, prioritization |
+| **code-reviewer** | Code review (correctness / security / performance / maintainability / readability / test coverage / best practices) |
+| **tester** | Test case design, test strategy, defect analysis, automation advice |
 
-代理详细行为约定见 `.agents/agents/<name>.md`
+Detailed agent behavior conventions live in `.agents/agents/<name>.md`.
 
-按场景调用对应的专门代理。
+Invoke the matching specialized agent per scenario.
 
-### 1. 需求流程（用户提新需求时）
+### 1. Requirements flow (user files a new requirement)
 
-触发：用户提出新需求 / 功能想法
+Trigger: the user raises a new requirement / feature idea
 
-1. 调用 `@.agents/agents/product-manager.md`
-2. PM 分析需求、必要时提问澄清
-3. PM 整理为结构化需求文档，写入 `docs/pm/features/F<编号>-<短描述>.md`
-4. 工程团队分析需求、生成技术方案
-5. 技术方案写入 `docs/tasks/<feat-任务名>/plan.md`
-6. 状态流转：提案 → 接受 / 拒绝 → 已合并
+1. Invoke `@.agents/agents/product-manager.md`
+2. PM analyzes the requirement, asking clarifying questions when needed
+3. PM writes it up as a structured proposal in `docs/pm/features/F<number>-<short-description>.md`
+4. Engineering analyzes the requirement and produces the technical plan
+5. The plan goes to `docs/tasks/<feat-task-name>/plan.md`
+6. Status flow: proposal → accepted / rejected → merged
 
-### 2. 缺陷流程（用户提问题 / bug 时）
+### 2. Defect flow (user reports an issue)
 
-触发：用户报告问题、bug 或异常行为
+Trigger: the user reports a problem, bug, or unexpected behavior
 
-1. 调用 `@.agents/agents/tester.md`
-2. Tester 复现问题、分析根因
-3. Tester 给出最佳修复方案（含修改建议、回归测试要点）
-4. 修改方案写入 `docs/tasks/<fix-任务名>/plan.md`
-5. 落地修改并验证
+1. Invoke `@.agents/agents/tester.md`
+2. Tester reproduces the issue and analyzes the root cause
+3. Tester proposes the best fix (change suggestions + regression test points)
+4. The fix plan goes to `docs/tasks/<fix-task-name>/plan.md`
+5. Apply and verify the fix
 
-### 3. 代码审查流程（开发完成后）
+### 3. Code review flow (after development)
 
-触发：开发完成、新代码待入库
+Trigger: development done, new code awaiting merge
 
-1. 自动调用 `@.agents/agents/code-reviewer.md`
-2. Reviewer 按 7 个维度审查：正确性 / 安全 / 性能 / 可维护性 / 可读性 / 测试覆盖 / 最佳实践
-3. 严重问题（🔴）必须修复后再合入
-4. 审查报告写入 `docs/tasks/任务名/review.md`
+1. Automatically invoke `@.agents/agents/code-reviewer.md`
+2. Reviewer audits across 7 dimensions: correctness / security / performance / maintainability / readability / test coverage / best practices
+3. Critical issues (🔴) must be fixed before merging
+4. The review report goes to `docs/tasks/<task-name>/review.md`
 
-## 术语约定
+## Specialized skills
 
-- commit / rebase / merge / conflict / provider / prompt / BYOK / worktree 等技术词保留英文
-- 中文用于叙述与判断
-- 引用外部资料必须带 URL
+- **gitwave-release** (`/gitwave-release`): version bump and release synchronization (the 4 hardcoded version spots, README status, the site pages) — use it whenever bumping a version, cutting a release, or syncing README / site content
+
+## Terminology
+
+- Technical terms like commit / rebase / merge / conflict / provider / prompt / BYOK / worktree stay in English
+- Citations of external material must include a URL
+
+## Documentation languages
+
+Docs may be written in Chinese or English; agent-facing guides (like this file) are kept in English. Historical Chinese docs are not batch-translated. The app UI itself remains bilingual (Chinese / English).

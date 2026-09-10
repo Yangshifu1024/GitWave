@@ -18,18 +18,9 @@
     <meta name="twitter:card" content="summary" />
     <link rel="canonical" href="https://gitwave.work/" />
     <link rel="alternate" hreflang="en" href="https://gitwave.work/" />
-    <link rel="alternate" hreflang="zh-CN" href="https://gitwave.work/zh-CN/" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f7" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0d" />
-    <script>
-      // Chinese-browser visitors go straight to the Chinese page; no manual
-      // language toggle by design (F010). Direct visits to /zh-CN/ stay put,
-      // so there is no redirect loop.
-      if (navigator.language && navigator.language.toLowerCase().startsWith("zh")) {
-        location.replace("/zh-CN/" + location.search + location.hash);
-      }
-    </script>
     <style>
       :root {
         --accent: #007aff;
@@ -404,7 +395,7 @@
     <header class="hero">
       <div class="wrap">
         <img class="app-icon" src="/icon.png" alt="GitWave app icon" width="104" height="104" />
-        <div class="badge">v0.7.11 · 2026-09-09</div>
+        <div class="badge">v0.7.12 · 2026-09-10</div>
         <h1>GitWave</h1>
         <p class="tagline">A local-first Git client with AI collaboration.</p>
         <p class="sub">
@@ -607,8 +598,9 @@
               checks, a native macOS menu bar, a command palette that searches commits by message or
               author, in-app auto-updates, an in-app auth prompt for remotes that challenge for
               credentials, time-boxed cancellable network syncs, system-proxy-aware networking with
-              a manual override, adjustable UI / monospace font sizes and a Chinese / English
-              interface — all in one app.
+              a manual override, one-click open of the active repo in your file manager or terminal,
+              adjustable UI / monospace font sizes and a Chinese / English interface — all in one
+              app.
             </p>
           </div>
         </div>
@@ -690,7 +682,7 @@
           </div>
         </div>
         <p class="dl-note">
-          Latest release: v0.7.11 ·
+          Latest release: v0.7.12 ·
           <a
             href="https://github.com/Yangshifu1024/GitWave/releases/latest"
             target="_blank"
