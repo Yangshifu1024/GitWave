@@ -127,9 +127,7 @@ fn find_in_path(prog: &str) -> Option<std::path::PathBuf> {
 /// child's cwd, so entries that take no dir flag (cmd.exe, `$TERMINAL`,
 /// kitty / alacritty / foot) still start in the repo.
 fn detect_terminal_command() -> Option<(String, Vec<String>)> {
-    let dir_arg = |flags: &[&str]| -> Vec<String> {
-        flags.iter().map(|f| f.to_string()).collect()
-    };
+    let dir_arg = |flags: &[&str]| -> Vec<String> { flags.iter().map(|f| f.to_string()).collect() };
     if cfg!(target_os = "windows") {
         if find_in_path("wt.exe").is_some() {
             Some(("wt.exe".into(), vec!["-d".into()]))
@@ -144,7 +142,9 @@ fn detect_terminal_command() -> Option<(String, Vec<String>)> {
                 let p = std::path::Path::new(p);
                 let p = p
                     .strip_prefix("~")
-                    .map(|rest| std::env::var("HOME").map(|h| std::path::PathBuf::from(h).join(rest)))
+                    .map(|rest| {
+                        std::env::var("HOME").map(|h| std::path::PathBuf::from(h).join(rest))
+                    })
                     .unwrap_or_else(|_| Ok(p.to_path_buf()));
                 p.map(|p| p.exists()).unwrap_or(false)
             });
@@ -186,8 +186,8 @@ fn open_in_terminal(path: String) -> Result<(), String> {
     if !dir.is_dir() {
         return Err(format!("not a directory: {path}"));
     }
-    let (prog, mut args) = detect_terminal_command()
-        .ok_or_else(|| "no terminal emulator found".to_string())?;
+    let (prog, mut args) =
+        detect_terminal_command().ok_or_else(|| "no terminal emulator found".to_string())?;
     // cmd.exe / `$TERMINAL` pass no dir flag — their argv stays empty so the
     // cwd (set below) is the only directory source; everything else takes the
     // repo as its final argument.
@@ -203,14 +203,19 @@ fn open_in_terminal(path: String) -> Result<(), String> {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         // wt.exe relays to WindowsTerminal.exe and exits; a hidden relay avoids
         // a console flash. cmd.exe needs a real new console of its own.
-        cmd.creation_flags(if prog == "wt.exe" { CREATE_NO_WINDOW } else { CREATE_NEW_CONSOLE });
+        cmd.creation_flags(if prog == "wt.exe" {
+            CREATE_NO_WINDOW
+        } else {
+            CREATE_NEW_CONSOLE
+        });
     }
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         unsafe { cmd.process_group(0) };
     }
-    cmd.spawn().map_err(|e| format!("failed to launch {prog}: {e}"))?;
+    cmd.spawn()
+        .map_err(|e| format!("failed to launch {prog}: {e}"))?;
     Ok(())
 }
 
