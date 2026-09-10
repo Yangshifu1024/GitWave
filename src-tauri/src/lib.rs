@@ -212,7 +212,7 @@ fn open_in_terminal(path: String) -> Result<(), String> {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        unsafe { cmd.process_group(0) };
+        cmd.process_group(0);
     }
     cmd.spawn()
         .map_err(|e| format!("failed to launch {prog}: {e}"))?;
