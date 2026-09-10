@@ -260,41 +260,6 @@
         color: var(--text-2);
       }
 
-      /* privacy band */
-      .privacy {
-        text-align: center;
-      }
-      .privacy .lock {
-        margin: 0 auto 16px;
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: color-mix(in srgb, var(--accent) 12%, transparent);
-        color: var(--accent);
-      }
-      .privacy h2 {
-        font-size: clamp(26px, 4vw, 32px);
-        font-weight: 700;
-        letter-spacing: -0.015em;
-      }
-      .privacy p {
-        margin: 16px auto 0;
-        max-width: 640px;
-        color: var(--text-2);
-        font-size: 16px;
-      }
-      .privacy code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 13px;
-        background: var(--bg-subtle);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        padding: 1px 6px;
-      }
-
       /* download */
       .download {
         background: var(--bg-subtle);
@@ -518,12 +483,9 @@
             </div>
             <h3>History &amp; branches</h3>
             <p>
-              A fork-style commit graph with blame, reflog and tags. Create, switch, rename and
-              delete branches; double-click a remote branch to create its tracked local branch and
-              switch to it; push and pull with confirmation across any remote, plus ahead/behind
-              counts. Right-click menus on commits, badges and branches — checkout, cherry-pick,
-              revert, reset, tracking and more. Ref badges merge a tracked remote into a single
-              synced badge, and the graph runs on a nine-color lane palette.
+              A fork-style commit graph with blame, reflog and tags. Full branch operations,
+              double-click a remote branch to check it out as a tracked local, and right-click menus
+              on commits and refs — checkout, cherry-pick, revert, reset and more.
             </p>
           </div>
           <div class="card">
@@ -594,43 +556,12 @@
             </div>
             <h3>Batteries included</h3>
             <p>
-              Stash, interactive rebase, worktrees, submodules, LFS, SSH key management, repo health
-              checks, a native macOS menu bar, a command palette that searches commits by message or
-              author, in-app auto-updates, an in-app auth prompt for remotes that challenge for
-              credentials, time-boxed cancellable network syncs, system-proxy-aware networking with
-              a manual override, one-click open of the active repo in your file manager or terminal,
-              adjustable UI / monospace font sizes and a Chinese / English interface — all in one
-              app.
+              Stash, interactive rebase, worktrees, submodules, LFS, SSH key management, a command
+              palette, auto-updates and system-proxy-aware networking. One click opens the active
+              repo in your file manager or terminal — all in one app.
             </p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section class="privacy">
-      <div class="wrap">
-        <div class="lock">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="3" y="11" width="18" height="11" rx="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-        </div>
-        <h2>Private by design</h2>
-        <p>
-          GitWave is local-first by architecture: diffs never leave your machine unless you
-          explicitly send them to the AI provider <em>you</em> configured. HTTPS credentials go
-          through your <code>git credential helper</code>, SSH through your configured keys.
-        </p>
       </div>
     </section>
 
