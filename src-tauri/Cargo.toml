@@ -37,7 +37,7 @@ thiserror = "2"
 anyhow = "1"
 
 # Sprint 2 step 6: persistence + git backend
-dirs = "6"
+dirs = "7"
 rusqlite = { version = "0.40", features = ["bundled"] }
 # `ssh` compiles the libssh2 transport into vendored libgit2 — without it
 # SSH remotes fail on every platform. libssh2 speaks to ssh-agent via
