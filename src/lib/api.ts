@@ -171,6 +171,16 @@ export function openDataDir(): Promise<void> {
   return invoke<void>("open_data_dir");
 }
 
+/** Open a repo working tree in the OS file manager (Finder / Explorer / …). */
+export function openInFileManager(path: string): Promise<void> {
+  return invoke<void>("open_in_file_manager", { path });
+}
+
+/** Open a repo working tree in a detected terminal emulator, cwd = repo. */
+export function openInTerminal(path: string): Promise<void> {
+  return invoke<void>("open_in_terminal", { path });
+}
+
 /** Quit the whole application (File → Exit; not tied to window close). */
 export function quitApp(): Promise<void> {
   return invoke<void>("quit_app");

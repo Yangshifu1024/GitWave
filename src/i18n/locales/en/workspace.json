@@ -10,6 +10,14 @@
     },
     "itemRenameAria": "Rename {{name}}",
     "itemDeleteAria": "Delete {{name}}",
+    "openFileManager": {
+      "label": "Files",
+      "title": "Reveal in file manager"
+    },
+    "openTerminal": {
+      "label": "Terminal",
+      "title": "Open in terminal"
+    },
     "create": {
       "namePlaceholder": "Workspace name",
       "submit": "Create"
