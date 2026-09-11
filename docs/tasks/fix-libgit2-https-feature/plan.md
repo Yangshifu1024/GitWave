@@ -20,9 +20,10 @@ macOS 打包产物里 HTTPS fetch 弹窗报错:
 
 1. `src-tauri/Cargo.toml`:git2 features 增加 `"https"`,注释说明 0.21 起
    default features 为空。
-2. CI 护栏:`.github/workflows/test.yml` rust-test job 在 `cargo test` 后
-   grep 构建产物 `git2_features.h`,断言 `#define GIT_HTTPS 1`,防止下次
-   依赖升级再次静默丢 TLS。
+2. CI 护栏(两层,防 rust-cache 旧构建目录误报):
+   - `cargo tree -e features` 断言 `git2 feature "https"` 仍在依赖图里(确定性);
+   - 扫描全部 `git2_features.h`,任一含 `#define GIT_HTTPS 1` 即通过
+     (`find -print -quit` 会命中缓存里旧 feature set 的头文件,不可用)。
 
 ## Verification
 
