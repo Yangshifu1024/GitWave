@@ -43,10 +43,15 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # SSH remotes fail on every platform. libssh2 speaks to ssh-agent via
 # SSH_AUTH_SOCK on unix and the OpenSSH Agent named pipe on Windows, so
 # `Cred::ssh_key_from_agent` works on both once the feature is on.
+# `https` compiles a TLS transport into vendored libgit2 (Secure Transport
+# on macOS, OpenSSL elsewhere) — without it every HTTPS fetch fails with
+# "there is no TLS stream available; class=Ssl (16)". Both features must be
+# declared explicitly: git2 0.21 changed `default` from ["ssh", "https"]
+# to [].
 # `vendored-openssl` static-links OpenSSL: libssh2-sys pulls openssl-sys,
 # which on macOS otherwise links Homebrew's libssl and the app crashes on
 # launch (missing dylib / Team-ID mismatch under library validation).
-git2 = { version = "0.21", features = ["vendored-libgit2", "ssh", "vendored-openssl"] }
+git2 = { version = "0.21", features = ["https", "vendored-libgit2", "ssh", "vendored-openssl"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 # `system-proxy` lets reqwest read the OS proxy (Windows registry / macOS
 # SystemConfiguration) as a fallback on top of the env vars injected by
