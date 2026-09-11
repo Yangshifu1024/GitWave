@@ -1439,7 +1439,7 @@ dependencies = [
 
 [[package]]
 name = "gitwave"
-version = "0.7.12"
+version = "0.7.13"
 dependencies = [
  "anyhow",
  "dirs 7.0.0",
