@@ -55,6 +55,34 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test --all-targets
+      # Guards against silently losing TLS in vendored libgit2 (git2 0.21
+      # dropped `https` from default features; the app then fails every
+      # HTTPS fetch with "there is no TLS stream available; class=Ssl (16)").
+      # Layer 1 is deterministic: the feature must be resolved in the graph.
+      - name: Assert git2 keeps the https feature
+        working-directory: src-tauri
+        shell: bash
+        run: cargo tree -e features | grep -q 'git2 feature "https"'
+      # Layer 2 checks the compiled output. The rust-cache keeps stale
+      # libgit2-sys build dirs from older feature sets, so scan every header
+      # and pass if any was built with HTTPS instead of picking one blindly.
+      - name: Assert libgit2 built with a TLS transport
+        shell: bash
+        run: |
+          found=0
+          for header in $(find src-tauri/target -path '*/out/include/git2_features.h'); do
+            found=1
+            if grep -q '^#define GIT_HTTPS 1$' "$header"; then
+              grep '^#define GIT_\(SECURE_TRANSPORT\|WINHTTP\|OPENSSL\) 1$' "$header" || true
+              exit 0
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "::error::git2_features.h not found under src-tauri/target — did the libgit2-sys build script run?"
+          else
+            echo "::error::git2_features.h lacks GIT_HTTPS — vendored libgit2 has no TLS transport; is the git2 'https' feature still enabled in src-tauri/Cargo.toml?"
+          fi
+          exit 1
 
   frontend-test:
     name: Frontend test (${{ matrix.os }})
