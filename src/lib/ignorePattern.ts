@@ -21,7 +21,9 @@ export function deriveIgnorePatterns(path: string): IgnorePatterns {
   const segments = trimmed.split("/");
   const name = segments[segments.length - 1] ?? path;
 
-  const patterns: IgnorePatterns = { full: path };
+  // `full` uses the normalized form so every option derives from the same
+  // canonical input (a `foo/` input yields `full: "foo"` + parent dir).
+  const patterns: IgnorePatterns = { full: trimmed };
 
   const dir = segments.slice(0, -1).join("/");
   if (dir) patterns.dir = `${dir}/`;

@@ -28,8 +28,9 @@
   守卫抽纯函数单测（组件测试太重不做）。
 - `updaterStore.ts` 加 `checkEpoch`，`useUpdater.ts:70 checkForUpdate` await 后比对 epoch 再写状态；
   `fail/markReady` 顺手清理残留字段（见 3.6）。
-- `useRemoteSync.ts:42-63`：`listen().catch(() => { syncListenerReady = false; 退避重试（1s 起，上限 30s）})`
-  两处；存 `UnlistenFn` 供 HMR 清理。
+- `useRemoteSync.ts:42-63`：双通道任一失败即回滚已挂通道并指数退避重试（1s 起，上限 30s）；
+  注册以模块级 promise 去重（StrictMode 双挂载/并发挂载共享一次注册），
+  存 `UnlistenFn` 并导出 `teardownSyncProgressListener` 供 unmount/HMR 清理。
 
 ### 3.5 展示层失真
 - `ConflictPanel.tsx:66 openFile` 加 `seqRef` 守卫（请求序号，不符丢弃；面板 open 变化时自增失效旧请求）。
@@ -66,8 +67,9 @@
 - `formatAppError` 由 allowlist 改为** blocklist**：保留键名本身是字母数字，
   allowlist 拦不住 `keySeparator`（已由新增单测证实）；`count` 保留给复数模板，
   且数值一并透传（复数规则需要 number）。
-- 双 Modal 会话守卫对缺失 context fail-open（等价旧行为）；`nextSyncRequestId`
-  以 wall clock 为种子防 HMR 复用。
+- 双 Modal 会话守卫对缺失 context **fail-closed**（`!context ||` 短路：context 缺失时放弃写入，
+  不再等价旧行为的放行）；`nextSyncRequestId` 以 wall clock + 随机盐为种子防 HMR 复用。
+- `ConflictPanel` 面板 open 变化（关闭）时自增 `seqRef` 失效在途请求，与 plan 3.5 原设计一致。
 - `diff.ts` 用 `platform.ts isWindows()`（`process` 在 webview 不可用）；
   slash 测试按 UA 分测 Win/POSIX。
 - `CommitExplainModal` 顺手加同款 session 守卫（与 PrDescriptionModal 同形）。

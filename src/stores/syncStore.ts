@@ -24,9 +24,11 @@ const UI_OPERATIONS: readonly ActiveOperation[] = [
   "remote-op",
 ];
 
-// Seeded by wall clock so an HMR module reload (which re-runs this module)
-// cannot recycle ids of still in-flight operations from before the reload.
+// Seeded by wall clock + a random suffix so an HMR module reload (which
+// re-runs this module) cannot recycle ids of still in-flight operations
+// from before the reload — the clock seed alone only makes reuse unlikely.
 let syncRequestSeq = Date.now() % 1_000_000;
+const idSalt = Math.random().toString(36).slice(2, 8);
 
 /** Caller-generated operation instance id. The starter passes it both to
  * `startOp` and to the backend invoke options, so progress events (stamped
@@ -34,7 +36,7 @@ let syncRequestSeq = Date.now() % 1_000_000;
  * overlapping operations can no longer overwrite each other's progress. */
 export function nextSyncRequestId(op: ActiveOperation): string {
   syncRequestSeq += 1;
-  return `${op}-${syncRequestSeq}`;
+  return `${op}-${syncRequestSeq}-${idSalt}`;
 }
 
 /** Human label for an in-flight operation ("Pulling changes…"). Translated at
@@ -136,8 +138,16 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       return;
     }
     set({ fading: true });
+    const endedRequestId = activeRequestId;
     setTimeout(() => {
-      if (get().fading && get().activeOp === op) {
+      // `endedRequestId` guards a back-to-back same-name op: without it, the
+      // old timer firing between the new op's own endOp and its fade would
+      // clear the new occupant's slot early.
+      if (
+        get().fading &&
+        get().activeOp === op &&
+        get().activeRequestId === endedRequestId
+      ) {
         set({
           activeOp: null,
           activeRemote: null,

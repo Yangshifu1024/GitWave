@@ -1,54 +1,35 @@
+# Review · fix-frontend-sync-races（7d4eddf + 生命周期收尾提交）
+
+> 最终态审查记录。初审报告的发现已逐项核对最终代码；本收尾提交修复了
+> 初审遗留的监听器生命周期/守卫方向问题，并同步了 plan 偏差节措辞。
+
 ## ✅ 优点
 
-- requestId 全链路闭环完整：starter 生成 → invoke options → cmd → use_cases → remote 打标 → 事件回传 → store 按实例匹配，auth 重试经 `{...variables, auth}` 保持同一 id；`lib.rs` 以 `move` 闭包带走 `String` 所有权，无 `&str` 悬垂。
-- 交错 / 序号单测覆盖到位（syncStore 双实例、updater epoch 单调 + fail 清理 + markReady 开窗）。
+- requestId 全链路闭环完整：starter 生成 → invoke options → cmd → use_cases → remote 打标 → 事件回传 → store 按实例匹配，auth 重试经 `{...variables, auth}` 保持同一 id；调用侧普查 8 处 starter 全部带 id，无串台残留。
+- 交错/序号单测覆盖真实回归路径：superseded 迟到事件被弃、superseded endOp 被忽略、updater epoch 单调 + fail 清理 + markReady 开窗、无 id 旧事件放行（向后兼容有测试）。
 - `platform.ts` 守卫 `typeof navigator === "undefined"`，SSR / 测试默认 POSIX 行为，安全。
-- conflictMarkers 锚定 `7 + (空白|行尾)`：`<<<<<<< HEAD` 命中、`>>>>>>>>>>` 拒绝、CRLF（`\s` 含 `\r`）兼容；`lineStartOffsets` 一次预计算 + 越界回退 `?? resolved.length`。
+- conflictMarkers 锚定 `7 + (空白|行尾)`：`<<<<<<< HEAD` 命中、`>>>>>>>>>>` 拒绝、CRLF 兼容；`lineStartOffsets` 一次预计算。
 
-## 🔴 严重问题（必须修复）
+## 已修复记录
 
-无
+| 初审发现 | 修复方式 |
+|---|---|
+| 🟡 `formatAppError` 数值 `count` 被过滤 | 初审即误报：最终代码（`api.ts:186-197`）放行 `string \| number` 并有注释与单测，无需处理 |
+| 🟡 Modal 会话守卫 fail-open | 本提交：两处改 `!context \|\|` 短路，context 缺失即放弃写入（fail-closed） |
+| 🟡 useRemoteSync 监听器无清理、注册可重复 | 本提交：注册改为 async/await + 模块级 promise 去重（StrictMode 双挂载共享一次注册）；双通道任一失败回滚已挂通道后指数退避重试；导出 `teardownSyncProgressListener`，unmount/HMR 释放全部监听 |
+| 🟡 ConflictPanel「open 变化自增 seqRef」未实现 | 本提交：`useEffect([open])` 关闭分支自增 `seqRef`，在途响应不再写穿重开后的面板；plan 偏差节措辞已同步 |
+| 🟡 `nextSyncRequestId` HMR 后 id 复用 | 本提交：wall clock 种子 + 随机盐后缀 |
+| 🟢 SshKeyManager 轮询 timer 卸载延迟清理 | 本提交：timer 句柄入 ref，卸载 effect 直接 `clearInterval` |
+| 🟢 endOp fade 定时器同名 op 背靠背隐患 | 本提交：timer 闭包捕获 `endedRequestId`，触发时校验 `activeRequestId` 未变 |
+| 🟢 ignorePattern `full` 与 `dir` 推导不自洽 | 本提交：`full` 统一用 `trimmed`（既有测试无空白/尾斜杠输入，语义不变），加注释 |
+| 🟢 commitMenu 1970 前提交显示 unknown date | 本提交：仅对 `NaN/Infinity` 回退，负时间戳照常格式化 |
 
-## 🟡 一般问题（建议修复）
+## 遗留（不阻断，可后续处理）
 
-- **位置**：`src/lib/api.ts` formatAppError
-- **描述**：blocklist 本身完备（`ns/lng/keySeparator/interpolation/context` 等 24 项，`count` 依约保留），但新增 `typeof value === "string"` 过滤把数值型 `count` 一并丢掉，复数模板（`_one/_other`）收不到 `count`，与偏差节"count 保留给复数模板"的承诺矛盾；其它数值 params 行为亦静默变更。
-- **建议**：放行 `string | number`（或至少特判 `count` 为 number 时保留）。
-
-- **位置**：`src/components/PrDescriptionModal.tsx` / `CommitExplainModal.tsx` 会话守卫
-- **描述**：`if (context && context.session !== sessionRef.current) return` 为 fail-open；`context` 缺失（理论上 `onMutate` 未执行即回调）时陈旧响应直接写穿。
-- **建议**：改为 `if (!context || context.session !== sessionRef.current) return`，或注明 `onMutate` 必执行的假设。
-
-- **位置**：`src/hooks/useRemoteSync.ts` syncUnlisten
-- **描述**：`syncUnlisten` 仅用于第二通道失败回滚，无 unmount / HMR 清理路径；HMR 重载后旧监听泄漏且模块级变量重置。
-- **建议**：导出清理函数或在 effect 返回中调用；生产单实例影响小，可注明为 dev-only。
-
-- **位置**：`src/stores/syncStore.ts` nextSyncRequestId
-- **描述**：模块级自增序列在 HMR 重载后归零，飞行中操作可能出现 id 复用（生产无 HMR，仅开发期风险）。
-- **建议**：加随机后缀（如 `${op}-${seq}-${Math.random().toString(36).slice(2)}`）或在注释声明 dev-only 约束。
-
-- **位置**：`src/lib/ignorePattern.ts` deriveIgnorePatterns
-- **描述**：`dir` 由 `trimmed` 推导，`full` 却保留原始 `path`（含尾部斜杠/空白），`full: "foo/"` 与 `dir: undefined` 自相矛盾。
-- **建议**：`full` 同样用 `trimmed`，或注释说明保留原串是有意为之。
-
-- **位置**：`docs/tasks/fix-frontend-sync-races/plan.md` 实施偏差节
-- **描述**："面板 open 变化时自增失效旧请求"与实现不符——`ConflictPanel` 仅在 `openFile` 调用时递增 `seqRef`，open 变化只靠 `openRef` 拦截，无自增。
-- **建议**：修正措辞为"close 后响应经 openRef 丢弃；重开同文件经新 seq 丢弃"，其余偏差描述与 diff 一致。
-
-## 🟢 优化建议（可选）
-
-- **位置**：`src/components/SshKeyManager.tsx` startAgent 轮询
-- **描述**：卸载后靠下一次 tick（最长 2s）才 `clearInterval`，timer 句柄未存 ref 直接清理。
-- **建议**：将 timer 存入 ref，卸载 effect 中直接 `clearInterval`。
-
-- **位置**：`src/stores/syncStore.ts` endOp fade 定时器
-- **描述**：超时回调只比对 `activeOp === op` 不比对 `requestId`，今日靠 `fading` 标志已安全，但同名 op 背靠背结束时旧 timer 可能清掉新 occupant 的残留态。
-- **建议**：闭包捕获 `requestId` 并比对 `activeRequestId`，加固。
-
-- **位置**：`src/lib/commitMenu.ts` copyCommitInfoText
-- **描述**：1970 年前提交（负时间戳）显示 "(unknown date)"，属装饰性误伤。
-- **建议**：仅对 `NaN/Infinity` 回退，负值照常格式化；不改亦可。
+- 🟢 `WorkspaceRepoTabs` 守卫仅覆盖 workspace 维度，同 workspace 内快速连点两个 repo 的两次 IPC 交错仍是后者先落地被前者覆盖——plan 范围外既有行为，记录备查。
+- 🟢 `useRemoteSync` 重试逻辑、ConflictPanel/WorkspaceRepoTabs 守卫无组件级测试（项目无组件测试设施，靠 typecheck + lint + 手动验证）。
+- 🟢 多 remote fetch-all 共享一个 id 的正确性靠推理（后端顺序发射、store 单槽），未做专项测试。
 
 ## 📝 总体评价
 
-改动围绕"按实例而非按名匹配"主线，链路、守卫、测试三者对齐，3.6 打包项均有独立注释与单测，无 PJ 级风险。优先修复 `formatAppError` 数值 `count` 被过滤一处（唯一与注释承诺相悖的行为变更），其余为文档措辞与 dev-only 加固。
+核心竞态修复（按实例而非按名匹配）链路、守卫、测试三者对齐；本收尾提交补齐了 plan 承诺的监听器清理与守卫方向修正。`pnpm test`、`tsc --noEmit`、`pnpm lint` 全绿。

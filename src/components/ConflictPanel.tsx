@@ -93,6 +93,9 @@ export function ConflictPanel({
   // Clear in-progress state while hidden so reopening starts fresh.
   useEffect(() => {
     if (!open) {
+      // Invalidate any in-flight load: a response racing the close must not
+      // write into the freshly cleared panel right after a reopen.
+      seqRef.current += 1;
       setSelected(null);
       setSides(null);
       setExplain(null);

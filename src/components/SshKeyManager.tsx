@@ -64,7 +64,16 @@ export function SshKeyManager(): React.JSX.Element {
   );
 
   // After the UAC request is handed off, poll the agent for ~16s — the
-  // elevated process itself is not observable from the app.
+  // elevated process itself is not observable from the app. The timer
+  // handle lives in a ref so unmount clears it immediately instead of
+  // waiting for the next tick to notice `mountedRef`.
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(
+    () => () => {
+      if (pollTimerRef.current !== null) clearInterval(pollTimerRef.current);
+    },
+    [],
+  );
   const startAgent = (): void => {
     setActionError(null);
     void startSshAgentService()
@@ -92,6 +101,7 @@ export function SshKeyManager(): React.JSX.Element {
             }
           });
         }, 2000);
+        pollTimerRef.current = timer;
       })
       .catch((e: unknown) => {
         if (mountedRef.current) setActionError(formatAppError(e));

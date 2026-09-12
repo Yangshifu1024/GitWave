@@ -21,8 +21,9 @@ export function copyCommitInfoText(
   commit: Pick<CommitSummary, "sha" | "author" | "time" | "message_summary">,
 ): string {
   const millis = commit.time * 1000;
-  const date =
-    Number.isFinite(millis) && millis >= 0 ? new Date(millis).toLocaleString() : "(unknown date)";
+  // Guard only against the undefined-representable values; pre-1970
+  // (negative) timestamps are real commits and render normally.
+  const date = Number.isFinite(millis) ? new Date(millis).toLocaleString() : "(unknown date)";
   return `${commit.sha}\nAuthor: ${commit.author}\nDate: ${date}\n\n${commit.message_summary}`;
 }
 

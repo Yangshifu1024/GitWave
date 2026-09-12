@@ -39,49 +39,68 @@ const FAILURE_KEYS = {
   push: "status.sync.pushFailed",
 } as const;
 
-let syncListenerReady = false;
-let syncUnlisten: (() => void) | null = null;
+let syncRetryMs = 1000;
+let syncRegistering: Promise<void> | null = null;
+const syncUnlisteners: Array<() => void> = [];
 
-function ensureSyncProgressListener(retryMs = 1000): void {
-  if (syncListenerReady) return;
-  const next = Math.min(retryMs * 2, 30_000);
-  const retry = (): void => {
-    setTimeout(() => ensureSyncProgressListener(next), retryMs);
-  };
-  listen<SyncProgress>("sync-progress", (event) => {
-    useSyncStore.getState().updateProgress(event.payload);
-  }).then(
-    (unlisten) => {
-      syncUnlisten = unlisten;
+async function registerSyncListeners(): Promise<boolean> {
+  try {
+    const unlistenProgress = await listen<SyncProgress>("sync-progress", (event) => {
+      useSyncStore.getState().updateProgress(event.payload);
+    });
+    try {
       // How accepted credentials were persisted (F012 fix: the system helper
       // can silently drop them). The backend confirms with `stored` — the
       // common case stays quiet; anything else gets a status-area note so a
       // persistence failure never resurfaces as a mysterious prompt loop.
-      listen<CredentialStorageOutcome>("credential-storage", (event) => {
-        const t = i18next.t.bind(i18next);
-        const setStatus = useStatusAreaStore.getState().setStatus;
-        if (event.payload === "fallback") {
-          setStatus(t("status.sync.credentialFallback"), "info");
-        } else if (event.payload === "failed") {
-          setStatus(t("status.sync.credentialSaveFailed"), "danger");
-        }
-      }).then(
-        () => {
-          syncListenerReady = true;
-        },
-        () => {
-          // Second channel failed: roll back the first and retry both, so a
-          // half-attached listener can never go unnoticed.
-          syncUnlisten?.();
-          syncUnlisten = null;
-          retry();
+      const unlistenCredential = await listen<CredentialStorageOutcome>(
+        "credential-storage",
+        (event) => {
+          const t = i18next.t.bind(i18next);
+          const setStatus = useStatusAreaStore.getState().setStatus;
+          if (event.payload === "fallback") {
+            setStatus(t("status.sync.credentialFallback"), "info");
+          } else if (event.payload === "failed") {
+            setStatus(t("status.sync.credentialSaveFailed"), "danger");
+          }
         },
       );
-    },
-    // Startup race (event system not ready): retry with backoff instead of
-    // leaving both channels dead for the whole session.
-    () => retry(),
-  );
+      // Both channels attached: keep them until teardown (StrictMode
+      // double-mount, HMR reload). Concurrent callers share this single
+      // registration via `syncRegistering`, so callbacks never duplicate.
+      syncUnlisteners.push(unlistenProgress, unlistenCredential);
+      return true;
+    } catch {
+      // Second channel failed: roll back the first and retry both, so a
+      // half-attached listener can never go unnoticed.
+      unlistenProgress();
+      return false;
+    }
+  } catch {
+    // First channel failed (startup race: event system not ready).
+    return false;
+  }
+}
+
+function ensureSyncProgressListener(): void {
+  if (syncUnlisteners.length > 0 || syncRegistering !== null) return;
+  syncRegistering = registerSyncListeners().then((ok) => {
+    syncRegistering = null;
+    if (!ok) {
+      // Retry with exponential backoff instead of leaving both channels
+      // dead for the whole session.
+      setTimeout(ensureSyncProgressListener, syncRetryMs);
+      syncRetryMs = Math.min(syncRetryMs * 2, 30_000);
+    } else {
+      syncRetryMs = 1000;
+    }
+  });
+}
+
+/** Release the listeners on unmount/HMR. Safe to call repeatedly and while
+ * a registration is still in flight (it then owns the next registration). */
+export function teardownSyncProgressListener(): void {
+  for (const unlisten of syncUnlisteners.splice(0)) unlisten();
 }
 
 export interface UseRemoteSyncResult {
@@ -103,6 +122,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   useEffect(() => {
     ensureSyncProgressListener();
+    return () => teardownSyncProgressListener();
   }, []);
 
   const invalidate = () => {

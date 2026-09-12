@@ -39,7 +39,7 @@ export function CommitExplainModal({
     mutationFn: () => explainCommit(workspaceId, sha),
     onMutate: () => ({ session: sessionRef.current }),
     onSuccess: (res, _variables, context) => {
-      if (context && context.session !== sessionRef.current) return;
+      if (!context || context.session !== sessionRef.current) return;
       setText(res.text);
       setProvider(res.provider_used);
       setError(null);
@@ -48,7 +48,7 @@ export function CommitExplainModal({
       }
     },
     onError: (e, _variables, context) => {
-      if (context && context.session !== sessionRef.current) return;
+      if (!context || context.session !== sessionRef.current) return;
       setError(formatAppError(e));
     },
   });

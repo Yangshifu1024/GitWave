@@ -37,7 +37,7 @@ export function PrDescriptionModal({
     mutationFn: () => generatePrDescription(workspaceId),
     onMutate: () => ({ session: sessionRef.current }),
     onSuccess: (res, _variables, context) => {
-      if (context && context.session !== sessionRef.current) return;
+      if (!context || context.session !== sessionRef.current) return;
       setTitle(res.title);
       setBody(res.body);
       setProvider(res.provider_used);
@@ -47,7 +47,7 @@ export function PrDescriptionModal({
       }
     },
     onError: (e, _variables, context) => {
-      if (context && context.session !== sessionRef.current) return;
+      if (!context || context.session !== sessionRef.current) return;
       setError(formatAppError(e));
     },
   });
