@@ -112,7 +112,12 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
   };
 
   const activateRepo = async (repoId: string): Promise<void> => {
+    const myWs = activeWorkspaceId;
     await setActiveRepo(activeWorkspaceId!, repoId);
+    // The IPC round trip races workspace switches — a late landing must not
+    // write another workspace's repo id into this one (same stale-guard
+    // pattern as the liveness effect below).
+    if (useWorkspaceUiStore.getState().activeWorkspaceId !== myWs) return;
     setActiveRepoId(repoId);
     void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
   };

@@ -35,12 +35,24 @@ export function InteractiveRebaseDialog({
 
   useEffect(() => {
     if (!open) return;
+    // Session guard: a slow plan from a previous open must not overwrite
+    // the current dialog's todos.
+    let cancelled = false;
     setLoading(true);
     setError(null);
     planInteractiveRebase(workspaceId, upstream)
-      .then(setTodos)
-      .catch((e) => setError(formatAppError(e)))
-      .finally(() => setLoading(false));
+      .then((todos) => {
+        if (!cancelled) setTodos(todos);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(formatAppError(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, workspaceId, upstream]);
 
   const move = (from: number, to: number) => {

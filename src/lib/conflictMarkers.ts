@@ -22,10 +22,16 @@ export interface ConflictRegion {
   closed: boolean;
 }
 
-const OURS_MARKER = /^<{7}/;
-const THEIRS_MARKER = /^>{7}/;
+/**
+ * Exactly 7 marker chars followed by whitespace or end-of-line. Longer runs
+ * (`>>>>>>>>>>` in C++ sources) are content, not markers — libgit2 only
+ * recognizes 7. `\s` (not a literal space) keeps bare markers working in
+ * CRLF files, whose lines end with `\r` after splitting on `\n`.
+ */
+const OURS_MARKER = /^<{7}(?:\s|$)/;
+const THEIRS_MARKER = /^>{7}(?:\s|$)/;
 /** diff3-style base separator between ours and base content. */
-const BASE_MARKER = /^\|{7}/;
+const BASE_MARKER = /^\|{7}(?:\s|$)/;
 /** `\r?` so the separator still classifies in CRLF files (split on "\n"). */
 const SEPARATOR = /^={7}\r?$/;
 
@@ -68,13 +74,26 @@ export function findConflictRegions(text: string): ConflictRegion[] {
   return regions;
 }
 
-/** 0-based line index → character offset of that line's start in `text`. */
-export function lineStartOffset(text: string, line: number): number {
+/**
+ * Character offset of every line's start in `text` (plus a trailing
+ * `text.length` sentinel). Compute once and index per region instead of
+ * calling {@link lineStartOffset} per region (O(regions × lines)).
+ */
+export function lineStartOffsets(text: string): number[] {
   const lines = text.split("\n");
+  const offsets: number[] = new Array<number>(lines.length + 1);
   let offset = 0;
-  for (let i = 0; i < Math.min(line, lines.length); i += 1) {
+  for (let i = 0; i < lines.length; i += 1) {
+    offsets[i] = offset;
     offset += (lines[i]?.length ?? 0) + 1; // +1 for the "\n"
   }
   // A line at/after EOF sits at the end of the text (no trailing newline).
-  return Math.min(offset, text.length);
+  offsets[lines.length] = text.length;
+  return offsets;
+}
+
+/** 0-based line index → character offset of that line's start in `text`. */
+export function lineStartOffset(text: string, line: number): number {
+  const starts = lineStartOffsets(text);
+  return starts[Math.min(line, starts.length - 1)] ?? text.length;
 }

@@ -18,7 +18,7 @@ import {
   type PushOptions,
   type SyncProgress,
 } from "@/lib/api";
-import { useSyncStore } from "@/stores/syncStore";
+import { nextSyncRequestId, useSyncStore } from "@/stores/syncStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -39,27 +39,68 @@ const FAILURE_KEYS = {
   push: "status.sync.pushFailed",
 } as const;
 
-let syncListenerReady = false;
+let syncRetryMs = 1000;
+let syncRegistering: Promise<void> | null = null;
+const syncUnlisteners: Array<() => void> = [];
+
+async function registerSyncListeners(): Promise<boolean> {
+  try {
+    const unlistenProgress = await listen<SyncProgress>("sync-progress", (event) => {
+      useSyncStore.getState().updateProgress(event.payload);
+    });
+    try {
+      // How accepted credentials were persisted (F012 fix: the system helper
+      // can silently drop them). The backend confirms with `stored` — the
+      // common case stays quiet; anything else gets a status-area note so a
+      // persistence failure never resurfaces as a mysterious prompt loop.
+      const unlistenCredential = await listen<CredentialStorageOutcome>(
+        "credential-storage",
+        (event) => {
+          const t = i18next.t.bind(i18next);
+          const setStatus = useStatusAreaStore.getState().setStatus;
+          if (event.payload === "fallback") {
+            setStatus(t("status.sync.credentialFallback"), "info");
+          } else if (event.payload === "failed") {
+            setStatus(t("status.sync.credentialSaveFailed"), "danger");
+          }
+        },
+      );
+      // Both channels attached: keep them until teardown (StrictMode
+      // double-mount, HMR reload). Concurrent callers share this single
+      // registration via `syncRegistering`, so callbacks never duplicate.
+      syncUnlisteners.push(unlistenProgress, unlistenCredential);
+      return true;
+    } catch {
+      // Second channel failed: roll back the first and retry both, so a
+      // half-attached listener can never go unnoticed.
+      unlistenProgress();
+      return false;
+    }
+  } catch {
+    // First channel failed (startup race: event system not ready).
+    return false;
+  }
+}
 
 function ensureSyncProgressListener(): void {
-  if (syncListenerReady) return;
-  syncListenerReady = true;
-  void listen<SyncProgress>("sync-progress", (event) => {
-    useSyncStore.getState().updateProgress(event.payload);
-  });
-  // How accepted credentials were persisted (F012 fix: the system helper
-  // can silently drop them). The backend confirms with `stored` — the
-  // common case stays quiet; anything else gets a status-area note so a
-  // persistence failure never resurfaces as a mysterious prompt loop.
-  void listen<CredentialStorageOutcome>("credential-storage", (event) => {
-    const t = i18next.t.bind(i18next);
-    const setStatus = useStatusAreaStore.getState().setStatus;
-    if (event.payload === "fallback") {
-      setStatus(t("status.sync.credentialFallback"), "info");
-    } else if (event.payload === "failed") {
-      setStatus(t("status.sync.credentialSaveFailed"), "danger");
+  if (syncUnlisteners.length > 0 || syncRegistering !== null) return;
+  syncRegistering = registerSyncListeners().then((ok) => {
+    syncRegistering = null;
+    if (!ok) {
+      // Retry with exponential backoff instead of leaving both channels
+      // dead for the whole session.
+      setTimeout(ensureSyncProgressListener, syncRetryMs);
+      syncRetryMs = Math.min(syncRetryMs * 2, 30_000);
+    } else {
+      syncRetryMs = 1000;
     }
   });
+}
+
+/** Release the listeners on unmount/HMR. Safe to call repeatedly and while
+ * a registration is still in flight (it then owns the next registration). */
+export function teardownSyncProgressListener(): void {
+  for (const unlisten of syncUnlisteners.splice(0)) unlisten();
 }
 
 export interface UseRemoteSyncResult {
@@ -81,6 +122,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   useEffect(() => {
     ensureSyncProgressListener();
+    return () => teardownSyncProgressListener();
   }, []);
 
   const invalidate = () => {
@@ -98,8 +140,9 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     retry: (auth: InlineAuth) => void,
     remote?: string,
     canPrompt = true,
+    requestId: string | null = null,
   ) => {
-    useSyncStore.getState().endOp(op);
+    useSyncStore.getState().endOp(op, requestId);
     if (isCancelledSyncError(e)) {
       // User-initiated abort: report neutrally instead of as a failure.
       useStatusAreaStore.getState().setStatus(t("status.sync.cancelled"), "info");
@@ -115,7 +158,8 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   const fetchMut = useMutation({
     mutationFn: (options: FetchOptions | undefined) => fetchRemote(workspaceId!, options),
-    onMutate: (options) => useSyncStore.getState().startOp("fetch", options?.remote),
+    onMutate: (options) =>
+      useSyncStore.getState().startOp("fetch", options?.remote, options?.requestId ?? null),
     onSuccess: () => {
       useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.fetch), "success");
       invalidate();
@@ -135,14 +179,17 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
           ),
         variables?.remote ?? failedRemote,
         variables?.auth === undefined,
+        variables?.requestId ?? null,
       );
     },
-    onSettled: () => useSyncStore.getState().endOp("fetch"),
+    onSettled: (_d, _e, variables) =>
+      useSyncStore.getState().endOp("fetch", variables?.requestId ?? null),
   });
 
   const pullMut = useMutation({
     mutationFn: (options: PullOptions | undefined) => pullRemote(workspaceId!, options),
-    onMutate: (options) => useSyncStore.getState().startOp("pull", options?.remote),
+    onMutate: (options) =>
+      useSyncStore.getState().startOp("pull", options?.remote, options?.requestId ?? null),
     onSuccess: (_data, options) => {
       useStatusAreaStore
         .getState()
@@ -157,13 +204,16 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
         (auth) => pullMut.mutate({ ...(variables ?? {}), auth }),
         variables?.remote,
         variables?.auth === undefined,
+        variables?.requestId ?? null,
       ),
-    onSettled: () => useSyncStore.getState().endOp("pull"),
+    onSettled: (_d, _e, variables) =>
+      useSyncStore.getState().endOp("pull", variables?.requestId ?? null),
   });
 
   const pushMut = useMutation({
     mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
-    onMutate: (options) => useSyncStore.getState().startOp("push", options?.remote),
+    onMutate: (options) =>
+      useSyncStore.getState().startOp("push", options?.remote, options?.requestId ?? null),
     onSuccess: (summary, options) => {
       if (summary.skippedTags.length > 0) {
         // Tag recovery pushed the branch and the non-conflicting tags; the
@@ -190,8 +240,10 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
         (auth) => pushMut.mutate({ ...(variables ?? {}), auth }),
         variables?.remote,
         variables?.auth === undefined,
+        variables?.requestId ?? null,
       ),
-    onSettled: () => useSyncStore.getState().endOp("push"),
+    onSettled: (_d, _e, variables) =>
+      useSyncStore.getState().endOp("push", variables?.requestId ?? null),
   });
 
   const isSyncBusy = activeOp !== null && !fading;
@@ -199,15 +251,15 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
   return {
     fetch: (options?: FetchOptions) => {
       if (!workspaceId || isSyncBusy) return;
-      fetchMut.mutate(options);
+      fetchMut.mutate({ ...options, requestId: nextSyncRequestId("fetch") });
     },
     pull: (options?: PullOptions) => {
       if (!workspaceId || isSyncBusy) return;
-      pullMut.mutate(options);
+      pullMut.mutate({ ...options, requestId: nextSyncRequestId("pull") });
     },
     push: (options?: PushOptions) => {
       if (!workspaceId || isSyncBusy) return;
-      pushMut.mutate(options);
+      pushMut.mutate({ ...options, requestId: nextSyncRequestId("push") });
     },
     syncPending: {
       fetch: fetchMut.isPending,

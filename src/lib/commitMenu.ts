@@ -20,7 +20,10 @@ export function parseRemoteBranchName(name: string): RemoteBranchRef | null {
 export function copyCommitInfoText(
   commit: Pick<CommitSummary, "sha" | "author" | "time" | "message_summary">,
 ): string {
-  const date = new Date(commit.time * 1000).toLocaleString();
+  const millis = commit.time * 1000;
+  // Guard only against the undefined-representable values; pre-1970
+  // (negative) timestamps are real commits and render normally.
+  const date = Number.isFinite(millis) ? new Date(millis).toLocaleString() : "(unknown date)";
   return `${commit.sha}\nAuthor: ${commit.author}\nDate: ${date}\n\n${commit.message_summary}`;
 }
 

@@ -37,7 +37,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
-import { useSyncStore } from "@/stores/syncStore";
+import { nextSyncRequestId, useSyncStore } from "@/stores/syncStore";
 import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { cn } from "@/lib/utils";
 
@@ -125,11 +125,12 @@ export function CommandPalette({
           // Own lifecycle: the backend emits sync-progress for any fetch, so
           // startOp/endOp here keep the status area from sticking in "sync".
           const sync = useSyncStore.getState();
-          sync.startOp("fetch");
-          fetchRemote(workspaceId)
+          const requestId = nextSyncRequestId("fetch");
+          sync.startOp("fetch", null, requestId);
+          fetchRemote(workspaceId, { requestId })
             .then(() => setStatus(t("status.fetchComplete")))
             .catch((e) => setStatus(formatAppError(e), "danger"))
-            .finally(() => sync.endOp("fetch"));
+            .finally(() => sync.endOp("fetch", requestId));
         },
       },
     ],
@@ -263,12 +264,13 @@ export function CommandPalette({
           case "fetch_remotes": {
             if (!useSyncStore.getState().isBusy()) {
               const sync = useSyncStore.getState();
-              sync.startOp("fetch");
+              const requestId = nextSyncRequestId("fetch");
+              sync.startOp("fetch", null, requestId);
               try {
-                await fetchRemote(workspaceId);
+                await fetchRemote(workspaceId, { requestId });
                 setStatus(t("status.fetchComplete"));
               } finally {
-                sync.endOp("fetch");
+                sync.endOp("fetch", requestId);
               }
             }
             break;

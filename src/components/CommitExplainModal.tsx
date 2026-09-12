@@ -3,7 +3,7 @@
 // applied to the repository (P1). Reused by CommitInfoHeader and the
 // AI command palette.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Copy, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -32,9 +32,14 @@ export function CommitExplainModal({
   const [provider, setProvider] = useState<string | null>(null);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
+  // Same generation-session guard as PrDescriptionModal: a stale response
+  // must not overwrite content from a newer open/regeneration.
+  const sessionRef = useRef(0);
   const genMut = useMutation({
     mutationFn: () => explainCommit(workspaceId, sha),
-    onSuccess: (res) => {
+    onMutate: () => ({ session: sessionRef.current }),
+    onSuccess: (res, _variables, context) => {
+      if (!context || context.session !== sessionRef.current) return;
       setText(res.text);
       setProvider(res.provider_used);
       setError(null);
@@ -42,12 +47,16 @@ export function CommitExplainModal({
         setStatus(t("commits.ai.fallbackNotice", { provider: res.provider_used }), "info");
       }
     },
-    onError: (e) => setError(formatAppError(e)),
+    onError: (e, _variables, context) => {
+      if (!context || context.session !== sessionRef.current) return;
+      setError(formatAppError(e));
+    },
   });
 
   // Fresh explanation each time the modal opens; regenerate is manual.
   useEffect(() => {
     if (!open) return;
+    sessionRef.current += 1;
     setText("");
     setError(null);
     setProvider(null);
@@ -88,7 +97,10 @@ export function CommitExplainModal({
             variant="ghost"
             size="sm"
             disabled={genMut.isPending}
-            onClick={() => genMut.mutate()}
+            onClick={() => {
+              sessionRef.current += 1;
+              genMut.mutate();
+            }}
           >
             <RefreshCw size={13} />
             {t("commits.action.regenerate")}

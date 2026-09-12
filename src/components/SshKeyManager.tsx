@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -54,17 +54,44 @@ export function SshKeyManager(): React.JSX.Element {
     void queryClient.invalidateQueries({ queryKey: ["ssh-keys"] });
   };
 
+  // Unmount guard: the 16s poll below outlives a closed settings modal.
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+
   // After the UAC request is handed off, poll the agent for ~16s — the
-  // elevated process itself is not observable from the app.
+  // elevated process itself is not observable from the app. The timer
+  // handle lives in a ref so unmount clears it immediately instead of
+  // waiting for the next tick to notice `mountedRef`.
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(
+    () => () => {
+      if (pollTimerRef.current !== null) clearInterval(pollTimerRef.current);
+    },
+    [],
+  );
   const startAgent = (): void => {
     setActionError(null);
     void startSshAgentService()
       .then(() => {
+        if (!mountedRef.current) return;
         setStartingAgent(true);
         let tries = 0;
         const timer = setInterval(() => {
+          if (!mountedRef.current) {
+            clearInterval(timer);
+            return;
+          }
           tries += 1;
           void refetch().then(({ data }) => {
+            if (!mountedRef.current) {
+              clearInterval(timer);
+              return;
+            }
             if (data?.agent_running || tries >= 8) {
               clearInterval(timer);
               setStartingAgent(false);
@@ -74,8 +101,11 @@ export function SshKeyManager(): React.JSX.Element {
             }
           });
         }, 2000);
+        pollTimerRef.current = timer;
       })
-      .catch((e: unknown) => setActionError(formatAppError(e)));
+      .catch((e: unknown) => {
+        if (mountedRef.current) setActionError(formatAppError(e));
+      });
   };
 
   const addMut = useMutation({
@@ -93,7 +123,9 @@ export function SshKeyManager(): React.JSX.Element {
     mutationFn: (path: string) => deleteSshKey(path),
     onSuccess: () => {
       refresh();
+      setActionError(null);
     },
+    onError: (e: unknown) => setActionError(formatAppError(e)),
   });
 
   const testMut = useMutation({

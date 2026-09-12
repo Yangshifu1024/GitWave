@@ -68,18 +68,26 @@ async function resolveManualDownload(): Promise<boolean> {
 }
 
 async function checkForUpdate(options: { silent?: boolean } = {}): Promise<void> {
-  if (!options.silent) useUpdaterStore.getState().beginCheck();
+  // Epoch-guard the whole flow: a silent startup check and a manual check
+  // can overlap, and whichever lands last owns the UI — stale results must
+  // not roll `available` back to `up-to-date` (or vice versa).
+  const store = useUpdaterStore.getState();
+  const epoch = options.silent ? store.startCheckEpoch() : store.beginCheck();
+  const fresh = (): boolean => useUpdaterStore.getState().checkEpoch === epoch;
   try {
     // Bounded so a hanging network can't leave "Checking…" up forever.
     const update = await check({ timeout: 15_000 });
     if (!update) {
       const version = await getAppVersion();
-      if (!options.silent) useUpdaterStore.getState().markUpToDate(version);
+      if (!options.silent && fresh()) useUpdaterStore.getState().markUpToDate(version);
       return;
     }
+    // Superseded: the newer check owns `pendingUpdate` and the UI.
+    if (!fresh()) return;
     void pendingUpdate?.close().catch(() => undefined);
     pendingUpdate = update;
     const manual = await resolveManualDownload();
+    if (!fresh()) return;
     useUpdaterStore.getState().markAvailable({
       currentVersion: update.currentVersion,
       newVersion: update.version,
@@ -89,6 +97,7 @@ async function checkForUpdate(options: { silent?: boolean } = {}): Promise<void>
     // Startup checks stay invisible: offline / no published manifest yet is
     // normal life, only an explicit check reports the failure.
     if (options.silent) return;
+    if (!fresh()) return;
     useUpdaterStore.getState().fail(formatAppError(e));
   }
 }

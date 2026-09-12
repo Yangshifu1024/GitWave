@@ -36,6 +36,11 @@ pub struct SyncProgress {
     pub received_objects: u64,
     pub total_objects: u64,
     pub received_bytes: u64,
+    /// Command-invocation id stamped at the IPC boundary (`lib.rs`), so the
+    /// frontend can attribute events to one operation instance. Empty when
+    /// constructed; always stamped before emit.
+    #[serde(default)]
+    pub request_id: String,
 }
 
 /// Result of a push that recovered from non-fast-forward tag refspecs:
@@ -118,6 +123,7 @@ fn attach_transfer_progress<'cb>(
     operation: SyncOperation,
     on_progress: &'cb Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
+    request_id: &'cb str,
 ) -> git2::RemoteCallbacks<'cb> {
     // Attach whenever there is anything to observe: progress reporting or
     // the cancel checkpoint. Returning false from the callback is the only
@@ -140,6 +146,8 @@ fn attach_transfer_progress<'cb>(
                     received_objects: stats.received_objects() as u64,
                     total_objects: stats.total_objects() as u64,
                     received_bytes: stats.received_bytes() as u64,
+                    // One operation instance; the frontend matches by it.
+                    request_id: request_id.to_string(),
                 });
             }
         }
@@ -192,12 +200,19 @@ pub fn fetch(
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
     auth: Option<&InlineAuth>,
+    request_id: &str,
 ) -> Result<()> {
     let url = remote_url(repo, remote_name)?;
     let creds = provider_for_operation(&url, cancel.clone(), auth);
     let mut remote = repo.find_remote(remote_name).map_err(map_git_err)?;
     let mut fo = FetchOptions::new();
-    let cb = attach_transfer_progress(creds.callbacks(), operation, &on_progress, cancel.clone());
+    let cb = attach_transfer_progress(
+        creds.callbacks(),
+        operation,
+        &on_progress,
+        cancel.clone(),
+        request_id,
+    );
     fo.remote_callbacks(cb);
     fo.download_tags(AutotagOption::Auto);
     fo.prune(git2::FetchPrune::On);
@@ -256,6 +271,7 @@ pub fn push_with_options(
     on_progress: &Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
     auth: Option<&InlineAuth>,
+    request_id: &str,
 ) -> Result<PushOutcome> {
     let url = remote_url(repo, remote_name)?;
     let creds = provider_for_operation(&url, cancel.clone(), auth);
@@ -334,6 +350,7 @@ pub fn push_with_options(
                 SyncOperation::Push,
                 on_progress,
                 attempt_cancel.clone(),
+                request_id,
             );
             po.remote_callbacks(cb);
             attach_auto_proxy(&mut po);
@@ -550,11 +567,13 @@ pub fn delete_remote_branch(
     let refspec = format!(":refs/heads/{branch_name}");
     let no_progress: Option<Box<dyn Fn(SyncProgress) + Send>> = None;
     let mut po = PushOptions::new();
+    // No progress events here (`no_progress`), so no instance id travels.
     let cb = attach_transfer_progress(
         creds.callbacks(),
         SyncOperation::Push,
         &no_progress,
         cancel.clone(),
+        "",
     );
     po.remote_callbacks(cb);
     attach_auto_proxy(&mut po);
@@ -623,6 +642,7 @@ pub fn pull_with_options(
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
     auth: Option<&InlineAuth>,
+    request_id: &str,
 ) -> Result<()> {
     // Newest stash entry is index 0.
     let mut stashed = false;
@@ -631,7 +651,15 @@ pub fn pull_with_options(
         stashed = true;
     }
 
-    match pull_integrate(repo, remote_name, &opts, on_progress, cancel, auth) {
+    match pull_integrate(
+        repo,
+        remote_name,
+        &opts,
+        on_progress,
+        cancel,
+        auth,
+        request_id,
+    ) {
         Ok(()) => {
             if stashed {
                 crate::infrastructure::git::stash::pop_stash(repo, 0).map_err(|e| {
@@ -667,6 +695,7 @@ fn pull_integrate(
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
     auth: Option<&InlineAuth>,
+    request_id: &str,
 ) -> Result<()> {
     fetch(
         repo,
@@ -675,6 +704,7 @@ fn pull_integrate(
         on_progress,
         cancel,
         auth,
+        request_id,
     )?;
 
     let head = repo.head().map_err(map_git_err)?;
@@ -862,8 +892,16 @@ mod tests {
     #[test]
     fn fetch_missing_remote_errors() {
         let (path, repo) = build_linear_repo(1);
-        let err =
-            fetch(&repo, "origin", SyncOperation::Fetch, None, None, None).expect_err("no origin");
+        let err = fetch(
+            &repo,
+            "origin",
+            SyncOperation::Fetch,
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .expect_err("no origin");
         let _ = fs::remove_dir_all(&path);
         assert_eq!(err.category(), "Unknown");
     }
@@ -881,7 +919,16 @@ mod tests {
                 "create feature",
             )
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None, None, None).unwrap();
+        fetch(
+            &local,
+            "origin",
+            SyncOperation::Fetch,
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .unwrap();
         assert!(local.find_reference("refs/remotes/origin/feature").is_ok());
 
         // ...then it is deleted upstream: the next fetch must prune the
@@ -891,7 +938,16 @@ mod tests {
             .unwrap()
             .delete()
             .unwrap();
-        fetch(&local, "origin", SyncOperation::Fetch, None, None, None).unwrap();
+        fetch(
+            &local,
+            "origin",
+            SyncOperation::Fetch,
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .unwrap();
         assert!(
             local.find_reference("refs/remotes/origin/feature").is_err(),
             "stale tracking ref must be pruned"
@@ -921,6 +977,7 @@ mod tests {
             None,
             Some(cancel),
             None,
+            "test-req",
         )
         .expect_err("cancelled fetch must abort");
 
@@ -1005,7 +1062,16 @@ mod tests {
         let tree = write_and_stage(&server, "file1.txt", "v1\n");
         let server_tip = make_commit(&server, &sig(), "commit 1", tree, &[head_oid(&server)]);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None).unwrap();
+        pull_with_options(
+            &mut local,
+            "origin",
+            rebase_opts(false),
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .unwrap();
 
         assert_eq!(
             head_oid(&local),
@@ -1026,7 +1092,16 @@ mod tests {
         let _local_tip = head_oid(&local);
         let server_tip = diverge(&server, &local);
 
-        pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None).unwrap();
+        pull_with_options(
+            &mut local,
+            "origin",
+            rebase_opts(false),
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .unwrap();
 
         let head = local.head().unwrap().peel_to_commit().unwrap();
         assert_eq!(
@@ -1054,8 +1129,16 @@ mod tests {
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None)
-            .expect_err("dirty worktree must refuse");
+        let err = pull_with_options(
+            &mut local,
+            "origin",
+            rebase_opts(false),
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .expect_err("dirty worktree must refuse");
 
         assert_eq!(err.category(), "Protocol");
         assert_eq!(head_oid(&local), before, "HEAD must not move");
@@ -1078,8 +1161,16 @@ mod tests {
         fs::write(local.workdir().unwrap().join("file0.txt"), "dirty\n").unwrap();
         let before = head_oid(&local);
 
-        let err = pull_with_options(&mut local, "origin", rebase_opts(false), None, None, None)
-            .expect_err("dirty worktree must refuse even when fast-forwardable");
+        let err = pull_with_options(
+            &mut local,
+            "origin",
+            rebase_opts(false),
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .expect_err("dirty worktree must refuse even when fast-forwardable");
 
         assert_eq!(err.category(), "Protocol");
         assert_eq!(head_oid(&local), before, "HEAD must not move");
@@ -1106,7 +1197,7 @@ mod tests {
             rebase: false,
             stash: false,
         };
-        let err = pull_with_options(&mut local, "origin", opts, None, None, None)
+        let err = pull_with_options(&mut local, "origin", opts, None, None, None, "test-req")
             .expect_err("dirty worktree must refuse plain pull too");
 
         assert_eq!(err.category(), "Protocol");
@@ -1125,7 +1216,16 @@ mod tests {
         let server_tip = diverge(&server, &local);
         fs::write(local.workdir().unwrap().join("local.txt"), "dirty\n").unwrap();
 
-        pull_with_options(&mut local, "origin", rebase_opts(true), None, None, None).unwrap();
+        pull_with_options(
+            &mut local,
+            "origin",
+            rebase_opts(true),
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .unwrap();
 
         assert_eq!(
             local

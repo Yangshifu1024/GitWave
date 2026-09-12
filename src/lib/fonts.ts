@@ -46,8 +46,10 @@ const FONT_PROPERTIES: Record<FontSlot, { override: string; fallback: string }> 
 
 // Strips anything that could break out of the double-quoted font-family value
 // built by buildFontOverride, plus Unicode "other" characters (control, zero-
-// width format, surrogate, unassigned). Non-ASCII names (CJK etc.) are kept.
-const FORBIDDEN_CHARS = /["'\\;{}<>]|\p{C}/gu;
+// width format, surrogate, unassigned) and the line/paragraph separators
+// U+2028/U+2029 (category Zl/Zp, NOT covered by \p{C}). Non-ASCII names
+// (CJK etc.) are kept.
+const FORBIDDEN_CHARS = /["'\\;{}<>]|\p{C}|[\u2028\u2029]/gu;
 
 /**
  * Normalizes raw user input into a safe font list: splits on commas, strips
