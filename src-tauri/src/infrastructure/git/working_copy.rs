@@ -179,6 +179,12 @@ pub fn unstage_paths(repo: &Repository, paths: &[String]) -> Result<()> {
     if paths.is_empty() {
         return Ok(());
     }
+    // Same containment bar as stage_paths: reset_default/remove_path cannot
+    // escape the worktree today (an out-of-tree path matches no index
+    // entry), but every path-array entry goes behind one guard regardless.
+    for path in paths {
+        reject_escaping_syntax(path)?;
+    }
     match repo.head() {
         Ok(head) => {
             let obj = head.peel(git2::ObjectType::Commit).map_err(map_git_err)?;
@@ -863,6 +869,7 @@ mod tests {
             "sub/../../outside.txt",
             "/abs/path.txt",
             "..\\win-outside.txt",
+            "C:evil.txt",
         ] {
             let err =
                 stage_paths(&repo, &[evil.into()]).expect_err("escaping path must be rejected");

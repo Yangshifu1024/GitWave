@@ -100,6 +100,12 @@ export function InteractiveRebaseDialog({
           setError(result.conflicts.join("; ") || t("branches.irebase.conflictError"));
           return;
         }
+        if (result.kind === "auto_aborted") {
+          // Conflict was auto-rolled back server-side — report, don't offer resolution.
+          onDone(t("branches.irebase.autoAborted"));
+          onClose();
+          return;
+        }
         if (result.kind === "paused_for_edit") {
           onDone(t("branches.irebase.paused", { name: upstream }));
           onClose();

@@ -681,6 +681,10 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           t("branches.irebase.continueConflicts", { files: result.conflicts.join(", ") }),
           "danger",
         );
+      } else if (result.kind === "auto_aborted") {
+        // The backend already rolled the branch back: there is nothing to
+        // resolve and nothing to continue — never show fake conflict files.
+        showNotice(t("branches.irebase.autoAborted"), "danger");
       } else if (result.kind === "paused_for_edit") {
         showNotice(t("branches.irebase.stillPaused"));
       } else {

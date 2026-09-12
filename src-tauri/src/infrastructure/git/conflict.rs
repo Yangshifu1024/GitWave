@@ -243,6 +243,7 @@ mod tests {
             "sub/../../outside.txt",
             "/abs/path.txt",
             "..\\win-outside.txt",
+            "C:evil.txt",
         ] {
             let err = resolve_conflict(&repo, evil, "evil\n")
                 .expect_err("escaping path must be rejected");

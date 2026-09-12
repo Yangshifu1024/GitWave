@@ -131,6 +131,7 @@
       "continue": "Continue rebase",
       "discardPause": "Discard pause",
       "continueConflicts": "Continue rebase conflicts: {{files}}",
+      "autoAborted": "Rebase hit a conflict and was automatically rolled back — the branch is back at its pre-rebase tip",
       "stillPaused": "Still paused for edit — amend then Continue again.",
       "continued": "Continued interactive rebase ({{kind}})",
       "pauseCleared": "Aborted interactive rebase — branch restored to its pre-rebase tip",

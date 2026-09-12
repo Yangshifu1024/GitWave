@@ -49,6 +49,10 @@ pub enum InteractiveRebaseKind {
     Conflicts,
     /// Stopped after an `edit` action; call continue to finish remaining todos.
     PausedForEdit,
+    /// A replay conflict occurred and the branch was automatically rolled
+    /// back to its pre-execute tip: no real conflicts exist on disk, there
+    /// is nothing to resolve and nothing to continue.
+    AutoAborted,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -93,14 +97,26 @@ fn write_pause(repo: &Repository, state: &PauseState) -> Result<()> {
 /// Best-effort restore after a failed replay: put the branch back where
 /// `execute` found it and drop the pause file, so a conflict never leaves a
 /// half-rebased branch behind.
+///
+/// Restore failures are logged, not swallowed: the caller turns this into
+/// `AutoAborted`, so a silent half-rollback here would lie about the repo
+/// being back in its original state.
 fn restore_original(repo: &Repository, original: Option<Oid>) {
     if let Some(orig) = original {
         if let Ok(obj) = repo.find_object(orig, None) {
-            let _ = repo.reset(&obj, ResetType::Hard, None);
+            if let Err(e) = repo.reset(&obj, ResetType::Hard, None) {
+                tracing::warn!(error = %e, "rollback reset failed during rebase restore");
+            }
         }
-        let _ = repo.cleanup_state();
+        if let Err(e) = repo.cleanup_state() {
+            tracing::warn!(error = %e, "cleanup_state failed during rebase restore");
+        }
     }
-    let _ = fs::remove_file(pause_path(repo));
+    if let Err(e) = fs::remove_file(pause_path(repo)) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            tracing::warn!(error = %e, "pause file removal failed during rebase restore");
+        }
+    }
 }
 
 /// Fold the current index into HEAD, keeping message and parents
@@ -116,11 +132,12 @@ fn amend_head_with_index(repo: &Repository) -> Result<()> {
     let mut index = repo.index().map_err(map_git_err)?;
     let tree_oid = index.write_tree().map_err(map_git_err)?;
     let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
-    let sig = commit_signature(repo)?;
+    let author = head.author();
+    let committer = commit_signature(repo)?;
     head.amend(
         Some("HEAD"),
-        Some(&sig),
-        Some(&sig),
+        Some(&author),
+        Some(&committer),
         None,
         None,
         Some(&tree),
@@ -330,7 +347,7 @@ fn replay_todos(
             InteractiveRebaseAction::Pick | InteractiveRebaseAction::Reword => {
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
                     restore_original(repo, original);
-                    return conflict_from_err(e);
+                    return auto_aborted_from_err(e);
                 }
                 let head = repo
                     .head()
@@ -345,7 +362,7 @@ fn replay_todos(
             InteractiveRebaseAction::Edit => {
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
                     restore_original(repo, original);
-                    return conflict_from_err(e);
+                    return auto_aborted_from_err(e);
                 }
                 let head = repo
                     .head()
@@ -385,7 +402,7 @@ fn replay_todos(
                 }
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
                     restore_original(repo, original);
-                    return conflict_from_err(e);
+                    return auto_aborted_from_err(e);
                 }
                 // Amend HEAD: same parents as HEAD, new tree from index, maybe combined msg.
                 let head = repo
@@ -424,7 +441,17 @@ fn replay_todos(
         .ok()
         .and_then(|h| h.target())
         .map(|o| o.to_string());
-    let _ = fs::remove_file(pause_path(repo));
+    if let Err(e) = fs::remove_file(pause_path(repo)) {
+        // A surviving pause file would let Continue replay the very commits
+        // this Clean result already landed — the failure must surface.
+        if e.kind() != std::io::ErrorKind::NotFound {
+            return Err(AppError::unknown_with(
+                codes::git::CLEANUP_PAUSE,
+                format!("remove pause file: {e}"),
+                &[("error", e.to_string())],
+            ));
+        }
+    }
     Ok(InteractiveRebaseResult {
         kind: InteractiveRebaseKind::Clean,
         conflicts: Vec::new(),
@@ -432,13 +459,16 @@ fn replay_todos(
     })
 }
 
-fn conflict_from_err(e: AppError) -> Result<InteractiveRebaseResult> {
+/// A replay conflict auto-rolled the branch back to its pre-execute tip:
+/// surface as `AutoAborted` (not `Conflicts`) so the UI never asks the user
+/// to resolve conflicts that do not exist on disk.
+fn auto_aborted_from_err(e: AppError) -> Result<InteractiveRebaseResult> {
     let msg = match &e {
         AppError::Protocol { message: s, .. } | AppError::Unknown { message: s, .. } => s.clone(),
         other => format!("{other:?}"),
     };
     Ok(InteractiveRebaseResult {
-        kind: InteractiveRebaseKind::Conflicts,
+        kind: InteractiveRebaseKind::AutoAborted,
         conflicts: vec![msg],
         new_head: None,
     })
@@ -754,7 +784,7 @@ mod tests {
         let todos = plan_interactive_rebase(&repo, "upstream").unwrap();
         assert_eq!(todos.len(), 1);
         let res = execute_interactive_rebase(&repo, "upstream", &todos).unwrap();
-        assert_eq!(res.kind, InteractiveRebaseKind::Conflicts);
+        assert_eq!(res.kind, InteractiveRebaseKind::AutoAborted);
         assert_eq!(
             repo.head().unwrap().peel_to_commit().unwrap().id(),
             tip,
