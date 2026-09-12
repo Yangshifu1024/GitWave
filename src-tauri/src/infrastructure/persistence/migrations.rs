@@ -45,6 +45,12 @@ struct Migration {
 
 /// Apply pending migrations. Idempotent: re-running on a fully migrated
 /// database is a no-op.
+///
+/// # Panics
+/// Never panics, but **the caller must pass a connection with no open
+/// transaction** — `BEGIN IMMEDIATE` errors otherwise. All current callers
+/// (startup paths and tests) pass fresh connections; keep it that way or
+/// restructure first.
 pub fn apply(conn: &Connection) -> Result<()> {
     // Serialize concurrent first-opens with one IMMEDIATE transaction: two
     // connections racing here would otherwise both read an empty
@@ -52,7 +58,7 @@ pub fn apply(conn: &Connection) -> Result<()> {
     // the winner's versions and no-ops. A single transaction also makes the
     // whole upgrade atomic instead of per-migration.
     // Callers pass fresh connections with no open transaction (startup
-    // paths and tests); nesting BEGIN here would fail.
+    // paths and tests) — see the `apply` doc comment for this constraint.
     conn.execute_batch("BEGIN IMMEDIATE")
         .map_err(map_sqlite_err)?;
     let result = apply_inner(conn);
