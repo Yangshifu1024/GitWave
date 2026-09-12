@@ -11,7 +11,8 @@
         "not_found": "工作区不存在：{{id}}"
       },
       "clone": {
-        "dest_clear_failed": "清理目标目录失败：{{error}}"
+        "dest_clear_failed": "清理目标目录失败：{{error}}",
+        "dest_not_empty": "克隆目标目录非空：{{path}}"
       },
       "ai": {
         "provider_unsupported": "不支持的 AI 提供商：{{provider}}",

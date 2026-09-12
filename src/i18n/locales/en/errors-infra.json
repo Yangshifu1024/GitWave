@@ -4,6 +4,9 @@
       "provider_http": "Provider {{provider}} returned HTTP {{status}}: {{detail}}",
       "all_attempts_failed": "All {{total}} AI provider attempt(s) failed with no error captured",
       "unsupported_provider": "Unsupported AI provider: {{provider}} (use openai, anthropic, or ollama)",
+      "http": {
+        "client_build": "Could not build the AI HTTP client: {{error}}"
+      },
       "openai": {
         "key_missing": "OpenAI API key is not configured",
         "request_failed": "OpenAI request failed: {{error}}",

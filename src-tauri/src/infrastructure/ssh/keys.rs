@@ -4,12 +4,13 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::time::Duration;
 
 use serde::Serialize;
 
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
-use crate::infrastructure::process::hidden_command;
+use crate::infrastructure::process::{hidden_command, wait_with_output_timeout};
 
 /// One SSH key currently loaded in the agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -76,15 +77,20 @@ pub fn expand_tilde(path: &str) -> PathBuf {
     PathBuf::from(trimmed)
 }
 
+/// How long a local `ssh-add` query may take before it counts as an
+/// unreachable agent (a wedged agent must not hang the UI).
+const SSH_ADD_TIMEOUT: Duration = Duration::from_secs(15);
+
 /// List keys currently loaded in ssh-agent (`ssh-add -l`). Never errors on
-/// agent state — an unreachable agent yields `agent_running: false`.
+/// agent state — an unreachable (or wedged) agent yields
+/// `agent_running: false`.
 pub fn list_loaded() -> Result<SshKeyList> {
-    let output = hidden_command("ssh-add")
+    let child = hidden_command("ssh-add")
         .arg("-l")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .output()
+        .spawn()
         .map_err(|e| {
             AppError::unknown_with(
                 codes::infra::SSH_ADD_FAILED,
@@ -92,6 +98,19 @@ pub fn list_loaded() -> Result<SshKeyList> {
                 &[("error", e.to_string())],
             )
         })?;
+    let Some(output) = wait_with_output_timeout(child, SSH_ADD_TIMEOUT, None).map_err(|e| {
+        AppError::unknown_with(
+            codes::infra::SSH_ADD_FAILED,
+            format!("ssh-add: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?
+    else {
+        return Ok(SshKeyList {
+            agent_running: false,
+            keys: Vec::new(),
+        });
+    };
 
     if !output.status.success() {
         // "The agent has no identities." (exit 1) means the agent is fine;
@@ -104,17 +123,37 @@ pub fn list_loaded() -> Result<SshKeyList> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // `ssh-add -L` lists the public key blobs; its trailing column is the
+    // key comment (identity, e.g. "user@host") in agent order. Best effort:
+    // when it succeeds, per-index identities are preferred over the `-l`
+    // comment column; otherwise the `-l` comment is kept as-is.
+    let identities = list_identities_best_effort();
     let mut keys = Vec::new();
-    for line in stdout.lines() {
+    for (idx, line) in stdout.lines().enumerate() {
         // Format: "<bits> <fingerprint> <comment...> (<key-type>)"
-        // Comment often contains the path: "/Users/x/.ssh/id_ed25519 (ED25519)"
+        // NOTE: the comment column is an identity label, NOT a filesystem
+        // path (usually "user@host"). `path` is only filled when the
+        // comment actually looks like a path; otherwise it stays empty and
+        // the UI should display `comment` as the identity. (`ssh-add -L`
+        // carries no paths either, so there is no better source here.)
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 4 {
             continue;
         }
         let fingerprint = parts[1].to_string();
-        let comment = parts[2..parts.len() - 1].join(" ");
-        let path = PathBuf::from(&comment);
+        let l_comment = parts[2..parts.len() - 1].join(" ");
+        let comment = identities
+            .get(idx)
+            .cloned()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| l_comment.clone());
+        // Only the `-l` comment can ever be a path; the `-L` identity
+        // never is, so the path heuristic runs on `l_comment` alone.
+        let path = if looks_like_path(&l_comment) {
+            PathBuf::from(&l_comment)
+        } else {
+            PathBuf::new()
+        };
         keys.push(SshKey {
             path,
             fingerprint,
@@ -125,6 +164,56 @@ pub fn list_loaded() -> Result<SshKeyList> {
         agent_running: true,
         keys,
     })
+}
+
+/// Heuristic: does an `ssh-add -l` comment actually name a key file?
+/// Matches `~` / absolute / drive-letter paths or anything containing a
+/// path separator; plain `user@host` identity labels return false.
+fn looks_like_path(comment: &str) -> bool {
+    let c = comment.trim();
+    if c.is_empty() {
+        return false;
+    }
+    c.starts_with('~')
+        || c.starts_with('/')
+        || c.starts_with('\\')
+        || c.contains('/')
+        || c.contains('\\')
+        || (c.len() >= 3
+            && c.as_bytes()[1] == b':'
+            && (c.as_bytes()[2] == b'/' || c.as_bytes()[2] == b'\\'))
+}
+
+/// Best-effort identities from `ssh-add -L` (one per line:
+/// "<key-type> <base64-blob> <comment...>"). Returns an empty vec on any
+/// failure (agent unreachable, no identities) — callers fall back to the
+/// `-l` comment column.
+fn list_identities_best_effort() -> Vec<String> {
+    let child = match hidden_command("ssh-add")
+        .arg("-L")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let output = match wait_with_output_timeout(child, SSH_ADD_TIMEOUT, None) {
+        Ok(Some(o)) if o.status.success() => o,
+        _ => return Vec::new(),
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 3 {
+                String::new()
+            } else {
+                parts[2..].join(" ")
+            }
+        })
+        .collect()
 }
 
 /// Add a key to the ssh-agent. Passphrase-protected keys cannot be added
@@ -281,7 +370,16 @@ pub fn start_windows_agent_service() -> Result<()> {
 /// GitHub-style servers return exit 1 with "successfully authenticated"
 /// which we treat as success.
 pub fn test_connection(host: &str, user: &str) -> Result<SshTestResult> {
-    let output = hidden_command("ssh")
+    // Reject leading `-` so host/user can never be parsed as ssh options
+    // (option injection through the single `{user}@{host}` argument below,
+    // e.g. a user of `-oProxyCommand=...`).
+    if host.trim_start().starts_with('-') || user.trim_start().starts_with('-') {
+        return Err(AppError::protocol(
+            codes::infra::SSH_SPAWN_FAILED,
+            "ssh host/user must not start with '-'",
+        ));
+    }
+    let child = hidden_command("ssh")
         .args([
             "-T",
             "-o",
@@ -293,12 +391,29 @@ pub fn test_connection(host: &str, user: &str) -> Result<SshTestResult> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .output()
+        .spawn()
         .map_err(|e| {
             AppError::unknown_with(
                 codes::infra::SSH_SPAWN_FAILED,
                 format!("ssh: {e}"),
                 &[("error", e.to_string())],
+            )
+        })?;
+
+    // `ssh` has no built-in timeout — a hung TCP connect would block
+    // `.output()` forever — so wait at most 30s via the shared helper.
+    let output = wait_with_output_timeout(child, Duration::from_secs(30), None)
+        .map_err(|e| {
+            AppError::unknown_with(
+                codes::infra::SSH_SPAWN_FAILED,
+                format!("ssh: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::network(
+                codes::git::SYNC_TIMEOUT,
+                "ssh connection test timed out after 30s",
             )
         })?;
 
@@ -399,5 +514,23 @@ mod tests {
         let result = test_connection("this-host-does-not-exist.invalid", "git")
             .expect("test_connection shouldn't return AppError");
         assert!(!result.success);
+    }
+
+    #[test]
+    fn test_connection_rejects_leading_dash() {
+        // Option-injection guard: fails fast without spawning ssh.
+        let err = test_connection("-evil.example.com", "git").expect_err("host");
+        assert_eq!(err.category(), "Protocol");
+        let err = test_connection("github.com", "-oProxyCommand=evil").expect_err("user");
+        assert_eq!(err.category(), "Protocol");
+    }
+
+    #[test]
+    fn path_heuristic_accepts_paths_rejects_identities() {
+        assert!(looks_like_path("/home/u/.ssh/id_ed25519"));
+        assert!(looks_like_path("C:\\Users\\u\\.ssh\\id_ed25519"));
+        assert!(looks_like_path("~/.ssh/id_rsa"));
+        assert!(!looks_like_path("user@host"));
+        assert!(!looks_like_path(""));
     }
 }

@@ -114,21 +114,19 @@ pub fn rebase_branch(repo: &Repository, upstream: &str) -> Result<RebaseResult> 
                 match rebase.commit(None, &sig, None) {
                     Ok(oid) => last_new_head = Some(oid.to_string()),
                     Err(e) => {
-                        // Conflict; try to extract the conflicted path
-                        // from the current index.
-                        let wd = repo.workdir().ok_or_else(|| {
-                            AppError::protocol(codes::git::BARE_REPO, "repo has no workdir")
-                        })?;
-                        let idx = git2::Repository::open(wd)
-                            .map_err(map_git_err)?
-                            .index()
-                            .map_err(map_git_err)?;
-                        let cit = idx.conflicts().map_err(map_git_err)?;
-                        for c in cit {
-                            let ic = c.map_err(map_git_err)?;
-                            if let Some(e) = ic.our.or(ic.their).or(ic.ancestor) {
-                                conflicts.push(String::from_utf8_lossy(&e.path).into_owned());
-                                break;
+                        // Conflict: extract the path from the rebase's
+                        // IN-MEMORY index. This rebase runs with
+                        // `inmemory(true)`, so the on-disk index never
+                        // carries the conflict entries — reading it here
+                        // always produced an empty list.
+                        if let Ok(idx) = rebase.inmemory_index() {
+                            let cit = idx.conflicts().map_err(map_git_err)?;
+                            for c in cit {
+                                let ic = c.map_err(map_git_err)?;
+                                if let Some(e) = ic.our.or(ic.their).or(ic.ancestor) {
+                                    conflicts.push(String::from_utf8_lossy(&e.path).into_owned());
+                                    break;
+                                }
                             }
                         }
                         let _ = rebase.abort();
@@ -236,6 +234,49 @@ mod tests {
         repo.branch("feature", &first, false).unwrap();
         let res = rebase_branch(&repo, "feature").unwrap();
         assert_eq!(res.kind, RebaseKind::AlreadyUpToDate);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn rebase_conflict_lists_the_conflicted_path() {
+        // Divergent edits to file0.txt: rebasing main onto feature must
+        // report Conflicts WITH the path (the in-memory index carries the
+        // entries; the on-disk index never does).
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        let (path, repo) = build_linear_repo(1);
+        let base = repo.head().unwrap().peel_to_commit().unwrap().id();
+        repo.branch("feature", &repo.find_commit(base).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/feature").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        fs::write(repo.workdir().unwrap().join("file0.txt"), "feature\n").unwrap();
+        {
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("file0.txt")).unwrap();
+            let tree = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree).unwrap();
+            let parent = repo.find_commit(base).unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "feature edit", &tree, &[&parent])
+                .unwrap();
+        }
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        fs::write(repo.workdir().unwrap().join("file0.txt"), "main\n").unwrap();
+        {
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("file0.txt")).unwrap();
+            let tree = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree).unwrap();
+            let parent = repo.find_commit(base).unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "main edit", &tree, &[&parent])
+                .unwrap();
+        }
+
+        let res = rebase_branch(&repo, "feature").unwrap();
+        assert_eq!(res.kind, RebaseKind::Conflicts);
+        assert_eq!(res.conflicts, vec!["file0.txt".to_string()]);
         cleanup(&path);
     }
 

@@ -9,6 +9,9 @@ pub const PROVIDER_HTTP: &str = "ai.provider_http";
 /// 所有 AI provider 尝试均失败且未捕获到错误。
 pub const ALL_ATTEMPTS_FAILED: &str = "ai.all_attempts_failed";
 
+/// 共享 AI HTTP client 构建失败（如下游代理环境变量非法）。
+pub const AI_CLIENT_BUILD: &str = "ai.http.client_build";
+
 /// 不支持的 AI provider。
 pub const UNSUPPORTED_PROVIDER: &str = "ai.unsupported_provider";
 

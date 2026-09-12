@@ -8,7 +8,9 @@ use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::infrastructure::ai::scrubber::scrub_secrets;
 
-#[derive(Debug, Clone)]
+/// Hand-rolled `Debug`: `api_key` must never hit logs even if a future
+/// `{:?}` sneaks in (cf. credentials.rs `InlineAuth` masking).
+#[derive(Clone)]
 pub struct AiGenerateRequest {
     pub provider: String,
     pub model: String,
@@ -21,8 +23,20 @@ pub struct AiGenerateRequest {
     pub fallbacks: Vec<ProviderAttempt>,
 }
 
+impl std::fmt::Debug for AiGenerateRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AiGenerateRequest")
+            .field("provider", &self.provider)
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "***"))
+            .field("fallbacks", &self.fallbacks)
+            .finish_non_exhaustive()
+    }
+}
+
 /// One failover attempt: provider identity + its resolved credentials.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ProviderAttempt {
     pub provider: String,
     pub base_url: Option<String>,
@@ -32,48 +46,99 @@ pub struct ProviderAttempt {
     pub model: String,
 }
 
+impl std::fmt::Debug for ProviderAttempt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderAttempt")
+            .field("provider", &self.provider)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "***"))
+            .field("model", &self.model)
+            .finish()
+    }
+}
+
 fn trim_base(base: &str) -> String {
     base.trim().trim_end_matches('/').to_string()
 }
 
 /// Map an HTTP error response to an AppError. Auth failures (401/403)
 /// become `Credential` so the failover chain STOPS and surfaces the root
-/// cause instead of masking it behind later network errors; every other
-/// HTTP failure stays `Network` (the chain may retry elsewhere).
+/// cause instead of masking it behind later network errors; client errors
+/// (400/422) become `Protocol` (retrying is pointless); every other HTTP
+/// failure stays `Network` (the chain may retry elsewhere, incl. 429/5xx).
+///
+/// `message` carries only a truncated detail: it flows into the local JSON
+/// log via `tracing::warn!(error = %e)`, and provider error bodies can echo
+/// the offending input. The full detail stays in `params` for the UI.
 fn http_error(provider: &str, status: reqwest::StatusCode, detail: &str) -> AppError {
-    let message = format!("{provider} HTTP {status}: {detail}");
+    let short: String = detail.chars().take(200).collect();
+    let message = format!("{provider} HTTP {status}: {short}");
     let params = [
         ("provider", provider.to_string()),
         ("status", status.to_string()),
         ("detail", detail.to_string()),
     ];
-    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+    use reqwest::StatusCode as S;
+    if status == S::UNAUTHORIZED || status == S::FORBIDDEN {
         AppError::credential_with(codes::infra::PROVIDER_HTTP, message, &params)
+    } else if status == S::BAD_REQUEST || status == S::UNPROCESSABLE_ENTITY {
+        AppError::protocol_with(codes::infra::PROVIDER_HTTP, message, &params)
     } else {
         AppError::network_with(codes::infra::PROVIDER_HTTP, message, &params)
     }
 }
 
-fn openai_endpoint(base: Option<String>) -> String {
-    let base = trim_base(base.as_deref().unwrap_or("https://api.openai.com"));
-    if base.ends_with("/chat/completions") {
-        return base;
+/// Cloud-vendor base URLs must be https: the API key travels in
+/// `Authorization` / `x-api-key` headers and must never go out in cleartext
+/// because of a `http://` gateway typo. Loopback stays allowed (local LiteLLM
+/// / proxy gateways); Ollama is loopback-only by design and unchecked.
+fn require_https_url(trimmed: &str) -> Result<String> {
+    let url = reqwest::Url::parse(trimmed).map_err(|e| {
+        AppError::protocol_with(
+            codes::infra::UNSUPPORTED_PROVIDER,
+            format!("invalid AI base_url: {e}"),
+            &[("base_url", trimmed.to_string())],
+        )
+    })?;
+    let host = url.host_str().unwrap_or("");
+    let loopback = host == "localhost" || host == "127.0.0.1" || host == "::1";
+    if url.scheme() != "https" && !loopback {
+        return Err(AppError::protocol_with(
+            codes::infra::UNSUPPORTED_PROVIDER,
+            format!(
+                "AI base_url must use https (got scheme {:?}); localhost gateways stay allowed",
+                url.scheme()
+            ),
+            &[("base_url", trimmed.to_string())],
+        ));
     }
-    if base.ends_with("/v1") {
-        return format!("{}/chat/completions", base);
-    }
-    format!("{}/v1/chat/completions", base)
+    Ok(trimmed.to_string())
 }
 
-fn anthropic_endpoint(base: Option<String>) -> String {
-    let base = trim_base(base.as_deref().unwrap_or("https://api.anthropic.com"));
-    if base.ends_with("/messages") {
-        return base;
+fn openai_endpoint(base: Option<String>) -> Result<String> {
+    let base = require_https_url(&trim_base(
+        base.as_deref().unwrap_or("https://api.openai.com"),
+    ))?;
+    if base.ends_with("/chat/completions") {
+        return Ok(base);
     }
     if base.ends_with("/v1") {
-        return format!("{}/messages", base);
+        return Ok(format!("{}/chat/completions", base));
     }
-    format!("{}/v1/messages", base)
+    Ok(format!("{}/v1/chat/completions", base))
+}
+
+fn anthropic_endpoint(base: Option<String>) -> Result<String> {
+    let base = require_https_url(&trim_base(
+        base.as_deref().unwrap_or("https://api.anthropic.com"),
+    ))?;
+    if base.ends_with("/messages") {
+        return Ok(base);
+    }
+    if base.ends_with("/v1") {
+        return Ok(format!("{}/messages", base));
+    }
+    Ok(format!("{}/v1/messages", base))
 }
 
 fn ollama_base(base: Option<String>) -> String {
@@ -90,27 +155,52 @@ static AI_HTTP_CLIENT: RwLock<Option<Arc<reqwest::Client>>> = RwLock::new(None);
 /// Rebuildable (F013): saving proxy settings rewrites the process env the
 /// client's proxy config was built from, so [`rebuild_http_client`] drops
 /// this one and the next request constructs a fresh client.
-fn client() -> Arc<reqwest::Client> {
-    if let Some(client) = AI_HTTP_CLIENT.read().expect("ai client lock").as_ref() {
-        return Arc::clone(client);
-    }
-    let mut guard = AI_HTTP_CLIENT.write().expect("ai client lock");
-    guard
-        .get_or_insert_with(|| {
-            Arc::new(
-                reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(60))
-                    .build()
-                    .expect("reqwest client"),
+/// Build a fresh shared client config. Extracted from [`client`] so the
+/// build-failure path (e.g. illegal proxy env) is unit-testable without
+/// touching the process-wide slot.
+fn build_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| {
+            AppError::network_with(
+                codes::infra::AI_CLIENT_BUILD,
+                format!("ai http client build failed: {e}"),
+                &[("error", e.to_string())],
             )
         })
-        .clone()
+}
+
+fn client() -> Result<Arc<reqwest::Client>> {
+    // A poisoned lock means a previous build panicked — recover with the
+    // inner value instead of cascading the panic into every AI call.
+    // A failed build (e.g. illegal proxy env) is a plain error for the same
+    // reason: it must never poison this process-wide slot.
+    if let Some(client) = AI_HTTP_CLIENT
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()
+    {
+        return Ok(Arc::clone(client));
+    }
+    let mut guard = AI_HTTP_CLIENT
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(client) = guard.as_ref() {
+        return Ok(Arc::clone(client));
+    }
+    let built = build_client()?;
+    let shared = Arc::new(built);
+    *guard = Some(Arc::clone(&shared));
+    Ok(shared)
 }
 
 /// Drop the shared AI HTTP client so the next request rebuilds it (picking
 /// up the current process env, i.e. proxy changes).
 pub fn rebuild_http_client() {
-    *AI_HTTP_CLIENT.write().expect("ai client lock") = None;
+    *AI_HTTP_CLIENT
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
 }
 
 /// Generate assistant text. Never auto-applies git mutations (P1).
@@ -133,9 +223,10 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     let total = attempts.len();
 
     let mut last_err: Option<AppError> = None;
+    let client = client()?;
     for attempt in &attempts {
         for pass in 0..2 {
-            let result = attempt_chat(&client(), attempt, &system, &user).await;
+            let result = attempt_chat(&client, attempt, &system, &user).await;
             match result {
                 Ok(text) => return Ok(text),
                 Err(e) => {
@@ -208,7 +299,7 @@ async fn attempt_chat(
 pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
     let base = ollama_base(base_url);
     let url = format!("{}/api/tags", base);
-    let resp = client().get(&url).send().await.map_err(|e| {
+    let resp = client()?.get(&url).send().await.map_err(|e| {
         AppError::network_with(
             codes::infra::OLLAMA_UNREACHABLE,
             format!("ollama unreachable: {e}"),
@@ -246,7 +337,7 @@ async fn openai_chat(
     user: &str,
     base_url: Option<String>,
 ) -> Result<String> {
-    let url = openai_endpoint(base_url);
+    let url = openai_endpoint(base_url)?;
     let resp = client
         .post(&url)
         .bearer_auth(api_key)
@@ -304,7 +395,7 @@ async fn anthropic_chat(
     user: &str,
     base_url: Option<String>,
 ) -> Result<String> {
-    let url = anthropic_endpoint(base_url);
+    let url = anthropic_endpoint(base_url)?;
     // Hybrid-reasoning models (GLM 5.x, Claude extended thinking) always
     // emit a thinking block first; max_tokens must leave ample room for it
     // or the response is truncated mid-thought with no text block at all
@@ -364,17 +455,16 @@ fn anthropic_no_text_error(body: &Value) -> AppError {
              message was produced — try again or switch to a non-reasoning model",
         );
     }
-    // Include the response shape in the error so provider-side changes stay
-    // debuggable without a proxy.
+    // The response shape stays in `params` for the UI, but `message` must not
+    // carry response content: it flows into the local JSON log, and thinking
+    // blocks routinely restate diff content.
     let content_json: String = body["content"].to_string().chars().take(200).collect();
     AppError::unknown_with(
         codes::infra::ANTHROPIC_NO_TEXT,
-        format!(
-            "anthropic returned no text content (stop_reason: {stop_reason}, content: {content_json})"
-        ),
+        format!("anthropic returned no text content (stop_reason: {stop_reason})"),
         &[
             ("stop_reason", stop_reason.to_string()),
-            ("content", content_json.clone()),
+            ("content", content_json),
         ],
     )
 }
@@ -521,15 +611,120 @@ mod tests {
     }
 
     #[test]
-    fn no_text_error_keeps_diagnostic_for_other_reasons() {
+    fn no_text_error_keeps_diagnostic_out_of_message() {
         let body = json!({
             "stop_reason": "end_turn",
             "content": [{"type": "tool_use", "id": "t1"}]
         });
-        let err = anthropic_no_text_error(&body).to_string();
+        let err = anthropic_no_text_error(&body);
+        // Message (log-bound) carries only the stop reason; the response
+        // shape stays in params for the UI.
         assert!(
-            err.contains("stop_reason: end_turn") && err.contains("tool_use"),
-            "diagnostic shape expected: {err}"
+            err.to_string().contains("stop_reason: end_turn"),
+            "diagnostic reason expected: {err}"
+        );
+        assert!(
+            !err.to_string().contains("tool_use"),
+            "response content must not reach the log-bound message: {err}"
+        );
+        let in_params = match &err {
+            AppError::Unknown { params, .. } => params.iter().any(|(_, v)| v.contains("tool_use")),
+            _ => false,
+        };
+        assert!(
+            in_params,
+            "response shape must stay available to the UI: {err:?}"
+        );
+    }
+
+    #[test]
+    fn http_error_maps_status_to_retry_class() {
+        use reqwest::StatusCode as S;
+        assert_eq!(
+            http_error("openai", S::UNAUTHORIZED, "bad key").category(),
+            "Credential"
+        );
+        assert_eq!(
+            http_error("openai", S::FORBIDDEN, "nope").category(),
+            "Credential"
+        );
+        assert_eq!(
+            http_error("openai", S::BAD_REQUEST, "invalid").category(),
+            "Protocol",
+            "400 must not be retried as a network flake"
+        );
+        assert_eq!(
+            http_error("openai", S::UNPROCESSABLE_ENTITY, "bad").category(),
+            "Protocol"
+        );
+        assert_eq!(
+            http_error("openai", S::TOO_MANY_REQUESTS, "slow").category(),
+            "Network"
+        );
+        assert_eq!(
+            http_error("openai", S::INTERNAL_SERVER_ERROR, "boom").category(),
+            "Network"
+        );
+    }
+
+    #[test]
+    fn http_error_truncates_detail_in_message() {
+        use reqwest::StatusCode as S;
+        let long = "x".repeat(500);
+        let err = http_error("openai", S::INTERNAL_SERVER_ERROR, &long);
+        assert!(
+            err.to_string().len() < 300,
+            "log-bound message must stay short"
+        );
+    }
+
+    #[test]
+    fn cloud_endpoints_require_https() {
+        assert!(openai_endpoint(Some("https://api.openai.com".into())).is_ok());
+        assert!(openai_endpoint(None).is_ok());
+        assert!(openai_endpoint(Some("http://127.0.0.1:11434/v1".into())).is_ok());
+        assert!(openai_endpoint(Some("http://localhost:8080".into())).is_ok());
+        let err = openai_endpoint(Some("http://proxy:8080".into())).unwrap_err();
+        assert_eq!(err.category(), "Protocol");
+        assert_eq!(err.code(), codes::infra::UNSUPPORTED_PROVIDER);
+        let err = anthropic_endpoint(Some("http://proxy:8080".into())).unwrap_err();
+        assert_eq!(err.category(), "Protocol");
+    }
+
+    #[test]
+    fn debug_impls_mask_api_keys() {
+        let req = AiGenerateRequest {
+            provider: "openai".into(),
+            model: "m".into(),
+            base_url: None,
+            api_key: Some("sk-secret".into()),
+            system: "s".into(),
+            user: "u".into(),
+            fallbacks: vec![],
+        };
+        let dbg = format!("{req:?}");
+        assert!(!dbg.contains("sk-secret"), "key must not appear: {dbg}");
+        assert!(dbg.contains("***"), "mask marker expected: {dbg}");
+    }
+
+    /// Plan-promised regression: the client build must never panic on
+    /// hostile proxy env — the pre-hardening code panicked on
+    /// `expect("poisoned")`/builder errors instead. reqwest 0.12 is lenient
+    /// at build time (malformed http(s)/socks env only surfaces per-request),
+    /// so the lock-in here is the no-panic invariant: `Ok` and `Err` are
+    /// both acceptable outcomes, a panic is not.
+    #[test]
+    fn client_build_never_panics_on_hostile_proxy_env() {
+        std::env::set_var("http_proxy", "not a url at all");
+        std::env::set_var("https_proxy", "::::");
+        std::env::set_var("ALL_PROXY", "socks5://127.0.0.1:1080");
+        let outcome = std::panic::catch_unwind(build_client);
+        std::env::remove_var("http_proxy");
+        std::env::remove_var("https_proxy");
+        std::env::remove_var("ALL_PROXY");
+        assert!(
+            outcome.is_ok(),
+            "client build must not panic on garbage proxy env"
         );
     }
 }

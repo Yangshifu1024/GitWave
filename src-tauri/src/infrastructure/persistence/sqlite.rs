@@ -55,8 +55,35 @@ pub fn open() -> Result<Connection> {
     conn.busy_timeout(std::time::Duration::from_secs(5))
         .map_err(map_sqlite_err)?;
     super::migrations::apply(&conn)?;
+    lock_down_db_files(&path);
     Ok(conn)
 }
+
+/// Restrict `state.db` (+ `-wal` / `-shm` / `-journal` sidecars, when
+/// present) to owner-only access on Unix — the DB stores tokens. Best
+/// effort: failures only warn, the DB works fine with looser permissions.
+#[cfg(unix)]
+fn lock_down_db_files(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let mut targets = vec![path.to_path_buf()];
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let mut s = path.as_os_str().to_owned();
+        s.push(suffix);
+        targets.push(PathBuf::from(s));
+    }
+    for target in targets {
+        if !target.exists() {
+            continue;
+        }
+        if let Err(e) = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)) {
+            tracing::warn!(path = %target.display(), error = %e, "chmod 0600 failed");
+        }
+    }
+}
+
+/// Windows keeps default ACLs (no Unix permission bits).
+#[cfg(not(unix))]
+fn lock_down_db_files(_path: &Path) {}
 
 fn map_sqlite_err(e: rusqlite::Error) -> AppError {
     AppError::unknown_with(
@@ -77,6 +104,40 @@ mod tests {
             .query_row("SELECT sqlite_version()", [], |r| r.get(0))
             .expect("query");
         assert!(!v.is_empty());
+    }
+
+    /// Plan-promised regression for `lock_down_db_files` (Unix only: the
+    /// function itself is `#[cfg(unix)]`; Windows keeps default ACLs).
+    #[cfg(unix)]
+    #[test]
+    fn lock_down_sets_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!(
+            "gitwave-db-perm-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("state.db");
+        let wal = dir.join("state.db-wal");
+        std::fs::write(&db, b"x").unwrap();
+        std::fs::write(&wal, b"x").unwrap();
+        for p in [&db, &wal] {
+            std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        lock_down_db_files(&db);
+
+        for p in [&db, &wal] {
+            let mode = std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "{p:?} must be owner-only after lock down");
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

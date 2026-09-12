@@ -24,6 +24,9 @@ pub const WORKSPACE_NOT_FOUND: &str = "usecases.workspace.not_found";
 /// clone 重试前清理目标目录失败。
 pub const CLONE_DEST_CLEAR_FAILED: &str = "usecases.clone.dest_clear_failed";
 
+/// 未经确认 clone 到非空目录。
+pub const CLONE_DEST_NOT_EMPTY: &str = "usecases.clone.dest_not_empty";
+
 // ─── AI provider chain ──────────────────────────────────────────────────────
 
 /// AI 提供商不受支持。

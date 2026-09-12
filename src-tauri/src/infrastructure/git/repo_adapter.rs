@@ -13,7 +13,7 @@ use git2::{build::RepoBuilder, Repository, RepositoryInitOptions};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
-use super::credentials::{run_with_credentials, CredentialProvider, InlineAuth};
+use super::credentials::{redacted_url, run_with_credentials, CredentialProvider, InlineAuth};
 use super::remote::{attach_auto_proxy, cancelled_if_flagged, provider_for_operation, CancelFlag};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -107,23 +107,32 @@ fn clone_with_creds(
             &*creds,
             || builder.clone(url, dest),
             |e| {
+                // Strip userinfo: tokens pasted into the URL must not reach
+                // error messages, params, or logs.
+                let safe_url = redacted_url(url);
                 AppError::credential_with(
                     codes::git::CLONE_AUTH_FAILED,
-                    format!("auth failed for {url}: {e}"),
-                    &[("url", url.to_string()), ("error", e.to_string())],
+                    format!("auth failed for {safe_url}: {e}"),
+                    &[("url", safe_url.clone()), ("error", e.to_string())],
                 )
             },
             |e| match e.code() {
-                git2::ErrorCode::NotFound => AppError::protocol_with(
-                    codes::git::CLONE_NOT_FOUND,
-                    format!("not found: {url}"),
-                    &[("url", url.to_string())],
-                ),
-                _ => AppError::network_with(
-                    codes::git::CLONE_NETWORK,
-                    format!("network error cloning {url}: {e}"),
-                    &[("url", url.to_string()), ("error", e.to_string())],
-                ),
+                git2::ErrorCode::NotFound => {
+                    let safe_url = redacted_url(url);
+                    AppError::protocol_with(
+                        codes::git::CLONE_NOT_FOUND,
+                        format!("not found: {safe_url}"),
+                        &[("url", safe_url)],
+                    )
+                }
+                _ => {
+                    let safe_url = redacted_url(url);
+                    AppError::network_with(
+                        codes::git::CLONE_NETWORK,
+                        format!("network error cloning {safe_url}: {e}"),
+                        &[("url", safe_url), ("error", e.to_string())],
+                    )
+                }
             },
         ),
     )?;

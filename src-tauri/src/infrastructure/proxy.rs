@@ -252,7 +252,9 @@ pub fn resolve(settings: &ProxySettings) -> Option<ResolvedProxy> {
 /// threads, a theoretical POSIX race accepted here because saves are rare
 /// user actions.
 pub fn apply_to_env(settings: &ProxySettings) {
-    let mut injected = INJECTED_VARS.lock().expect("proxy env lock");
+    let mut injected = INJECTED_VARS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let resolved = resolve(settings);
     let force = matches!(settings.mode, ProxyMode::Manual);
     let mut env = ProcessEnv;

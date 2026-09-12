@@ -137,6 +137,12 @@ pub fn cherry_pick_commit(repo: &Repository, oid_str: &str) -> Result<String> {
     let on_disk = repo.index().map_err(map_git_err)?;
     let conflicts = index_conflicts(&on_disk)?;
     if !conflicts.is_empty() {
+        // The pick half-applied into index + worktree: put both back to
+        // HEAD (the entry guard guarantees HEAD is what was there) so the
+        // caller never strands conflict markers with no recovery path.
+        if let Ok(obj) = repo.head().and_then(|h| h.peel(git2::ObjectType::Commit)) {
+            let _ = repo.reset(&obj, git2::ResetType::Hard, None);
+        }
         let _ = repo.cleanup_state();
         return Err(AppError::protocol_with(
             codes::git::CHERRY_PICK_CONFLICTS,
@@ -186,8 +192,43 @@ pub fn cherry_pick_commit(repo: &Repository, oid_str: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::git::test_helpers::{build_linear_repo, write_and_stage};
+    use crate::infrastructure::git::test_helpers::{
+        build_linear_repo, make_commit, write_and_stage,
+    };
     use std::fs;
+
+    #[test]
+    fn cherry_pick_conflict_restores_clean_worktree() {
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        let (path, repo) = build_linear_repo(1);
+        let base = repo.head().unwrap().peel_to_commit().unwrap().id();
+        repo.branch("feature", &repo.find_commit(base).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/feature").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        let tree = write_and_stage(&repo, "file0.txt", "feature\n");
+        let feature_tip = make_commit(&repo, &sig, "feature edit", tree, &[base]);
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        let tree = write_and_stage(&repo, "file0.txt", "main\n");
+        let main_tip = make_commit(&repo, &sig, "main edit", tree, &[base]);
+
+        let err = cherry_pick_commit(&repo, &feature_tip.to_string()).unwrap_err();
+        assert_eq!(err.code(), codes::git::CHERRY_PICK_CONFLICTS);
+        // No half-applied state may survive: HEAD unmoved, tree clean.
+        assert_eq!(
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            main_tip
+        );
+        assert!(repo.statuses(None).unwrap().is_empty());
+        assert_eq!(
+            fs::read_to_string(repo.workdir().unwrap().join("file0.txt")).unwrap(),
+            "main\n"
+        );
+        cleanup(&path);
+    }
 
     #[test]
     fn revert_creates_inverse_commit() {
