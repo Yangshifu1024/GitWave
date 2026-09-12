@@ -100,7 +100,7 @@ export function ThreePaneLayout({
   initialSidebarWidth = 320,
   sidebarMin = 320,
   sidebarMax = 480,
-  initialInspectorWidth = 500,
+  initialInspectorWidth = 360,
   inspectorMin = 360,
   inspectorMax = 720,
   mainMin = 280,

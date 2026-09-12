@@ -10,7 +10,7 @@
 │  Client Work - gitwave - main（居中）                             ⌘K  ☀ │
 ├────────────┬──────────────────────────────────┬─────────────────────────┤
 │            │                                  │                         │
-│ Sidebar    │  History graph (flex)            │  Inspector (~500px)     │
+│ Sidebar    │  History graph (flex)            │  Inspector (~360px)     │
 │ (w: 320px) │                                  │                         │
 │            │                                  │                         │
 │            │                                  │                         │
@@ -151,11 +151,11 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 ### 5.1 布局
 
-中栏永远是 History graph（Tide Lanes，行高 28px）。右侧 Inspector（~500px）显示选中 commit 或 working-copy 文件的 diff。
+中栏永远是 History graph（Tide Lanes，行高 28px）。右侧 Inspector（~360px）显示选中 commit 或 working-copy 文件的 diff。
 
 ```
 ┌──────────────────────────────┬─────────────────────┐
-│ Commit Graph (flex)          │ Inspector (~500px)  │
+│ Commit Graph (flex)          │ Inspector (~360px)  │
 │   Tide Lanes + commit 行     │  sha · author · date│
 │                              │  message            │
 │                              │  unified / split    │
