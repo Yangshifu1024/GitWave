@@ -106,6 +106,40 @@ mod tests {
         assert!(!v.is_empty());
     }
 
+    /// Plan-promised regression for `lock_down_db_files` (Unix only: the
+    /// function itself is `#[cfg(unix)]`; Windows keeps default ACLs).
+    #[cfg(unix)]
+    #[test]
+    fn lock_down_sets_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!(
+            "gitwave-db-perm-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("state.db");
+        let wal = dir.join("state.db-wal");
+        std::fs::write(&db, b"x").unwrap();
+        std::fs::write(&wal, b"x").unwrap();
+        for p in [&db, &wal] {
+            std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+
+        lock_down_db_files(&db);
+
+        for p in [&db, &wal] {
+            let mode = std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "{p:?} must be owner-only after lock down");
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn state_dir_resolves_under_home() {
         let dir = state_dir().expect("state dir");

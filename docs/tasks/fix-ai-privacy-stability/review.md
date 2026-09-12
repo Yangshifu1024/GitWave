@@ -1,55 +1,49 @@
+# Review · fix-ai-privacy-stability（d2666e2 + 测试补充提交）
+
+> 最终态审查记录。本文件为分支内初审报告的刷新版：初审所列问题已逐项核对
+> d2666e2 最终代码，绝大多数已在最终态修复；下文「已修复记录」给出逐项结论，
+> 并登记合并前遗留清单。
+
 ## ✅ 优点
 
 - `client()` 双重检查锁正确：读→写→复查，`into_inner` 恢复毒锁，构建失败返回 `network_with(AI_CLIENT_BUILD)` 且不污染单例；`generate_text` 将 `client()?` 提到循环外。
-- `Debug` 脱敏完备：`AiGenerateRequest` / `ProviderAttempt` / `ResolvedAiProvider` 均手写、`api_key → "***"`，`fallbacks` 经已脱敏的 `ProviderAttempt` 打印；`http_error`/`anthropic_no_text_error` 的 message 已与 content 解耦（log 只剩 `stop_reason` + 200 字截断）。
+- `Debug` 脱敏完备：`AiGenerateRequest` / `ProviderAttempt` / `ResolvedAiProvider` 均手写、`api_key → "***"`；`http_error`/`anthropic_no_text_error` 的 message 与 content 解耦（log 只剩 `stop_reason` + 200 字截断）。
 - `redacted_url` 正确：`rsplit_once('@')` 抗密码内 `@`、`path` 中 `@` 保留、scp 原样；`repo_adapter`/`submodule` 闭包内单次调用。
-- 凭据多账号：`vault_key = host + \x1f + user` 不透明不可逆；迁移/删除均校验用户名一致性，他账号不受影响；`use_cases:822` 的 `Option::expect`（非 poison）未被误动。
+- 凭据多账号：`vault_key = host + \x1f + user` 不透明不可逆；迁移/删除均校验用户名一致性，他账号不受影响。
 - `cherry_pick_commit` 冲突先 `reset(Hard)→HEAD` 再 `cleanup_state`，顺序正确且有回归测试；`rebase` 改读 `inmemory_index` 对症，`abort` 仍执行。
-- 同步锁统一为 `workspace_sync_lock`，fetch/pull/push/删远端分支加锁顺序一致（先 sync 锁再 workspaces 锁），锁内无嵌套持锁调用；`clone` 守卫先验后删。
+- 同步锁统一为 `workspace_sync_lock`，fetch/pull/push/删远端分支加锁顺序一致；`clone` 守卫先验后删。
+- 含约 20 个新增单测：scrubber 形态与误杀反例、https 强制、状态码映射、Debug 脱敏、vault 迁移与共存、大输出死锁、ssh 注入拒绝等，覆盖真实回归路径。
 
-## 🔴 严重问题（必须修复）
+## 已修复记录（初审 🟡 → 最终态核对）
 
-无。
+| 初审发现 | 最终态结论 |
+|---|---|
+| `asia` 裸词误杀 | 已修复：移除裸词匹配并补误杀反例测试 |
+| `token = "x"`（等号带空格）漏杀 | 已修复：nospace 副本命中带空格形态 |
+| 整行丢弃 vs plan 承诺的片段替换 | 已申报偏差：整行 `[REDACTED]` 替代片段替换，plan 偏差节如实记录 |
+| `should_failover` 注释与行为矛盾 | 已修复：注释同步为 fail-fast 语义（400/422 → Protocol 不重试） |
+| `vault_host` IPv6 端口丢失 | 已修复：IPv6 保留端口（有单测） |
+| `clone_repo` 守卫无 `.git` 例外 | 已申报偏差：失败残留同样走确认流程，比 plan 更保守（合理） |
+| 成功路径 `join()` 无上限 | 已修复：`join_drain` 加 5s 上限（正向补强） |
+| `ssh-add -L` 无超时 | 已修复：`-l`/`-L` 均加 15s 超时（超出 plan 的正向偏差） |
+| `proxy.rs:242` 残留 expect | 已修复：生产代码 `.expect`/`unwrap` 清零 |
+| `ResolvedAiProvider` 派生 `Serialize` | 已修复：不再携带明文 `api_key` 序列化面 |
 
-## 🟡 一般问题（建议修复）
+## 本提交新增（测试债收尾）
 
-- **位置**：`ai/scrubber.rs`、`LINE_KEYWORDS`/`TOKEN_PREFIXES`
-  - **描述**：`asia` 作为裸子串匹配，任何含 "Asia" 的正常行（如注释、地名）都会整行丢弃，误杀明显；`token = "x"`（等号带空格）不含 `token=` 子串而漏杀；裸密钥值独占一行（无关键字同行）同样漏杀。实现是整行丢弃，与 plan 2.1 承诺的"正则片段替换、保留行结构"不符。
-  - **建议**：`asia` 改为带长度/字符集的 `ASIA[0-9A-Z]{16}` 判定；补 `token\s*[:=]` 含空格形态；偏差节补记"片段替换降级为整行丢弃"。
-- **位置**：`application/use_cases.rs:669-678` 注释 vs `:811-819` 代码
-  - **描述**：注释称"400/422 → Protocol 会 fail over 到下一 provider"，但 `should_failover` 仅匹配 `Network`，`Protocol` 走 `:819` 直接返回，注释与行为矛盾；偏差节"注释已同步"不诚实。
-  - **建议**：二选一并改注释：若要 failover 则 `should_failover` 放行 `Protocol` 中 400/422；若要停止则把注释改为"停止整条链"。
-- **位置**：`git/credentials.rs`、`vault_host` IPv6 分支
-  - **描述**：`[::1]:2222` 被剥括号后按 `]` 切分得 `::1`，端口丢失；而 IPv4 `github.com:8443` 保留端口。同一主机不同端口的 IPv6 凭据会共用一键。
-  - **建议**：保留 `]` 后 `:port` 后缀（`::1:2222` 仍有歧义，更稳妥是 `[::1]:2222` 原样小写保留）；同步更新单测期望。
-- **位置**：`application/use_cases.rs`、`clone_repo` 守卫
-  - **描述**：plan 2.7 要求"失败 clone 残留（无有效 `.git`）可直接清理"，实现对一切非空目录一律 `CLONE_DEST_NOT_EMPTY`，无 `.git` 例外；偏差节未提及。
-  - **建议**：补 `.git` 有效性检查或在偏差节如实记录行为收紧。
-- **位置**：`infrastructure/process.rs`、`wait_with_output_timeout` 成功路径 `join()`
-  - **描述**：子进程已退出但 grandchild 继承管道未关时，`read_to_end` 永不到 EOF，`join` 永久阻塞（超时路径已正确 detach 成功路径无保护）。
-  - **建议**：成功路径也用超时 `join`，超限则 detach 并返回已收集部分；或文档注明该局限。
-- **位置**：`infrastructure/ssh/keys.rs`、`list_identities_best_effort`
-  - **描述**：`ssh-add -L` 用阻塞 `.output()` 无超时，agent 挂起会卡住调用方；与 `-l` 的按索引对齐仅 best-effort（已诚实注释）。
-  - **建议**：复用 `wait_with_output_timeout` 加 5-10s 超时；失败回退逻辑保持不变。
-- **位置**：`infrastructure/proxy.rs:242`、`INJECTED_VARS.lock().expect(...)`
-  - **描述**：plan 列出的 poison 点已清零，但同类 panic 在此残留一处（静态锁 poison 即崩）。
-  - **建议**：顺手改为 `unwrap_or_else(PoisonError::into_inner)`。
-- **位置**：`application/use_cases.rs`、`ResolvedAiProvider` 派生 `Serialize`
-  - **描述**：`api_key` 明文可序列化，若未来经 IPC 回传前端即泄漏（当前链内使用似未外发）。
-  - **建议**：确认永不外发，或 `#[serde(skip_serializing)]` / 手写 `Serialize` 掩码。
+- `tracing.rs`：`should_prune` 纯函数化 + 策略单测（名字/年龄双门控）+ 临时目录集成测试（过期删、现存留、异名留）；`prune_old_logs` 改为委托纯函数。
+- `sqlite.rs`：`#[cfg(unix)]` 权限位回归测试——`state.db` 与 `-wal` 被 `lock_down_db_files` 收敛为 0600（Windows 无权限位语义，不编译）。
+- `provider.rs`：抽出 `build_client()`（行为不变），新增「坏 proxy env → `Err(AI_CLIENT_BUILD)` 不 panic」回归测试。
 
-## 🟢 优化建议（可选）
+## 遗留（不阻断，建议合并后跟进）
 
-- **位置**：`ai/provider.rs`、`require_https_url`
-  - **描述**：loopback 例外仅 `localhost/127.0.0.1/::1`，与 plan 一致；`10./192.168.` 内网明文、`::ffff:127.0.0.1` 不在例外内，行为偏严但可接受。
-  - **建议**：维持现状，如需放行内网网关再扩展并补单测。
-- **位置**：`ai/scrubber.rs`、`TOKEN_PREFIXES`
-  - **描述**：Slack 前缀缺 `xoxe-/xoxt-/xoxq-` 等少见变体；`npm_` 可能误伤 `npm_install` 类标识（方向为宁可误杀，符合本模块注释）。
-  - **建议**：补全 Slack 变体；`npm_` 可收紧为 `_authToken=npm_` 上下文，后续项。
-- **位置**：`git/rebase.rs`、`if let Ok(idx) = rebase.inmemory_index()`
-  - **描述**：错误被静默吞掉后冲突列表为空，但 `abort` 照常执行，安全无虞。
-  - **建议**：加一行 `tracing::debug!` 记录吞掉的错误，便于排障。
+1. 🟡 scrubber 对「独行高熵裸密钥」（无 keyword 同行的 base64 PAT 等）有结构性漏检缺口——建议后续加 ≥32 字符 `[A-Za-z0-9+/=_-]` 启发式（宁可误杀）。
+2. 🟢 `redacted_url` 对「密码内含 `/`」的不合法输入会整条原样返回；RFC 3986 要求 percent-encode，可按「authority 整段 rsplit」加固。
+3. 🟢 unix-only 路径（chmod/prune 权限位、client 坏 env 在 unix 的具体行为）需 CI 在 unix 目标上确认通过；本机为 Windows。
+4. 🟢 增量日志（umask 继承）与 WAL 新建文件的权限收敛——plan 偏差已申报，保持跟踪。
+5. 🟢 `abort_merge` 现删除 `ORIG_HEAD`（git 自身是恢复为 merge 前值）；当前无依赖方，可接受。
+6. 🟢 vault 用户名大小写变体（`Alice`/`alice`）可能形成两个条目；行为安全，仅存储冗余。
 
 ## 📝 总体评价
 
-实现质量高：隐私止血（脱敏 Debug、错误体截断、userinfo strip）与稳定性（去 panic、DCL、锁统一、超时与冲突恢复）均对症且单测覆盖到位。最需优先处理的是 `should_failover` 注释与行为矛盾及 `asia` 误杀两处；`review.md` 所列其余多为边界收紧与偏差诚实度补记，无阻止合并项。
+隐私面收敛与稳定性目标达成，plan 9 项全部落地、偏差全部如实申报，无阻断项。本提交补齐 plan 承诺的三项测试债后，`cargo test --all-targets`、`clippy -D warnings`、`fmt --check` 全绿（unix-only 用例标注为 CI 待办）。

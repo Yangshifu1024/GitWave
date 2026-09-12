@@ -155,6 +155,22 @@ static AI_HTTP_CLIENT: RwLock<Option<Arc<reqwest::Client>>> = RwLock::new(None);
 /// Rebuildable (F013): saving proxy settings rewrites the process env the
 /// client's proxy config was built from, so [`rebuild_http_client`] drops
 /// this one and the next request constructs a fresh client.
+/// Build a fresh shared client config. Extracted from [`client`] so the
+/// build-failure path (e.g. illegal proxy env) is unit-testable without
+/// touching the process-wide slot.
+fn build_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| {
+            AppError::network_with(
+                codes::infra::AI_CLIENT_BUILD,
+                format!("ai http client build failed: {e}"),
+                &[("error", e.to_string())],
+            )
+        })
+}
+
 fn client() -> Result<Arc<reqwest::Client>> {
     // A poisoned lock means a previous build panicked — recover with the
     // inner value instead of cascading the panic into every AI call.
@@ -173,16 +189,7 @@ fn client() -> Result<Arc<reqwest::Client>> {
     if let Some(client) = guard.as_ref() {
         return Ok(Arc::clone(client));
     }
-    let built = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(|e| {
-            AppError::network_with(
-                codes::infra::AI_CLIENT_BUILD,
-                format!("ai http client build failed: {e}"),
-                &[("error", e.to_string())],
-            )
-        })?;
+    let built = build_client()?;
     let shared = Arc::new(built);
     *guard = Some(Arc::clone(&shared));
     Ok(shared)
@@ -698,5 +705,26 @@ mod tests {
         let dbg = format!("{req:?}");
         assert!(!dbg.contains("sk-secret"), "key must not appear: {dbg}");
         assert!(dbg.contains("***"), "mask marker expected: {dbg}");
+    }
+
+    /// Plan-promised regression: the client build must never panic on
+    /// hostile proxy env — the pre-hardening code panicked on
+    /// `expect("poisoned")`/builder errors instead. reqwest 0.12 is lenient
+    /// at build time (malformed http(s)/socks env only surfaces per-request),
+    /// so the lock-in here is the no-panic invariant: `Ok` and `Err` are
+    /// both acceptable outcomes, a panic is not.
+    #[test]
+    fn client_build_never_panics_on_hostile_proxy_env() {
+        std::env::set_var("http_proxy", "not a url at all");
+        std::env::set_var("https_proxy", "::::");
+        std::env::set_var("ALL_PROXY", "socks5://127.0.0.1:1080");
+        let outcome = std::panic::catch_unwind(build_client);
+        std::env::remove_var("http_proxy");
+        std::env::remove_var("https_proxy");
+        std::env::remove_var("ALL_PROXY");
+        assert!(
+            outcome.is_ok(),
+            "client build must not panic on garbage proxy env"
+        );
     }
 }
