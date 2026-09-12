@@ -28,10 +28,13 @@ import {
   formatAppError,
   getCommitLog,
   getWorkingCopy,
+  interactiveRebasePaused,
+  mergeInProgress,
   saveStash,
   type CommitSummary,
   type PaletteIntent,
 } from "@/lib/api";
+import { gateCheckout } from "@/lib/checkoutGate";
 import { useUiStore } from "@/stores/uiStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
@@ -241,6 +244,28 @@ export function CommandPalette({
             break;
           }
           case "checkout_branch": {
+            // Same gate as the sidebar checkout (dirty/blocked pre-check);
+            // the backend refuses dirty checkouts as the last line of defence.
+            const [wc, merging, rebasePaused] = await Promise.all([
+              getWorkingCopy(workspaceId).catch(() => null),
+              mergeInProgress(workspaceId).catch(() => false),
+              interactiveRebasePaused(workspaceId).catch(() => false),
+            ]);
+            const gate = gateCheckout({
+              isCurrent: false,
+              dirtyCount: wc?.files.length ?? 0,
+              mergeInProgress: merging,
+              rebasePaused,
+              occupiedWorktree: null,
+            });
+            if (gate.kind === "blocked") {
+              setStatus(gate.message, "danger");
+              break;
+            }
+            if (gate.kind === "dirty") {
+              setStatus(t("branches.switch.dirtyDescription", { count: gate.fileCount }), "danger");
+              break;
+            }
             await checkoutBranch(workspaceId, params.name ?? "", false);
             bumpHistory();
             void queryClient.invalidateQueries({ queryKey: ["working-copy"] });

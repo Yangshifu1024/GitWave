@@ -11,6 +11,7 @@ use git2::{Oid, Repository, ResetType};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
+use crate::infrastructure::git::worktree_guard::{classify_dirty, ensure_clean};
 
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::unknown_with(
@@ -61,10 +62,71 @@ pub struct InteractiveRebaseResult {
 struct PauseState {
     upstream: String,
     remaining: Vec<InteractiveRebaseTodo>,
+    /// Branch tip before `execute` moved it — abort/conflict restore target.
+    /// `#[serde(default)]` keeps pre-existing pause files readable.
+    #[serde(default)]
+    original_head: Option<String>,
 }
 
 fn pause_path(repo: &Repository) -> PathBuf {
     repo.path().join("gitwave-interactive-rebase.json")
+}
+
+fn write_pause(repo: &Repository, state: &PauseState) -> Result<()> {
+    let json = serde_json::to_string_pretty(state).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::SERIALIZE_PAUSE,
+            format!("serialize pause: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    fs::write(pause_path(repo), json).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::WRITE_PAUSE,
+            format!("write pause: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    Ok(())
+}
+
+/// Best-effort restore after a failed replay: put the branch back where
+/// `execute` found it and drop the pause file, so a conflict never leaves a
+/// half-rebased branch behind.
+fn restore_original(repo: &Repository, original: Option<Oid>) {
+    if let Some(orig) = original {
+        if let Ok(obj) = repo.find_object(orig, None) {
+            let _ = repo.reset(&obj, ResetType::Hard, None);
+        }
+        let _ = repo.cleanup_state();
+    }
+    let _ = fs::remove_file(pause_path(repo));
+}
+
+/// Fold the current index into HEAD, keeping message and parents
+/// (≡ `git commit --amend --no-edit` of staged changes). Used by `continue`
+/// so Edit-pause modifications land in the paused commit instead of being
+/// silently mixed into the replayed todos.
+fn amend_head_with_index(repo: &Repository) -> Result<()> {
+    let head = repo
+        .head()
+        .map_err(map_git_err)?
+        .peel_to_commit()
+        .map_err(map_git_err)?;
+    let mut index = repo.index().map_err(map_git_err)?;
+    let tree_oid = index.write_tree().map_err(map_git_err)?;
+    let tree = repo.find_tree(tree_oid).map_err(map_git_err)?;
+    let sig = commit_signature(repo)?;
+    head.amend(
+        Some("HEAD"),
+        Some(&sig),
+        Some(&sig),
+        None,
+        None,
+        Some(&tree),
+    )
+    .map_err(map_git_err)?;
+    Ok(())
 }
 
 fn resolve_upstream(repo: &Repository, upstream: &str) -> Result<Oid> {
@@ -176,16 +238,39 @@ fn message_for(todo: &InteractiveRebaseTodo, commit: &git2::Commit<'_>) -> Strin
 }
 
 /// Reset HEAD to `upstream` and replay `todos` in order.
+///
+/// Refuses a dirty worktree before the first reset (both paths below move
+/// HEAD with `ResetType::Hard`, which would silently discard uncommitted
+/// edits). The pre-execute tip is persisted in the pause file so abort — or
+/// a mid-replay conflict — can put the branch back.
 pub fn execute_interactive_rebase(
     repo: &Repository,
     upstream: &str,
     todos: &[InteractiveRebaseTodo],
 ) -> Result<InteractiveRebaseResult> {
     let upstream_oid = resolve_upstream(repo, upstream)?;
+    ensure_clean(repo)?;
+    let original = repo
+        .head()
+        .map_err(map_git_err)?
+        .target()
+        .ok_or_else(|| AppError::protocol(codes::git::HEAD_UNBORN, "HEAD is unborn"))?;
     let active: Vec<&InteractiveRebaseTodo> = todos
         .iter()
         .filter(|t| t.action != InteractiveRebaseAction::Drop)
         .collect();
+    // Validate before anything destructive: the replay-time check would fire
+    // only after the branch was already reset onto upstream.
+    if let Some(first) = active.first() {
+        if first.action == InteractiveRebaseAction::Squash
+            || first.action == InteractiveRebaseAction::Fixup
+        {
+            return Err(AppError::protocol(
+                codes::git::SQUASH_FIRST_COMMIT,
+                "cannot squash/fixup the first commit in the todo list",
+            ));
+        }
+    }
     if active.is_empty() {
         // All dropped → move HEAD to upstream.
         let obj = repo.find_object(upstream_oid, None).map_err(map_git_err)?;
@@ -199,19 +284,32 @@ pub fn execute_interactive_rebase(
         });
     }
 
+    // Persist the pause BEFORE the destructive reset so abort (and crash
+    // recovery) can restore the pre-execute tip. The Edit arm below rewrites
+    // it with the updated `remaining`.
+    let remaining: Vec<InteractiveRebaseTodo> = active.iter().map(|t| (*t).clone()).collect();
+    write_pause(
+        repo,
+        &PauseState {
+            upstream: upstream.to_string(),
+            remaining,
+            original_head: Some(original.to_string()),
+        },
+    )?;
+
     // Hard reset to upstream base, then cherry-pick each todo.
     let obj = repo.find_object(upstream_oid, None).map_err(map_git_err)?;
     repo.reset(&obj, ResetType::Hard, None)
         .map_err(map_git_err)?;
-    let _ = fs::remove_file(pause_path(repo));
 
-    replay_todos(repo, upstream, &active)
+    replay_todos(repo, upstream, &active, Some(original))
 }
 
 fn replay_todos(
     repo: &Repository,
     upstream: &str,
     todos: &[&InteractiveRebaseTodo],
+    original: Option<Oid>,
 ) -> Result<InteractiveRebaseResult> {
     let mut i = 0;
     while i < todos.len() {
@@ -231,6 +329,7 @@ fn replay_todos(
             }
             InteractiveRebaseAction::Pick | InteractiveRebaseAction::Reword => {
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
+                    restore_original(repo, original);
                     return conflict_from_err(e);
                 }
                 let head = repo
@@ -245,6 +344,7 @@ fn replay_todos(
             }
             InteractiveRebaseAction::Edit => {
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
+                    restore_original(repo, original);
                     return conflict_from_err(e);
                 }
                 let head = repo
@@ -256,26 +356,19 @@ fn replay_todos(
                 let new_oid = commit_index(repo, &[&head], &msg)?;
                 let remaining: Vec<InteractiveRebaseTodo> =
                     todos[i + 1..].iter().map(|t| (*t).clone()).collect();
-                if !remaining.is_empty() {
-                    let state = PauseState {
+                // Always (re)write, even when `remaining` is empty: `execute`
+                // pre-wrote a pause covering all todos, and leaving it behind
+                // would let Continue replay already-landed commits. An empty
+                // `remaining` still pauses (user may amend), and Continue
+                // finishes it as a no-op replay.
+                write_pause(
+                    repo,
+                    &PauseState {
                         upstream: upstream.to_string(),
                         remaining,
-                    };
-                    let json = serde_json::to_string_pretty(&state).map_err(|e| {
-                        AppError::unknown_with(
-                            codes::git::SERIALIZE_PAUSE,
-                            format!("serialize pause: {e}"),
-                            &[("error", e.to_string())],
-                        )
-                    })?;
-                    fs::write(pause_path(repo), json).map_err(|e| {
-                        AppError::unknown_with(
-                            codes::git::WRITE_PAUSE,
-                            format!("write pause: {e}"),
-                            &[("error", e.to_string())],
-                        )
-                    })?;
-                }
+                        original_head: original.map(|o| o.to_string()),
+                    },
+                )?;
                 return Ok(InteractiveRebaseResult {
                     kind: InteractiveRebaseKind::PausedForEdit,
                     conflicts: Vec::new(),
@@ -291,6 +384,7 @@ fn replay_todos(
                     ));
                 }
                 if let Err(e) = cherry_pick_onto_head(repo, oid) {
+                    restore_original(repo, original);
                     return conflict_from_err(e);
                 }
                 // Amend HEAD: same parents as HEAD, new tree from index, maybe combined msg.
@@ -365,12 +459,48 @@ pub fn continue_interactive_rebase(repo: &Repository) -> Result<InteractiveRebas
             &[("error", e.to_string())],
         )
     })?;
+    // The Edit pause is where the user amends: staged changes fold into the
+    // paused commit (≡ `git commit --amend`), while unstaged/untracked
+    // changes would be silently mixed into the replay — refuse those.
+    let (staged, unstaged, untracked) = classify_dirty(repo)?;
+    if unstaged || untracked {
+        return Err(AppError::protocol(
+            codes::git::DIRTY_WORKTREE,
+            "working copy has unstaged or untracked changes — stage them in Working Copy or stash first (staged changes are amended into the paused commit on continue)",
+        ));
+    }
+    if staged {
+        amend_head_with_index(repo)?;
+    }
+    let original = state
+        .original_head
+        .as_deref()
+        .and_then(|s| Oid::from_str(s).ok());
     let refs: Vec<&InteractiveRebaseTodo> = state.remaining.iter().collect();
-    replay_todos(repo, &state.upstream, &refs)
+    replay_todos(repo, &state.upstream, &refs, original)
 }
 
 pub fn abort_interactive_rebase_pause(repo: &Repository) -> Result<()> {
-    let _ = fs::remove_file(pause_path(repo));
+    let path = pause_path(repo);
+    // A true abort: put the branch back where `execute` found it instead of
+    // leaving the already-replayed commits behind. Pause files written
+    // before `original_head` existed fall back to the old drop-only path.
+    if let Ok(raw) = fs::read_to_string(&path) {
+        if let Ok(state) = serde_json::from_str::<PauseState>(&raw) {
+            if let Some(orig) = state
+                .original_head
+                .as_deref()
+                .and_then(|s| Oid::from_str(s).ok())
+            {
+                if let Ok(obj) = repo.find_object(orig, None) {
+                    repo.reset(&obj, ResetType::Hard, None)
+                        .map_err(map_git_err)?;
+                }
+                let _ = repo.cleanup_state();
+            }
+        }
+    }
+    let _ = fs::remove_file(path);
     Ok(())
 }
 
@@ -381,11 +511,264 @@ pub fn interactive_rebase_paused(repo: &Repository) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::git::test_helpers::build_linear_repo;
+    use crate::infrastructure::git::test_helpers::{
+        build_linear_repo, make_commit, write_and_stage,
+    };
     use std::fs;
 
     fn cleanup(path: &std::path::Path) {
         let _ = fs::remove_dir_all(path);
+    }
+
+    /// linear(3) with `base` at HEAD~2; returns (path, repo, pre-tip).
+    fn edit_pause_setup() -> (std::path::PathBuf, Repository, Oid) {
+        let (path, repo) = build_linear_repo(3);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let first = repo.revparse_single("HEAD~2").unwrap().id();
+        repo.branch("base", &repo.find_commit(first).unwrap(), false)
+            .unwrap();
+        let mut todos = plan_interactive_rebase(&repo, "base").unwrap();
+        assert_eq!(todos.len(), 2);
+        todos[0].action = InteractiveRebaseAction::Edit;
+        let res = execute_interactive_rebase(&repo, "base", &todos).unwrap();
+        assert_eq!(res.kind, InteractiveRebaseKind::PausedForEdit);
+        assert!(pause_path(&repo).exists());
+        (path, repo, tip)
+    }
+
+    #[test]
+    fn execute_refuses_dirty_worktree() {
+        let (path, repo) = build_linear_repo(3);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let first = repo.revparse_single("HEAD~2").unwrap().id();
+        repo.branch("base", &repo.find_commit(first).unwrap(), false)
+            .unwrap();
+        let todos = plan_interactive_rebase(&repo, "base").unwrap();
+        fs::write(repo.workdir().unwrap().join("file0.txt"), "uncommitted\n").unwrap();
+        let err = execute_interactive_rebase(&repo, "base", &todos).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert_eq!(
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            tip,
+            "refused execute must not move HEAD"
+        );
+        assert!(
+            !pause_path(&repo).exists(),
+            "refused execute must not leave a pause file"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn execute_drop_all_refuses_dirty_worktree() {
+        let (path, repo) = build_linear_repo(3);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let first = repo.revparse_single("HEAD~2").unwrap().id();
+        repo.branch("base", &repo.find_commit(first).unwrap(), false)
+            .unwrap();
+        let mut todos = plan_interactive_rebase(&repo, "base").unwrap();
+        for t in &mut todos {
+            t.action = InteractiveRebaseAction::Drop;
+        }
+        fs::write(repo.workdir().unwrap().join("file0.txt"), "uncommitted\n").unwrap();
+        let err = execute_interactive_rebase(&repo, "base", &todos).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert_eq!(repo.head().unwrap().peel_to_commit().unwrap().id(), tip);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn continue_amends_staged_edit_then_replays() {
+        let (path, repo, _) = edit_pause_setup();
+        // User fix during the pause, staged via Working Copy.
+        fs::write(repo.workdir().unwrap().join("file1.txt"), "fixed\n").unwrap();
+        {
+            let mut index = repo.index().unwrap();
+            index.add_path(std::path::Path::new("file1.txt")).unwrap();
+            index.write().unwrap();
+        }
+        let res = continue_interactive_rebase(&repo).unwrap();
+        assert_eq!(res.kind, InteractiveRebaseKind::Clean);
+        assert!(!pause_path(&repo).exists());
+        // Still exactly 2 commits over base: the fix amended the paused
+        // commit instead of becoming an extra commit.
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let first = repo.revparse_single("base").unwrap().id();
+        let mut walk = repo.revwalk().unwrap();
+        walk.push(head).unwrap();
+        walk.hide(first).unwrap();
+        assert_eq!(walk.count(), 2);
+        let tree = repo.find_commit(head).unwrap().tree().unwrap();
+        let entry = tree.get_name("file1.txt").unwrap();
+        let blob = repo.find_blob(entry.id()).unwrap();
+        assert_eq!(blob.content(), b"fixed\n");
+        cleanup(&path);
+    }
+
+    #[test]
+    fn continue_clean_replays_remaining() {
+        // Pause, then continue without touching anything: remaining todos
+        // replay onto the paused tip.
+        let (path, repo, _) = edit_pause_setup();
+        let res = continue_interactive_rebase(&repo).unwrap();
+        assert_eq!(res.kind, InteractiveRebaseKind::Clean);
+        assert!(!pause_path(&repo).exists());
+        let head = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let first = repo.revparse_single("base").unwrap().id();
+        let mut walk = repo.revwalk().unwrap();
+        walk.push(head).unwrap();
+        walk.hide(first).unwrap();
+        assert_eq!(walk.count(), 2);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn continue_reads_legacy_pause_without_original_head() {
+        // Pause files written before `original_head` existed must still
+        // parse (serde default) and replay; only the restore step is skipped.
+        let (path, repo) = build_linear_repo(3);
+        let first = repo.revparse_single("HEAD~2").unwrap().id();
+        repo.branch("base", &repo.find_commit(first).unwrap(), false)
+            .unwrap();
+        let todos = plan_interactive_rebase(&repo, "base").unwrap();
+        let remaining: Vec<InteractiveRebaseTodo> = todos[1..].to_vec();
+        let legacy = serde_json::json!({
+            "upstream": "base",
+            "remaining": remaining,
+        });
+        fs::write(
+            pause_path(&repo),
+            serde_json::to_string_pretty(&legacy).unwrap(),
+        )
+        .unwrap();
+        let res = continue_interactive_rebase(&repo).unwrap();
+        assert_eq!(res.kind, InteractiveRebaseKind::Clean);
+        assert!(!pause_path(&repo).exists());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn execute_rejects_squash_first_before_reset() {
+        // The squash-first check must fire before the destructive reset, so
+        // a bad plan can neither move the branch nor leave a pause behind.
+        let (path, repo) = build_linear_repo(3);
+        let tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let first = repo.revparse_single("HEAD~2").unwrap().id();
+        repo.branch("base", &repo.find_commit(first).unwrap(), false)
+            .unwrap();
+        let mut todos = plan_interactive_rebase(&repo, "base").unwrap();
+        todos[0].action = InteractiveRebaseAction::Squash;
+        let err = execute_interactive_rebase(&repo, "base", &todos).unwrap_err();
+        assert_eq!(err.code(), codes::git::SQUASH_FIRST_COMMIT);
+        assert_eq!(repo.head().unwrap().peel_to_commit().unwrap().id(), tip);
+        assert!(!pause_path(&repo).exists());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn edit_last_todo_pauses_without_stale_state() {
+        // Edit as the final todo: pause carries empty `remaining`, and
+        // Continue finishes it instead of replaying landed commits.
+        let (path, repo) = build_linear_repo(3);
+        let first = repo.revparse_single("HEAD~2").unwrap().id();
+        repo.branch("base", &repo.find_commit(first).unwrap(), false)
+            .unwrap();
+        let mut todos = plan_interactive_rebase(&repo, "base").unwrap();
+        assert_eq!(todos.len(), 2);
+        todos[1].action = InteractiveRebaseAction::Edit;
+        let res = execute_interactive_rebase(&repo, "base", &todos).unwrap();
+        assert_eq!(res.kind, InteractiveRebaseKind::PausedForEdit);
+        let paused_tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let res = continue_interactive_rebase(&repo).unwrap();
+        assert_eq!(res.kind, InteractiveRebaseKind::Clean);
+        assert_eq!(
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            paused_tip,
+            "empty-remaining continue must not replay anything"
+        );
+        assert!(!pause_path(&repo).exists());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn continue_refuses_unstaged_changes() {
+        let (path, repo, _) = edit_pause_setup();
+        fs::write(repo.workdir().unwrap().join("file1.txt"), "unstaged\n").unwrap();
+        let err = continue_interactive_rebase(&repo).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert!(
+            pause_path(&repo).exists(),
+            "refused continue must keep the pause"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn continue_refuses_untracked_file() {
+        let (path, repo, _) = edit_pause_setup();
+        fs::write(repo.workdir().unwrap().join("scratch.txt"), "new\n").unwrap();
+        let err = continue_interactive_rebase(&repo).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn abort_restores_original_head() {
+        let (path, repo, tip) = edit_pause_setup();
+        // Simulate user edits during the pause — none may survive abort.
+        fs::write(repo.workdir().unwrap().join("file1.txt"), "doomed\n").unwrap();
+        abort_interactive_rebase_pause(&repo).unwrap();
+        assert_eq!(
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            tip,
+            "abort must put the branch back where execute found it"
+        );
+        assert_eq!(
+            fs::read_to_string(repo.workdir().unwrap().join("file1.txt")).unwrap(),
+            "v1\n"
+        );
+        assert!(!pause_path(&repo).exists());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn execute_conflict_restores_original_head() {
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        let (path, repo) = build_linear_repo(1);
+        let base = repo.head().unwrap().peel_to_commit().unwrap().id();
+        // Upstream moves file0 one way…
+        repo.branch("upstream", &repo.find_commit(base).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/upstream").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        let tree = write_and_stage(&repo, "file0.txt", "upstream\n");
+        make_commit(&repo, &sig, "upstream edit", tree, &[base]);
+        // …main moves it the other way.
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .unwrap();
+        let tree = write_and_stage(&repo, "file0.txt", "main\n");
+        let tip = make_commit(&repo, &sig, "main edit", tree, &[base]);
+
+        let todos = plan_interactive_rebase(&repo, "upstream").unwrap();
+        assert_eq!(todos.len(), 1);
+        let res = execute_interactive_rebase(&repo, "upstream", &todos).unwrap();
+        assert_eq!(res.kind, InteractiveRebaseKind::Conflicts);
+        assert_eq!(
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            tip,
+            "conflict must restore the pre-execute tip, not a half-rebased branch"
+        );
+        assert!(
+            !pause_path(&repo).exists(),
+            "conflict restore must drop the pause file"
+        );
+        assert_eq!(
+            fs::read_to_string(repo.workdir().unwrap().join("file0.txt")).unwrap(),
+            "main\n"
+        );
+        cleanup(&path);
     }
 
     #[test]

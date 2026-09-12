@@ -10,6 +10,7 @@ use crate::domain::error_codes as codes;
 use crate::domain::working_copy::{FileChange, FileStatusKind, WorkingCopy};
 use crate::infrastructure::git::git2_adapter::commit_signature;
 use crate::infrastructure::git::history::ahead_behind;
+use crate::infrastructure::git::worktree_guard::{ensure_path_in_workdir, reject_escaping_syntax};
 
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::unknown_with(
@@ -156,6 +157,9 @@ fn worktree_kind(s: Status) -> Option<FileStatusKind> {
 pub fn stage_paths(repo: &Repository, paths: &[String]) -> Result<()> {
     let mut index = repo.index().map_err(map_git_err)?;
     for path in paths {
+        // `index.add_path` with an absolute path replaces the base and
+        // `..` climbs out of the workdir — reject before libgit2 sees it.
+        reject_escaping_syntax(path)?;
         let p = Path::new(path);
         let abs = repo.workdir().map(|w| w.join(p));
         let deleted = abs.as_ref().is_some_and(|a| !a.exists());
@@ -395,24 +399,9 @@ pub fn discard_worktree_changes(repo: &Repository, paths: &[String]) -> Result<(
 
     let mut tracked: Vec<String> = Vec::new();
     for path in paths {
-        // Reject anything that could leave the worktree before libgit2 sees
-        // it: absolute paths replace the base in `PathBuf::join`, and both
-        // it and libgit2's own checks treat `..` differently.
-        if Path::new(path).is_absolute() || path.split(['/', '\\']).any(|seg| seg == "..") {
-            return Err(AppError::protocol_with(
-                codes::git::PATH_ESCAPES_WORKTREE,
-                format!("path escapes worktree: {path}"),
-                &[("path", path.clone())],
-            ));
-        }
+        // Shared guard: same bar as resolve/stage (see worktree_guard).
+        ensure_path_in_workdir(workdir, path)?;
         let abs = workdir.join(path);
-        if !abs.starts_with(workdir) {
-            return Err(AppError::protocol_with(
-                codes::git::PATH_ESCAPES_WORKTREE,
-                format!("path escapes worktree: {path}"),
-                &[("path", path.clone())],
-            ));
-        }
 
         let status = repo.status_file(Path::new(path)).map_err(map_git_err)?;
         if status.contains(Status::CONFLICTED) {
@@ -864,6 +853,28 @@ mod tests {
             .expect_err("path escaping worktree must be rejected");
         cleanup(&path);
         assert_eq!(err.category(), "Protocol");
+    }
+
+    #[test]
+    fn stage_paths_rejects_escaping_paths() {
+        let (path, repo) = build_linear_repo(1);
+        for evil in [
+            "../outside.txt",
+            "sub/../../outside.txt",
+            "/abs/path.txt",
+            "..\\win-outside.txt",
+        ] {
+            let err =
+                stage_paths(&repo, &[evil.into()]).expect_err("escaping path must be rejected");
+            assert_eq!(
+                err.code(),
+                codes::git::PATH_ESCAPES_WORKTREE,
+                "wrong code for {evil}"
+            );
+        }
+        // Sibling repo-layout neighbour must not have been staged/written.
+        assert!(repo.statuses(None).unwrap().is_empty());
+        cleanup(&path);
     }
 }
 

@@ -10,6 +10,7 @@ use git2::Repository;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
+use crate::infrastructure::git::worktree_guard::ensure_clean;
 
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::unknown_with(
@@ -27,20 +28,6 @@ fn parse_oid(oid_str: &str) -> Result<git2::Oid> {
             &[("error", e.to_string())],
         )
     })
-}
-
-/// Refuse when the index or worktree carries any change (incl. untracked).
-fn ensure_clean(repo: &Repository) -> Result<()> {
-    let mut opts = git2::StatusOptions::new();
-    opts.include_untracked(true).recurse_untracked_dirs(true);
-    let statuses = repo.statuses(Some(&mut opts)).map_err(map_git_err)?;
-    if !statuses.is_empty() {
-        return Err(AppError::protocol(
-            codes::git::DIRTY_WORKTREE,
-            "working copy is not clean — commit or stash your changes first",
-        ));
-    }
-    Ok(())
 }
 
 fn index_conflicts(index: &git2::Index) -> Result<Vec<String>> {

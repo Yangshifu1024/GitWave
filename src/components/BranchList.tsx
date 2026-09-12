@@ -14,6 +14,7 @@ import {
   deleteRemoteBranch,
   formatAppError,
   getBranches,
+  getWorkingCopy,
   interactiveRebasePaused,
   isAuthError,
   isCancelledSyncError,
@@ -651,6 +652,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const handleRebaseOnto = (name: string) =>
     void run("rebase", async () => {
+      // Dirty pre-check: the backend refuses dirty rebases
+      // (REBASE_DIRTY_WORKTREE) — warn early with a file count.
+      const wc = await getWorkingCopy(activeWorkspaceId!).catch(() => null);
+      const dirty = wc?.files.length ?? 0;
+      if (dirty > 0) {
+        showNotice(t("branches.switch.dirtyDescription", { count: dirty }), "danger");
+        return;
+      }
       const result = await rebaseBranch(activeWorkspaceId!, name);
       if (result.kind === "conflicts" || result.conflicts.length > 0) {
         showNotice(

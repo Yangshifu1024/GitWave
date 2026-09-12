@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import type { InteractiveRebaseAction, InteractiveRebaseTodo } from "@/lib/api";
-import { executeInteractiveRebase, formatAppError, planInteractiveRebase } from "@/lib/api";
+import {
+  executeInteractiveRebase,
+  formatAppError,
+  getWorkingCopy,
+  planInteractiveRebase,
+} from "@/lib/api";
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
@@ -43,6 +50,17 @@ export function InteractiveRebaseDialog({
       .finally(() => setLoading(false));
   }, [open, workspaceId, upstream]);
 
+  // Dirty pre-check (the backend refuses dirty rebases with DIRTY_WORKTREE).
+  // Re-checked fresh in run() below in case the tree changed while open.
+  // Key mirrors ActionBar's canonical ["working-copy", ws, repo].
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const { data: workingCopy } = useQuery({
+    queryKey: ["working-copy", workspaceId, activeRepoId],
+    queryFn: () => getWorkingCopy(workspaceId),
+    enabled: open && !!activeRepoId,
+  });
+  const dirtyCount = workingCopy?.files.length ?? 0;
+
   const move = (from: number, to: number) => {
     if (to < 0 || to >= todos.length || from === to) return;
     setTodos((prev) => {
@@ -71,6 +89,12 @@ export function InteractiveRebaseDialog({
       setBusy(true);
       setError(null);
       try {
+        const fresh = await getWorkingCopy(workspaceId).catch(() => null);
+        const freshDirty = fresh?.files.length ?? 0;
+        if (freshDirty > 0) {
+          setError(t("branches.irebase.dirtyWarning", { count: freshDirty }));
+          return;
+        }
         const result = await executeInteractiveRebase(workspaceId, upstream, todos);
         if (result.kind === "conflicts") {
           setError(result.conflicts.join("; ") || t("branches.irebase.conflictError"));
@@ -109,7 +133,7 @@ export function InteractiveRebaseDialog({
           <Button
             variant="primary"
             size="sm"
-            disabled={busy || loading || todos.length === 0}
+            disabled={busy || loading || todos.length === 0 || dirtyCount > 0}
             onClick={run}
           >
             {t("branches.irebase.start")}
@@ -119,6 +143,11 @@ export function InteractiveRebaseDialog({
     >
       <div className="flex flex-col gap-3 max-h-[60vh]">
         <p className="text-xs text-text-muted">{t("branches.irebase.hint")}</p>
+        {dirtyCount > 0 ? (
+          <p className="text-xs text-danger">
+            {t("branches.irebase.dirtyWarning", { count: dirtyCount })}
+          </p>
+        ) : null}
         {error ? <p className="text-xs text-danger">{error}</p> : null}
         {loading ? (
           <p className="text-sm text-text-muted">{t("branches.irebase.loading")}</p>

@@ -26,6 +26,7 @@ pub mod submodule;
 pub mod tag;
 pub mod working_copy;
 pub mod worktree;
+pub mod worktree_guard;
 
 #[cfg(test)]
 pub(crate) mod test_helpers;
