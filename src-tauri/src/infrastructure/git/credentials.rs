@@ -92,27 +92,28 @@ impl CredentialStorageSlot {
 /// Storage for remembered HTTPS credentials, shared with nothing — entries
 /// live under the app-owned `gitwave.remote` keyring service, so the system
 /// credential helper stays the source of truth and the vault only catches
-/// the cases the helper silently drops.
+/// the cases the helper silently drops. Entries are keyed per host+user
+/// ([`vault_key`]) so two accounts on one host never overwrite each other.
 pub(crate) trait CredentialVault: Send + Sync {
-    fn store(&self, host: &str, username: &str, password: &str) -> std::result::Result<(), String>;
-    fn load(&self, host: &str) -> std::result::Result<Option<(String, String)>, String>;
-    fn erase(&self, host: &str) -> std::result::Result<(), String>;
+    fn store(&self, key: &str, username: &str, password: &str) -> std::result::Result<(), String>;
+    fn load(&self, key: &str) -> std::result::Result<Option<(String, String)>, String>;
+    fn erase(&self, key: &str) -> std::result::Result<(), String>;
 }
 
 /// OS keychain-backed vault (Windows Credential Manager / macOS Keychain /
-/// Secret Service). One entry per host, keyed `https/<host>`; the payload is
-/// the username and password on separate lines.
+/// Secret Service). One entry per host+user, keyed `https/<key>`; the
+/// payload is the username and password on separate lines.
 struct KeyringVault;
 
 impl CredentialVault for KeyringVault {
-    fn store(&self, host: &str, username: &str, password: &str) -> std::result::Result<(), String> {
-        entry(host)?
+    fn store(&self, key: &str, username: &str, password: &str) -> std::result::Result<(), String> {
+        entry(key)?
             .set_password(&encode_secret(username, password))
             .map_err(|e| format!("keychain set: {e}"))
     }
 
-    fn load(&self, host: &str) -> std::result::Result<Option<(String, String)>, String> {
-        match entry(host) {
+    fn load(&self, key: &str) -> std::result::Result<Option<(String, String)>, String> {
+        match entry(key) {
             Ok(e) => match e.get_password() {
                 Ok(payload) => decode_secret(&payload)
                     .map(Some)
@@ -124,8 +125,8 @@ impl CredentialVault for KeyringVault {
         }
     }
 
-    fn erase(&self, host: &str) -> std::result::Result<(), String> {
-        match entry(host) {
+    fn erase(&self, key: &str) -> std::result::Result<(), String> {
+        match entry(key) {
             Ok(e) => match e.delete_credential() {
                 Ok(()) => Ok(()),
                 Err(keyring::Error::NoEntry) => Ok(()),
@@ -136,14 +137,14 @@ impl CredentialVault for KeyringVault {
     }
 }
 
-/// Keyring entry for one host under the app-owned remote-credential service.
-/// The `https/` prefix namespaces the account; hosts are scheme-agnostic
-/// here because vault keys only carry host+port (git credential protocol
-/// scope is effectively per-host for the app's HTTPS remotes).
-fn entry(host: &str) -> std::result::Result<keyring::Entry, String> {
+/// Keyring entry for one vault key under the app-owned remote-credential
+/// service. Keys are opaque (`host\x1fuser`, see [`vault_key`]); the
+/// `https/` prefix namespaces the account. The legacy host-only key
+/// (no `\x1f` part) is still read for migration — see [`remember_vault`].
+fn entry(key: &str) -> std::result::Result<keyring::Entry, String> {
     entry_in_service(
         crate::infrastructure::ai::secrets::SERVICE_REMOTE,
-        &format!("https/{host}"),
+        &format!("https/{key}"),
     )
     .map_err(|e| e.message())
 }
@@ -166,25 +167,87 @@ fn decode_secret(payload: &str) -> std::result::Result<(String, String), String>
 }
 
 /// Storage host key for a remote URL: strip scheme and userinfo, keep host
-/// and port, lowercase, drop any path. Credentials are host-scoped (the git
-/// credential protocol treats them that way too). scp-style remotes
-/// (`git@host:path`) separate host from path with a colon, not a slash.
+/// and port, lowercase, drop any path. scp-style remotes (`git@host:path`)
+/// separate host from path with a colon, not a slash. Userinfo ends at the
+/// LAST `@` (passwords may contain `@`); IPv6 literals keep their brackets
+/// stripped (`ssh://git@[::1]:2222/x` → `::1`).
 pub(crate) fn vault_host(url: &str) -> Option<String> {
     let (rest, scp_style) = match url.split_once("://") {
         Some((_, rest)) => (rest, false),
         None => (url, true),
     };
-    let rest = rest.split_once('@').map_or(rest, |(_, host)| host);
-    let host = if scp_style {
+    let authority = if scp_style {
         rest.split(':').next().unwrap_or(rest)
     } else {
         rest.split('/').next().unwrap_or(rest)
+    };
+    let hostport = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
+    // IPv6 literal: keep any `:port` suffix so `[::1]:2222` and `[::1]:22`
+    // stay distinct keys, mirroring the IPv4 `host:port` behaviour.
+    let host = if !scp_style && hostport.starts_with('[') {
+        match hostport[1..].split_once(']') {
+            Some((ip, rest)) if !ip.is_empty() => format!("{ip}{rest}"),
+            _ => hostport.to_string(),
+        }
+    } else {
+        hostport.to_string()
     };
     let host = host.trim_end_matches('.');
     if host.is_empty() {
         None
     } else {
         Some(host.to_ascii_lowercase())
+    }
+}
+
+/// Username carried in a remote URL's userinfo (`https://user@host/…`,
+/// `git@host:path`), if any. Passwords are never returned. An `@` inside
+/// the path (after the first `/`) is not userinfo.
+pub(crate) fn vault_user(url: &str) -> Option<String> {
+    let (rest, scp_style) = match url.split_once("://") {
+        Some((_, rest)) => (rest, false),
+        None => (url, true),
+    };
+    let authority = if scp_style {
+        rest.split(':').next().unwrap_or(rest)
+    } else {
+        rest.split('/').next().unwrap_or(rest)
+    };
+    let (userinfo, _) = authority.split_once('@')?;
+    let user = userinfo.split(':').next().unwrap_or(userinfo);
+    if user.is_empty() {
+        None
+    } else {
+        Some(user.to_string())
+    }
+}
+
+/// Vault key for one account. `host` and `user` are joined with a unit
+/// separator so `hosta`+`b` can never collide with `host`+`ab` in
+/// diagnostics; the key is never parsed back, so any username bytes
+/// (including `@`, `/`, `:`) are safe.
+fn vault_key(host: &str, user: &str) -> String {
+    format!("{host}\u{1f}{user}")
+}
+
+/// Display-safe remote URL: strip any `user:password@` userinfo so tokens
+/// pasted into the URL (`https://user:token@host/…`) never reach error
+/// messages, params, or logs. scp-style remotes are returned untouched
+/// (their `git@` user is public by convention); an `@` inside the path is
+/// not userinfo and is preserved.
+pub(crate) fn redacted_url(url: &str) -> String {
+    match url.split_once("://") {
+        Some((scheme, rest)) => {
+            let authority_end = rest.find('/').unwrap_or(rest.len());
+            let (authority, path) = rest.split_at(authority_end);
+            match authority.rsplit_once('@') {
+                Some((_, host)) => format!("{scheme}://{host}{path}"),
+                None => url.to_string(),
+            }
+        }
+        None => url.to_string(),
     }
 }
 
@@ -204,7 +267,9 @@ fn vault() -> &'static dyn CredentialVault {
 
 #[cfg(test)]
 fn set_vault(vault: Option<&'static dyn CredentialVault>) {
-    *VAULT.lock().expect("vault mutex poisoned") = vault;
+    *VAULT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = vault;
 }
 
 /// Where persistence results are reported for the current operation; the
@@ -469,16 +534,24 @@ impl CredentialProvider for GitCredentialHelper {
             // erase the fallback entry too, or the next operation would
             // replay the stale secret forever (the helper's own storage is
             // the helper's business — ours is the vault).
-            erase_vault_entry(&self.url);
+            erase_vault_entry(&self.url, &user);
         }
     }
 }
 
-/// Erase the vault fallback entry for a remote's host.
-fn erase_vault_entry(url: &str) {
-    if let Some(host) = vault_host(url) {
-        if let Err(e) = vault().erase(&host) {
-            tracing::warn!("app keyring erase after reject failed: {e}");
+/// Erase the vault fallback entries for a remote: the exact per-account key
+/// plus the legacy host-only key, but only when the legacy entry belongs to
+/// the same user — another account's entry must survive.
+fn erase_vault_entry(url: &str, user: &str) {
+    let Some(host) = vault_host(url) else {
+        return;
+    };
+    if let Err(e) = vault().erase(&vault_key(&host, user)) {
+        tracing::warn!("app keyring erase after reject failed: {e}");
+    }
+    if let Ok(Some((stored_user, _))) = vault().load(&host) {
+        if stored_user.eq_ignore_ascii_case(user) {
+            let _ = vault().erase(&host);
         }
     }
 }
@@ -678,8 +751,36 @@ fn query_helper(url: &str, cancel: Option<&AtomicBool>) -> Option<(String, Strin
 
 /// Helper had nothing: fall back to the app keyring so a remembered
 /// credential keeps working when the system helper silently drops storage.
+///
+/// Lookup is per host+user when the URL carries userinfo; otherwise the
+/// legacy host-only key is the only thing addressable. A legacy entry is
+/// adopted (moved to the host+user key) only when its stored username
+/// matches the URL's — other accounts' entries are left alone.
 fn remember_vault(url: &str) -> Option<(String, String)> {
     let host = vault_host(url)?;
+    if let Some(user) = vault_user(url) {
+        let key = vault_key(&host, &user);
+        match vault().load(&key) {
+            Ok(Some(creds)) => {
+                tracing::info!("credential helper empty; using app keyring fallback for {host}");
+                return Some(creds);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!("app keyring fallback read failed for {host}: {e}");
+            }
+        }
+        if let Ok(Some((stored_user, stored_pass))) = vault().load(&host) {
+            if stored_user.eq_ignore_ascii_case(&user)
+                && vault().store(&key, &stored_user, &stored_pass).is_ok()
+            {
+                let _ = vault().erase(&host);
+                tracing::info!("migrated app keyring entry to per-account key for {host}");
+                return Some((stored_user, stored_pass));
+            }
+        }
+        return None;
+    }
     match vault().load(&host) {
         Ok(Some(creds)) => {
             tracing::info!("credential helper empty; using app keyring fallback for {host}");
@@ -740,15 +841,18 @@ fn store_in_vault(url: &str, user: &str, pass: &str) -> bool {
     let Some(host) = vault_host(url) else {
         return false;
     };
+    // Per-account key: storing account B must never clobber account A on
+    // the same host (the legacy host-only key did exactly that).
+    let key = vault_key(&host, user);
     let v = vault();
     let already = matches!(
-        v.load(&host),
+        v.load(&key),
         Ok(Some((ref u, ref p))) if u == user && p == pass
     );
     if already {
         return true;
     }
-    match v.store(&host, user, pass) {
+    match v.store(&key, user, pass) {
         Ok(()) => true,
         Err(e) => {
             tracing::warn!("app keyring store failed for {host}: {e}");
@@ -1167,6 +1271,132 @@ mod tests {
             Some("host.example")
         );
         assert_eq!(vault_host("https://"), None);
+        // IPv6 literal: brackets stripped, port kept (mirrors IPv4).
+        assert_eq!(
+            vault_host("ssh://git@[::1]:2222/owner/repo.git").as_deref(),
+            Some("::1:2222")
+        );
+        assert_eq!(
+            vault_host("ssh://git@[::1]/owner/repo.git").as_deref(),
+            Some("::1")
+        );
+        // '@' inside a password must not shift the host boundary.
+        assert_eq!(
+            vault_host("https://user:p@ss@github.com/r.git").as_deref(),
+            Some("github.com")
+        );
+    }
+
+    #[test]
+    fn redacted_url_strips_userinfo_only() {
+        assert_eq!(
+            redacted_url("https://user:token123@github.com/o/r.git"),
+            "https://github.com/o/r.git"
+        );
+        assert_eq!(
+            redacted_url("https://user@github.com/o/r.git"),
+            "https://github.com/o/r.git"
+        );
+        assert_eq!(
+            redacted_url("https://github.com/o/r.git"),
+            "https://github.com/o/r.git"
+        );
+        // '@' in the path is preserved.
+        assert_eq!(
+            redacted_url("https://github.com/o/r@x.git"),
+            "https://github.com/o/r@x.git"
+        );
+        // scp-style user is public by convention: untouched.
+        assert_eq!(
+            redacted_url("git@github.com:owner/repo.git"),
+            "git@github.com:owner/repo.git"
+        );
+    }
+
+    #[test]
+    fn vault_user_extracts_url_userinfo() {
+        assert_eq!(
+            vault_user("https://alice@github.com/o/r.git").as_deref(),
+            Some("alice")
+        );
+        assert_eq!(
+            vault_user("https://alice:s3cret@github.com/o/r.git").as_deref(),
+            Some("alice")
+        );
+        assert_eq!(
+            vault_user("git@github.com:owner/repo.git").as_deref(),
+            Some("git")
+        );
+        assert_eq!(vault_user("https://github.com/o/r.git"), None);
+        // '@' in the path is not userinfo.
+        assert_eq!(vault_user("https://github.com/o/r@x.git"), None);
+        assert_eq!(vault_user("https://"), None);
+    }
+
+    #[test]
+    fn remember_vault_migrates_legacy_entry_for_matching_user() {
+        let _serialization = VAULT_TEST_LOCK.lock().unwrap();
+        let mock: &'static MockVault = Box::leak(Box::new(MockVault::new(false, false)));
+        set_vault(Some(mock));
+        let _guard = VaultGuard;
+        // Pre-upgrade entry: host-only key holding alice's credential.
+        mock.entries.lock().unwrap().insert(
+            "github.com".to_string(),
+            ("alice".to_string(), "p".to_string()),
+        );
+
+        // URL with matching userinfo adopts the entry onto the per-account
+        // key and drops the legacy one.
+        assert_eq!(
+            remember_vault("https://alice@github.com/o/r.git"),
+            Some(("alice".to_string(), "p".to_string()))
+        );
+        assert_eq!(
+            mock.entries
+                .lock()
+                .unwrap()
+                .get(&vault_key("github.com", "alice"))
+                .cloned(),
+            Some(("alice".to_string(), "p".to_string()))
+        );
+        assert!(!mock.entries.lock().unwrap().contains_key("github.com"));
+
+        // A different user's URL must not see (or move) alice's credential.
+        mock.entries.lock().unwrap().insert(
+            "github.com".to_string(),
+            ("alice".to_string(), "p".to_string()),
+        );
+        assert_eq!(remember_vault("https://bob@github.com/o/r.git"), None);
+        assert_eq!(
+            mock.entries.lock().unwrap().get("github.com").cloned(),
+            Some(("alice".to_string(), "p".to_string()))
+        );
+    }
+
+    #[test]
+    fn erase_vault_entry_keeps_other_accounts() {
+        let _serialization = VAULT_TEST_LOCK.lock().unwrap();
+        let mock: &'static MockVault = Box::leak(Box::new(MockVault::new(false, false)));
+        set_vault(Some(mock));
+        let _guard = VaultGuard;
+        let mut entries = mock.entries.lock().unwrap();
+        entries.insert(
+            vault_key("github.com", "alice"),
+            ("alice".to_string(), "p".to_string()),
+        );
+        entries.insert(
+            vault_key("github.com", "bob"),
+            ("bob".to_string(), "p".to_string()),
+        );
+        drop(entries);
+
+        erase_vault_entry("https://github.com/o/r.git", "alice");
+        let entries = mock.entries.lock().unwrap();
+        assert!(!entries.contains_key(&vault_key("github.com", "alice")));
+        assert_eq!(
+            entries.get(&vault_key("github.com", "bob")).cloned(),
+            Some(("bob".to_string(), "p".to_string()))
+        );
     }
 
     #[test]
@@ -1211,7 +1441,11 @@ mod tests {
         assert!(store_in_vault(url, "u", "p"));
         assert_eq!(mock.store_calls.load(Ordering::SeqCst), 1);
         assert_eq!(
-            mock.entries.lock().unwrap().get("github.com").cloned(),
+            mock.entries
+                .lock()
+                .unwrap()
+                .get(&vault_key("github.com", "u"))
+                .cloned(),
             Some(("u".to_string(), "p".to_string()))
         );
 
@@ -1223,8 +1457,32 @@ mod tests {
         assert!(store_in_vault(url, "u", "p2"));
         assert_eq!(mock.store_calls.load(Ordering::SeqCst), 2);
         assert_eq!(
-            mock.entries.lock().unwrap().get("github.com").cloned(),
+            mock.entries
+                .lock()
+                .unwrap()
+                .get(&vault_key("github.com", "u"))
+                .cloned(),
             Some(("u".to_string(), "p2".to_string()))
+        );
+
+        // A second account on the same host gets its own entry instead of
+        // clobbering the first (the legacy host-only key overwrote it).
+        assert!(store_in_vault(url, "u2", "p"));
+        assert_eq!(
+            mock.entries
+                .lock()
+                .unwrap()
+                .get(&vault_key("github.com", "u"))
+                .cloned(),
+            Some(("u".to_string(), "p2".to_string()))
+        );
+        assert_eq!(
+            mock.entries
+                .lock()
+                .unwrap()
+                .get(&vault_key("github.com", "u2"))
+                .cloned(),
+            Some(("u2".to_string(), "p".to_string()))
         );
     }
 

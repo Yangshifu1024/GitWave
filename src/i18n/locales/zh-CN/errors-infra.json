@@ -4,6 +4,9 @@
       "provider_http": "Provider {{provider}} 返回 HTTP {{status}}：{{detail}}",
       "all_attempts_failed": "全部 {{total}} 次 AI provider 尝试均失败，且未捕获到错误信息",
       "unsupported_provider": "不支持的 AI provider：{{provider}}（可使用 openai、anthropic 或 ollama）",
+      "http": {
+        "client_build": "无法构建 AI HTTP 客户端：{{error}}"
+      },
       "openai": {
         "key_missing": "尚未配置 OpenAI API key",
         "request_failed": "OpenAI 请求失败：{{error}}",

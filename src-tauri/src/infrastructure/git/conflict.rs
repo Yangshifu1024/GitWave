@@ -147,6 +147,9 @@ pub fn abort_merge(repo: &Repository) -> Result<()> {
     let _ = std::fs::remove_file(repo.path().join("MERGE_HEAD"));
     let _ = std::fs::remove_file(repo.path().join("MERGE_MSG"));
     let _ = std::fs::remove_file(repo.path().join("MERGE_MODE"));
+    let _ = std::fs::remove_file(repo.path().join("MERGE_RR"));
+    let _ = std::fs::remove_file(repo.path().join("SQUASH_MSG"));
+    let _ = std::fs::remove_file(repo.path().join("ORIG_HEAD"));
     Ok(())
 }
 

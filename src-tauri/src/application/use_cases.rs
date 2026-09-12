@@ -209,7 +209,7 @@ pub fn create_workspace(ctx: &AppContext, name: String) -> Result<Workspace> {
     };
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .create(&ws)?;
     Ok(ws)
 }
@@ -217,7 +217,7 @@ pub fn create_workspace(ctx: &AppContext, name: String) -> Result<Workspace> {
 pub fn list_workspaces(ctx: &AppContext) -> Result<Vec<WorkspaceSummary>> {
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .list_summaries()
 }
 
@@ -231,21 +231,21 @@ pub fn rename_workspace(ctx: &AppContext, id: String, new_name: String) -> Resul
     }
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .rename(&id, trimmed)
 }
 
 pub fn delete_workspace(ctx: &AppContext, id: String) -> Result<()> {
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .delete(&id)
 }
 
 pub fn get_workspace(ctx: &AppContext, id: String) -> Result<Workspace> {
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(&id)?
         .ok_or_else(|| {
             AppError::protocol_with(
@@ -292,7 +292,7 @@ pub fn update_workspace_settings(
     }
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .update_settings(&id, &settings)
 }
 
@@ -307,7 +307,7 @@ pub fn get_proxy_settings(ctx: &AppContext) -> Result<ProxySettings> {
     let raw = ctx
         .app_settings
         .lock()
-        .expect("app settings repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(PROXY_SETTINGS_KEY)?;
     let Some(raw) = raw else {
         return Ok(ProxySettings::default());
@@ -367,7 +367,7 @@ fn validate_and_store_proxy_settings(
     })?;
     ctx.app_settings
         .lock()
-        .expect("app settings repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .set(PROXY_SETTINGS_KEY, &json)?;
     Ok(settings)
 }
@@ -379,7 +379,7 @@ pub fn set_active_repo(
 ) -> Result<()> {
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .set_active_repo(&workspace_id, repo_id.as_deref())
 }
 
@@ -401,7 +401,7 @@ pub fn init_repo(ctx: &AppContext, workspace_id: String, path: String) -> Result
     };
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .add_repo(&repo)?;
     Ok(repo)
 }
@@ -419,6 +419,19 @@ pub fn clone_repo(
     auth: Option<InlineAuth>,
 ) -> Result<RepoRef> {
     let dest = PathBuf::from(&dest_path);
+    // Never delete a non-empty directory on the caller's word alone: the
+    // first attempt (replace_dest=false) stops with CLONE_DEST_NOT_EMPTY so
+    // the UI can ask for explicit confirmation; only the confirmed retry
+    // clears. An empty pre-existing dir is harmless either way.
+    let dest_nonempty =
+        dest.exists() && std::fs::read_dir(&dest).is_ok_and(|mut it| it.next().is_some());
+    if dest_nonempty && !replace_dest {
+        return Err(AppError::protocol_with(
+            codes::usecases::CLONE_DEST_NOT_EMPTY,
+            format!("clone destination is not empty: {dest_path}"),
+            &[("path", dest_path.clone())],
+        ));
+    }
     if replace_dest && dest.exists() {
         std::fs::remove_dir_all(&dest).map_err(|e| {
             AppError::unknown_with(
@@ -448,7 +461,7 @@ pub fn clone_repo(
     };
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .add_repo(&repo)?;
     Ok(repo)
 }
@@ -469,7 +482,7 @@ pub fn add_local_repo(ctx: &AppContext, workspace_id: String, path: String) -> R
     };
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .add_repo(&repo)?;
     Ok(repo)
 }
@@ -477,7 +490,7 @@ pub fn add_local_repo(ctx: &AppContext, workspace_id: String, path: String) -> R
 pub fn remove_repo(ctx: &AppContext, workspace_id: String, repo_id: String) -> Result<()> {
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .remove_repo(&workspace_id, &repo_id)
 }
 
@@ -491,7 +504,7 @@ pub fn relink_repo(
     let _repo = crate::infrastructure::git::git2_adapter::open_local(&p)?;
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .relink_repo(&workspace_id, &repo_id, &new_path)
 }
 
@@ -501,7 +514,7 @@ pub fn list_repos(ctx: &AppContext, workspace_id: String) -> Result<Vec<RepoRef>
     refresh_repo_presence(ctx, &workspace_id)?;
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .list_repos(&workspace_id)
 }
 
@@ -510,7 +523,7 @@ pub fn list_repos(ctx: &AppContext, workspace_id: String) -> Result<Vec<RepoRef>
 pub fn reorder_repos(ctx: &AppContext, workspace_id: String, repo_ids: Vec<String>) -> Result<()> {
     ctx.workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .reorder_repos(&workspace_id, &repo_ids)
 }
 
@@ -519,7 +532,7 @@ fn refresh_repo_presence(ctx: &AppContext, workspace_id: &str) -> Result<()> {
     let repos = ctx
         .workspaces
         .lock()
-        .expect("workspace repo mutex poisoned")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .list_repos(workspace_id)?;
 
     for repo in repos {
@@ -529,14 +542,14 @@ fn refresh_repo_presence(ctx: &AppContext, workspace_id: &str) -> Result<()> {
             (false, RepoStatus::Active) => {
                 ctx.workspaces
                     .lock()
-                    .expect("workspace repo mutex poisoned")
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .mark_repo_missing(workspace_id, &repo.id)?;
             }
             (true, RepoStatus::Missing) => {
                 // Same path is valid again — flip without requiring a new path from the user.
                 ctx.workspaces
                     .lock()
-                    .expect("workspace repo mutex poisoned")
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .relink_repo(workspace_id, &repo.id, &repo.path)?;
             }
             _ => {}
@@ -611,12 +624,27 @@ pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
 
 /// One resolved attempt in the AI provider chain: the workspace primary
 /// first, then its configured failover entries in order.
-#[derive(Debug, Clone, serde::Serialize)]
+///
+/// `Debug` is hand-rolled so `api_key` never reaches logs. Deliberately
+/// NOT `Serialize`: this struct must never cross the IPC boundary — only
+/// `AiGenerateOutcome` (key-free) is returned to the frontend.
+#[derive(Clone)]
 pub struct ResolvedAiProvider {
     pub provider: String,
     pub model: String,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+}
+
+impl std::fmt::Debug for ResolvedAiProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedAiProvider")
+            .field("provider", &self.provider)
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "***"))
+            .finish()
+    }
 }
 
 /// Result of a chain run — the text plus which provider produced it, so
@@ -641,11 +669,13 @@ pub fn default_ai_model(provider: &str) -> &'static str {
 }
 
 /// Failover policy: only network-level failures (unreachable host, HTTP
-/// 4xx/5xx other than auth, rate limits) move to the next provider. Auth
-/// failures (401/403, mapped to `Credential` in `provider::http_error`)
-/// stop the chain so the root cause surfaces; content and configuration
-/// errors stop too — the next provider would make the same mistake on the
-/// same prompt.
+/// 429/5xx, rate limits) move to the next provider. Auth failures (401/403,
+/// mapped to `Credential` in `provider::http_error`) stop the chain so the
+/// root cause surfaces; client errors (400/422 → `Protocol`) stop the chain
+/// too — a malformed request would fail the same way elsewhere, and the
+/// same-provider retry is skipped as pointless. Content and configuration
+/// errors stop as well — the next provider would make the same mistake on
+/// the same prompt.
 fn should_failover(err: &AppError) -> bool {
     matches!(err, AppError::Network { .. })
 }
@@ -1087,6 +1117,10 @@ pub fn delete_remote_branch(
     cancel: Option<CancelFlag>,
     auth: Option<InlineAuth>,
 ) -> Result<()> {
+    let sync_lock = workspace_sync_lock(workspace_id);
+    let _serialized = sync_lock
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_delete_remote_branch(&repo, remote, branch, cancel, auth.as_ref())
@@ -2280,7 +2314,7 @@ fn active_repo_id(ctx: &AppContext, workspace_id: &str) -> Result<String> {
     let workspaces = ctx
         .workspaces
         .lock()
-        .expect("workspace repo mutex poisoned");
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let ws = workspaces.get(workspace_id)?.ok_or_else(|| {
         AppError::protocol_with(
             codes::usecases::WORKSPACE_NOT_FOUND,
@@ -2319,7 +2353,7 @@ pub fn get_dirty_repos(ctx: &AppContext, workspace_id: &str) -> Result<Vec<Dirty
     let workspaces = ctx
         .workspaces
         .lock()
-        .expect("workspace repo mutex poisoned");
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let ws = workspaces.get(workspace_id)?.ok_or_else(|| {
         AppError::protocol_with(
             codes::usecases::WORKSPACE_NOT_FOUND,
@@ -2401,11 +2435,12 @@ pub fn ignore_path(ctx: &AppContext, workspace_id: &str, pattern: String) -> Res
     infra_ignore_path(&repo, &pattern)
 }
 
-/// Per-workspace fetch mutex: auto-refresh and a manual fetch can overlap,
-/// and two concurrent credential prompts for the same remote would each
-/// pop the helper — the credential fill gate only dedups within a single
-/// operation.
-fn workspace_fetch_lock(workspace_id: &str) -> Arc<Mutex<()>> {
+/// Per-workspace sync mutex: fetch, pull, push and remote-branch deletes all
+/// touch the same remote/index/worktree, so they serialize here. (Auto-refresh
+/// and a manual fetch can also overlap; and two concurrent credential prompts
+/// for the same remote would each pop the helper — the credential fill gate
+/// only dedups within a single operation.)
+fn workspace_sync_lock(workspace_id: &str) -> Arc<Mutex<()>> {
     static LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
     let mut locks = LOCKS
         .get_or_init(|| Mutex::new(HashMap::new()))
@@ -2425,8 +2460,8 @@ pub fn fetch(
     cancel: Option<CancelFlag>,
     auth: Option<InlineAuth>,
 ) -> Result<()> {
-    let fetch_lock = workspace_fetch_lock(workspace_id);
-    let _serialized = fetch_lock
+    let sync_lock = workspace_sync_lock(workspace_id);
+    let _serialized = sync_lock
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let repo_path = active_repo_path(ctx, workspace_id)?;
@@ -2444,7 +2479,7 @@ pub fn fetch(
         for name in names {
             let cb = shared.clone().map(|f| {
                 Box::new(move |p: SyncProgress| {
-                    (f.lock().unwrap())(p);
+                    (f.lock().unwrap_or_else(std::sync::PoisonError::into_inner))(p);
                 }) as Box<dyn Fn(SyncProgress) + Send>
             });
             if let Err(e) = infra_fetch(
@@ -2501,6 +2536,10 @@ pub fn pull(
     cancel: Option<CancelFlag>,
     auth: Option<InlineAuth>,
 ) -> Result<()> {
+    let sync_lock = workspace_sync_lock(workspace_id);
+    let _serialized = sync_lock
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let mut repo = ctx.open_repo(&repo_path)?;
     infra_pull_with_options(
@@ -2535,6 +2574,10 @@ pub fn push(
     cancel: Option<CancelFlag>,
     auth: Option<InlineAuth>,
 ) -> Result<PushOutcome> {
+    let sync_lock = workspace_sync_lock(workspace_id);
+    let _serialized = sync_lock
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
     infra_push_with_options(
@@ -2636,7 +2679,7 @@ fn active_repo_path(ctx: &AppContext, workspace_id: &str) -> Result<String> {
     let workspaces = ctx
         .workspaces
         .lock()
-        .expect("workspace repo mutex poisoned");
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let ws = workspaces.get(workspace_id).and_then(|opt| {
         opt.ok_or_else(|| {
             AppError::protocol_with(
@@ -2752,9 +2795,9 @@ mod tests {
 
     #[test]
     fn workspace_fetch_lock_is_per_workspace() {
-        let a1 = workspace_fetch_lock("ws-lock-a");
-        let a2 = workspace_fetch_lock("ws-lock-a");
-        let b = workspace_fetch_lock("ws-lock-b");
+        let a1 = workspace_sync_lock("ws-lock-a");
+        let a2 = workspace_sync_lock("ws-lock-a");
+        let b = workspace_sync_lock("ws-lock-b");
         assert!(Arc::ptr_eq(&a1, &a2), "same workspace must share one lock");
         assert!(!Arc::ptr_eq(&a1, &b), "workspaces must not share locks");
     }
@@ -3050,6 +3093,70 @@ mod tests {
 
     fn cleanup(path: &std::path::Path) {
         let _ = fs::remove_dir_all(path);
+    }
+
+    fn occupied_dest(label: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "gitwave-clone-guard-{label}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create dest");
+        fs::write(dir.join("existing.txt"), "user data\n").expect("seed dest");
+        dir
+    }
+
+    #[test]
+    fn clone_refuses_nonempty_dest_without_replace() {
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Ws".into()).expect("create");
+        let dest = occupied_dest("refuse");
+        let dest_str = dest.to_string_lossy().to_string();
+        let err = clone_repo(
+            &ctx,
+            ws.id,
+            "https://github.com/o/r.git".into(),
+            dest_str.clone(),
+            false,
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), codes::usecases::CLONE_DEST_NOT_EMPTY);
+        // Nothing deleted: the user's data is intact, no network touched.
+        assert_eq!(
+            fs::read_to_string(dest.join("existing.txt")).unwrap(),
+            "user data\n"
+        );
+        cleanup(&dest);
+    }
+
+    #[test]
+    fn clone_replace_clears_dest_before_cloning() {
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Ws".into()).expect("create");
+        let dest = occupied_dest("replace");
+        let dest_str = dest.to_string_lossy().to_string();
+        // Unroutable host: fails fast in clone_remote, AFTER the guard and
+        // the explicit clear — proving replace_dest really clears.
+        let err = clone_repo(
+            &ctx,
+            ws.id,
+            "https://invalid.invalid/o/r.git".into(),
+            dest_str,
+            true,
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert_ne!(err.code(), codes::usecases::CLONE_DEST_NOT_EMPTY);
+        assert!(
+            !dest.join("existing.txt").exists(),
+            "confirmed retry must clear the dest first"
+        );
+        cleanup(&dest);
     }
 
     #[test]

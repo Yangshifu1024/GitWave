@@ -10,7 +10,7 @@ use std::sync::Arc;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
-use super::credentials::{run_with_credentials, CredentialProvider, InlineAuth};
+use super::credentials::{redacted_url, run_with_credentials, CredentialProvider, InlineAuth};
 use super::remote::{attach_auto_proxy, provider_for_operation, CancelFlag};
 
 fn map_git_err(e: git2::Error) -> AppError {
@@ -59,10 +59,11 @@ fn update_with_credentials<T>(
         provider,
         || build(&mut opts),
         |e| {
+            let safe_url = redacted_url(url);
             AppError::credential_with(
                 codes::git::SUBMODULE_AUTH_FAILED,
-                format!("submodule auth failed for {url}: {e}"),
-                &[("url", url.to_string()), ("error", e.to_string())],
+                format!("submodule auth failed for {safe_url}: {e}"),
+                &[("url", safe_url), ("error", e.to_string())],
             )
         },
         other_error,

@@ -55,8 +55,35 @@ pub fn open() -> Result<Connection> {
     conn.busy_timeout(std::time::Duration::from_secs(5))
         .map_err(map_sqlite_err)?;
     super::migrations::apply(&conn)?;
+    lock_down_db_files(&path);
     Ok(conn)
 }
+
+/// Restrict `state.db` (+ `-wal` / `-shm` / `-journal` sidecars, when
+/// present) to owner-only access on Unix — the DB stores tokens. Best
+/// effort: failures only warn, the DB works fine with looser permissions.
+#[cfg(unix)]
+fn lock_down_db_files(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    let mut targets = vec![path.to_path_buf()];
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let mut s = path.as_os_str().to_owned();
+        s.push(suffix);
+        targets.push(PathBuf::from(s));
+    }
+    for target in targets {
+        if !target.exists() {
+            continue;
+        }
+        if let Err(e) = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)) {
+            tracing::warn!(path = %target.display(), error = %e, "chmod 0600 failed");
+        }
+    }
+}
+
+/// Windows keeps default ACLs (no Unix permission bits).
+#[cfg(not(unix))]
+fn lock_down_db_files(_path: &Path) {}
 
 fn map_sqlite_err(e: rusqlite::Error) -> AppError {
     AppError::unknown_with(

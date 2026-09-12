@@ -52,7 +52,10 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # which on macOS otherwise links Homebrew's libssl and the app crashes on
 # launch (missing dylib / Team-ID mismatch under library validation).
 git2 = { version = "0.21", features = ["https", "vendored-libgit2", "ssh", "vendored-openssl"] }
-keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+# No compiled-in backend here — each OS enables only its native store via
+# the `[target.*.dependencies]` sections below (keeps e.g. D-Bus off
+# macOS/Windows). Pattern mirrors `reqwest`'s `default-features = false`.
+keyring = { version = "3", default-features = false }
 # `system-proxy` lets reqwest read the OS proxy (Windows registry / macOS
 # SystemConfiguration) as a fallback on top of the env vars injected by
 # infrastructure/proxy.rs — covers formats our own parser rejects.
@@ -73,6 +76,8 @@ tauri-plugin-os = "2"
 # System proxy probe (F013). Version range matches hyper-util's optional dep
 # so the graph resolves a single shared build.
 windows-registry = "0.100"
+# Native credential store (Credential Manager) for this target only.
+keyring = { version = "3", default-features = false, features = ["windows-native"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # System proxy probe (F013), same crate + API hyper-util uses for reqwest.
@@ -80,6 +85,12 @@ system-configuration = "0.8"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSGeometry"] }
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSScreen"] }
+# Native credential store (Keychain) for this target only.
+keyring = { version = "3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+# Secret Service (D-Bus) credential store for Linux/BSD only.
+keyring = { version = "3", default-features = false, features = ["sync-secret-service"] }
 
 # Sprint 2 step 5: typed IPC — fallback to manual typed commands for Sprint 0
 # (tauri-specta may be added in Sprint 1 once adapter signatures stabilize).
