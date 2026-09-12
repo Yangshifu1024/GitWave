@@ -143,11 +143,7 @@ export const useSyncStore = create<SyncStoreState>((set, get) => ({
       // `endedRequestId` guards a back-to-back same-name op: without it, the
       // old timer firing between the new op's own endOp and its fade would
       // clear the new occupant's slot early.
-      if (
-        get().fading &&
-        get().activeOp === op &&
-        get().activeRequestId === endedRequestId
-      ) {
+      if (get().fading && get().activeOp === op && get().activeRequestId === endedRequestId) {
         set({
           activeOp: null,
           activeRemote: null,
