@@ -73,9 +73,15 @@ export function applyInitialPalette(): void {
 }
 
 /**
- * Persists the choice and applies it immediately.
+ * Persists the choice and applies it immediately. Storage failures (private
+ * mode, quota) must not break the click — the in-memory + DOM state still
+ * applies for this session.
  */
 export function storePalette(palette: Palette): void {
-  localStorage.setItem(STORAGE_KEY, palette);
+  try {
+    localStorage.setItem(STORAGE_KEY, palette);
+  } catch {
+    // Persist later; the choice below still takes effect now.
+  }
   applyPalette(palette);
 }

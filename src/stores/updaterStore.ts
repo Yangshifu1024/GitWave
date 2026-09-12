@@ -27,7 +27,11 @@ export interface UpdaterState {
   downloadedBytes: number;
   totalBytes: number | null;
   error: string | null;
-  beginCheck: () => void;
+  /** Monotonic id of the latest check; late results from an older check are dropped. */
+  checkEpoch: number;
+  /** Bump the epoch without touching the phase (silent startup checks stay invisible). */
+  startCheckEpoch: () => number;
+  beginCheck: () => number;
   markUpToDate: (currentVersion: string) => void;
   markAvailable: (info: { currentVersion: string; newVersion: string; manual: boolean }) => void;
   beginDownload: () => void;
@@ -37,7 +41,7 @@ export interface UpdaterState {
   setModalOpen: (open: boolean) => void;
 }
 
-export const useUpdaterStore = create<UpdaterState>()((set) => ({
+export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
   phase: "idle",
   modalOpen: false,
   currentVersion: null,
@@ -45,7 +49,17 @@ export const useUpdaterStore = create<UpdaterState>()((set) => ({
   downloadedBytes: 0,
   totalBytes: null,
   error: null,
-  beginCheck: () => set({ phase: "checking", error: null }),
+  checkEpoch: 0,
+  startCheckEpoch: () => {
+    const checkEpoch = get().checkEpoch + 1;
+    set({ checkEpoch });
+    return checkEpoch;
+  },
+  beginCheck: () => {
+    const checkEpoch = get().checkEpoch + 1;
+    set({ phase: "checking", error: null, checkEpoch });
+    return checkEpoch;
+  },
   markUpToDate: (currentVersion) => set({ phase: "up-to-date", currentVersion, error: null }),
   markAvailable: ({ currentVersion, newVersion, manual }) =>
     set({
@@ -59,7 +73,10 @@ export const useUpdaterStore = create<UpdaterState>()((set) => ({
     }),
   beginDownload: () => set({ phase: "downloading", downloadedBytes: 0, error: null }),
   setProgress: (downloadedBytes, totalBytes) => set({ downloadedBytes, totalBytes }),
-  markReady: () => set({ phase: "ready" }),
-  fail: (error) => set({ phase: "error", error }),
+  // Re-open the modal: the user may have closed it mid-download, and the
+  // relaunch affordance must not go unnoticed.
+  markReady: () => set({ phase: "ready", modalOpen: true }),
+  fail: (error) =>
+    set({ phase: "error", error, newVersion: null, downloadedBytes: 0, totalBytes: null }),
   setModalOpen: (modalOpen) => set({ modalOpen }),
 }));

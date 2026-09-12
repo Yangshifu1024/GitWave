@@ -2,7 +2,7 @@
 // for the active branch vs the default base branch. Nothing is pushed or
 // created remotely (P1): the user copies the text into their PR tool.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Copy, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -29,9 +29,15 @@ export function PrDescriptionModal({
   const [provider, setProvider] = useState<string | null>(null);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
+  // Generation session: reopening (or regenerating) while a previous
+  // request is in flight must not let the stale response overwrite fresh
+  // content. The session rides the mutation context.
+  const sessionRef = useRef(0);
   const genMut = useMutation({
     mutationFn: () => generatePrDescription(workspaceId),
-    onSuccess: (res) => {
+    onMutate: () => ({ session: sessionRef.current }),
+    onSuccess: (res, _variables, context) => {
+      if (context && context.session !== sessionRef.current) return;
       setTitle(res.title);
       setBody(res.body);
       setProvider(res.provider_used);
@@ -40,12 +46,16 @@ export function PrDescriptionModal({
         setStatus(t("commits.ai.fallbackNotice", { provider: res.provider_used }), "info");
       }
     },
-    onError: (e) => setError(formatAppError(e)),
+    onError: (e, _variables, context) => {
+      if (context && context.session !== sessionRef.current) return;
+      setError(formatAppError(e));
+    },
   });
 
   // Fresh generation each time the modal opens; the user can regenerate.
   useEffect(() => {
     if (!open) return;
+    sessionRef.current += 1;
     setTitle("");
     setBody("");
     setError(null);
@@ -78,7 +88,10 @@ export function PrDescriptionModal({
             variant="ghost"
             size="sm"
             disabled={genMut.isPending}
-            onClick={() => genMut.mutate()}
+            onClick={() => {
+              sessionRef.current += 1;
+              genMut.mutate();
+            }}
           >
             <RefreshCw size={13} />
             {t("commits.action.regenerate")}

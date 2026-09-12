@@ -2,7 +2,7 @@ import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from
 import { useTranslation } from "react-i18next";
 import type { ConflictSides } from "@/lib/api";
 import { explainConflict, formatAppError, getConflictSides, resolveConflict } from "@/lib/api";
-import { classifyConflictLine, findConflictRegions, lineStartOffset } from "@/lib/conflictMarkers";
+import { classifyConflictLine, findConflictRegions, lineStartOffsets } from "@/lib/conflictMarkers";
 import type { MergeConflictsState } from "@/hooks/useMergeConflicts";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
@@ -63,20 +63,25 @@ export function ConflictPanel({
     openRef.current = open;
   }, [open]);
 
+  // Request sequence: a slow load for file A must not overwrite file B
+  // selected while A was in flight (rapid clicks).
+  const seqRef = useRef(0);
   const openFile = async (path: string) => {
     if (!workspaceId) return;
+    const my = seqRef.current + 1;
+    seqRef.current = my;
     setSelected(path);
     setExplain(null);
     setError(null);
     try {
       const s = await getConflictSides(workspaceId, path);
-      if (!openRef.current) return; // panel closed while loading
+      if (!openRef.current || seqRef.current !== my) return; // closed or superseded
       setSides(s);
       const seed = s.working ?? s.ours ?? s.theirs ?? "";
       seedRef.current = seed;
       setEditor(seed);
     } catch (e) {
-      if (openRef.current) setError(formatAppError(e));
+      if (openRef.current && seqRef.current === my) setError(formatAppError(e));
     }
   };
 
@@ -152,9 +157,10 @@ export function ConflictPanel({
     const ta = editorRef.current;
     const region = regions[target];
     if (!ta || !region) return;
-    const startOffset = lineStartOffset(resolved, region.start);
+    const starts = lineStartOffsets(resolved);
+    const startOffset = starts[region.start] ?? resolved.length;
     const endOffset = region.closed
-      ? lineStartOffset(resolved, region.end) + (lines[region.end]?.length ?? 0)
+      ? (starts[region.end] ?? resolved.length) + (lines[region.end]?.length ?? 0)
       : startOffset;
     // Selection first, scroll last: focusing a selection scrolls its active
     // end into view, and our explicit top-alignment must win.

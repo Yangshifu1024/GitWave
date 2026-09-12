@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiffSummary, FileChange, FileDiff } from "@/lib/api";
 import { filterDiffSummary, partitionFileChanges } from "@/lib/diff";
 
@@ -39,6 +39,7 @@ describe("partitionFileChanges", () => {
 });
 
 describe("filterDiffSummary", () => {
+  afterEach(() => vi.unstubAllGlobals());
   const diff: DiffSummary = {
     files: [fileDiff("a.ts", 3, 1), fileDiff("b.ts", 2, 4)],
     total_additions: 5,
@@ -66,13 +67,25 @@ describe("filterDiffSummary", () => {
     });
   });
 
-  it("matches paths regardless of slash direction", () => {
+  it("matches paths regardless of slash direction on Windows", () => {
+    vi.stubGlobal("navigator", { userAgent: "Windows NT 10.0" });
     const windowsDiff: DiffSummary = {
       files: [fileDiff("src\\lib.rs", 1, 0)],
       total_additions: 1,
       total_deletions: 0,
     };
     expect(filterDiffSummary(windowsDiff, "src/lib.rs").files).toHaveLength(1);
+  });
+
+  it("preserves literal backslashes in filenames on POSIX", () => {
+    vi.stubGlobal("navigator", { userAgent: "Linux x86_64" });
+    const posixDiff: DiffSummary = {
+      files: [fileDiff("we\\ird.ts", 1, 0)],
+      total_additions: 1,
+      total_deletions: 0,
+    };
+    expect(filterDiffSummary(posixDiff, "we\\ird.ts").files).toHaveLength(1);
+    expect(filterDiffSummary(posixDiff, "we/ird.ts").files).toHaveLength(0);
   });
 
   it("keeps only the requested working-copy side when a path is on both", () => {

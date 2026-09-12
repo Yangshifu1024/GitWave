@@ -11,6 +11,7 @@ function reset(): void {
     downloadedBytes: 0,
     totalBytes: null,
     error: null,
+    checkEpoch: 0,
   });
 }
 
@@ -69,6 +70,34 @@ describe("updaterStore", () => {
     expect(s.phase).toBe("error");
     expect(s.error).toBe("network down");
     s.setModalOpen(true);
+    expect(useUpdaterStore.getState().modalOpen).toBe(true);
+  });
+
+  it("check epochs strictly increase across silent and manual checks", () => {
+    const s = useUpdaterStore.getState();
+    const e1 = s.startCheckEpoch();
+    const e2 = s.beginCheck();
+    expect(e2).toBeGreaterThan(e1);
+    expect(useUpdaterStore.getState().phase).toBe("checking");
+  });
+
+  it("fail clears stale download state", () => {
+    useUpdaterStore.getState().markAvailable({
+      currentVersion: "0.5.0",
+      newVersion: "0.6.0",
+      manual: false,
+    });
+    useUpdaterStore.getState().setProgress(512, 1024);
+    useUpdaterStore.getState().fail("network down");
+    const s = useUpdaterStore.getState();
+    expect(s.newVersion).toBeNull();
+    expect(s.downloadedBytes).toBe(0);
+    expect(s.totalBytes).toBeNull();
+  });
+
+  it("markReady re-opens the modal so relaunch is not missed", () => {
+    useUpdaterStore.getState().setModalOpen(false);
+    useUpdaterStore.getState().markReady();
     expect(useUpdaterStore.getState().modalOpen).toBe(true);
   });
 });

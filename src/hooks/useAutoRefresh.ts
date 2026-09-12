@@ -13,7 +13,7 @@ import i18next from "i18next";
 import { fetchRemote, formatAppError, isCancelledSyncError } from "@/lib/api";
 import { useAutoRefreshStore } from "@/stores/autoRefreshStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
-import { useSyncStore } from "@/stores/syncStore";
+import { nextSyncRequestId, useSyncStore } from "@/stores/syncStore";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 const INTERVAL_MS = 60_000;
@@ -64,9 +64,10 @@ export function useRefreshRepo(): () => void {
           setStatus(t("status.sync.refreshed"));
           return;
         }
-        sync.startOp("fetch");
+        const requestId = nextSyncRequestId("fetch");
+        sync.startOp("fetch", null, requestId);
         try {
-          await fetchRemote(activeWorkspaceId);
+          await fetchRemote(activeWorkspaceId, { requestId });
           // Fetched tips landed in the repo — re-read so they show up now.
           await refreshLocal();
           setStatus(t("status.sync.refreshed"));
@@ -80,7 +81,7 @@ export function useRefreshRepo(): () => void {
             setStatus(formatAppError(e), "danger");
           }
         } finally {
-          sync.endOp("fetch");
+          sync.endOp("fetch", requestId);
         }
       } catch (e) {
         setStatus(formatAppError(e), "danger");

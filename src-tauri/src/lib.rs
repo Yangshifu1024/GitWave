@@ -1277,6 +1277,15 @@ where
     }
 }
 
+/// Tag sync-progress events with the command invocation that produced them
+/// so the frontend can tell overlapping operations apart (the store matches
+/// by instance id, not by operation name).
+fn next_sync_request_id() -> String {
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    format!("sync-{n}")
+}
+
 #[tauri::command]
 async fn cmd_fetch(
     app: tauri::AppHandle,
@@ -1284,11 +1293,15 @@ async fn cmd_fetch(
     workspace_id: String,
     remote: Option<String>,
     auth: Option<infrastructure::git::credentials::InlineAuth>,
+    request_id: Option<String>,
 ) -> Result<(), AppError> {
     use application::use_cases::fetch;
     use infrastructure::git::remote::SyncProgress;
     use tauri::Emitter;
 
+    // Frontend-generated per-invocation id (lets the UI attribute progress
+    // events to one operation instance); generated here for older callers.
+    let request_id = request_id.unwrap_or_else(next_sync_request_id);
     let app_emit = app.clone();
     let on_progress: Option<Box<dyn Fn(SyncProgress) + Send>> =
         Some(Box::new(move |p: SyncProgress| {
@@ -1301,7 +1314,17 @@ async fn cmd_fetch(
         "fetch",
         codes::cmds::FETCH_TASK_JOIN,
         &ctx,
-        move |local_ctx, cancel| fetch(local_ctx, &ws_id, remote, on_progress, Some(cancel), auth),
+        move |local_ctx, cancel| {
+            fetch(
+                local_ctx,
+                &ws_id,
+                remote,
+                on_progress,
+                Some(cancel),
+                auth,
+                &request_id,
+            )
+        },
     )
     .await;
     emit_storage_outcome(&app);
@@ -1324,6 +1347,7 @@ fn emit_storage_outcome(app: &tauri::AppHandle) {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 async fn cmd_pull(
     app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
@@ -1333,11 +1357,13 @@ async fn cmd_pull(
     rebase: Option<bool>,
     stash: Option<bool>,
     auth: Option<infrastructure::git::credentials::InlineAuth>,
+    request_id: Option<String>,
 ) -> Result<(), AppError> {
     use application::use_cases::pull;
     use infrastructure::git::remote::SyncProgress;
     use tauri::Emitter;
 
+    let request_id = request_id.unwrap_or_else(next_sync_request_id);
     let app_emit = app.clone();
     let on_progress: Option<Box<dyn Fn(SyncProgress) + Send>> =
         Some(Box::new(move |p: SyncProgress| {
@@ -1361,6 +1387,7 @@ async fn cmd_pull(
                 on_progress,
                 Some(cancel),
                 auth,
+                &request_id,
             )
         },
     )
@@ -1394,6 +1421,7 @@ async fn cmd_list_remotes(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 async fn cmd_push(
     app: tauri::AppHandle,
     ctx: tauri::State<'_, AppContext>,
@@ -1403,11 +1431,13 @@ async fn cmd_push(
     force: Option<bool>,
     branch: Option<String>,
     auth: Option<infrastructure::git::credentials::InlineAuth>,
+    request_id: Option<String>,
 ) -> Result<infrastructure::git::remote::PushOutcome, AppError> {
     use application::use_cases::push;
     use infrastructure::git::remote::{PushOutcome, SyncProgress};
     use tauri::Emitter;
 
+    let request_id = request_id.unwrap_or_else(next_sync_request_id);
     let app_emit = app.clone();
     let on_progress: Option<Box<dyn Fn(SyncProgress) + Send>> =
         Some(Box::new(move |p: SyncProgress| {
@@ -1431,6 +1461,7 @@ async fn cmd_push(
                 on_progress,
                 Some(cancel),
                 auth,
+                &request_id,
             )
         },
     )

@@ -1,4 +1,5 @@
 import type { DiffSummary, FileChange } from "@/lib/api";
+import { isWindows } from "@/lib/platform";
 
 export function partitionFileChanges(files: FileChange[]): {
   unstaged: FileChange[];
@@ -34,5 +35,7 @@ export function filterDiffSummary(
 }
 
 function normalizeRepoPath(path: string): string {
-  return path.replace(/\\/g, "/");
+  // Only Windows treats `\` as a separator — on POSIX a literal backslash
+  // is a legal filename character and must survive verbatim.
+  return isWindows() ? path.replace(/\\/g, "/") : path;
 }

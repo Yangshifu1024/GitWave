@@ -25,6 +25,10 @@ describe("sanitizeFontList", () => {
     expect(sanitizeFontList("Jet\u0000Brains\u0007 Mono")).toBe("JetBrains Mono");
   });
 
+  it("strips line/paragraph separators (U+2028/U+2029, outside \\p{C})", () => {
+    expect(sanitizeFontList("A\u2028B\u2029C")).toBe("ABC");
+  });
+
   it("drops empty segments", () => {
     expect(sanitizeFontList(", , JetBrains Mono,")).toBe("JetBrains Mono");
   });

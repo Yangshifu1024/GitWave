@@ -356,8 +356,14 @@ export function DiffViewer({
   const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
   const toggleInspectorMaximized = useLayoutStore((s) => s.toggleInspectorMaximized);
   const { data: workingCopy } = useWorkingCopy();
+  // Content-aware signature: an in-place edit keeps staged/path/kind
+  // identical, so additions/deletions (+tree sha) must participate or the
+  // 2s working-copy poll never refreshes the panel.
   const fileSignature = workdir
-    ? (workingCopy?.files.map((f) => `${f.staged}:${f.path}:${f.kind}`).join("|") ?? "")
+    ? `${workingCopy?.sha ?? ""}|` +
+      (workingCopy?.files
+        .map((f) => `${f.staged}:${f.path}:${f.kind}:${f.additions}:${f.deletions}`)
+        .join("|") ?? "")
     : "";
   const [diff, setDiff] = useState<DiffSummary | null>(null);
   const [loading, setLoading] = useState(false);

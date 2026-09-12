@@ -15,6 +15,7 @@ describe("syncStore op lifecycle", () => {
     vi.useFakeTimers();
     useSyncStore.setState({
       activeOp: null,
+      activeRequestId: null,
       receivedObjects: 0,
       totalObjects: 0,
       receivedBytes: 0,
@@ -80,6 +81,7 @@ describe("syncStore op lifecycle", () => {
       receivedObjects: 3,
       totalObjects: 9,
       receivedBytes: 512,
+      requestId: "",
     });
 
     expect(useSyncStore.getState().receivedObjects).toBe(3);
@@ -93,6 +95,7 @@ describe("syncStore op lifecycle", () => {
       receivedObjects: 5,
       totalObjects: 10,
       receivedBytes: 1024,
+      requestId: "fetch-9",
     });
 
     expect(useSyncStore.getState().activeOp).toBe("checkout");
@@ -109,9 +112,61 @@ describe("syncStore op lifecycle", () => {
       receivedObjects: 5,
       totalObjects: 10,
       receivedBytes: 1024,
+      requestId: "pull-9",
     });
 
     expect(useSyncStore.getState().activeOp).toBeNull();
+  });
+
+  it("drops a superseded instance's late events", () => {
+    const s = useSyncStore.getState();
+    s.startOp("push", null, "push-1");
+    s.updateProgress({
+      operation: "push",
+      receivedObjects: 3,
+      totalObjects: 9,
+      receivedBytes: 100,
+      requestId: "push-1",
+    });
+    expect(useSyncStore.getState().receivedObjects).toBe(3);
+
+    // A second push takes the slot; the first one's stragglers arrive late.
+    s.startOp("push", null, "push-2");
+    s.updateProgress({
+      operation: "push",
+      receivedObjects: 9,
+      totalObjects: 9,
+      receivedBytes: 900,
+      requestId: "push-1",
+    });
+
+    expect(useSyncStore.getState().receivedObjects).toBe(0);
+    expect(useSyncStore.getState().activeRequestId).toBe("push-2");
+
+    s.updateProgress({
+      operation: "push",
+      receivedObjects: 4,
+      totalObjects: 9,
+      receivedBytes: 400,
+      requestId: "push-2",
+    });
+    expect(useSyncStore.getState().receivedObjects).toBe(4);
+  });
+
+  it("ignores endOp from a superseded instance", () => {
+    const s = useSyncStore.getState();
+    s.startOp("push", null, "push-1");
+    s.startOp("fetch", null, "fetch-2");
+    s.endOp("push", "push-1");
+
+    expect(useSyncStore.getState().fading).toBe(false);
+    expect(useSyncStore.getState().activeOp).toBe("fetch");
+
+    s.endOp("fetch", "fetch-2");
+    expect(useSyncStore.getState().fading).toBe(true);
+    vi.advanceTimersByTime(150);
+    expect(useSyncStore.getState().activeOp).toBeNull();
+    expect(useSyncStore.getState().activeRequestId).toBeNull();
   });
 });
 

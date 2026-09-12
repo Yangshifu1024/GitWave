@@ -33,6 +33,11 @@ export function AuthPromptDialog(): React.JSX.Element | null {
     }
   }, [remoteName]);
 
+  // Unmount (HMR / teardown) with a prompt showing must settle the waiter
+  // as cancelled — otherwise its promise hangs forever with no dialog to
+  // answer it.
+  useEffect(() => () => useAuthPromptStore.getState().cancel(), []);
+
   if (!remoteName || !retry) return null;
 
   const submit = (): void => {

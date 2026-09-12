@@ -62,7 +62,11 @@ export function useTheme(): UseThemeReturn {
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
-    localStorage.setItem(STORAGE_KEY, t);
+    try {
+      localStorage.setItem(STORAGE_KEY, t);
+    } catch {
+      // Private mode / quota: session-only theme, same as palette.
+    }
     setResolved(resolveTheme(t));
   }, []);
 

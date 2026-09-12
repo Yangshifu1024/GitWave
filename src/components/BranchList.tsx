@@ -27,7 +27,7 @@ import {
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
-import { useSyncStore, type UiOperation } from "@/stores/syncStore";
+import { nextSyncRequestId, useSyncStore, type UiOperation } from "@/stores/syncStore";
 import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useTags } from "@/hooks/useTags";
 import { useBranchCheckout } from "@/hooks/useBranchCheckout";
@@ -572,8 +572,12 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     const { branch, remote } = target;
     const run = (auth?: InlineAuth): void => {
       setBusy(true);
-      startOp("push", remote);
-      pushRemote(activeWorkspaceId, { remote, branch: branch.name, auth })
+      // One instance id for the slot and the invoke: progress events from a
+      // superseded push cannot overwrite a newer occupant. Retries (auth
+      // prompt) keep the same id — they are the same logical operation.
+      const requestId = nextSyncRequestId("push");
+      startOp("push", remote, requestId);
+      pushRemote(activeWorkspaceId, { remote, branch: branch.name, auth, requestId })
         .then(() => showNotice(t("branches.push.done", { name: branch.name, remote })))
         .catch((e) => {
           if (isCancelledSyncError(e)) {
@@ -588,7 +592,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         })
         .finally(() => {
           setBusy(false);
-          endOp("push");
+          endOp("push", requestId);
           setPushConfirm(null);
         });
     };

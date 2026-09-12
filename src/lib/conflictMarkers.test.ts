@@ -18,6 +18,12 @@ describe("classifyConflictLine", () => {
     expect(classifyConflictLine("  <<<<<<< indented")).toBeNull();
     expect(classifyConflictLine("======= underline")).toBeNull();
   });
+
+  it("rejects longer-than-7 runs (e.g. C++ shift operators)", () => {
+    expect(classifyConflictLine(">>>>>>>>>>")).toBeNull();
+    expect(classifyConflictLine("<<<<<<<<")).toBeNull();
+    expect(classifyConflictLine("||||||||")).toBeNull();
+  });
 });
 
 describe("findConflictRegions", () => {

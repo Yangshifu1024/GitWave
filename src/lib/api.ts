@@ -133,6 +133,40 @@ export interface SshTestResult {
 }
 
 /**
+ * i18next `t()` option names that change key lookup / post-processing.
+ * A hostile or misaligned backend param with one of these names would
+ * hijack the lookup (e.g. `keySeparator` re-splits the key), so they are
+ * stripped from interpolation params. `count` is deliberately absent:
+ * plural templates (`_one` / `_other`) need it.
+ */
+const RESERVED_I18NEXT_OPTIONS: ReadonlySet<string> = new Set([
+  "ns",
+  "lng",
+  "nsSeparator",
+  "keySeparator",
+  "postProcess",
+  "postProcessor",
+  "returnObjects",
+  "returnDetails",
+  "returnEmptyString",
+  "returnNull",
+  "joinArrays",
+  "fallbackLng",
+  "fallbackNS",
+  "parseMissingKeyHandler",
+  "appendNamespaceToMissingKey",
+  "appendNamespaceToCIMode",
+  "defaultValue",
+  "interpolation",
+  "context",
+  "ordinal",
+  "needsPlural",
+  "skipInterpolation",
+  "overloadTranslationOptionHandler",
+  "tDescription",
+]);
+
+/**
  * Single rendering point for backend errors (ADR-0006): with a stable
  * `code`, look up `errors.<code>` in the active locale (interpolating
  * `params`); anything without a translation falls back to the English
@@ -145,10 +179,22 @@ export function formatAppError(err: unknown): string {
     if (typeof e.message === "string" && typeof e.category === "string") {
       const fallback = `${e.category}: ${e.message}`;
       if (typeof e.code === "string" && e.code.length > 0) {
-        const params = { ...e.params };
-        delete params.ns;
-        delete params.lng;
-        delete params.defaultValue;
+        // Strip i18next lookup directives: option names are plain words, so
+        // an allowlist cannot catch them — enumerate the directives instead.
+        // `count` stays (plural templates need it, and it must survive as a
+        // number for plural-rule selection).
+        const params: Record<string, string | number> = {};
+        for (const [key, value] of Object.entries(e.params ?? {})) {
+          // Backend params are strings, but tolerate runtime numbers (plural
+          // `count` needs a number for rule selection).
+          const v: unknown = value;
+          if (
+            !RESERVED_I18NEXT_OPTIONS.has(key) &&
+            (typeof v === "string" || typeof v === "number")
+          ) {
+            params[key] = v;
+          }
+        }
         return i18next.t(`errors.${e.code}`, { ...params, defaultValue: fallback });
       }
       return fallback;
@@ -357,6 +403,8 @@ export interface SyncProgress {
   receivedObjects: number;
   totalObjects: number;
   receivedBytes: number;
+  /** Backend invocation id (one operation instance); empty on legacy events. */
+  requestId: string;
 }
 
 export function cloneRepo(
@@ -1037,6 +1085,8 @@ export interface PushOptions {
   branch?: string;
   /** In-app credentials (F012) used verbatim for this operation. */
   auth?: InlineAuth;
+  /** Caller-generated instance id; the store matches progress events by it. */
+  requestId?: string;
 }
 
 /** Credentials entered in the auth prompt (F012). `remember` persists them
@@ -1057,6 +1107,8 @@ export type CredentialStorageOutcome = "stored" | "fallback" | "failed";
 export interface FetchOptions {
   remote?: string;
   auth?: InlineAuth;
+  /** Caller-generated instance id; the store matches progress events by it. */
+  requestId?: string;
 }
 
 export function fetchRemote(workspaceId: string, options?: FetchOptions): Promise<void> {
@@ -1064,6 +1116,7 @@ export function fetchRemote(workspaceId: string, options?: FetchOptions): Promis
     workspaceId,
     remote: options?.remote ?? null,
     auth: options?.auth ?? null,
+    requestId: options?.requestId ?? null,
   });
 }
 
@@ -1074,6 +1127,8 @@ export interface PullOptions {
   rebase?: boolean;
   stash?: boolean;
   auth?: InlineAuth;
+  /** Caller-generated instance id; the store matches progress events by it. */
+  requestId?: string;
 }
 
 export function pullRemote(workspaceId: string, options?: PullOptions): Promise<void> {
@@ -1084,6 +1139,7 @@ export function pullRemote(workspaceId: string, options?: PullOptions): Promise<
     rebase: options?.rebase ?? false,
     stash: options?.stash ?? false,
     auth: options?.auth ?? null,
+    requestId: options?.requestId ?? null,
   });
 }
 
@@ -1119,6 +1175,7 @@ export function pushRemote(workspaceId: string, options?: PushOptions): Promise<
     force: options?.force ?? false,
     branch: options?.branch ?? null,
     auth: options?.auth ?? null,
+    requestId: options?.requestId ?? null,
   });
 }
 

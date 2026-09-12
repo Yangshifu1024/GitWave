@@ -2424,6 +2424,7 @@ pub fn fetch(
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
     auth: Option<InlineAuth>,
+    request_id: &str,
 ) -> Result<()> {
     let fetch_lock = workspace_fetch_lock(workspace_id);
     let _serialized = fetch_lock
@@ -2454,6 +2455,7 @@ pub fn fetch(
                 cb,
                 cancel.clone(),
                 auth.as_ref(),
+                request_id,
             ) {
                 // A cancelled operation must not grind through the remaining
                 // remotes — the user asked for the whole fetch to stop.
@@ -2486,6 +2488,7 @@ pub fn fetch(
         on_progress,
         cancel,
         auth.as_ref(),
+        request_id,
     )
 }
 
@@ -2500,6 +2503,7 @@ pub fn pull(
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
     auth: Option<InlineAuth>,
+    request_id: &str,
 ) -> Result<()> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let mut repo = ctx.open_repo(&repo_path)?;
@@ -2514,6 +2518,7 @@ pub fn pull(
         on_progress,
         cancel,
         auth.as_ref(),
+        request_id,
     )
 }
 
@@ -2534,6 +2539,7 @@ pub fn push(
     on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     cancel: Option<CancelFlag>,
     auth: Option<InlineAuth>,
+    request_id: &str,
 ) -> Result<PushOutcome> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
@@ -2548,6 +2554,7 @@ pub fn push(
         &on_progress,
         cancel,
         auth.as_ref(),
+        request_id,
     )
 }
 
@@ -3314,7 +3321,8 @@ mod tests {
         .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        fetch(&ctx, &ws.id, None, None, None, None).expect("fetch without a remote name");
+        fetch(&ctx, &ws.id, None, None, None, None, "test-req")
+            .expect("fetch without a remote name");
 
         let local = git2::Repository::open(&local_path).unwrap();
         assert_eq!(
@@ -3352,7 +3360,8 @@ mod tests {
             .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        fetch(&ctx, &ws.id, None, None, None, None).expect("no remotes means a silent no-op");
+        fetch(&ctx, &ws.id, None, None, None, None, "test-req")
+            .expect("no remotes means a silent no-op");
         cleanup(&tmp);
     }
 
@@ -3383,7 +3392,7 @@ mod tests {
         .expect("add_local_repo");
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
-        let err = fetch(&ctx, &ws.id, None, None, None, None)
+        let err = fetch(&ctx, &ws.id, None, None, None, None, "test-req")
             .expect_err("bad remote must fail the batch");
         assert_eq!(err.category(), "Network");
 
@@ -3433,7 +3442,7 @@ mod tests {
         set_active_repo(&ctx, ws.id.clone(), Some(repo_ref.id)).unwrap();
 
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(true)); // pre-set
-        let err = fetch(&ctx, &ws.id, None, None, Some(cancel), None)
+        let err = fetch(&ctx, &ws.id, None, None, Some(cancel), None, "test-req")
             .expect_err("cancelled batch must fail");
         assert_eq!(err.code(), crate::domain::error_codes::git::SYNC_CANCELLED);
 
