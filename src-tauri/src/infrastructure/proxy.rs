@@ -196,6 +196,19 @@ pub fn normalize_manual_url(raw: &str) -> Option<String> {
     if url.host_str()?.is_empty() {
         return None;
     }
+    if !url.username().is_empty() {
+        // Proxy credentials are required at runtime (env bridge), so they
+        // are persisted as-is — but the local database is only as private
+        // as its file permissions, hence this notice (no secret is logged).
+        // Once per process: `normalize_manual_url` also runs on every proxy
+        // resolve / client rebuild, which would otherwise spam the log.
+        static WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            tracing::warn!(
+                "manual proxy URL contains credentials stored in plaintext in the local database"
+            );
+        }
+    }
     match url.scheme() {
         "http" | "https" => {}
         _ => return None,

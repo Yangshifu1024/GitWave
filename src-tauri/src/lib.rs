@@ -311,6 +311,8 @@ fn cmd_get_ai_key_status(workspace_id: String, provider: String) -> Result<AiKey
 
 #[tauri::command]
 async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppError> {
+    // Loopback restriction is enforced inside `use_cases::probe_ollama` so
+    // every entry point is covered, not just this command.
     probe_ollama(base_url).await
 }
 

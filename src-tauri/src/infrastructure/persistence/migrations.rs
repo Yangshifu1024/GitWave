@@ -45,7 +45,36 @@ struct Migration {
 
 /// Apply pending migrations. Idempotent: re-running on a fully migrated
 /// database is a no-op.
+///
+/// # Panics
+/// Never panics, but **the caller must pass a connection with no open
+/// transaction** — `BEGIN IMMEDIATE` errors otherwise. All current callers
+/// (startup paths and tests) pass fresh connections; keep it that way or
+/// restructure first.
 pub fn apply(conn: &Connection) -> Result<()> {
+    // Serialize concurrent first-opens with one IMMEDIATE transaction: two
+    // connections racing here would otherwise both read an empty
+    // schema_version and both run CREATE TABLE. The loser blocks, then sees
+    // the winner's versions and no-ops. A single transaction also makes the
+    // whole upgrade atomic instead of per-migration.
+    // Callers pass fresh connections with no open transaction (startup
+    // paths and tests) — see the `apply` doc comment for this constraint.
+    conn.execute_batch("BEGIN IMMEDIATE")
+        .map_err(map_sqlite_err)?;
+    let result = apply_inner(conn);
+    match result {
+        Ok(()) => conn.execute_batch("COMMIT").map_err(|e| {
+            let _ = conn.execute_batch("ROLLBACK");
+            map_sqlite_err(e)
+        }),
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
+    }
+}
+
+fn apply_inner(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY NOT NULL)",
     )
@@ -56,21 +85,40 @@ pub fn apply(conn: &Connection) -> Result<()> {
         .map_err(map_sqlite_err)?
         .query_map([], |r| r.get::<_, i64>(0))
         .map_err(map_sqlite_err)?
-        .filter_map(std::result::Result::ok)
+        .filter_map(|r| match r {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::warn!("skipping unreadable schema_version row: {e}");
+                None
+            }
+        })
         .collect();
+
+    let latest_known = MIGRATIONS.last().map(|m| m.version).unwrap_or(0);
+    if let Some(&max_applied) = applied.iter().max() {
+        if max_applied > latest_known {
+            // Downgrade run: an older binary on a newer database. Unknown
+            // versions are skipped (loop below only knows MIGRATIONS), and
+            // later queries fail loudly on missing columns instead of
+            // silently misbehaving.
+            tracing::warn!(
+                applied = max_applied,
+                latest_known,
+                "database is newer than this binary; unknown migrations will be skipped"
+            );
+        }
+    }
 
     for migration in MIGRATIONS {
         if applied.contains(&migration.version) {
             continue;
         }
-        let tx = conn.unchecked_transaction().map_err(map_sqlite_err)?;
-        tx.execute_batch(migration.sql).map_err(map_sqlite_err)?;
-        tx.execute(
+        conn.execute_batch(migration.sql).map_err(map_sqlite_err)?;
+        conn.execute(
             "INSERT INTO schema_version (version) VALUES (?1)",
             [migration.version],
         )
         .map_err(map_sqlite_err)?;
-        tx.commit().map_err(map_sqlite_err)?;
         tracing::info!(
             version = migration.version,
             name = migration.name,

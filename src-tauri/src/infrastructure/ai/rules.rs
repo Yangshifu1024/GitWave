@@ -7,12 +7,29 @@ use std::path::Path;
 /// Hard cap so a huge rules file cannot blow the prompt budget.
 const MAX_RULES_CHARS: usize = 8_000;
 
+/// Pre-read byte cap: the char cap below only applies after the whole file
+/// is resident in memory — refuse absurd files up front instead.
+const MAX_RULES_BYTES: u64 = 1_048_576;
+
 /// Read `<workdir>/.gitwave/AI.md`. Returns `None` when the file is
-/// absent, unreadable, or blank — rules are advisory and must never block
-/// a request.
+/// absent, unreadable, oversized, or blank — rules are advisory and must
+/// never block a request.
 pub fn read_ai_rules(workdir: &Path) -> Option<String> {
     let path = workdir.join(".gitwave").join("AI.md");
-    let content = std::fs::read_to_string(path).ok()?;
+    // `take` (not metadata-then-read): no TOCTOU window, and the read can
+    // never resident-load more than the cap + 1.
+    let file = std::fs::File::open(&path).ok()?;
+    let mut content = String::new();
+    {
+        use std::io::Read;
+        file.take(MAX_RULES_BYTES + 1)
+            .read_to_string(&mut content)
+            .ok()?;
+    }
+    if content.len() as u64 > MAX_RULES_BYTES {
+        tracing::warn!("AI.md exceeds 1 MiB; ignoring repo rules");
+        return None;
+    }
     let trimmed = content.trim().to_string();
     if trimmed.is_empty() {
         return None;
@@ -71,6 +88,19 @@ mod tests {
             read_ai_rules(&dir).as_deref(),
             Some("Write subjects in English.")
         );
+        fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    #[test]
+    fn absurd_file_is_refused_before_read() {
+        let dir = temp_dir("absurd");
+        fs::create_dir_all(dir.join(".gitwave")).expect("mkdir");
+        fs::write(
+            dir.join(".gitwave").join("AI.md"),
+            "x".repeat(1_048_576 + 1),
+        )
+        .expect("write");
+        assert_eq!(read_ai_rules(&dir), None);
         fs::remove_dir_all(&dir).expect("cleanup");
     }
 
