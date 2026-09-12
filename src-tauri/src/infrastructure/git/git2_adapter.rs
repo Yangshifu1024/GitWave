@@ -57,7 +57,19 @@ pub fn default_signature() -> Result<Signature<'static>> {
 pub fn commit_signature(repo: &Repository) -> Result<Signature<'static>> {
     match repo.signature() {
         Ok(sig) => Ok(sig),
-        Err(_) => default_signature(),
+        Err(_) => {
+            // Audited fallback: commits would otherwise carry a fabricated
+            // identity with no trace of why. Once per process — every commit
+            // would spam the log on unconfigured machines.
+            static WARNED: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                tracing::warn!(
+                    "no git user.name/user.email configured; committing as GitWave <noreply@gitwave.local>"
+                );
+            }
+            default_signature()
+        }
     }
 }
 

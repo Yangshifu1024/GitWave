@@ -101,7 +101,15 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
                 })
             })
             .map_err(map_sqlite_err)?
-            .filter_map(std::result::Result::ok)
+            .filter_map(|r| match r {
+                Ok(row) => Some(row),
+                Err(e) => {
+                    // Corrupt rows stay visible in logs instead of vanishing
+                    // silently (previous behaviour hid database damage).
+                    tracing::warn!("skipping unreadable workspace row: {e}");
+                    None
+                }
+            })
             .collect();
         Ok(rows)
     }
@@ -240,7 +248,13 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
         let rows = stmt
             .query_map([workspace_id], row_to_repo)
             .map_err(map_sqlite_err)?
-            .filter_map(std::result::Result::ok)
+            .filter_map(|r| match r {
+                Ok(row) => Some(row),
+                Err(e) => {
+                    tracing::warn!("skipping unreadable repo row: {e}");
+                    None
+                }
+            })
             .collect();
         Ok(rows)
     }
@@ -354,7 +368,13 @@ fn row_to_repo(row: &rusqlite::Row<'_>) -> rusqlite::Result<RepoRef> {
 
     let status = match status.as_str() {
         "missing" => crate::domain::workspace::RepoStatus::Missing,
-        _ => crate::domain::workspace::RepoStatus::Active,
+        "active" => crate::domain::workspace::RepoStatus::Active,
+        other => {
+            // Unknown values mean schema drift or corruption — say so loudly
+            // instead of quietly rehabilitating the repo as Active.
+            tracing::warn!(repo_id = %id, status = %other, "unknown repo status; treating as Active");
+            crate::domain::workspace::RepoStatus::Active
+        }
     };
 
     let settings_override = settings_override_json

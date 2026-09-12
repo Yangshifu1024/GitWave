@@ -309,8 +309,36 @@ fn cmd_get_ai_key_status(workspace_id: String, provider: String) -> Result<AiKey
     get_ai_key_status(workspace_id, provider)
 }
 
+/// Whether an Ollama probe URL stays on loopback. Parsed with the real URL
+/// parser — hand-rolled host extraction is bypassable (`http://evil.com#@127.0.0.1`
+/// puts the "host" in the fragment while the request goes to evil.com).
+fn ollama_probe_allowed(base_url: Option<&str>) -> bool {
+    let Some(raw) = base_url else {
+        return true;
+    };
+    let trimmed = raw.trim();
+    let with_scheme = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("http://{trimmed}")
+    };
+    reqwest::Url::parse(&with_scheme)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string))
+        // `host_str` keeps IPv6 brackets (`[::1]`).
+        .is_some_and(|h| h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]")
+}
+
 #[tauri::command]
 async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppError> {
+    // Probes run user-supplied URLs: restrict to loopback so a compromised
+    // renderer cannot turn this into an intranet scanner.
+    if !ollama_probe_allowed(base_url.as_deref()) {
+        return Err(AppError::protocol(
+            crate::domain::error_codes::infra::UNSUPPORTED_PROVIDER,
+            "ollama probe is limited to localhost",
+        ));
+    }
     probe_ollama(base_url).await
 }
 
@@ -1794,4 +1822,26 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ollama_probe_gate_allows_loopback_only() {
+        assert!(ollama_probe_allowed(None));
+        assert!(ollama_probe_allowed(Some("http://127.0.0.1:11434")));
+        assert!(ollama_probe_allowed(Some("http://localhost:11434/v1")));
+        assert!(ollama_probe_allowed(Some("http://[::1]:11434")));
+        assert!(ollama_probe_allowed(Some("127.0.0.1:11434")));
+        assert!(!ollama_probe_allowed(Some("http://192.168.1.10:11434")));
+        assert!(!ollama_probe_allowed(Some("http://evil.com")));
+        assert!(!ollama_probe_allowed(Some("not a url at all")));
+        // Fragment/userinfo tricks must not smuggle a loopback label past
+        // the real request host.
+        assert!(!ollama_probe_allowed(Some("http://evil.com#@127.0.0.1")));
+        assert!(!ollama_probe_allowed(Some("http://evil.com?x=127.0.0.1")));
+        assert!(!ollama_probe_allowed(Some("http://user:pass@evil.com/")));
+    }
 }
