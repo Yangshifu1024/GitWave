@@ -107,7 +107,9 @@
       "mayConflict_other": "May conflict in {{count}} files (resolve after merge)",
       "noConflicts": "Merge can be done without conflicts",
       "withConflicts": "Merged {{name}} with {{n}} conflict(s): {{files}}",
-      "success": "Merged {{name}} ({{kind}})"
+      "success": "Merged {{name}} ({{kind}})",
+      "dirtyWarning_one": "Working copy has {{count}} uncommitted file — commit or stash before merging",
+      "dirtyWarning_other": "Working copy has {{count}} uncommitted files — commit or stash before merging"
     },
     "rebase": {
       "hitConflicts": "Rebase onto {{name}} hit conflicts: {{files}}",
@@ -129,9 +131,12 @@
       "continue": "Continue rebase",
       "discardPause": "Discard pause",
       "continueConflicts": "Continue rebase conflicts: {{files}}",
+      "autoAborted": "Rebase hit a conflict and was automatically rolled back — the branch is back at its pre-rebase tip",
       "stillPaused": "Still paused for edit — amend then Continue again.",
       "continued": "Continued interactive rebase ({{kind}})",
-      "pauseCleared": "Cleared interactive rebase pause state"
+      "pauseCleared": "Aborted interactive rebase — branch restored to its pre-rebase tip",
+      "dirtyWarning_one": "Working copy has {{count}} uncommitted file — commit or stash before rebasing",
+      "dirtyWarning_other": "Working copy has {{count}} uncommitted files — commit or stash before rebasing"
     },
     "graph": {
       "selectWorkspaceTitle": "Select a workspace",

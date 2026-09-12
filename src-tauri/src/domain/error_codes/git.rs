@@ -192,6 +192,12 @@ pub const PARSE_PAUSE: &str = "git.pause_parse";
 /// 没有处于 edit 暂停中的交互式变基。
 pub const NOT_PAUSED: &str = "git.not_paused";
 
+/// 暂停状态清理失败。
+pub const CLEANUP_PAUSE: &str = "git.pause_cleanup";
+
+/// 回放冲突已自动回滚（abort）：仓库已恢复原状，没有真实冲突需要解决。
+pub const IREBASE_AUTO_ABORTED: &str = "git.irebase_auto_aborted";
+
 /// 不能对 todo 列表的第一个提交执行 squash/fixup。
 pub const SQUASH_FIRST_COMMIT: &str = "git.squash_first_commit";
 

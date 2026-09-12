@@ -14,6 +14,7 @@ import {
   deleteRemoteBranch,
   formatAppError,
   getBranches,
+  getWorkingCopy,
   interactiveRebasePaused,
   isAuthError,
   isCancelledSyncError,
@@ -655,6 +656,14 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const handleRebaseOnto = (name: string) =>
     void run("rebase", async () => {
+      // Dirty pre-check: the backend refuses dirty rebases
+      // (REBASE_DIRTY_WORKTREE) — warn early with a file count.
+      const wc = await getWorkingCopy(activeWorkspaceId!).catch(() => null);
+      const dirty = wc?.files.length ?? 0;
+      if (dirty > 0) {
+        showNotice(t("branches.switch.dirtyDescription", { count: dirty }), "danger");
+        return;
+      }
       const result = await rebaseBranch(activeWorkspaceId!, name);
       if (result.kind === "conflicts" || result.conflicts.length > 0) {
         showNotice(
@@ -676,6 +685,10 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
           t("branches.irebase.continueConflicts", { files: result.conflicts.join(", ") }),
           "danger",
         );
+      } else if (result.kind === "auto_aborted") {
+        // The backend already rolled the branch back: there is nothing to
+        // resolve and nothing to continue — never show fake conflict files.
+        showNotice(t("branches.irebase.autoAborted"), "danger");
       } else if (result.kind === "paused_for_edit") {
         showNotice(t("branches.irebase.stillPaused"));
       } else {

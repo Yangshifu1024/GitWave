@@ -920,7 +920,7 @@ export interface InteractiveRebaseTodo {
 }
 
 export type InteractiveRebaseKind =
-  "clean" | "already_up_to_date" | "conflicts" | "paused_for_edit";
+  "clean" | "already_up_to_date" | "conflicts" | "paused_for_edit" | "auto_aborted";
 
 export interface InteractiveRebaseResult {
   kind: InteractiveRebaseKind;

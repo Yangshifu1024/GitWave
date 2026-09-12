@@ -6,6 +6,7 @@ use git2::{ObjectType, Repository};
 
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
+use crate::infrastructure::git::worktree_guard::ensure_path_in_workdir;
 
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::unknown_with(
@@ -113,6 +114,9 @@ pub fn resolve_conflict(repo: &Repository, path: &str, content: &str) -> Result<
     let wd = repo
         .workdir()
         .ok_or_else(|| AppError::protocol(codes::git::BARE_REPO, "bare repo has no workdir"))?;
+    // `create_dir_all` + `write` below would otherwise follow `..` / absolute
+    // paths anywhere on disk.
+    ensure_path_in_workdir(wd, path)?;
     let full = wd.join(path);
     if let Some(parent) = full.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
@@ -231,6 +235,33 @@ mod tests {
 
         abort_merge(&repo).unwrap();
         assert!(!is_merge_in_progress(&repo));
+        cleanup(&path);
+    }
+
+    #[test]
+    fn resolve_conflict_rejects_escaping_paths() {
+        let (path, repo) = build_linear_repo(1);
+        for evil in [
+            "../outside.txt",
+            "sub/../../outside.txt",
+            "/abs/path.txt",
+            "..\\win-outside.txt",
+            "C:evil.txt",
+        ] {
+            let err = resolve_conflict(&repo, evil, "evil\n")
+                .expect_err("escaping path must be rejected");
+            assert_eq!(
+                err.code(),
+                codes::git::PATH_ESCAPES_WORKTREE,
+                "wrong code for {evil}"
+            );
+        }
+        // Legit relative paths (incl. new subdirs) still work.
+        resolve_conflict(&repo, "sub/ok.txt", "ok\n").unwrap();
+        assert_eq!(
+            fs::read_to_string(repo.workdir().unwrap().join("sub/ok.txt")).unwrap(),
+            "ok\n"
+        );
         cleanup(&path);
     }
 }

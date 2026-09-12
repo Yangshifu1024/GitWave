@@ -107,7 +107,9 @@
       "mayConflict_other": "可能在 {{count}} 个文件中产生冲突（合并后解决）",
       "noConflicts": "合并不会产生冲突",
       "withConflicts": "已合并 {{name}}，有 {{n}} 处冲突：{{files}}",
-      "success": "已合并 {{name}}（{{kind}}）"
+      "success": "已合并 {{name}}（{{kind}}）",
+      "dirtyWarning_one": "工作副本中有 {{count}} 个未提交文件——合并前请先提交或贮藏",
+      "dirtyWarning_other": "工作副本中有 {{count}} 个未提交文件——合并前请先提交或贮藏"
     },
     "rebase": {
       "hitConflicts": "变基到 {{name}} 时遇到冲突：{{files}}",
@@ -129,9 +131,12 @@
       "continue": "继续变基",
       "discardPause": "放弃暂停",
       "continueConflicts": "继续变基时遇到冲突：{{files}}",
+      "autoAborted": "变基遇到冲突，已自动回滚——分支已恢复到变基前的位置",
       "stillPaused": "仍处于编辑暂停状态——请先修补（amend）提交，再点击「继续变基」。",
       "continued": "交互式变基已继续（{{kind}}）",
-      "pauseCleared": "已清除交互式变基的暂停状态"
+      "pauseCleared": "已中止交互式变基——分支已恢复到变基前的位置",
+      "dirtyWarning_one": "工作副本中有 {{count}} 个未提交文件——变基前请先提交或贮藏",
+      "dirtyWarning_other": "工作副本中有 {{count}} 个未提交文件——变基前请先提交或贮藏"
     },
     "graph": {
       "selectWorkspaceTitle": "选择工作区",

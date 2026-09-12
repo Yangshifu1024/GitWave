@@ -8,7 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { CircleCheck, CircleX, GitBranch } from "lucide-react";
 
-import { mergePreview } from "@/lib/api";
+import { getWorkingCopy, mergePreview } from "@/lib/api";
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import { Modal } from "@/components/ui/Modal";
@@ -33,9 +34,21 @@ export function MergeConfirmDialog({
     queryKey: ["merge-preview", workspaceId, name],
     queryFn: () => mergePreview(workspaceId, name),
   });
+  // Dirty pre-check: the backend refuses dirty merges (DIRTY_WORKTREE), but
+  // surfacing it here saves a wasted round trip and explains *why* upfront.
+  // Key mirrors ActionBar's canonical ["working-copy", ws, repo] so a repo
+  // switch never shows another repo's dirt.
+  const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const { data: workingCopy } = useQuery({
+    queryKey: ["working-copy", workspaceId, activeRepoId],
+    queryFn: () => getWorkingCopy(workspaceId),
+    enabled: !!activeRepoId,
+  });
 
   const upToDate = preview?.up_to_date ?? false;
   const conflictCount = preview?.conflicts.length ?? 0;
+  const dirtyCount = workingCopy?.files.length ?? 0;
+  const blockedByDirty = dirtyCount > 0 && !upToDate;
 
   return (
     <Modal
@@ -55,7 +68,7 @@ export function MergeConfirmDialog({
             variant="primary"
             size="sm"
             className="min-w-0 flex-[7]"
-            disabled={upToDate}
+            disabled={upToDate || blockedByDirty}
             onClick={() => onConfirm(noFf)}
           >
             {t("branches.merge.confirm")}
@@ -100,6 +113,11 @@ export function MergeConfirmDialog({
       <div className="flex items-center gap-1.5 text-xs text-text-muted">
         {isLoading ? (
           <span>{t("branches.merge.checking")}</span>
+        ) : blockedByDirty ? (
+          <span className="flex items-center gap-1.5 text-danger">
+            <CircleX size={14} className="shrink-0" />
+            {t("branches.merge.dirtyWarning", { count: dirtyCount })}
+          </span>
         ) : upToDate ? (
           <span className="flex items-center gap-1.5">
             <CircleX size={14} className="shrink-0" />

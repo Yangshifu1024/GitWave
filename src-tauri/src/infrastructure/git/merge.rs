@@ -6,6 +6,7 @@ use git2::Repository;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::infrastructure::git::git2_adapter::commit_signature;
+use crate::infrastructure::git::worktree_guard::ensure_clean;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -145,6 +146,10 @@ pub fn merge_branch(repo: &Repository, branch_name: &str, no_ff: bool) -> Result
             new_head: our_oid.to_string(),
         });
     }
+    // All paths below move HEAD and force-refresh the worktree — refuse a
+    // dirty worktree first so uncommitted edits are never silently destroyed
+    // (mirrors `git merge`, which refuses to merge over local changes).
+    ensure_clean(repo)?;
     if ahead == 0 {
         if !no_ff {
             // True fast-forward: HEAD has none of the target's commits, so
@@ -450,6 +455,138 @@ mod tests {
         let (path, repo) = init_empty_repo();
         let err = merge_branch(&repo, "main", false).unwrap_err();
         assert_eq!(err.category(), "Protocol");
+        cleanup(&path);
+    }
+
+    /// HEAD on `old` (ancestor of main); worktree has an unstaged edit.
+    /// Returns (path, repo, old_tip) with everything set up — the caller
+    /// only picks the merge flavour.
+    fn ff_setup_with_dirty_worktree() -> (std::path::PathBuf, git2::Repository, git2::Oid) {
+        let (path, repo) = build_linear_repo(3);
+        let main_tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let i1 = repo.find_commit(main_tip).unwrap().parent(0).unwrap().id();
+        repo.branch("old", &repo.find_commit(i1).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/old").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+        fs::write(repo.workdir().unwrap().join("file0.txt"), "uncommitted\n").unwrap();
+        (path, repo, i1)
+    }
+
+    #[test]
+    fn merge_ff_refuses_dirty_worktree() {
+        let (path, repo, old_tip) = ff_setup_with_dirty_worktree();
+        let err = merge_branch(&repo, "main", false).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert_eq!(
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            old_tip,
+            "refused merge must not move HEAD"
+        );
+        assert_eq!(
+            fs::read_to_string(repo.workdir().unwrap().join("file0.txt")).unwrap(),
+            "uncommitted\n",
+            "uncommitted edits must survive the refusal"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn merge_no_ff_refuses_dirty_worktree() {
+        let (path, repo, old_tip) = ff_setup_with_dirty_worktree();
+        let err = merge_branch(&repo, "main", true).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert_eq!(
+            repo.head().unwrap().peel_to_commit().unwrap().id(),
+            old_tip,
+            "refused merge must not move HEAD"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn merge_ff_refuses_staged_only_change() {
+        // Index differs from HEAD while the worktree matches the index —
+        // still dirty (the merge would commit-away nothing but overwrite
+        // the staged content on checkout refresh).
+        let (path, repo) = build_linear_repo(3);
+        let main_tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let i1 = repo.find_commit(main_tip).unwrap().parent(0).unwrap().id();
+        repo.branch("old", &repo.find_commit(i1).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/old").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+        let _ = write_and_stage(&repo, "file0.txt", "staged\n");
+        let err = merge_branch(&repo, "main", false).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn merge_ff_refuses_untracked_file() {
+        let (path, repo) = build_linear_repo(3);
+        let main_tip = repo.head().unwrap().peel_to_commit().unwrap().id();
+        let i1 = repo.find_commit(main_tip).unwrap().parent(0).unwrap().id();
+        repo.branch("old", &repo.find_commit(i1).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/old").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+        // Untracked files count as dirty: deliberately conservative, same as
+        // checkout/revert.
+        fs::write(repo.workdir().unwrap().join("scratch.txt"), "new\n").unwrap();
+        let err = merge_branch(&repo, "main", false).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert!(repo.workdir().unwrap().join("scratch.txt").exists());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn merge_three_way_refuses_dirty_worktree() {
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        let (path, repo) = build_linear_repo(2);
+        let base = repo.head().unwrap().peel_to_commit().unwrap().id();
+        // Side branch adds an unrelated file (merge itself would be clean).
+        repo.branch("side", &repo.find_commit(base).unwrap(), false)
+            .unwrap();
+        repo.set_head("refs/heads/side").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+        let tree = write_and_stage(&repo, "side.txt", "side\n");
+        make_commit(&repo, &sig, "side work", tree, &[base]);
+        // Back on main with its own commit → real 3-way merge ahead.
+        repo.set_head("refs/heads/main").unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
+        let tree = write_and_stage(&repo, "file0.txt", "main-edit\n");
+        make_commit(&repo, &sig, "main work", tree, &[base]);
+        // Dirty the worktree: the guard must fire before any merge state.
+        fs::write(repo.workdir().unwrap().join("file1.txt"), "uncommitted\n").unwrap();
+
+        let err = merge_branch(&repo, "side", false).unwrap_err();
+        assert_eq!(err.code(), codes::git::DIRTY_WORKTREE);
+        assert!(
+            !repo.path().join("MERGE_HEAD").exists(),
+            "refused merge must not leave merge state behind"
+        );
+        cleanup(&path);
+    }
+
+    #[test]
+    fn merge_already_up_to_date_allows_dirty_worktree() {
+        // `behind == 0` is a pure no-op that touches nothing, so it stays
+        // allowed over a dirty worktree (mirrors `git merge` saying
+        // "Already up to date.").
+        let (path, repo) = build_linear_repo(3);
+        fs::write(repo.workdir().unwrap().join("file0.txt"), "uncommitted\n").unwrap();
+        let res = merge_branch(&repo, "main", false).unwrap();
+        assert_eq!(res.kind, MergeKind::AlreadyUpToDate);
+        assert_eq!(
+            fs::read_to_string(repo.workdir().unwrap().join("file0.txt")).unwrap(),
+            "uncommitted\n"
+        );
         cleanup(&path);
     }
 }
