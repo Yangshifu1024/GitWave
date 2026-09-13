@@ -219,6 +219,157 @@ fn open_in_terminal(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// ─── External editors (F015) ─────────────────────────────────────────────
+
+/// Supported editors in default order; the first detected one leads the
+/// ActionBar dropdown.
+const SUPPORTED_EDITORS: [(&str, &str); 3] = [
+    ("vscode", "Visual Studio Code"),
+    ("zed", "Zed"),
+    ("vscodium", "VSCodium"),
+];
+
+/// A locally installed editor offered in the ActionBar dropdown.
+#[derive(serde::Serialize)]
+struct DetectedEditor {
+    id: String,
+    name: String,
+}
+
+/// Well-known Windows install roots for `id`, in lookup order (pure — roots
+/// are passed in so tests can pin the order without touching the environment).
+#[cfg(windows)]
+fn windows_exe_candidates(
+    id: &str,
+    local_app_data: &str,
+    program_files: &str,
+    program_files_x86: &str,
+) -> Vec<String> {
+    match id {
+        "vscode" => vec![
+            format!(r"{local_app_data}\Programs\Microsoft VS Code\Code.exe"),
+            format!(r"{program_files}\Microsoft VS Code\Code.exe"),
+            format!(r"{program_files_x86}\Microsoft VS Code\Code.exe"),
+        ],
+        "zed" => vec![format!(r"{local_app_data}\Programs\Zed\Zed.exe")],
+        "vscodium" => vec![
+            format!(r"{local_app_data}\Programs\VSCodium\VSCodium.exe"),
+            format!(r"{program_files}\VSCodium\VSCodium.exe"),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Where `id` is installed and the argv that opens a directory in it; `None`
+/// when the editor is not installed (or the id is unknown). The repo dir is
+/// appended as the final argument by the caller, which also sets it as cwd —
+/// all three editors accept a folder path that way.
+#[cfg(windows)]
+fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
+    let env = |k: &str| std::env::var(k).unwrap_or_default();
+    windows_exe_candidates(
+        id,
+        &env("LOCALAPPDATA"),
+        &env("ProgramFiles"),
+        &env("ProgramFiles(x86)"),
+    )
+    .into_iter()
+    .find(|p| std::path::Path::new(p).is_file())
+    .map(|exe| (exe, Vec::new()))
+    .or_else(|| match id {
+        // Scoop / portable installs only expose the PATH shim; `.cmd` must
+        // relay through cmd.exe (spawned windowless by `open_in_editor`).
+        "vscode" => {
+            find_in_path("code.cmd").map(|_| ("cmd".into(), vec!["/c".into(), "code.cmd".into()]))
+        }
+        "zed" => find_in_path("zed.exe").map(|_| ("zed.exe".into(), Vec::new())),
+        "vscodium" => find_in_path("codium.cmd")
+            .map(|_| ("cmd".into(), vec!["/c".into(), "codium.cmd".into()])),
+        _ => None,
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
+    let app = match id {
+        "vscode" => "Visual Studio Code",
+        "zed" => "Zed",
+        "vscodium" => "VSCodium",
+        _ => return None,
+    };
+    let home = std::env::var("HOME").unwrap_or_default();
+    let installed = [
+        format!("/Applications/{app}.app"),
+        format!("{home}/Applications/{app}.app"),
+    ]
+    .iter()
+    .any(|p| std::path::Path::new(p).exists());
+    installed.then(|| ("open".to_string(), vec!["-a".to_string(), app.to_string()]))
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
+    let bin = match id {
+        "vscode" => "code",
+        "zed" => "zed",
+        "vscodium" => "codium",
+        _ => return None,
+    };
+    find_in_path(bin).map(|_| (bin.to_string(), Vec::new()))
+}
+
+/// Editors installed on this machine, in default order (first = default).
+fn detect_editors() -> Vec<DetectedEditor> {
+    SUPPORTED_EDITORS
+        .iter()
+        .filter(|(id, _)| editor_launch(id).is_some())
+        .map(|(id, name)| DetectedEditor {
+            id: (*id).to_string(),
+            name: (*name).to_string(),
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn list_editors() -> Vec<DetectedEditor> {
+    detect_editors()
+}
+
+/// Opens a repo working tree in the chosen editor. Detached like the terminal
+/// opener; the dir is both the child's cwd and its final argument.
+#[tauri::command]
+fn open_in_editor(path: String, editor_id: String) -> Result<(), String> {
+    use std::process::Command;
+
+    let dir = std::path::PathBuf::from(&path);
+    if !dir.is_dir() {
+        return Err(format!("not a directory: {path}"));
+    }
+    let (prog, mut args) =
+        editor_launch(&editor_id).ok_or_else(|| format!("editor not found: {editor_id}"))?;
+    args.push(dir.display().to_string());
+    let mut cmd = Command::new(&prog);
+    cmd.args(&args).current_dir(&dir);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // The `cmd /c code.cmd` shim would flash a console window; editor
+        // exes spawned directly open windowless.
+        if prog == "cmd" {
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    cmd.spawn()
+        .map_err(|e| format!("failed to launch {prog}: {e}"))?;
+    Ok(())
+}
+
 // ─── Workspace commands (Sprint 1) ───────────────────────────────────────
 
 #[tauri::command]
@@ -1709,6 +1860,8 @@ pub fn run() {
             open_data_dir,
             open_in_file_manager,
             open_in_terminal,
+            list_editors,
+            open_in_editor,
             cmd_list_workspaces,
             cmd_create_workspace,
             cmd_rename_workspace,
@@ -1827,4 +1980,64 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod editor_tests {
+    use super::{detect_editors, editor_launch, SUPPORTED_EDITORS};
+
+    #[test]
+    fn supported_editors_have_stable_default_order() {
+        let ids: Vec<_> = SUPPORTED_EDITORS.iter().map(|(id, _)| *id).collect();
+        assert_eq!(ids, ["vscode", "zed", "vscodium"]);
+        assert!(SUPPORTED_EDITORS.iter().all(|(_, name)| !name.is_empty()));
+    }
+
+    #[test]
+    fn unknown_editor_id_is_not_launchable() {
+        assert!(editor_launch("notepad").is_none());
+        assert!(editor_launch("").is_none());
+    }
+
+    #[test]
+    fn detected_editors_are_a_subset_in_supported_order() {
+        let detected = detect_editors();
+        let order: Vec<_> = SUPPORTED_EDITORS.iter().map(|(id, _)| *id).collect();
+        assert!(detected.iter().all(|e| order.contains(&e.id.as_str())));
+        let detected_ids: Vec<_> = detected.iter().map(|e| e.id.as_str()).collect();
+        let mut sorted = detected_ids.clone();
+        sorted.sort_by_key(|id| order.iter().position(|o| o == id).unwrap());
+        assert_eq!(detected_ids, sorted);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_exe_candidates_cover_well_known_install_roots() {
+        use super::windows_exe_candidates;
+        let (lad, pf, pfx86) = (
+            r"C:\Users\u\AppData\Local",
+            r"C:\Program Files",
+            r"C:\Program Files (x86)",
+        );
+        assert_eq!(
+            windows_exe_candidates("vscode", lad, pf, pfx86),
+            vec![
+                format!(r"{lad}\Programs\Microsoft VS Code\Code.exe"),
+                format!(r"{pf}\Microsoft VS Code\Code.exe"),
+                format!(r"{pfx86}\Microsoft VS Code\Code.exe"),
+            ]
+        );
+        assert_eq!(
+            windows_exe_candidates("zed", lad, pf, pfx86),
+            vec![format!(r"{lad}\Programs\Zed\Zed.exe")]
+        );
+        assert_eq!(
+            windows_exe_candidates("vscodium", lad, pf, pfx86),
+            vec![
+                format!(r"{lad}\Programs\VSCodium\VSCodium.exe"),
+                format!(r"{pf}\VSCodium\VSCodium.exe"),
+            ]
+        );
+        assert!(windows_exe_candidates("notepad", lad, pf, pfx86).is_empty());
+    }
 }

@@ -18,6 +18,11 @@
       "label": "Terminal",
       "title": "Open in terminal"
     },
+    "openEditor": {
+      "label": "Editor",
+      "title": "Open in editor",
+      "noneDetected": "No supported editor detected"
+    },
     "create": {
       "namePlaceholder": "Workspace name",
       "submit": "Create"

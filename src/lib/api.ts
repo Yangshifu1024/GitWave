@@ -227,6 +227,22 @@ export function openInTerminal(path: string): Promise<void> {
   return invoke<void>("open_in_terminal", { path });
 }
 
+/** An editor installed on this machine (F015), for the ActionBar dropdown. */
+export interface DetectedEditor {
+  id: string;
+  name: string;
+}
+
+/** Editors installed locally, in default order (first detected = default). */
+export function listEditors(): Promise<DetectedEditor[]> {
+  return invoke<DetectedEditor[]>("list_editors");
+}
+
+/** Open a repo working tree in the chosen editor. */
+export function openInEditor(path: string, editorId: string): Promise<void> {
+  return invoke<void>("open_in_editor", { path, editorId });
+}
+
 /** Quit the whole application (File → Exit; not tied to window close). */
 export function quitApp(): Promise<void> {
   return invoke<void>("quit_app");
