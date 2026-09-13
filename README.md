@@ -76,7 +76,7 @@ Workflows live in `.github/workflows/`:
 
 ### Cutting a release
 
-1. Bump the version in all four places: `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` (the `gitwave` entry)
+1. Bump the version everywhere with `pnpm bump <x.y.z>` — it rewrites `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and refreshes the `gitwave` entry in `src-tauri/Cargo.lock`. Never edit versions by hand; `pnpm-lock.yaml` is untouched (it does not record the root package's own version)
 2. Commit, then tag and push:
    ```bash
    git tag -a v0.x.0 -m "v0.x.0"
