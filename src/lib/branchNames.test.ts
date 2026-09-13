@@ -4,6 +4,7 @@ import {
   localNameForRemote,
   remoteShortName,
   splitBranchPrefix,
+  allRemoteBranches,
 } from "./branchNames";
 
 describe("remoteShortName", () => {
@@ -82,6 +83,42 @@ describe("filterRemoteBranches", () => {
       remote("origin/main"),
       remote("origin/next"),
     ]);
+  });
+});
+
+describe("allRemoteBranches", () => {
+  const local = (name: string) => ({ name, kind: "local" as const });
+  const remote = (name: string) => ({ name, kind: "remote" as const });
+
+  it("keeps remote branches even when a local branch shares the short name", () => {
+    // Regression: the tracking picker must offer origin/main even when the
+    // sidebar dedupes it against the local `main` branch.
+    expect(allRemoteBranches([local("main"), remote("origin/main")])).toEqual([
+      remote("origin/main"),
+    ]);
+  });
+
+  it("keeps the same short name across every remote", () => {
+    expect(
+      allRemoteBranches([local("main"), remote("origin/main"), remote("upstream/main")]),
+    ).toEqual([remote("origin/main"), remote("upstream/main")]);
+  });
+
+  it("drops the symbolic origin/HEAD ref", () => {
+    expect(allRemoteBranches([remote("origin/HEAD"), remote("origin/main")])).toEqual([
+      remote("origin/main"),
+    ]);
+  });
+
+  it("keeps nested names that merely end in HEAD", () => {
+    // Only an exact `HEAD` short name is symbolic; a branch literally named
+    // `feat/HEAD` is real and must survive (git forbids a branch named HEAD,
+    // so only the ref-level HEAD can ever match).
+    expect(allRemoteBranches([remote("origin/feat/HEAD")])).toEqual([remote("origin/feat/HEAD")]);
+  });
+
+  it("returns nothing for a local-only repo", () => {
+    expect(allRemoteBranches([local("main"), local("feat/x")])).toEqual([]);
   });
 });
 

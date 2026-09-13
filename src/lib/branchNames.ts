@@ -48,6 +48,16 @@ interface BranchLike {
 }
 
 /**
+ * All remote-tracking branches, unfiltered — for pickers that must list
+ * every ref that actually exists under refs/remotes (e.g. the upstream
+ * picker in the tracking dialog). Excludes the `origin/HEAD` symbolic
+ * ref: it names no real branch, so it is useless as an upstream.
+ */
+export function allRemoteBranches<T extends BranchLike>(branches: T[]): T[] {
+  return branches.filter((b) => b.kind === "remote" && remoteShortName(b.name) !== "HEAD");
+}
+
+/**
  * Drop remote branches whose short name matches an existing local branch
  * (a local `main` hides `origin/main`, `upstream/main`, ...). Local branches
  * always pass through, so the result is exactly the visible branch list.
