@@ -662,9 +662,7 @@ const IMAGE_TOO_LARGE_CODE = "usecases.image.too_large";
 
 export function isImageTooLargeError(err: unknown): boolean {
   return (
-    !!err &&
-    typeof err === "object" &&
-    (err as Partial<AppError>).code === IMAGE_TOO_LARGE_CODE
+    !!err && typeof err === "object" && (err as Partial<AppError>).code === IMAGE_TOO_LARGE_CODE
   );
 }
 

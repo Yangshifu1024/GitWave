@@ -318,7 +318,9 @@ function ImageDiffEmptyPane({ label, hint }: { label: string; hint: string }): R
         {label}
       </figcaption>
       <div className="flex min-h-[140px] flex-1 items-center justify-center p-3">
-        <span className="rounded-sm bg-bg-elevated px-2 py-0.5 text-xs text-text-muted">{hint}</span>
+        <span className="rounded-sm bg-bg-elevated px-2 py-0.5 text-xs text-text-muted">
+          {hint}
+        </span>
       </div>
     </figure>
   );
