@@ -37,6 +37,10 @@
         "from_oid_invalid": "无效的起始 OID：{{error}}",
         "to_oid_invalid": "无效的目标 OID：{{error}}"
       },
+      "image": {
+        "oid_invalid": "无效的图片版本 OID：{{error}}",
+        "too_large": "图片过大，无法显示——超过预览大小上限"
+      },
       "branch": {
         "not_found_after_create": "branch {{name}} 创建后未找到"
       },

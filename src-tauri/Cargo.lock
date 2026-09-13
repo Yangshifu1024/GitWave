@@ -1442,6 +1442,7 @@ name = "gitwave"
 version = "0.7.14"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "dirs 7.0.0",
  "git2",
  "keyring",

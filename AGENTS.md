@@ -58,9 +58,9 @@ When `docs/tasks/<task-name>/plan.md` references an existing technical decision,
 
 Example: `feat(workspace): add lastActiveRepo persistence on workspace switch`
 
-### PR merging (squash merge)
+### PR merging (merge commit)
 
-All PRs squash-merge into `main`; the squash commit message follows Conventional Commits. **PR titles and descriptions (summary, change list, test plan) must be written in English** — they are the public face of the repository history.
+All PRs merge into `main` with a merge commit — branch history is preserved, no squash. **PR titles and descriptions (summary, change list, test plan) must be written in English** — they are the public face of the repository history.
 
 ### Key constraints
 
@@ -70,6 +70,16 @@ All PRs squash-merge into `main`; the squash commit message follows Conventional
 - **Confirm the branch before new work / new issues**: before handling, ask whether to use a new branch
   - No: continue on the current branch
   - Yes: suggest a branch name (`feature/<name>` or `fix/<name>`, aligned with `docs/pm/features/F<number>.md` or `docs/tasks/<feat|fix>-<name>/`) and accept custom names; create it after confirmation
+
+## Task wrap-up checklist
+
+Before delivering a task (commit / push / PR), run the CI-equivalent checks and make them pass:
+
+```bash
+make check   # fmt-check (prettier + cargo fmt) + lint (eslint + clippy + typecheck) + all tests
+```
+
+Or individually — frontend: `pnpm format:check` · `pnpm lint` · `pnpm typecheck` · `pnpm test`; backend: `cargo fmt -- --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --all-targets`. CI runs the same gates on all three platforms — a red formatting/lint check on the PR means this step was skipped.
 
 ## Specialized agents
 

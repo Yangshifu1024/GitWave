@@ -67,6 +67,7 @@
 | [F013](./F013-system-proxy.md) | 支持系统代理（网络设置节：跟随系统 / 手动 / 关闭） | 接受 | v0.7.x |
 | [F014](./F014-open-external-tools.md) | ActionBar 外部打开按钮（文件管理器 / 终端） | 已合并 | v0.7.12 |
 | [F015](./F015-open-in-editor.md) | ActionBar 编辑器按钮（VS Code / Zed / VSCodium） | 接受 | v0.7.x |
+| [F016](./F016-image-diff.md) | DiffView 图片 diff（左右分栏对比） | 接受 | v0.7.x |
 
 ## 相关文档
 

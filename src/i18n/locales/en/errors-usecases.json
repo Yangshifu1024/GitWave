@@ -37,6 +37,10 @@
         "from_oid_invalid": "Invalid \"from\" OID: {{error}}",
         "to_oid_invalid": "Invalid \"to\" OID: {{error}}"
       },
+      "image": {
+        "oid_invalid": "Invalid image version OID: {{error}}",
+        "too_large": "Image too large to display — it exceeds the preview size cap"
+      },
       "branch": {
         "not_found_after_create": "Branch {{name}} not found after creation"
       },

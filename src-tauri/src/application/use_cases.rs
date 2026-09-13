@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use crate::domain::app_settings::{ProxyMode, ProxySettings};
 use crate::domain::blame::BlameLine;
 use crate::domain::branch::{BranchInfo, CheckoutRemoteOutcome};
-use crate::domain::diff::{DiffLineKind, FileDiff};
+use crate::domain::diff::{DiffLineKind, FileDiff, ImageContent};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::domain::history::{CommitDetails, CommitSummary, PrCommit};
@@ -42,7 +42,8 @@ use crate::infrastructure::git::diff::{
     diff_commit_vs_parent_files as infra_diff_commit_vs_parent_files,
     diff_index_to_head as infra_diff_index_to_head,
     diff_index_to_head_files as infra_diff_index_to_head_files, diff_paths as infra_diff_paths,
-    diff_workdir_to_index as infra_diff_workdir_to_index, DiffSummary,
+    diff_workdir_to_index as infra_diff_workdir_to_index,
+    read_file_content as infra_read_file_content, DiffSummary,
 };
 use crate::infrastructure::git::health::{collect_health as infra_collect_health, HealthReport};
 use crate::infrastructure::git::history::{
@@ -1089,6 +1090,45 @@ pub fn get_file_diff(
         )
     })?;
     infra_diff_paths(&repo, from, to)
+}
+
+/// Upper bound for image diff previews (F016): larger versions surface a
+/// "too large" placeholder instead of streaming tens of MB through IPC.
+pub const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
+
+/// Raw bytes of one file version for the image diff view, base64-encoded:
+/// `oid` selects a committed / index version, `None` reads the working-tree
+/// file (the workdir side of an unstaged diff carries no OID).
+pub fn get_image_content(
+    ctx: &AppContext,
+    workspace_id: &str,
+    path: &str,
+    oid: Option<&str>,
+) -> Result<ImageContent> {
+    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo = ctx.open_repo(&repo_path)?;
+    let oid = oid.map(git2::Oid::from_str).transpose().map_err(|e| {
+        AppError::protocol_with(
+            codes::usecases::IMAGE_OID_INVALID,
+            format!("invalid image OID: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    let bytes = infra_read_file_content(&repo, path, oid)?;
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return Err(AppError::protocol_with(
+            codes::usecases::IMAGE_TOO_LARGE,
+            format!("image too large: {} bytes", bytes.len()),
+            &[("path", path.to_string())],
+        ));
+    }
+    let size = bytes.len() as u64;
+    use base64::Engine as _;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(ImageContent {
+        base64: encoded,
+        size,
+    })
 }
 
 /// Get blame lines for a file in the active repo.

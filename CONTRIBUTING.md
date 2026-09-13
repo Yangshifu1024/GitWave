@@ -12,7 +12,7 @@
 
 - Branch from `main`: `feature/<name>` or `fix/<name>`
 - Commit messages: [Conventional Commits](https://www.conventionalcommits.org/) — enforced by `commitlint` via `pre-commit` hook
-- Squash merge with the same Conventional Commit subject
+- Merge into `main` with a merge commit (no squash); branch commits follow Conventional Commits
 - AI agents must not commit / push / merge without explicit user instruction
 
 ## Local quality gates

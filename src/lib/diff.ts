@@ -39,3 +39,30 @@ function normalizeRepoPath(path: string): string {
   // is a legal filename character and must survive verbatim.
   return isWindows() ? path.replace(/\\/g, "/") : path;
 }
+
+/** Image MIME types the diff view can render side-by-side (F016). */
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  ico: "image/x-icon",
+  svg: "image/svg+xml",
+};
+
+/** Whether the diff view renders `path` as an image compare (by extension). */
+export function isImagePath(path: string): boolean {
+  const dot = path.lastIndexOf(".");
+  // `dot <= 0` also excludes dotfiles like `.png` (no real extension).
+  if (dot <= 0) return false;
+  return path.slice(dot + 1).toLowerCase() in IMAGE_MIME_BY_EXT;
+}
+
+/** MIME type for an image diff path; only meaningful when `isImagePath` holds. */
+export function imageMimeFromPath(path: string): string {
+  const dot = path.lastIndexOf(".");
+  const ext = dot > 0 ? path.slice(dot + 1).toLowerCase() : "";
+  return IMAGE_MIME_BY_EXT[ext] ?? "application/octet-stream";
+}

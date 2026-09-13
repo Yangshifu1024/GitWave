@@ -48,6 +48,14 @@ pub struct FileDiff {
     pub staged: Option<bool>,
 }
 
+/// Raw bytes of one file version for the image diff view (F016),
+/// base64-encoded so it rides the JSON IPC.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImageContent {
+    pub base64: String,
+    pub size: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

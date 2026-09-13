@@ -6,6 +6,7 @@ use git2::{Diff, DiffDelta, DiffOptions, Oid, Repository};
 use crate::domain::diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
+use crate::infrastructure::git::worktree_guard::ensure_path_in_workdir;
 
 fn map_git_err(e: git2::Error) -> AppError {
     AppError::unknown_with(
@@ -259,6 +260,29 @@ fn diff_to_files(diff: &Diff) -> Result<Vec<FileDiff>> {
     Ok(files.into_inner())
 }
 
+/// Raw bytes of one file version for the image diff view (F016): `Some(oid)`
+/// reads the blob at that revision, `None` falls back to the working-tree
+/// file — the workdir side of an unstaged diff carries no OID.
+pub fn read_file_content(repo: &Repository, path: &str, oid: Option<Oid>) -> Result<Vec<u8>> {
+    if let Some(oid) = oid {
+        let blob = repo.find_blob(oid).map_err(map_git_err)?;
+        return Ok(blob.content().to_vec());
+    }
+    let wd = repo
+        .workdir()
+        .ok_or_else(|| AppError::protocol(codes::git::BARE_REPO, "bare repo has no workdir"))?;
+    // `fs::read` below would otherwise follow `..` / absolute paths anywhere
+    // on disk.
+    ensure_path_in_workdir(wd, path)?;
+    std::fs::read(wd.join(path)).map_err(|e| {
+        AppError::unknown_with(
+            codes::git::FS_ERROR,
+            format!("read {path}: {e}"),
+            &[("error", e.to_string())],
+        )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -456,5 +480,34 @@ mod tests {
         assert_eq!(merged.files[0].staged, Some(true));
         assert_eq!(merged.files[1].staged, Some(false));
         assert_eq!(merged.total_additions, 5);
+    }
+
+    #[test]
+    fn read_file_content_reads_committed_blob_and_workdir_file() {
+        let (path, repo) = build_linear_repo(2);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        let entry = head
+            .tree()
+            .unwrap()
+            .get_path(std::path::Path::new("file1.txt"))
+            .unwrap();
+
+        let blob_bytes = read_file_content(&repo, "file1.txt", Some(entry.id())).unwrap();
+        assert_eq!(blob_bytes, b"v1\n");
+
+        // The workdir side of an unstaged diff has no OID — the None branch
+        // must read the working-tree bytes instead.
+        fs::write(path.join("file1.txt"), "modified\n").unwrap();
+        let workdir_bytes = read_file_content(&repo, "file1.txt", None).unwrap();
+        assert_eq!(workdir_bytes, b"modified\n");
+        cleanup(&path);
+    }
+
+    #[test]
+    fn read_file_content_rejects_escaping_workdir_path() {
+        let (path, repo) = build_linear_repo(1);
+        let result = read_file_content(&repo, "../outside.txt", None);
+        cleanup(&path);
+        assert!(result.is_err(), "path traversal must be rejected");
     }
 }
