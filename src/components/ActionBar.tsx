@@ -66,11 +66,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { PathInput } from "@/components/ui/PathInput";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/DropdownMenu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/DropdownMenu";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Label } from "@/components/ui/Label";

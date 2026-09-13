@@ -283,10 +283,8 @@ fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
             find_in_path("code.cmd").map(|_| ("cmd".into(), vec!["/c".into(), "code.cmd".into()]))
         }
         "zed" => find_in_path("zed.exe").map(|_| ("zed.exe".into(), Vec::new())),
-        "vscodium" => {
-            find_in_path("codium.cmd")
-                .map(|_| ("cmd".into(), vec!["/c".into(), "codium.cmd".into()]))
-        }
+        "vscodium" => find_in_path("codium.cmd")
+            .map(|_| ("cmd".into(), vec!["/c".into(), "codium.cmd".into()])),
         _ => None,
     })
 }
@@ -347,8 +345,8 @@ fn open_in_editor(path: String, editor_id: String) -> Result<(), String> {
     if !dir.is_dir() {
         return Err(format!("not a directory: {path}"));
     }
-    let (prog, mut args) = editor_launch(&editor_id)
-        .ok_or_else(|| format!("editor not found: {editor_id}"))?;
+    let (prog, mut args) =
+        editor_launch(&editor_id).ok_or_else(|| format!("editor not found: {editor_id}"))?;
     args.push(dir.display().to_string());
     let mut cmd = Command::new(&prog);
     cmd.args(&args).current_dir(&dir);
@@ -2016,7 +2014,11 @@ mod editor_tests {
     #[test]
     fn windows_exe_candidates_cover_well_known_install_roots() {
         use super::windows_exe_candidates;
-        let (lad, pf, pfx86) = (r"C:\Users\u\AppData\Local", r"C:\Program Files", r"C:\Program Files (x86)");
+        let (lad, pf, pfx86) = (
+            r"C:\Users\u\AppData\Local",
+            r"C:\Program Files",
+            r"C:\Program Files (x86)",
+        );
         assert_eq!(
             windows_exe_candidates("vscode", lad, pf, pfx86),
             vec![
