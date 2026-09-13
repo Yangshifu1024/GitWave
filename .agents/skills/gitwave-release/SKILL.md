@@ -1,6 +1,6 @@
 ---
 name: gitwave-release
-description: Cut a GitWave release — verify the full gate, bump the version everywhere with the bump script, sync README and the site, commit, and after explicit confirmation push main and the v* tag that triggers the three-platform release CI (draft release + updater manifest). Use whenever the user wants to release, ship, publish, or tag a GitWave version, bump the version, or sync the version to README / site — including 发版/发布/出新版本/升个版本/打个 tag/更新 README 和 site — even a bare "release 0.7.15" or "发个版". Even when the user only mentions one piece (e.g. just bump the version), proactively check the other sync points: a half-synced version breaks the release chain.
+description: 'Cut a GitWave release — verify the full gate, bump the version everywhere with the bump script, sync README and the site, commit, and after explicit confirmation push main and the v* tag that triggers the three-platform release CI (draft release + updater manifest). Use whenever the user wants to release, ship, publish, or tag a GitWave version, bump the version, or sync the version to README / site — including 发版/发布/出新版本/升个版本/打个 tag/更新 README 和 site — even a bare "release 0.7.15" or "发个版". Even when the user only mentions one piece (e.g. just bump the version), proactively check the other sync points: a half-synced version breaks the release chain.'
 ---
 
 # GitWave release
