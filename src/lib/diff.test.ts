@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiffSummary, FileChange, FileDiff } from "@/lib/api";
-import { filterDiffSummary, partitionFileChanges } from "@/lib/diff";
+import {
+  filterDiffSummary,
+  imageMimeFromPath,
+  isImagePath,
+  partitionFileChanges,
+} from "@/lib/diff";
 
 function change(path: string, staged: boolean): FileChange {
   return {
@@ -35,6 +40,26 @@ describe("partitionFileChanges", () => {
 
   it("returns empty lists when there are no files", () => {
     expect(partitionFileChanges([])).toEqual({ unstaged: [], staged: [] });
+  });
+});
+
+describe("isImagePath / imageMimeFromPath", () => {
+  it("recognizes supported image extensions case-insensitively", () => {
+    for (const p of ["a.png", "b.JPG", "c.Jpeg", "d.gif", "e.webp", "f.bmp", "g.ico", "h.svg"]) {
+      expect(isImagePath(p), p).toBe(true);
+    }
+  });
+
+  it("rejects non-image and extensionless paths", () => {
+    for (const p of ["a.ts", "b.txt", "c.png.txt", "png", ".png", "a.svgz"]) {
+      expect(isImagePath(p), p).toBe(false);
+    }
+  });
+
+  it("maps image paths to their MIME type", () => {
+    expect(imageMimeFromPath("assets/logo.PNG")).toBe("image/png");
+    expect(imageMimeFromPath("a.jpeg")).toBe("image/jpeg");
+    expect(imageMimeFromPath("icon.svg")).toBe("image/svg+xml");
   });
 });
 

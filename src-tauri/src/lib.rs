@@ -29,8 +29,8 @@ use application::{
     generate_commit_message, generate_pr_description, get_ahead_behind, get_ai_key_status,
     get_blame, get_branches, get_commit_details, get_commit_diff, get_commit_log,
     get_conflict_sides, get_dirty_repos, get_file_diff, get_gitignore, get_health, get_hook,
-    get_proxy_settings, get_repo_ai_rules, get_stash_diff, get_workdir_diff, get_working_copy,
-    get_workspace, ignore_path, import_workspace, init_repo, init_submodule,
+    get_image_content, get_proxy_settings, get_repo_ai_rules, get_stash_diff, get_workdir_diff,
+    get_working_copy, get_workspace, ignore_path, import_workspace, init_repo, init_submodule,
     interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack, list_conflicts,
     list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys, list_stashes,
     list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
@@ -46,7 +46,7 @@ use application::{
 use domain::app_settings::ProxySettings;
 use domain::blame::BlameLine;
 use domain::branch::{BranchInfo, CheckoutRemoteOutcome};
-use domain::diff::FileDiff;
+use domain::diff::{FileDiff, ImageContent};
 use domain::error::AppError;
 use domain::history::{CommitDetails, CommitSummary};
 use domain::hooks::HookInfo;
@@ -707,6 +707,17 @@ async fn cmd_get_file_diff(
     to_oid: String,
 ) -> Result<Vec<FileDiff>, AppError> {
     get_file_diff(&ctx, &workspace_id, &from_oid, &to_oid)
+}
+
+/// Raw bytes of one file version for the image diff view (F016), base64.
+#[tauri::command]
+async fn cmd_get_image_content(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    path: String,
+    oid: Option<String>,
+) -> Result<ImageContent, AppError> {
+    get_image_content(&ctx, &workspace_id, &path, oid.as_deref())
 }
 
 #[tauri::command]
@@ -1897,6 +1908,7 @@ pub fn run() {
             cmd_get_workdir_diff,
             cmd_get_commit_diff,
             cmd_get_file_diff,
+            cmd_get_image_content,
             cmd_get_blame,
             cmd_get_branches,
             cmd_create_branch,

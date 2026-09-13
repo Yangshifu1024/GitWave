@@ -637,6 +637,37 @@ export function getFileDiff(
   return invoke<FileDiff[]>("cmd_get_file_diff", { workspaceId, fromOid, toOid });
 }
 
+/** Raw bytes of one file version for the image diff view (F016), base64. */
+export interface ImageContent {
+  base64: string;
+  size: number;
+}
+
+/** Read one file version for the image diff: `oid` = committed/index blob,
+ * omitted = working-tree file (workdir diff sides carry no OID). */
+export function getImageContent(
+  workspaceId: string,
+  path: string,
+  oid?: string,
+): Promise<ImageContent> {
+  return invoke<ImageContent>("cmd_get_image_content", {
+    workspaceId,
+    path,
+    oid: oid ?? null,
+  });
+}
+
+/** Stable backend code reported when a version exceeds the image preview cap. */
+const IMAGE_TOO_LARGE_CODE = "usecases.image.too_large";
+
+export function isImageTooLargeError(err: unknown): boolean {
+  return (
+    !!err &&
+    typeof err === "object" &&
+    (err as Partial<AppError>).code === IMAGE_TOO_LARGE_CODE
+  );
+}
+
 export function getBlame(workspaceId: string, path: string): Promise<BlameLine[]> {
   return invoke<BlameLine[]>("cmd_get_blame", { workspaceId, path });
 }

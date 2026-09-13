@@ -70,6 +70,12 @@ pub const FILE_DIFF_FROM_OID_INVALID: &str = "usecases.file_diff.from_oid_invali
 /// 文件 diff 的目标 OID 无法解析。
 pub const FILE_DIFF_TO_OID_INVALID: &str = "usecases.file_diff.to_oid_invalid";
 
+/// 图片 diff 的 OID 无法解析。
+pub const IMAGE_OID_INVALID: &str = "usecases.image.oid_invalid";
+
+/// 图片 diff 的版本超过预览大小上限。
+pub const IMAGE_TOO_LARGE: &str = "usecases.image.too_large";
+
 // ─── Branch / PR ────────────────────────────────────────────────────────────
 
 /// branch 创建后在仓库中未找到。

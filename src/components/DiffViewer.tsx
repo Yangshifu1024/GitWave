@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChevronDown,
   ChevronRight,
@@ -9,15 +10,21 @@ import {
   Square,
   UnfoldVertical,
 } from "lucide-react";
-import type { DiffSummary, FileDiff, DiffHunk, DiffLine } from "@/lib/api";
-import { formatAppError, getCommitDiff, getWorkdirDiff } from "@/lib/api";
+import type { DiffSummary, FileDiff, DiffHunk, DiffLine, FileStatusKind } from "@/lib/api";
+import {
+  formatAppError,
+  getCommitDiff,
+  getImageContent,
+  getWorkdirDiff,
+  isImageTooLargeError,
+} from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@heroui/react";
 import { BlameView } from "@/components/BlameView";
-import { filterDiffSummary } from "@/lib/diff";
+import { filterDiffSummary, imageMimeFromPath, isImagePath } from "@/lib/diff";
 import { cn } from "@/lib/utils";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 
@@ -68,6 +75,9 @@ interface DiffViewerProps {
   path?: string;
   /** Working-copy only: true = staged (index vs HEAD), false = unstaged (worktree vs index). */
   staged?: boolean | null;
+  /** Working-copy only: kind of the selected change — the image diff uses it
+   * to detect deletions (their workdir side has no OID and no file). */
+  workdirKind?: FileStatusKind;
   /** Hide the inspector-maximize button (e.g. inside WorkingCopyModal). */
   hideMaximize?: boolean;
 }
@@ -234,15 +244,160 @@ function fileChangeKey(f: { path: string; staged?: boolean | null }): string {
   return `${f.staged ? "s" : "u"}:${f.path}`;
 }
 
+/** One pane of the image diff: fetch a version (blob OID or working tree)
+ * and render it as a `data:` URL (CSP already allows img-src data:).
+ * Committed OIDs are content-addressed so they cache forever; worktree reads
+ * refetch whenever the pane remounts. */
+function ImageDiffPane({
+  workspaceId,
+  path,
+  oid,
+  mime,
+  label,
+}: {
+  workspaceId: string;
+  path: string;
+  /** Blob OID of this version; null reads the working-tree file. */
+  oid: string | null;
+  mime: string;
+  label: string;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+  const [broken, setBroken] = useState(false);
+  const query = useQuery({
+    queryKey: ["diff-image", workspaceId, path, oid ?? "<worktree>"],
+    queryFn: () => getImageContent(workspaceId, path, oid ?? undefined),
+    staleTime: oid ? Infinity : 0,
+  });
+
+  useEffect(() => {
+    setBroken(false);
+  }, [query.data]);
+
+  let body: React.ReactNode;
+  if (query.isPending) {
+    body = <span className="text-xs text-text-muted">{t("diff.image.loading")}</span>;
+  } else if (query.isError) {
+    body = (
+      <span className="max-w-full text-center text-xs text-text-muted">
+        {isImageTooLargeError(query.error)
+          ? t("diff.image.tooLarge")
+          : t("diff.image.cannotDisplay")}
+      </span>
+    );
+  } else if (broken) {
+    // E.g. LFS pointer files or corrupt bytes the backend cannot detect.
+    body = <span className="text-xs text-text-muted">{t("diff.image.cannotDisplay")}</span>;
+  } else {
+    body = (
+      <img
+        src={`data:${mime};base64,${query.data.base64}`}
+        alt={label}
+        className="max-h-[420px] max-w-full object-contain"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+
+  return (
+    <figure className="flex min-w-0 flex-col">
+      <figcaption className="shrink-0 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        {label}
+      </figcaption>
+      <div className="flex min-h-[140px] flex-1 items-center justify-center overflow-auto p-3">
+        {body}
+      </div>
+    </figure>
+  );
+}
+
+function ImageDiffEmptyPane({ label, hint }: { label: string; hint: string }): React.JSX.Element {
+  return (
+    <figure className="flex min-w-0 flex-col">
+      <figcaption className="shrink-0 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+        {label}
+      </figcaption>
+      <div className="flex min-h-[140px] flex-1 items-center justify-center p-3">
+        <span className="rounded-sm bg-bg-elevated px-2 py-0.5 text-xs text-text-muted">{hint}</span>
+      </div>
+    </figure>
+  );
+}
+
+/** F016: side-by-side image compare replacing the hunk area for image files.
+ * Left = old version, right = new version; a missing side collapses to a
+ * single pane with an Added / Deleted marker. */
+function ImageDiffView({
+  fileDiff,
+  workdir,
+  workdirKind,
+}: {
+  fileDiff: FileDiff;
+  workdir: boolean;
+  workdirKind?: FileStatusKind;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+  const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  if (!activeWorkspaceId) {
+    return (
+      <div className="border-x border-b border-border-subtle py-4 text-center text-sm text-text-muted">
+        {t("diff.image.cannotDisplay")}
+      </div>
+    );
+  }
+  const mime = imageMimeFromPath(fileDiff.path);
+  // Commit diffs carry OIDs on both existing sides. In the working copy the
+  // new side has no OID (git2 does not hash workdir content), so it is read
+  // from the working tree — unless the file was deleted there, in which case
+  // the selected kind is the only signal (both sides report no OID).
+  const hasOld = fileDiff.old_sha != null;
+  const hasNew = workdir ? workdirKind !== "deleted" : fileDiff.new_sha != null;
+  return (
+    <div
+      className="grid min-w-0 divide-x divide-border-subtle border-b border-border-subtle"
+      style={{ gridTemplateColumns: hasOld && hasNew ? "1fr 1fr" : "1fr" }}
+    >
+      {hasOld ? (
+        <ImageDiffPane
+          workspaceId={activeWorkspaceId}
+          path={fileDiff.path}
+          oid={fileDiff.old_sha}
+          mime={mime}
+          label={t("diff.image.old")}
+        />
+      ) : (
+        <ImageDiffEmptyPane label={t("diff.image.old")} hint={t("diff.image.added")} />
+      )}
+      {hasNew ? (
+        <ImageDiffPane
+          workspaceId={activeWorkspaceId}
+          path={fileDiff.path}
+          oid={fileDiff.new_sha}
+          mime={mime}
+          label={t("diff.image.new")}
+        />
+      ) : (
+        <ImageDiffEmptyPane label={t("diff.image.new")} hint={t("diff.image.deleted")} />
+      )}
+    </div>
+  );
+}
+
 function FileDiffView({
   fileDiff,
   mode,
+  workdir,
+  workdirKind,
   collapsed,
   onToggleCollapsed,
   onBlame,
 }: {
   fileDiff: FileDiff;
   mode: DiffViewMode;
+  /** Working-copy context: how the image view resolves the new version. */
+  workdir: boolean;
+  /** Kind of the selected working-copy change (deleted images show no "new"). */
+  workdirKind?: FileStatusKind;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onBlame?: (path: string) => void;
@@ -313,31 +468,35 @@ function FileDiffView({
         </div>
       </div>
 
-      {/* Hunks */}
+      {/* Hunks — image files render a side-by-side compare instead (F016). */}
       {!collapsed ? (
-        <div className="isolate overflow-x-auto border-x border-b border-border-subtle px-0 pt-0">
-          {/* w-max wrapper: every hunk stretches to the widest hunk's width so
-              borders stay continuous while scrolling horizontally. */}
-          <div className="w-max min-w-full">
-            {fileDiff.hunks.length > 0 ? (
-              fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
-            ) : (
-              // Fallback: show additions/deletions summary when no hunk detail available
-              <div className="py-4 text-center text-sm text-text-muted">
-                {fileDiff.additions > 0 || fileDiff.deletions > 0 ? (
-                  <>
-                    <span className="text-success">+{fileDiff.additions}</span>
-                    {" / "}
-                    <span className="text-danger">-{fileDiff.deletions}</span>{" "}
-                    <span className="text-text-muted">{t("diff.file.noHunkDetail")}</span>
-                  </>
-                ) : (
-                  t("diff.file.noChanges")
-                )}
-              </div>
-            )}
+        isImagePath(fileDiff.path) ? (
+          <ImageDiffView fileDiff={fileDiff} workdir={workdir} workdirKind={workdirKind} />
+        ) : (
+          <div className="isolate overflow-x-auto border-x border-b border-border-subtle px-0 pt-0">
+            {/* w-max wrapper: every hunk stretches to the widest hunk's width so
+                borders stay continuous while scrolling horizontally. */}
+            <div className="w-max min-w-full">
+              {fileDiff.hunks.length > 0 ? (
+                fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
+              ) : (
+                // Fallback: show additions/deletions summary when no hunk detail available
+                <div className="py-4 text-center text-sm text-text-muted">
+                  {fileDiff.additions > 0 || fileDiff.deletions > 0 ? (
+                    <>
+                      <span className="text-success">+{fileDiff.additions}</span>
+                      {" / "}
+                      <span className="text-danger">-{fileDiff.deletions}</span>{" "}
+                      <span className="text-text-muted">{t("diff.file.noHunkDetail")}</span>
+                    </>
+                  ) : (
+                    t("diff.file.noChanges")
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )
       ) : null}
     </div>
   );
@@ -348,6 +507,7 @@ export function DiffViewer({
   workdir = false,
   path,
   staged = null,
+  workdirKind,
   hideMaximize = false,
 }: DiffViewerProps): React.JSX.Element {
   const { t } = useTranslation();
@@ -574,6 +734,8 @@ export function DiffViewer({
             key={fileChangeKey(file)}
             fileDiff={file}
             mode={mode}
+            workdir={workdir}
+            workdirKind={workdirKind}
             collapsed={collapsedFiles.has(fileChangeKey(file))}
             onToggleCollapsed={() =>
               setCollapsedFiles((prev) => {

@@ -45,6 +45,11 @@ export function WorkingCopyModal({
   if (!open || !wc.repoId) return null;
 
   const snapshot = wc.data ?? null;
+  // The image diff needs the selected change's kind: a deleted file's new
+  // side has no OID and no worktree file to read.
+  const selectedKind = selected
+    ? wc.data?.files.find((f) => f.path === selected.path && f.staged === selected.staged)?.kind
+    : undefined;
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={t("changes.panel.title")} size="xl">
@@ -78,7 +83,13 @@ export function WorkingCopyModal({
         </div>
         <div className="min-h-0 overflow-hidden">
           {selected ? (
-            <DiffViewer workdir path={selected.path} staged={selected.staged} hideMaximize />
+            <DiffViewer
+              workdir
+              path={selected.path}
+              staged={selected.staged}
+              workdirKind={selectedKind}
+              hideMaximize
+            />
           ) : (
             <EmptyState
               title={t("changes.panel.noFileSelected")}

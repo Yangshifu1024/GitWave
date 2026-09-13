@@ -27,6 +27,15 @@
       "unifiedView": "Switch to unified view",
       "restorePanel": "Restore panel",
       "expandPanel": "Expand panel"
+    },
+    "image": {
+      "old": "Old",
+      "new": "New",
+      "added": "Added",
+      "deleted": "Deleted",
+      "loading": "Loading…",
+      "tooLarge": "Image too large to display",
+      "cannotDisplay": "Unable to display this image"
     }
   }
 }
