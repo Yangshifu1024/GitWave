@@ -45,10 +45,10 @@ Verify with `git status --porcelain`: expect exactly those 4 files. Anything els
   - Header **Status** line: `**Status:** vX.Y.Z — …`, weaving in this version's most user-visible capability.
   - **Features** list: add a bullet for new capabilities; don't re-list existing ones.
   - Download section: reconcile any version / platform mentions.
-- **site/index.html** (official site, auto-deploys to GitHub Pages on push to main), both **en and zh-CN** pages:
-  - Hero badge: `<div class="badge">vX.Y.Z · <today></div>` — current version + current date (en `YYYY-MM-DD`, zh `YYYY年M月D日`).
-  - Download area: `Latest release: vX.Y.Z` (zh「最新版本：vX.Y.Z」).
-  - Feature cards: fold small features into an existing card (e.g. the "Batteries included" list) rather than breaking the 6-card grid rhythm.
+- **site/index.html** (official site — a single English page, auto-deploys to GitHub Pages on push to main):
+  - Hero badge: `<div class="badge">vX.Y.Z · <today></div>` — current version + current date (`YYYY-MM-DD`).
+  - Download area: `Latest release: vX.Y.Z`.
+  - Feature cards: fold small features into an existing card (e.g. the "Diff viewer" or "Batteries included" cards) rather than adding a new one and breaking the grid rhythm.
 - Residue check: `grep -rn "<old-version>" README.md site/ package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml` — GitWave's own version should only appear at the new value (matches inside unrelated dependencies don't count).
 
 ## 5. Commit
