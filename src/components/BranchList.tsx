@@ -35,7 +35,12 @@ import { useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/commitMenu";
 import { withAuthRetry } from "@/lib/authRetry";
-import { filterRemoteBranches, remoteShortName, splitBranchPrefix } from "@/lib/branchNames";
+import {
+  allRemoteBranches,
+  filterRemoteBranches,
+  remoteShortName,
+  splitBranchPrefix,
+} from "@/lib/branchNames";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -704,6 +709,11 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
 
   const visibleBranches = filterRemoteBranches(branches);
   const localBranches = visibleBranches.filter((b) => b.kind === "local");
+  // The upstream picker must list every remote-tracking ref that actually
+  // exists (the deduped list below hides e.g. origin/main whenever a local
+  // `main` exists) — otherwise the tracking dialog cannot offer the most
+  // common upstreams.
+  const pickerRemoteBranches = allRemoteBranches(branches);
   const remoteBranches = visibleBranches.filter((b) => b.kind === "remote");
 
   // Remote branches grouped by their remote (first path segment), in first-seen order.
@@ -1161,7 +1171,7 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
               disabled={busy}
               options={[
                 { value: "", label: t("branches.tracking.none") },
-                ...remoteBranches.map((b) => ({ value: b.name, label: b.name })),
+                ...pickerRemoteBranches.map((b) => ({ value: b.name, label: b.name })),
               ]}
             />
           </div>
