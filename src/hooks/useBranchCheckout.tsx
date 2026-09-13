@@ -29,6 +29,26 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 
+// ─── Branch-reveal broadcast ─────────────────────────────────────────────
+// Any successful switch broadcasts the local target so list consumers (the
+// sidebar's BranchList) can reveal it — expand groups/folders and select
+// the row — no matter which entry point triggered the checkout (sidebar
+// rows, history-graph ref badges, ...).
+
+type BranchRevealListener = (target: string) => void;
+
+const revealListeners = new Set<BranchRevealListener>();
+
+/** Subscribe to successful checkout broadcasts; returns the unsubscribe fn. */
+export function onBranchRevealed(listener: BranchRevealListener): () => void {
+  revealListeners.add(listener);
+  return () => revealListeners.delete(listener);
+}
+
+function emitBranchRevealed(target: string): void {
+  for (const listener of revealListeners) listener(target);
+}
+
 /** A resolved switch request: the API target and the local display name. */
 interface SwitchRequest {
   kind: "local" | "remote";
@@ -118,6 +138,7 @@ export function useBranchCheckout(options?: {
       }
       bumpHistory();
       options?.onSwitched?.(req.target);
+      emitBranchRevealed(req.target);
     } catch (e) {
       setStatus(formatAppError(e), "danger");
     } finally {

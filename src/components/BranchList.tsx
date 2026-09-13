@@ -31,7 +31,7 @@ import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { nextSyncRequestId, useSyncStore, type UiOperation } from "@/stores/syncStore";
 import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useTags } from "@/hooks/useTags";
-import { useBranchCheckout } from "@/hooks/useBranchCheckout";
+import { onBranchRevealed, useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/commitMenu";
 import { withAuthRetry } from "@/lib/authRetry";
@@ -399,10 +399,16 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     request: requestCheckout,
     renderDialogs: renderCheckoutDialogs,
   } = useBranchCheckout({
-    onSwitched: (target) => {
-      // Reveal the switched-to branch: expand its group and prefix folder
-      // (defaults re-collapse them whenever the selection moves into a
-      // collapsed folder), then select it.
+    // Reveal-on-switch now rides the hook's branch-reveal broadcast (it also
+    // covers history-graph ref-badge checkouts); the sidebar only refreshes.
+    onSwitched: () => refresh(),
+  });
+
+  // Checkout from any entry point reveals the switched-to branch: expand its
+  // group and prefix folder (defaults re-collapse them whenever the selection
+  // moves into a collapsed folder), then select it.
+  useEffect(() => {
+    const off = onBranchRevealed((target) => {
       const { prefix } = splitBranchPrefix(target);
       setCollapsedGroups((prev) => ({
         ...prev,
@@ -410,9 +416,9 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
         ...(prefix !== null ? { [`local:${prefix}`]: false } : null),
       }));
       setSelectedName(target);
-      refresh();
-    },
-  });
+    });
+    return off;
+  }, []);
 
   useEffect(() => {
     // Repo switch: drop the previous repo's selection immediately, but keep
