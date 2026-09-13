@@ -66,7 +66,6 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  Folder,
   GitBranch,
   GitMerge,
   GitPullRequestArrow,
@@ -401,6 +400,15 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     renderDialogs: renderCheckoutDialogs,
   } = useBranchCheckout({
     onSwitched: (target) => {
+      // Reveal the switched-to branch: expand its group and prefix folder
+      // (defaults re-collapse them whenever the selection moves into a
+      // collapsed folder), then select it.
+      const { prefix } = splitBranchPrefix(target);
+      setCollapsedGroups((prev) => ({
+        ...prev,
+        local: false,
+        ...(prefix !== null ? { [`local:${prefix}`]: false } : null),
+      }));
       setSelectedName(target);
       refresh();
     },
@@ -824,7 +832,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                     className="h-auto w-full justify-start flex items-center gap-1.5 pl-6 pr-3 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary rounded-none border-0 shadow-none bg-transparent"
                   >
                     {folderCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-                    <Folder size={11} className="shrink-0 text-text-muted" />
                     <span className="truncate">{prefix}</span>
                     <span className="font-normal text-text-muted">({list.length})</span>
                   </Button>
