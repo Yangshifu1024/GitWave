@@ -1,54 +1,81 @@
 ---
 name: gitwave-release
-description: GitWave 版本升级与发布同步流程。每当用户要升级/bump 版本号、发新版、或把新版本同步到 README 和 site/ 官网时使用——包括「升级版本到 x.y.z」「更新 README 和 site」「准备发版」这类说法；即使用户只提了其中一部分（如只改版本号），也应主动检查其余同步点，因为版本号分散多处且不同步会直接导致发版失败。
+description: Cut a GitWave release — verify the full gate, bump the version everywhere with the bump script, sync README and the site, commit, and after explicit confirmation push main and the v* tag that triggers the three-platform release CI (draft release + updater manifest). Use whenever the user wants to release, ship, publish, or tag a GitWave version, bump the version, or sync the version to README / site — including 发版/发布/出新版本/升个版本/打个 tag/更新 README 和 site — even a bare "release 0.7.15" or "发个版". Even when the user only mentions one piece (e.g. just bump the version), proactively check the other sync points: a half-synced version breaks the release chain.
 ---
 
-# GitWave 版本升级与发布同步
+# GitWave release
 
-将 GitWave 升级到新版本，并保持所有用户可见面一致。
+A release is: bump the version everywhere → sync README + site → commit on `main` → push → push a `v*` tag. The tag push triggers `.github/workflows/build.yml`, which builds Windows NSIS, macOS dmg, and Linux AppImage into a **draft** GitHub Release and generates `latest.json` — the in-app updater manifest — at build time. Publishing the draft is a separate, manual step gated by the user.
 
-版本号硬编码在 4 处，同步不是洁癖而是**发版链路的硬约束**：CI 断言 `tag === "v" + package.json 的 version`（prepare job 门禁），updater 清单 latest.json 由 tauri-action 在构建时生成上传。README 的 "Cutting a release" 小节是发版清单的 source of truth，动手前可对照。
+**This skill always stops before pushing.** The tag push triggers builds and produces artifacts users install and update from. Follow AGENTS.md: invoking this skill is the user's explicit request to bump / sync / commit, but never push `main` or a tag without the user's explicit yes — not even with every check green.
 
-## 步骤
+## 1. Determine the version
 
-### 1. 确认目标版本与本次变更内容
+- An explicit version in the invocation wins (accept `0.7.15` or `v0.7.15`).
+- Otherwise derive a suggestion:
+  - Latest tag: `git fetch --tags && git describe --tags --abbrev=0`
+  - What's shipping: `git log <latest-tag>..HEAD --oneline`
+  - Suggest the next semver from those commits: `feat` → minor, `fix`/`chore`/`docs` → patch; bump the **minor** for anything user-visible while the project is 0.x.
+- State the suggestion and the commits it's based on, then ask the user to confirm or override. Never bump an unconfirmed version.
+- Never reuse a version that already has a tag: CI's prepare-release job asserts the tag name equals `package.json`'s version, and published releases / updater manifests are immutable. If a release went wrong, pick a new number — don't move the tag (`git tag -d vX.Y.Z` + `git push origin :refs/tags/vX.Y.Z` re-triggers, but only before the draft is published).
 
-- 从用户指令或上下文确定新版本号（语义化版本）。
-- 用 `git log <上个 tag>..HEAD --oneline` 浏览本版本包含的变更，判断 README Features / site 卡片是否需要体现新功能——不是每次发版都要改功能文案，但用户可感知的新能力应该出现。
+## 2. Pre-flight — abort on any failure
 
-### 2. 升级版本号（4 处，缺一不可）
+Run these before touching any file; a red tree never gets bumped.
 
-| 文件 | 位置 | 说明 |
-|---|---|---|
-| `package.json` | `"version"` | 仓库用 pnpm，锁文件是 pnpm-lock.yaml（**没有 package-lock.json**），CI 用 `pnpm install --frozen-lockfile`。改完跑一次 `pnpm install` 确认报 "Lockfile is up to date"——pnpm 锁文件不记录根包自身版本，纯版本 bump 不会改锁文件，跑一遍是为了确认依赖没有意外漂移 |
-| `src-tauri/tauri.conf.json` | `"version"` | Tauri 打包版本 |
-| `src-tauri/Cargo.toml` | `version = "…"` | Rust crate 版本 |
-| `src-tauri/Cargo.lock` | `name = "gitwave"` 条目 | **不要手改**，改完 Cargo.toml 后跑 `cargo check --manifest-path src-tauri/Cargo.toml` 自动同步 |
+1. `git status --porcelain` — must be empty. The bump rewrites 4 files; committing on a dirty tree mixes unrelated changes into the release commit.
+2. `git branch --show-current` must be `main`, then `git pull --ff-only` — releases are always cut from an up-to-date main (GitHub Flow).
+3. Full gate, CI-equivalent: `make check` (prettier + `cargo fmt` format gates, eslint + clippy + typecheck, frontend and Rust test suites).
 
-### 3. 更新 README.md
+On failure: stop, show the failing output, and let the user decide what to fix. Do not bump.
 
-- 文件头部 Status 行：`**Status:** vX.Y.Z — …`，把本版本值得用户感知的能力融进这句话（例如 v0.5.0 加了 "in-app auto-updates served from GitHub Releases"）。
-- Features 列表：新功能加独立 bullet；已有能力不重复罗列。
-- 下载小节如提及版本号/平台能力，一并核对。
+## 3. Bump
 
-### 4. 更新 site/index.html（官网，push main 后自动部署 GitHub Pages）
-
-- hero 徽标：`<div class="badge">vX.Y.Z · <发版当日日期></div>`——内容为**当前版本号 + 当前年月日**（不再写平台签名文案）。日期格式：en 页用 `YYYY-MM-DD`（如 `2026-08-30`），zh-CN 页用 `YYYY年M月D日`（如 `2026年8月30日`）。两页都要改。
-- 下载区：`Latest release: vX.Y.Z`（zh 页「最新版本：vX.Y.Z」）
-- 功能卡片：新功能视体量补进对应卡片文案（如小能力可追加进 "Batteries included" 清单，避免为单点功能新开卡片破坏 6 卡网格节奏）。
-
-### 5. 验证
-
-```bash
-# 旧版本号残留检查（依赖包自身恰好的版本号不算，重点看 gitwave 自己的）
-grep -rn "<旧版本>" README.md site/ package.json pnpm-lock.yaml src-tauri/tauri.conf.json src-tauri/Cargo.toml
-pnpm install --frozen-lockfile                      # CI 同款安装检查，锁文件与 package.json 不一致会直接失败
-grep -A 1 'name = "gitwave"' src-tauri/Cargo.lock   # 确认已同步为新版本
-cargo check --manifest-path src-tauri/Cargo.toml    # 锁文件同步 + 编译无恙
+```
+pnpm bump <version>
 ```
 
-## 约束（来自 AGENTS.md，不可越过）
+The script (`scripts/bump-version.mjs`) strips a leading `v` itself. It rewrites `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`, then refreshes the `gitwave` entry in `src-tauri/Cargo.lock` via `cargo update -p gitwave`. `pnpm-lock.yaml` is deliberately untouched — it does not record the root package's own version, and CI installs with `--frozen-lockfile`. Never edit versions by hand.
 
-- **改完即止**：禁止 commit / push / tag，这些由用户执行；提醒用户文件留在当前分支未提交即可。
-- 发版链路提醒（用户操作）：commit → 合入 main → `git tag -a vX.Y.Z && git push origin main vX.Y.Z` → CI 三平台构建出草稿 release（tauri-action 构建时生成并上传 latest.json）→ **publish 前核对草稿**：assets 齐全、latest.json 三平台键（darwin-aarch64 / linux-x86_64 / windows-x86_64）存在且签名非空 → 手动 publish（草稿转正后 latest.json 对 updater 生效，装了 updater 的老客户端即开始收到更新）。
-- **tag 打点时机（硬约束）**：tag 快照的是打 tag 那一刻 HEAD 的已提交状态，不含未提交改动；必须在 bump commit 合入 main、成为 HEAD 之后再打。push 新 commit 不会移动已有 tag；打错指向时只能删 tag 重打重推（`git tag -d vX.Y.Z` + `git push origin :refs/tags/vX.Y.Z`），CI 的 prepare-release 会拦截 tag 名与 package.json 版本不一致。
+Verify with `git status --porcelain`: expect exactly those 4 files. Anything else in the diff — investigate before committing.
+
+## 4. Sync user-facing surfaces
+
+- **README.md** — the "Cutting a release" section there is the release checklist's source of truth:
+  - Header **Status** line: `**Status:** vX.Y.Z — …`, weaving in this version's most user-visible capability.
+  - **Features** list: add a bullet for new capabilities; don't re-list existing ones.
+  - Download section: reconcile any version / platform mentions.
+- **site/index.html** (official site, auto-deploys to GitHub Pages on push to main), both **en and zh-CN** pages:
+  - Hero badge: `<div class="badge">vX.Y.Z · <today></div>` — current version + current date (en `YYYY-MM-DD`, zh `YYYY年M月D日`).
+  - Download area: `Latest release: vX.Y.Z` (zh「最新版本：vX.Y.Z」).
+  - Feature cards: fold small features into an existing card (e.g. the "Batteries included" list) rather than breaking the 6-card grid rhythm.
+- Residue check: `grep -rn "<old-version>" README.md site/ package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml` — GitWave's own version should only appear at the new value (matches inside unrelated dependencies don't count).
+
+## 5. Commit
+
+```
+git commit -m "chore: bump version to vX.Y.Z"
+```
+
+This matches existing release history; no body needed.
+
+## 6. Summarize, then STOP
+
+Show the user, concretely:
+
+- The version and the commits going out since the previous tag
+- What release CI will build once the tag lands: a **draft** release with three-platform installers plus `latest.json`
+- That publishing the draft activates the updater — existing installs start receiving the new version from that moment
+
+Then ask, and wait: "Push main + tag vX.Y.Z now?" A yes to the summary is consent to push; silence or anything ambiguous is not.
+
+## 7. Push (only after the user's explicit yes)
+
+```
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin main vX.Y.Z
+```
+
+Tag timing is a hard constraint: the tag snapshots HEAD at creation, so it must be created only after the bump commit is merged into `main` and is HEAD. Pushing newer commits never moves an existing tag; a mistagged release gets a new number.
+
+Then offer to monitor the run (`gh run list`, `gh run watch <run-id>`). When CI is green, help the user verify the draft under Releases before they publish: assets present for all three platforms, and `latest.json` carries all three keys (`darwin-aarch64` / `linux-x86_64` / `windows-x86_64`) with non-empty signatures. **Publishing is the user's manual click** — that click flips the draft live and pushes `latest.json` to every installed updater.
