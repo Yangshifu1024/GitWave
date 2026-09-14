@@ -17,7 +17,36 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       release_id: ${{ steps.create.outputs.id }}
+      release_notes: ${{ steps.notes.outputs.body }}
     steps:
+      # Full history + tags so the notes step can diff against the previous tag.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      # generate_release_notes only lists merged PRs, but this repo's release
+      # flow pushes release commits directly — it produced an empty body on
+      # v0.8.3. List every commit between the previous tag and this one; the
+      # same text feeds the updater manifest via tauri-action's releaseBody.
+      - name: Build release notes
+        id: notes
+        run: |
+          prev_tag=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            echo "## What's Changed"
+            if [ -n "$prev_tag" ]; then
+              git log --format='- %h %s' "${prev_tag}..${GITHUB_REF_NAME}"
+              echo
+              echo "Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/${prev_tag}...${GITHUB_REF_NAME}"
+            else
+              echo "- First tagged release"
+            fi
+          } > release-notes.md
+          {
+            echo "body<<NOTES_EOF"
+            cat release-notes.md
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
       # draft: tauri-action uploads artifacts + latest.json but never
       # publishes — a human reviews assets/notes and hits publish manually
       - name: Create draft release
@@ -25,7 +54,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          generate_release_notes: true
+          body_path: release-notes.md
 
   build-macos:
     name: Build (macOS)
@@ -76,6 +105,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          releaseBody: ${{ needs.prepare-release.outputs.release_notes }}
           args: --verbose
       # The bundler notarizes and staples the .app but only codesigns the dmg,
       # so Gatekeeper rejects the dmg itself ("Unnotarized Developer ID", seen
@@ -147,6 +177,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          releaseBody: ${{ needs.prepare-release.outputs.release_notes }}
           args: --verbose
 
   build-windows:
@@ -175,4 +206,5 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          releaseBody: ${{ needs.prepare-release.outputs.release_notes }}
           args: --verbose
