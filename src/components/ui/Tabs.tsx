@@ -88,29 +88,36 @@ export const TabsTrigger = forwardRef<
       // "group" lets the underline child react to this tab's data-selected;
       // grow shares the full row across tabs (HeroUI's w-full would make
       // every tab row-wide instead); w-auto keeps intrinsic width as basis.
-      "group w-auto grow px-3 text-sm font-medium text-text-secondary",
-      // Connected-tab look: every tab carries the row's bottom hairline so
-      // the line reads as continuous; the selected tab drops its own segment
-      // and grows to the row height, letting its panel-colored body merge
-      // into the content surface below.
-      "rounded-t-md rounded-b-none border-b border-border-subtle",
-      "data-[selected=true]:border-bg-panel",
+      "group w-auto grow px-3 text-[13px] font-medium text-text-secondary",
+      // Native-style tab: no rounded top, no shadow, no connected-body trick.
+      // Selected state is a single bottom accent line plus a very subtle fill.
+      "rounded-none border-0 border-b border-border-subtle",
+      "data-[selected=true]:border-transparent",
       // Hover = text emphasis only; a filled hover slab looks odd on
       // row-wide tabs.
       "data-[hovered=true]:text-text-primary data-[hovered=true]:opacity-100",
-      // Selected reads as "pinned hover": raised bg, bold text, soft shadow.
-      "data-[selected=true]:bg-bg-panel data-[selected=true]:text-text-primary data-[selected=true]:opacity-100",
-      "data-[selected=true]:font-semibold",
-      "data-[selected=true]:shadow-[0_2px_8px_rgba(0,0,0,0.15)]",
+      // Selected: subtle background + bottom accent line via pseudo child.
+      "data-[selected=true]:bg-black/[0.03] dark:data-[selected=true]:bg-white/[0.03]",
+      "data-[selected=true]:text-text-primary data-[selected=true]:opacity-100",
+      "data-[selected=true]:font-medium",
       // Kill HeroUI's browser-y focus ring (ring-2 accent) — it re-appears
-      // after alt-tab via data-focus-visible. Keyboard focus gets the raised
+      // after alt-tab via data-focus-visible. Keyboard focus gets the subtle
       // background instead, desktop-style.
       "focus-visible:outline-none focus-visible:ring-0",
-      "data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:bg-bg-panel data-[focus-visible=true]:text-text-primary",
+      "data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0 data-[focus-visible=true]:bg-black/[0.03] dark:data-[focus-visible=true]:bg-white/[0.03] data-[focus-visible=true]:text-text-primary",
       className,
     )}
   >
-    {children}
+    <span className="relative inline-flex items-center justify-center gap-1.5 h-full w-full">
+      {children}
+      <span
+        className={cn(
+          "absolute bottom-0 left-2 right-2 h-[2px] bg-accent opacity-0",
+          "group-data-[selected=true]:opacity-100",
+        )}
+        aria-hidden
+      />
+    </span>
   </HeroTabs.Tab>
 ));
 TabsTrigger.displayName = "TabsTrigger";

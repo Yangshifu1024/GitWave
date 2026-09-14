@@ -116,7 +116,7 @@ export function ContextMenuContent({
         placement="bottom start"
         offset={2}
         className={cn(
-          "z-popover min-w-[180px] rounded-lg",
+          "z-popover min-w-[160px] rounded-md",
           "bg-bg-elevated border border-border-default shadow-modal",
           "p-1",
           className,
@@ -140,7 +140,7 @@ export function ContextMenuLabel({
   return (
     <Header
       title={title}
-      className={cn("px-2 py-1.5 text-xs font-medium text-text-primary truncate", className)}
+      className={cn("px-2 py-1 text-[11px] font-medium text-text-muted truncate", className)}
     >
       {children}
     </Header>
@@ -170,8 +170,8 @@ export function ContextMenuSub({
         textValue={typeof label === "string" ? label : (title ?? "submenu")}
         isDisabled={disabled}
         className={cn(
-          "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-          "outline-none text-text-primary",
+          "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-[13px]",
+          "outline-none text-text-primary data-[hovered=true]:bg-black/[0.04] dark:data-[hovered=true]:bg-white/[0.04]",
         )}
       >
         {icon}
@@ -180,7 +180,7 @@ export function ContextMenuSub({
       </Menu.Item>
       <Popover.Content
         className={cn(
-          "z-popover min-w-[140px] rounded-lg",
+          "z-popover min-w-[140px] rounded-md",
           "bg-bg-elevated border border-border-default shadow-modal",
           "p-1",
         )}
@@ -224,8 +224,8 @@ export function ContextMenuItem({
         ctx.setOpen(false);
       }}
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-        "outline-none",
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-[13px]",
+        "outline-none data-[hovered=true]:bg-black/[0.04] dark:data-[hovered=true]:bg-white/[0.04]",
         destructive ? "text-danger" : "text-text-primary",
         className,
       )}

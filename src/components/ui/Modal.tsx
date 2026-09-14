@@ -1,5 +1,6 @@
 import { Modal as HeroModal, Description } from "@heroui/react";
 import { type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 export interface ModalProps {
   open: boolean;
@@ -45,14 +46,14 @@ export function Modal({
         {/* No chrome overrides: HeroUI's .modal__dialog already ships the
             official surface — bg-overlay, shadow-overlay, p-6 and radius
             min(32px, --radius-3xl). These classes only constrain the width. */}
-        <HeroModal.Dialog className={sizeClasses[size]}>
+        <HeroModal.Dialog className={cn(sizeClasses[size], "rounded-lg p-0")}>
           {({ close }) => (
             <>
               {/* Official anatomy: the close button floats at end-4 top-4
                   (.modal__close-trigger), outside the header flow. */}
               <HeroModal.CloseTrigger onPress={close} />
-              <HeroModal.Header className="pe-10">
-                <HeroModal.Heading>{title}</HeroModal.Heading>
+              <HeroModal.Header className="pe-10 px-4 pt-4 pb-2">
+                <HeroModal.Heading className="text-base font-semibold">{title}</HeroModal.Heading>
                 {description ? (
                   <Description className="text-sm text-text-secondary break-words">
                     {description}
@@ -63,8 +64,10 @@ export function Modal({
                   so focus rings on first/last fields have clip room inside
                   the overflow-y-auto scroll box. p-0 made the ring flush with
                   the clip edge and got it cut off (top/left/right). */}
-              <HeroModal.Body className="flex flex-col gap-3">{children}</HeroModal.Body>
-              {footer ? <HeroModal.Footer>{footer}</HeroModal.Footer> : null}
+              <HeroModal.Body className="flex flex-col gap-3 px-4 pb-4">{children}</HeroModal.Body>
+              {footer ? (
+                <HeroModal.Footer className="px-4 pb-4 pt-0 gap-2">{footer}</HeroModal.Footer>
+              ) : null}
             </>
           )}
         </HeroModal.Dialog>

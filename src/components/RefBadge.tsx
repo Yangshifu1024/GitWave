@@ -1,4 +1,3 @@
-import { Chip } from "@heroui/react";
 import { Circle, CircleCheck, GitBranch, Tag } from "lucide-react";
 
 import type { CommitRef } from "@/lib/api";
@@ -28,12 +27,12 @@ function truncateRefName(name: string): string {
 }
 
 /**
- * Branch / tag chip for a commit, shared by the history rows and the
- * inspector header. Colors follow the history conventions: the current
- * branch (emphasize) wears a current-branch tint, tags a warning tint,
- * remote branches the fixed --color-branch-remote, local branches their
- * lane color — or, when no lane context exists (inspector header), the
- * current-branch color.
+ * Branch / tag badge for a commit, shared by the history rows and the
+ * inspector header. Self-drawn (no HeroUI Chip) for a flatter, native feel.
+ * Colors follow the history conventions: the current branch (emphasize)
+ * wears a current-branch tint, tags a warning tint, remote branches the
+ * fixed --color-branch-remote, local branches their lane color — or, when
+ * no lane context exists (inspector header), the current-branch color.
  */
 export function RefBadge({
   r,
@@ -54,40 +53,28 @@ export function RefBadge({
   const chrome = cn(
     "inline-flex items-center gap-1 shrink-0 min-w-0 max-w-full whitespace-nowrap",
     // Same size as the commit title (text-xs) so refs read as part of the row.
-    "rounded px-1 py-0 text-xs leading-none font-medium border shadow-none",
+    "rounded-sm px-1.5 py-0.5 text-xs leading-none font-medium shadow-none",
   );
   const displayName = r.kind === "tag" ? r.name : truncate ? truncateRefName(r.name) : r.name;
 
   if (r.kind === "tag") {
     return (
-      <Chip
-        size="sm"
-        title={r.name}
-        className={cn(chrome, "bg-[#ffc53d]/20 text-[#ffc53d] border-[#ffc53d]/60")}
-      >
-        <Chip.Label className="inline-flex min-w-0 items-center gap-1">
-          <Tag size={12} className="shrink-0" />
-          <span className="truncate">{displayName}</span>
-        </Chip.Label>
-      </Chip>
+      <span title={r.name} className={cn(chrome, "bg-[#ffc53d]/15 text-[#ffc53d]")}>
+        <Tag size={11} className="shrink-0" />
+        <span className="truncate">{displayName}</span>
+      </span>
     );
   }
 
   if (emphasize) {
     return (
-      <Chip
-        size="sm"
+      <span
         title={r.name}
-        className={cn(
-          chrome,
-          "bg-branch-current/20 text-branch-current border-branch-current/50 font-semibold",
-        )}
+        className={cn(chrome, "bg-branch-current/15 text-branch-current font-semibold")}
       >
-        <Chip.Label className="inline-flex min-w-0 items-center gap-1">
-          {synced && <CircleCheck size={12} className="shrink-0" />}
-          <span className="truncate">{displayName}</span>
-        </Chip.Label>
-      </Chip>
+        {synced && <CircleCheck size={11} className="shrink-0" />}
+        <span className="truncate">{displayName}</span>
+      </span>
     );
   }
 
@@ -100,26 +87,22 @@ export function RefBadge({
         ? "var(--color-branch-current)"
         : laneColor(lane);
   return (
-    <Chip
-      size="sm"
+    <span
       title={r.name}
-      className={chrome}
+      className={cn(chrome)}
       style={{
-        backgroundColor: `color-mix(in srgb, ${lineColor} 18%, transparent)`,
-        borderColor: `color-mix(in srgb, ${lineColor} 60%, transparent)`,
+        backgroundColor: `color-mix(in srgb, ${lineColor} 14%, transparent)`,
         color: lineColor,
       }}
     >
-      <Chip.Label className="inline-flex min-w-0 items-center gap-1">
-        {r.kind === "remote_branch" ? (
-          <Circle size={12} className="shrink-0" />
-        ) : synced ? (
-          <CircleCheck size={12} className="shrink-0" />
-        ) : (
-          <GitBranch size={12} className="shrink-0" />
-        )}
-        <span className="truncate">{displayName}</span>
-      </Chip.Label>
-    </Chip>
+      {r.kind === "remote_branch" ? (
+        <Circle size={11} className="shrink-0" />
+      ) : synced ? (
+        <CircleCheck size={11} className="shrink-0" />
+      ) : (
+        <GitBranch size={11} className="shrink-0" />
+      )}
+      <span className="truncate">{displayName}</span>
+    </span>
   );
 }

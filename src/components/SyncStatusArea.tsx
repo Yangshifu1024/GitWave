@@ -8,7 +8,6 @@
 
 import { useEffect, useState } from "react";
 import { ProgressBar } from "@heroui/react";
-import { Card as HeroCard } from "@heroui/react";
 import { X } from "lucide-react";
 
 import { cancelSync } from "@/lib/api";
@@ -80,20 +79,20 @@ export function SyncStatusArea(): React.JSX.Element {
   const fadeClass = fading ? "opacity-0" : "opacity-100";
 
   return (
-    <HeroCard
+    <div
       aria-live="polite"
       className={cn(
-        "relative h-9 w-144 rounded-md border border-border-subtle bg-bg-elevated",
-        "shadow-none p-0 gap-0 overflow-hidden",
+        "relative h-7 w-96 overflow-hidden",
+        "flex items-center justify-center",
+        "text-xs transition-opacity duration-150",
+        TEXT_COLOR[state],
+        fadeClass,
       )}
     >
       <div
         className={cn(
-          "flex h-full items-center justify-center gap-2 text-xs",
-          "transition-opacity duration-150",
-          TEXT_COLOR[state],
-          fadeClass,
-          // Padding keeps text off the card edges; the cancellable variant
+          "flex items-center justify-center gap-2 min-w-0",
+          // Padding keeps text off the edges; the cancellable variant
           // swaps the right inset for the cancel button's reserved space.
           cancellable ? "pl-3 pr-8" : "px-3",
         )}
@@ -150,6 +149,6 @@ export function SyncStatusArea(): React.JSX.Element {
           <div className={cn("h-full w-full", BAR_COLOR[state])} />
         </div>
       )}
-    </HeroCard>
+    </div>
   );
 }

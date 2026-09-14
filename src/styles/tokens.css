@@ -473,11 +473,11 @@
   }
 
   .pane-edge-right {
-    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--color-border-subtle) 50%, transparent);
+    box-shadow: inset -1px 0 0 color-mix(in srgb, var(--color-border-subtle) 35%, transparent);
   }
 
   .pane-edge-left {
-    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-border-subtle) 50%, transparent);
+    box-shadow: inset 1px 0 0 color-mix(in srgb, var(--color-border-subtle) 35%, transparent);
   }
 
   /* Overlay-style scrollbars for sidebar cards: the gutter is always

@@ -31,7 +31,7 @@ export function WorkspaceDropdown(): React.JSX.Element {
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 gap-1.5 border border-border-default px-2.5 text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
+        className="h-7 gap-1.5 px-2 text-xs text-text-secondary hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-text-primary rounded-sm"
       >
         <FolderGit2 size={14} className="shrink-0" />
         <span className="max-w-[180px] truncate">{active ? active.name : "Workspace"}</span>

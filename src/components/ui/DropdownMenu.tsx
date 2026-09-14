@@ -21,7 +21,7 @@ export const DropdownMenuContent = forwardRef<
     placement={placement}
     offset={sideOffset}
     className={cn(
-      "z-popover min-w-[180px] rounded-lg",
+      "z-popover min-w-[160px] rounded-md",
       "bg-bg-elevated border border-border-default shadow-modal",
       "p-1",
       className,
@@ -57,8 +57,8 @@ export const DropdownMenuItem = forwardRef<HTMLDivElement, DropdownMenuItemProps
       variant={destructive ? "danger" : undefined}
       onAction={onSelect}
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-        "outline-none",
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1 text-[13px]",
+        "outline-none data-[hovered=true]:bg-black/[0.04] dark:data-[hovered=true]:bg-white/[0.04]",
         destructive ? "text-danger" : "text-text-primary",
         className,
       )}

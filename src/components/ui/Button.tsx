@@ -3,25 +3,28 @@ import { Button as HeroButton } from "@heroui/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-const buttonVariants = cva("inline-flex items-center justify-center gap-2 font-medium rounded-md", {
-  variants: {
-    variant: {
-      primary: "",
-      secondary: "",
-      danger: "",
-      "danger-soft": "",
-      ghost: "",
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 font-medium rounded-sm border-0 shadow-none",
+  {
+    variants: {
+      variant: {
+        primary: "",
+        secondary: "",
+        danger: "",
+        "danger-soft": "",
+        ghost: "",
+      },
+      size: {
+        sm: "h-7 px-2 text-xs",
+        md: "h-8 px-3 text-sm",
+      },
     },
-    size: {
-      sm: "h-7 px-2 text-xs",
-      md: "h-8 px-3 text-sm",
+    defaultVariants: {
+      variant: "secondary",
+      size: "md",
     },
   },
-  defaultVariants: {
-    variant: "secondary",
-    size: "md",
-  },
-});
+);
 
 const heroVariant = {
   primary: "primary",

@@ -59,7 +59,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         className="flex min-w-0 flex-col gap-1"
       >
         {label != null ? <Label>{label}</Label> : null}
-        <InputGroup fullWidth className={cn("h-8 min-h-8 w-full min-w-0 rounded-md", className)}>
+        <InputGroup
+          fullWidth
+          className={cn(
+            "h-8 min-h-8 w-full min-w-0 rounded-sm",
+            isSearch && "bg-bg-panel border-transparent",
+            className,
+          )}
+        >
           {isSearch ? (
             <InputGroup.Prefix className="pl-2 text-text-muted" aria-hidden="true">
               <Search size={16} />
@@ -74,7 +81,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             /* min-w-0 lets the input shrink inside narrow groups — without it
              * the intrinsic width overflows the group border and pushes the
              * suffix outside it. */
-            className="h-8 min-w-0 px-3 py-1 text-sm"
+            className={cn(
+              "h-8 min-w-0 px-3 py-1 text-sm",
+              isSearch && "bg-transparent focus:bg-bg-panel",
+            )}
             {...props}
           />
           {suffix != null ? (

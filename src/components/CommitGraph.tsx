@@ -259,9 +259,9 @@ function CommitRow({
           className={cn(
             "flex items-center gap-2 px-2 py-0 cursor-pointer rounded-none shadow-none",
             "transition-colors duration-fast border-l-2 border-l-transparent",
-            !isSelected && !isHead && "hover:bg-bg-elevated",
-            isHead && !isSelected && "bg-accent/10 border-l-accent hover:bg-accent/20",
-            isSelected && "bg-accent/20 border-l-accent hover:bg-accent/30",
+            !isSelected && !isHead && "hover:bg-black/[0.02] dark:hover:bg-white/[0.02]",
+            isHead && !isSelected && "bg-accent/[0.04] border-l-accent hover:bg-accent/[0.08]",
+            isSelected && "bg-accent/[0.06] border-l-accent hover:bg-accent/[0.10]",
           )}
           style={{ height: `${ROW_H}px` }}
         >

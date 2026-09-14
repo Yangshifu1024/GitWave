@@ -60,7 +60,6 @@ import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { stashesQueryKey } from "@/hooks/useStashes";
 import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
 import { cn } from "@/lib/utils";
-import { Separator } from "@heroui/react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -116,12 +115,12 @@ function ActionBarButton({
   const hint = title ?? label;
   const toneClass =
     tone === "success"
-      ? "text-success hover:bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)]"
+      ? "text-success hover:bg-[color-mix(in_srgb,var(--color-success)_12%,transparent)]"
       : tone === "warning"
-        ? "text-warning hover:bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)]"
+        ? "text-warning hover:bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)]"
         : danger
           ? "hover:text-danger"
-          : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary";
+          : "text-text-secondary hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-text-primary";
   return (
     <Tooltip content={hint}>
       <Button
@@ -132,7 +131,7 @@ function ActionBarButton({
         aria-label={hint}
         onClick={onClick}
         className={cn(
-          "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs",
+          "flex items-center gap-1.5 h-7 px-2 rounded-sm text-xs",
           toneClass,
           "disabled:opacity-40 disabled:pointer-events-none",
         )}
@@ -707,11 +706,11 @@ export function ActionBar(): React.JSX.Element {
 
   return (
     <>
-      <div className="relative flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
+      <div className="relative flex items-center gap-2 px-3 py-1 shrink-0 bg-bg-secondary border-b border-border-subtle select-none">
         <WorkspaceDropdown />
 
         {/* External tools for the active repo (F014). */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <ActionBarButton
             icon={<FolderOpen size={14} />}
             label={t("workspace.openFileManager.label")}
@@ -738,7 +737,7 @@ export function ActionBar(): React.JSX.Element {
               disabled={!externalRepo}
               title={t("workspace.openEditor.title")}
               aria-label={t("workspace.openEditor.title")}
-              className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary disabled:opacity-40 disabled:pointer-events-none"
+              className="flex items-center gap-1.5 h-7 px-2 rounded-sm text-xs text-text-secondary hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:text-text-primary disabled:opacity-40 disabled:pointer-events-none"
             >
               <SquareCode size={14} />
               {t("workspace.openEditor.label")}
@@ -767,7 +766,7 @@ export function ActionBar(): React.JSX.Element {
         {/* Reserved middle zone between the selector and the ops. */}
         <div className="flex-1" />
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <ActionBarButton
             icon={<FileDiff size={14} />}
             label={t("changes.actionBar.changes")}
@@ -790,9 +789,6 @@ export function ActionBar(): React.JSX.Element {
             disabled={noRepo || wc.isSyncBusy}
             onClick={wc.fetch}
           />
-        </div>
-        <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
-        <div className="flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDown size={14} />}
             label={t("commits.sync.pull")}

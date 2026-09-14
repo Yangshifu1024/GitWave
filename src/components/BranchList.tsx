@@ -802,18 +802,16 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
       ));
     return (
       <div className={groupKey === "local" ? undefined : "mt-2"}>
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
           aria-expanded={!collapsed}
           onClick={() => toggleGroup(groupKey, groupKey !== "local")}
-          className="h-auto w-full justify-start flex items-center gap-1.5 pl-3 pr-3 py-1 text-[11px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary rounded-none border-0 shadow-none bg-transparent"
+          className="h-6 w-full flex items-center gap-1 pl-3 pr-3 text-[10px] font-semibold text-text-muted uppercase tracking-wider hover:text-text-secondary bg-transparent border-0 rounded-none select-none"
         >
-          {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-          {label}
+          {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+          <span className="truncate">{label}</span>
           <span className="font-normal normal-case">({groupBranches.length})</span>
-        </Button>
+        </button>
         {!collapsed && (
           <>
             {/* Top-level rows (unprefixed) at the base indent; folder
@@ -827,20 +825,18 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
                 collapsedGroups[folderKey] ?? !list.some((b) => b.name === selectedName);
               return (
                 <div key={folderKey}>
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
                     aria-expanded={!folderCollapsed}
                     onClick={() =>
                       toggleGroup(folderKey, !list.some((b) => b.name === selectedName))
                     }
-                    className="h-auto w-full justify-start flex items-center gap-1.5 pl-6 pr-3 py-1 text-[11px] font-medium text-text-secondary hover:text-text-primary rounded-none border-0 shadow-none bg-transparent"
+                    className="h-6 w-full flex items-center gap-1 pl-6 pr-3 text-[11px] font-medium text-text-secondary hover:text-text-primary bg-transparent border-0 rounded-none select-none"
                   >
                     {folderCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
                     <span className="truncate">{prefix}</span>
                     <span className="font-normal text-text-muted">({list.length})</span>
-                  </Button>
+                  </button>
                   {!folderCollapsed &&
                     renderRows(list, (b) => splitBranchPrefix(display(b)).rest, true)}
                 </div>
