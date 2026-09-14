@@ -268,6 +268,9 @@ function ImageDiffPane({
     queryKey: ["diff-image", workspaceId, path, oid ?? "<worktree>"],
     queryFn: () => getImageContent(workspaceId, path, oid ?? undefined),
     staleTime: oid ? Infinity : 0,
+    // A missing version (deleted file, unreadable bytes) is final — surface
+    // the error state instead of burning ~7s on react-query's default retries.
+    retry: false,
   });
 
   useEffect(() => {
@@ -348,9 +351,11 @@ function ImageDiffView({
     );
   }
   const mime = imageMimeFromPath(fileDiff.path);
-  // Commit diffs carry OIDs on both existing sides. In the working copy the
-  // new side has no OID (git2 does not hash workdir content), so it is read
-  // from the working tree — unless the file was deleted there, in which case
+  // The unstaged side of the working copy carries a "ghost" OID: libgit2
+  // hashes the worktree content into the delta but never writes that blob to
+  // the ODB, so find_blob on it fails — read the working-tree file instead
+  // (staged entries come from the index and commit diffs from trees; both
+  // are materialized). Deleted workdir files have no usable side either, and
   // the selected kind is the only signal (both sides report no OID).
   const hasOld = fileDiff.old_sha != null;
   const hasNew = workdir ? workdirKind !== "deleted" : fileDiff.new_sha != null;
@@ -374,7 +379,7 @@ function ImageDiffView({
         <ImageDiffPane
           workspaceId={activeWorkspaceId}
           path={fileDiff.path}
-          oid={fileDiff.new_sha}
+          oid={fileDiff.staged === false ? null : fileDiff.new_sha}
           mime={mime}
           label={t("diff.image.new")}
         />
