@@ -35,6 +35,7 @@ export function UpdateModal(): React.JSX.Element {
   const setModalOpen = useUpdaterStore((s) => s.setModalOpen);
   const currentVersion = useUpdaterStore((s) => s.currentVersion);
   const newVersion = useUpdaterStore((s) => s.newVersion);
+  const notes = useUpdaterStore((s) => s.notes);
   const downloadedBytes = useUpdaterStore((s) => s.downloadedBytes);
   const totalBytes = useUpdaterStore((s) => s.totalBytes);
   const error = useUpdaterStore((s) => s.error);
@@ -140,6 +141,17 @@ export function UpdateModal(): React.JSX.Element {
             <Github size={14} />
             {t("updater.viewReleaseNotes")}
           </Button>
+        ) : null}
+
+        {notes ? (
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-xs font-medium text-text-secondary">{t("updater.notesTitle")}</p>
+            <div className="max-h-40 overflow-y-auto rounded-md bg-bg-secondary px-2.5 py-2">
+              <pre className="whitespace-pre-line break-words font-sans text-xs text-text-secondary">
+                {notes}
+              </pre>
+            </div>
+          </div>
         ) : null}
 
         {phase === "manual-download" ? (

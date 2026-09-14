@@ -24,6 +24,8 @@ export interface UpdaterState {
   modalOpen: boolean;
   currentVersion: string | null;
   newVersion: string | null;
+  /** Release notes from the updater manifest (latest.json `notes`); null when absent. */
+  notes: string | null;
   downloadedBytes: number;
   totalBytes: number | null;
   error: string | null;
@@ -33,7 +35,12 @@ export interface UpdaterState {
   startCheckEpoch: () => number;
   beginCheck: () => number;
   markUpToDate: (currentVersion: string) => void;
-  markAvailable: (info: { currentVersion: string; newVersion: string; manual: boolean }) => void;
+  markAvailable: (info: {
+    currentVersion: string;
+    newVersion: string;
+    notes: string | null;
+    manual: boolean;
+  }) => void;
   beginDownload: () => void;
   setProgress: (downloadedBytes: number, totalBytes: number | null) => void;
   markReady: () => void;
@@ -46,6 +53,7 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
   modalOpen: false,
   currentVersion: null,
   newVersion: null,
+  notes: null,
   downloadedBytes: 0,
   totalBytes: null,
   error: null,
@@ -61,11 +69,12 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
     return checkEpoch;
   },
   markUpToDate: (currentVersion) => set({ phase: "up-to-date", currentVersion, error: null }),
-  markAvailable: ({ currentVersion, newVersion, manual }) =>
+  markAvailable: ({ currentVersion, newVersion, notes, manual }) =>
     set({
       phase: manual ? "manual-download" : "available",
       currentVersion,
       newVersion,
+      notes,
       modalOpen: true,
       downloadedBytes: 0,
       totalBytes: null,
@@ -77,6 +86,13 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
   // relaunch affordance must not go unnoticed.
   markReady: () => set({ phase: "ready", modalOpen: true }),
   fail: (error) =>
-    set({ phase: "error", error, newVersion: null, downloadedBytes: 0, totalBytes: null }),
+    set({
+      phase: "error",
+      error,
+      newVersion: null,
+      notes: null,
+      downloadedBytes: 0,
+      totalBytes: null,
+    }),
   setModalOpen: (modalOpen) => set({ modalOpen }),
 }));

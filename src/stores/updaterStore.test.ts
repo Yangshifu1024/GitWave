@@ -8,6 +8,7 @@ function reset(): void {
     modalOpen: false,
     currentVersion: null,
     newVersion: null,
+    notes: null,
     downloadedBytes: 0,
     totalBytes: null,
     error: null,
@@ -37,23 +38,30 @@ describe("updaterStore", () => {
     useUpdaterStore.getState().markAvailable({
       currentVersion: "0.5.0",
       newVersion: "0.6.0",
+      notes: "- 1b319d3 fix(ci): notarize and staple dmg after upload",
       manual: false,
     });
     expect(useUpdaterStore.getState().phase).toBe("available");
     expect(useUpdaterStore.getState().modalOpen).toBe(true);
+    expect(useUpdaterStore.getState().notes).toBe(
+      "- 1b319d3 fix(ci): notarize and staple dmg after upload",
+    );
 
     useUpdaterStore.getState().markAvailable({
       currentVersion: "0.5.0",
       newVersion: "0.6.0",
+      notes: null,
       manual: true,
     });
     expect(useUpdaterStore.getState().phase).toBe("manual-download");
+    expect(useUpdaterStore.getState().notes).toBeNull();
   });
 
   it("download lifecycle: begin resets progress, progress accumulates, ready closes it out", () => {
     useUpdaterStore.getState().markAvailable({
       currentVersion: "0.5.0",
       newVersion: "0.6.0",
+      notes: null,
       manual: false,
     });
     useUpdaterStore.getState().beginDownload();
@@ -85,12 +93,14 @@ describe("updaterStore", () => {
     useUpdaterStore.getState().markAvailable({
       currentVersion: "0.5.0",
       newVersion: "0.6.0",
+      notes: "- 1b319d3 fix(ci): notarize and staple dmg after upload",
       manual: false,
     });
     useUpdaterStore.getState().setProgress(512, 1024);
     useUpdaterStore.getState().fail("network down");
     const s = useUpdaterStore.getState();
     expect(s.newVersion).toBeNull();
+    expect(s.notes).toBeNull();
     expect(s.downloadedBytes).toBe(0);
     expect(s.totalBytes).toBeNull();
   });

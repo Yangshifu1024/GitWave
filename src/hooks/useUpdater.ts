@@ -91,6 +91,7 @@ async function checkForUpdate(options: { silent?: boolean } = {}): Promise<void>
     useUpdaterStore.getState().markAvailable({
       currentVersion: update.currentVersion,
       newVersion: update.version,
+      notes: update.body ?? null,
       manual,
     });
   } catch (e) {
