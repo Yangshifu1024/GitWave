@@ -644,7 +644,8 @@ export interface ImageContent {
 }
 
 /** Read one file version for the image diff: `oid` = committed/index blob,
- * omitted = working-tree file (workdir diff sides carry no OID). */
+ * omitted = working-tree file (an unstaged delta's new OID is a "ghost" hash
+ * libgit2 never wrote to the ODB, so it cannot be looked up). */
 export function getImageContent(
   workspaceId: string,
   path: string,

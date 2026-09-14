@@ -1098,7 +1098,8 @@ pub const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
 /// Raw bytes of one file version for the image diff view, base64-encoded:
 /// `oid` selects a committed / index version, `None` reads the working-tree
-/// file (the workdir side of an unstaged diff carries no OID).
+/// file (an unstaged delta's new OID is a "ghost" hash libgit2 never wrote
+/// to the ODB, so it cannot be looked up).
 pub fn get_image_content(
     ctx: &AppContext,
     workspace_id: &str,

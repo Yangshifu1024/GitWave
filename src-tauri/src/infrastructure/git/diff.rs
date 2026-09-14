@@ -261,8 +261,10 @@ fn diff_to_files(diff: &Diff) -> Result<Vec<FileDiff>> {
 }
 
 /// Raw bytes of one file version for the image diff view (F016): `Some(oid)`
-/// reads the blob at that revision, `None` falls back to the working-tree
-/// file — the workdir side of an unstaged diff carries no OID.
+/// reads the blob at that revision, `None` reads the working-tree file. The
+/// latter is mandatory for the workdir side of an unstaged diff: libgit2
+/// hashes worktree content into the delta OID but never writes that blob to
+/// the ODB, so the hash cannot be looked up (see the ghost-OID test below).
 pub fn read_file_content(repo: &Repository, path: &str, oid: Option<Oid>) -> Result<Vec<u8>> {
     if let Some(oid) = oid {
         let blob = repo.find_blob(oid).map_err(map_git_err)?;
@@ -509,5 +511,39 @@ mod tests {
         let result = read_file_content(&repo, "../outside.txt", None);
         cleanup(&path);
         assert!(result.is_err(), "path traversal must be rejected");
+    }
+
+    /// libgit2 hashes worktree content into the unstaged delta's `new` OID
+    /// without writing that blob to the ODB — a "ghost" OID. Consumers must
+    /// not pass it to `find_blob` (this is why the F016 image diff reads the
+    /// worktree for unstaged files instead).
+    #[test]
+    fn unstaged_workdir_new_sha_is_a_ghost_oid_not_in_odb() {
+        let (path, repo) = build_linear_repo(1);
+
+        // Tracked file modified in the worktree, change not staged…
+        fs::write(path.join("file0.txt"), "modified\n").unwrap();
+        // …and an untracked new file.
+        fs::write(path.join("new.png"), "pretend image bytes\n").unwrap();
+
+        let summary = diff_workdir_to_index(&repo).unwrap();
+
+        for name in ["file0.txt", "new.png"] {
+            let file = summary
+                .files
+                .iter()
+                .find(|f| f.path == name)
+                .unwrap_or_else(|| panic!("expected {name} in workdir diff"));
+            let sha = file
+                .new_sha
+                .as_ref()
+                .unwrap_or_else(|| panic!("{name}: libgit2 hashes workdir content"));
+            let oid = Oid::from_str(sha).unwrap();
+            assert!(
+                repo.find_blob(oid).is_err(),
+                "{name}: workdir-side OID must not be materialized in the ODB"
+            );
+        }
+        cleanup(&path);
     }
 }
