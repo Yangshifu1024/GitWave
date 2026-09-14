@@ -77,6 +77,30 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           args: --verbose
+      # The bundler notarizes and staples the .app but only codesigns the dmg,
+      # so Gatekeeper rejects the dmg itself ("Unnotarized Developer ID", seen
+      # on v0.8.2). Re-notarize + staple it and replace the uploaded asset.
+      - name: Notarize and staple dmg
+        if: runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          if [ -z "$APPLE_API_KEY" ]; then
+            echo "No notarization credentials configured; skipping dmg notarization"
+            exit 0
+          fi
+          gh release download "${GITHUB_REF_NAME}" --pattern '*.dmg' --clobber
+          dmg=$(ls *.dmg | head -1)
+          xcrun notarytool submit "$dmg" \
+            --key "${{ github.workspace }}/AuthKey.p8" \
+            --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          gh release upload "${GITHUB_REF_NAME}" "$dmg" --clobber
 
   build-linux:
     name: Build (Linux)
