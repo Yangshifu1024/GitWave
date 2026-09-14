@@ -57,6 +57,7 @@ import { useSyncStore } from "@/stores/syncStore";
 import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
+import { stashesQueryKey } from "@/hooks/useStashes";
 import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
 import { cn } from "@/lib/utils";
 import { Separator } from "@heroui/react";
@@ -524,7 +525,9 @@ export function ActionBar(): React.JSX.Element {
     try {
       await saveStash(activeWorkspaceId, stashMessage.trim() || undefined, stashStage);
       setStatus(t("changes.stash.saved"), "success");
-      void queryClient.invalidateQueries({ queryKey: ["stashes", activeWorkspaceId] });
+      void queryClient.invalidateQueries({
+        queryKey: stashesQueryKey(activeWorkspaceId, activeRepoId),
+      });
       void queryClient.invalidateQueries({
         queryKey: ["working-copy", activeWorkspaceId, activeRepoId],
       });

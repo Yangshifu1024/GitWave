@@ -1,15 +1,8 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DiffSummary } from "@/lib/api";
-import {
-  applyStash,
-  dropStash,
-  formatAppError,
-  getStashDiff,
-  listStashes,
-  popStash,
-} from "@/lib/api";
+import { applyStash, dropStash, formatAppError, getStashDiff, popStash } from "@/lib/api";
+import { useStashes } from "@/hooks/useStashes";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { ListItem } from "@/components/ui/ListItem";
@@ -20,24 +13,24 @@ import { Archive, Eye, Play, Trash2, Upload } from "lucide-react";
 
 export function StashPanel({ compact = false }: { compact?: boolean }): React.JSX.Element {
   const { t } = useTranslation();
-  const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
-  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const { data: entries = [], error: listError, workspaceId, repoId, invalidate } = useStashes();
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
-  const queryClient = useQueryClient();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedOid, setSelectedOid] = useState<string | null>(null);
   const [diff, setDiff] = useState<DiffSummary | null>(null);
 
-  const { data: entries = [], error: listError } = useQuery({
-    queryKey: ["stashes", workspaceId],
-    queryFn: () => listStashes(workspaceId!),
-    enabled: Boolean(workspaceId && repoId),
-  });
+  // The stash list is repo-scoped: on a repo switch drop the previous repo's
+  // preview / errors so the inspector never shows another repo's diff.
+  useEffect(() => {
+    setSelectedOid(null);
+    setDiff(null);
+    setError(null);
+  }, [repoId]);
 
   const refresh = (): void => {
-    void queryClient.invalidateQueries({ queryKey: ["stashes", workspaceId] });
+    invalidate();
   };
 
   const run = async (fn: () => Promise<void>) => {
