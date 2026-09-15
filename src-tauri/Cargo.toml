@@ -40,7 +40,7 @@ anyhow = "1"
 dirs = "7"
 rusqlite = { version = "0.40", features = ["bundled"] }
 # Image diff previews (F016): blob bytes ride the IPC as base64.
-base64 = "0.22"
+base64 = "0.23"
 # `ssh` compiles the libssh2 transport into vendored libgit2 — without it
 # SSH remotes fail on every platform. libssh2 speaks to ssh-agent via
 # SSH_AUTH_SOCK on unix and the OpenSSH Agent named pipe on Windows, so
