@@ -1,10 +1,12 @@
-// ActionBar center status area — the single sync/operation status surface.
+// Titlebar center status area — the single sync/operation status surface.
 // Priority: in-flight op (label + indeterminate progress bar + cancel
 // button for backend-cancellable ops) > last operation result (auto-clears
 // to the idle state after 15s, see statusAreaStore STATUS_TTL_MS) >
-// current branch name. The bottom bar is always
-// visible and takes the state's color: gray when idle, accent while
-// syncing, success/danger/info for the last result.
+// current branch name. It is deliberately chrome-less — transparent, no
+// border — so it reads as plain centered text blended into the titlebar;
+// the 2px underline carries the state color and only appears when there is
+// something to report (accent while syncing, success/danger/info for the
+// last result; idle shows nothing).
 
 import { useEffect, useState } from "react";
 import { ProgressBar } from "@heroui/react";
@@ -83,7 +85,9 @@ export function SyncStatusArea(): React.JSX.Element {
     <HeroCard
       aria-live="polite"
       className={cn(
-        "relative h-9 w-144 rounded-md border border-border-subtle bg-bg-elevated",
+        // Chrome-less: hugs its text, no card surface — blends into the
+        // titlebar background behind it.
+        "relative h-9 w-auto max-w-[60vw] rounded-none border-0 bg-transparent",
         "shadow-none p-0 gap-0 overflow-hidden",
       )}
     >
@@ -139,7 +143,7 @@ export function SyncStatusArea(): React.JSX.Element {
             <ProgressBar.Fill className="h-full rounded-none bg-accent" />
           </ProgressBar.Track>
         </ProgressBar>
-      ) : (
+      ) : state !== "idle" ? (
         <div
           aria-hidden
           className={cn(
@@ -149,7 +153,7 @@ export function SyncStatusArea(): React.JSX.Element {
         >
           <div className={cn("h-full w-full", BAR_COLOR[state])} />
         </div>
-      )}
+      ) : null}
     </HeroCard>
   );
 }
