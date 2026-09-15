@@ -1,11 +1,12 @@
-// Operations toolbar below the top bar: the Local Changes trigger plus the
-// sync actions that deserve persistent buttons (Fetch / Hooks / Pull / Push).
-// Workspace / repository / branch management moved to the Toolbar menu bar
-// (AppMenuBar), which dispatches `AppMenuAction` requests that this component
-// consumes (see uiStore.menuAction) — every dialog and mutation still lives
-// here, so the menu bar and the remaining buttons share identical handlers.
-// Named `ActionBar` (not `ToolBar`) because Windows filesystems are
-// case-insensitive and `Toolbar.tsx` already exists.
+// Operation controls on the custom titlebar (TitleBar): the workspace
+// selector, external-tool shortcuts, the Local Changes trigger, and the sync
+// actions that deserve persistent buttons (Fetch / Pull / Push).
+// Workspace / repository / branch management lives in the app menu
+// (AppMenuBar / native menu), which dispatches `AppMenuAction` requests that
+// this component consumes (see uiStore.menuAction) — every dialog and
+// mutation still lives here, so the menu and the buttons share identical
+// handlers. The bar markup itself is provided by TitleBar; this component
+// owns the state and the dialogs.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -78,6 +79,7 @@ import { HooksPanel } from "@/components/HooksPanel";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 import { WorkspaceDropdown } from "@/components/WorkspaceDropdown";
 import { SyncStatusArea } from "@/components/SyncStatusArea";
+import { TitleBar } from "@/components/TitleBar";
 
 interface PullDialogState {
   remote: string;
@@ -97,10 +99,15 @@ function ActionBarButton({
   disabled = false,
   danger = false,
   tone,
+  collapseLabel = false,
 }: {
   icon: React.ReactNode;
   /** Visible button text (short — the tooltip carries the full description). */
   label: string;
+  /** Hide the text below the `@6xl` container width, leaving the icon. Used
+   *  for secondary actions on the shared titlebar row where the in-app menu
+   *  (Windows / Linux) competes for horizontal space. */
+  collapseLabel?: boolean;
   /** Reserved fixed-width count slot: a positive count renders "(N)", 0 or
    * null leaves the slot empty, and undefined omits it (no-count buttons).
    * The width is reserved either way so repo switches never shift layout. */
@@ -138,7 +145,7 @@ function ActionBarButton({
         )}
       >
         {icon}
-        {label}
+        {collapseLabel ? <span className="hidden @6xl:inline">{label}</span> : label}
         {count !== undefined && (
           <span className="tabular-nums inline-block min-w-9 text-center">
             {count ? `(${count})` : ""}
@@ -707,15 +714,30 @@ export function ActionBar(): React.JSX.Element {
 
   return (
     <>
-      <div className="relative flex items-center gap-3 px-3 py-1.5 shrink-0 bg-bg-primary border-b border-border-subtle select-none">
-        <WorkspaceDropdown />
+      <TitleBar
+        overlay={
+          /* Status area: absolutely centered on the window's center axis so
+             the selector / buttons widths never shift it; pointer-events-none
+             keeps the buttons clickable even if a narrow window overlaps it
+             (the cancel button opts back in inside SyncStatusArea). */
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <SyncStatusArea />
+          </div>
+        }
+      >
+        <div className="pointer-events-auto flex min-w-0 items-center">
+          <WorkspaceDropdown />
+        </div>
 
-        {/* External tools for the active repo (F014). */}
-        <div className="flex items-center gap-1">
+        {/* External tools for the active repo (F014). Labels collapse to the
+            icon on narrow bars — on Windows / Linux the in-app menu shares
+            this row, so the text would otherwise be clipped. */}
+        <div className="pointer-events-auto flex items-center gap-1">
           <ActionBarButton
             icon={<FolderOpen size={14} />}
             label={t("workspace.openFileManager.label")}
             title={t("workspace.openFileManager.title")}
+            collapseLabel
             disabled={!externalRepo}
             onClick={() => openExternal(openInFileManager)}
           />
@@ -723,6 +745,7 @@ export function ActionBar(): React.JSX.Element {
             icon={<SquareTerminal size={14} />}
             label={t("workspace.openTerminal.label")}
             title={t("workspace.openTerminal.title")}
+            collapseLabel
             disabled={!externalRepo}
             onClick={() => openExternal(openInTerminal)}
           />
@@ -741,7 +764,7 @@ export function ActionBar(): React.JSX.Element {
               className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary disabled:opacity-40 disabled:pointer-events-none"
             >
               <SquareCode size={14} />
-              {t("workspace.openEditor.label")}
+              <span className="hidden @6xl:inline">{t("workspace.openEditor.label")}</span>
               <ChevronDown size={12} className="opacity-70" />
             </Button>
             <DropdownMenuContent placement="bottom start" className="min-w-[180px]">
@@ -767,7 +790,7 @@ export function ActionBar(): React.JSX.Element {
         {/* Reserved middle zone between the selector and the ops. */}
         <div className="flex-1" />
 
-        <div className="flex items-center gap-1">
+        <div className="pointer-events-auto flex items-center gap-1">
           <ActionBarButton
             icon={<FileDiff size={14} />}
             label={t("changes.actionBar.changes")}
@@ -792,7 +815,7 @@ export function ActionBar(): React.JSX.Element {
           />
         </div>
         <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
-        <div className="flex items-center gap-1">
+        <div className="pointer-events-auto flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDown size={14} />}
             label={t("commits.sync.pull")}
@@ -810,16 +833,7 @@ export function ActionBar(): React.JSX.Element {
             onClick={openPushDialog}
           />
         </div>
-
-        {/* Status area: absolutely centered in the whole bar so it stays on
-            the window's center axis regardless of the selector / buttons
-            widths. pointer-events-none keeps the buttons clickable even if a
-            narrow window overlaps them; the cancel button opts back in with
-            pointer-events-auto inside SyncStatusArea. */}
-        <div className="absolute inset-x-0 flex justify-center pointer-events-none">
-          <SyncStatusArea />
-        </div>
-      </div>
+      </TitleBar>
 
       <ErrorAlert message={wc.actionError} onDismiss={() => wc.setActionError(null)} />
 

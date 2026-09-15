@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { AuthPromptDialog } from "@/components/AuthPromptDialog";
-import { Toolbar } from "@/components/Toolbar";
 import { ActionBar } from "@/components/ActionBar";
 import { WorkspaceRepoTabs } from "@/components/WorkspaceRepoTabs";
 import { useWorkspaceUiStore, readLastActive } from "@/stores/workspaceStore";
@@ -143,11 +142,9 @@ function App(): React.JSX.Element {
       className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
       data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
     >
-      <Toolbar />
+      <ActionBar />
 
       <MergeBanner merge={mergeConflicts} onResolve={() => setConflictPanelOpen(true)} />
-
-      <ActionBar />
 
       <AuthPromptDialog />
 

@@ -1,3 +1,20 @@
+// Custom-drawn window titlebar (tauri-plugin-decoration): the only top row.
+//
+// It hosts the app menu (in-app AppMenuBar on Windows / Linux, the native
+// system menu on macOS) plus whatever operation controls the app puts on the
+// bar — ActionBar passes them as `children`. Keeping the shell presentational
+// lets ActionBar own its operation state/dialogs without a second top row.
+//
+// Platform chrome avoidance:
+// - macOS native traffic lights are floated over the bar; `.app-toolbar--macos`
+//   reserves their width via padding-left.
+// - Windows / Linux window controls are HTML controls the plugin overlays at
+//   the bar's trailing edge; the plugin publishes a right clearance that
+//   `.app-toolbar` pads by. Both clearances collapse in fullscreen.
+// The drag surface lives *behind* the content (z-0): the content layer is
+// pointer-events-none so gaps stay draggable, and every interactive group
+// opts back in with pointer-events-auto.
+
 import { useEffect, useRef, useState } from "react";
 
 import { AppMenuBar } from "@/components/AppMenuBar";
@@ -18,7 +35,15 @@ function NativeAppMenu({ onAbout }: { onAbout: () => void }): null {
   return null;
 }
 
-export function Toolbar(): React.JSX.Element {
+export function TitleBar({
+  children,
+  overlay,
+}: {
+  /** Operation controls (ActionBar) laid out after the menu. */
+  children: React.ReactNode;
+  /** Absolutely positioned layer centered on the window (sync status area). */
+  overlay?: React.ReactNode;
+}): React.JSX.Element {
   // Settings state lives in the ui store so global shortcuts (Cmd+,) and
   // the command palette can open it from anywhere.
   const settingsOpen = useUiStore((s) => s.settingsOpen);
@@ -57,8 +82,8 @@ export function Toolbar(): React.JSX.Element {
   return (
     <header
       className={cn(
-        "app-toolbar relative z-20 flex items-center shrink-0 h-10 gap-1.5",
-        "bg-bg-primary",
+        "app-toolbar relative z-20 flex items-center shrink-0 h-10",
+        "bg-bg-primary border-b border-border-subtle select-none",
         isMacOS() && "app-toolbar--macos",
       )}
     >
@@ -68,10 +93,15 @@ export function Toolbar(): React.JSX.Element {
         {...(!isMacOS() ? { "data-tauri-drag-region": true } : {})}
       />
 
-      <div className="relative z-10 flex flex-1 min-w-0 items-center pointer-events-none">
+      {/* `@container`: children can collapse secondary labels via `@6xl:` —
+          the bar is the width authority, not the viewport. */}
+      <div className="@container relative z-10 flex flex-1 min-w-0 items-center gap-3 pointer-events-none">
         {!isMacOS() && <AppMenuBar onAbout={() => setAboutOpen(true)} />}
         {isMacOS() && <NativeAppMenu onAbout={() => setAboutOpen(true)} />}
+        {children}
       </div>
+
+      {overlay}
 
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
       <AboutModal open={aboutOpen} onOpenChange={setAboutOpen} />

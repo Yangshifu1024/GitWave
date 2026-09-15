@@ -6,8 +6,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Toolbar (h: 40px)                                                      │
-│  Client Work - gitwave - main（居中）                             ⌘K  ☀ │
+│ TitleBar (h: 40px)                                                      │
+│  File Workspace Repository Branch │ …操作按钮… │ 状态区（窗口居中）      │
 ├────────────┬──────────────────────────────────┬─────────────────────────┤
 │            │                                  │                         │
 │ Sidebar    │  History graph (flex)            │  Inspector (~360px)     │
@@ -15,42 +15,60 @@
 │            │                                  │                         │
 │            │                                  │                         │
 │            │                                  │                         │
-├────────────┴──────────────────────────────────┴─────────────────────────┤
-│ ActionBar (workspace / repository / branch ops + Local Changes) 详见 §6 │
-└─────────────────────────────────────────────────────────────────────────┘
+│            │                                  │                         │
+└────────────┴──────────────────────────────────┴─────────────────────────┘
 ```
 
 最小窗口尺寸：960 × 600。
 推荐：1280 × 800+。
 
-## 2. Toolbar
+## 2. TitleBar（自绘标题栏，唯一顶栏）
+
+> 2026-09 重构：`Toolbar`（菜单/拖拽）与 `ActionBar`（操作按钮）合并为一行
+> 40px 标题栏（`TitleBar` 提供外壳，`ActionBar` 提供内容与对话框）。
 
 ### 2.1 布局
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│              Client Work - gitwave - main                          ⌘K  ☀ │
+│ File Workspace Repository Branch  [Workspace▾][📁][⌨][</>]  …  [Changes] [Stash] [Fetch] │ [Pull] [Push] │ 状态区 │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-高度：40px。背景：`bg-bg-secondary`（Mist / Abyss）。底边：1px `border-subtle`。
-不要居中字标、不要版本号、不要 Help 图标。
+高度：40px。背景：`bg-bg-primary`。底边：1px `border-subtle`。
+菜单靠左；操作按钮靠右；同步状态区绝对居中于**整个窗口**（不受两侧留白影响）。
+
+**平台约定（关键）**：标题栏内容必须避开系统窗口控件——
+
+- macOS：原生红绿灯悬浮在栏上，`.app-toolbar--macos` 用 `padding-left` 预留
+  `max(78px, --tauri-plugin-decoration-left-clearance)`；菜单走原生系统菜单，
+  栏内不再渲染 AppMenuBar。
+- Windows / Linux：插件把窗口控制按钮以 HTML 覆盖在栏尾，`.app-toolbar` 用
+  `padding-right` 预留 `--tauri-plugin-decoration-right-clearance`；菜单为栏内
+  AppMenuBar。
+- 全屏时两个 clearance 归 0，由插件负责隐藏控件。
+
+拖拽区位于内容**下方**（`z-0`），内容层 `pointer-events-none`，只有交互分组
+`pointer-events-auto`，因此空白处可拖动、按钮可点击。双击缩放走
+`useMacTitlebarWindow`（macOS）。
 
 ### 2.2 元素
 
 | 元素 | 位置 | 交互 |
 |---|---|---|
-| **Workspace - Repository - branch** | **居中** | 只读上下文标题；` - ` 分隔三段；切换在侧栏 |
-| `⌘K` hint | 右 | 点击 → 打开 CommandPalette（v0.2 Sprint 6） |
-| Theme toggle | 右 | 点击循环：light → dark → system |
-| 溢出菜单 | 右 | SSH Keys |
+| App 菜单（File / Workspace / Repository / Branch） | 左 | Windows / Linux 栏内；macOS 为原生菜单 |
+| Workspace 下拉 | 左 | 切换工作区（恢复其 last active repo） |
+| 外部工具（文件管理器 / 终端 / 编辑器） | 左 | macOS 无菜单，空间充足；窄栏时文字折叠为图标 |
+| Local Changes / Stash / Fetch | 右 | 见 §6.1 |
+| Pull / Push | 右 | 带 ahead/behind 计数 |
+| 同步状态区 | 窗口居中 | Fetch / Pull / Push 进度与最近一次操作结果 |
 
-**Workspace 不在 Toolbar**——在侧栏 WORKSPACES 列表切换，见 §3.1。  
-**Sync 不在 Toolbar**——Fetch / Pull / Push 在侧栏 section 标题栏，见 §3.4。
+**Sync 不在侧栏标题栏**（与旧稿相反）：Fetch / Pull / Push 已收进标题栏右侧，
+ahead/behind 数字显示在 Pull / Push 按钮上。
 
-### 2.3 Branch 同步状态（侧栏 BRANCHES 标题栏）
+### 2.3 Branch 同步状态（标题栏 Pull / Push）
 
-ahead/behind 数字显示在 **BRANCHES section 标题栏** 的 Pull / Push 按钮旁，不在 Toolbar。
+ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上（`Pull ↓N` / `Push ↑N`）。
 
 格式：`Pull ↓N` / `Push ↑N`
 
@@ -75,12 +93,13 @@ ahead/behind 数字显示在 **BRANCHES section 标题栏** 的 Pull / Push 按�
 
 ### 2.5 Sync 全局进度条
 
-Fetch / Pull / Push 进行时，Toolbar **底边**显示 2px Tide 进度条（`SyncProgressBar`）：
+窗口居中状态区（`SyncStatusArea`）无卡片容器（透明、无边框、宽度贴合文字），
+纯文字融入标题栏背景；仅在有内容时底部显示 2px 状态线：
 
 - 有传输量时 determinate（`receivedObjects / totalObjects`）
 - 否则 indeterminate shimmer
-- 同步期间居中标题可临时显示 `Fetching from origin…` 等操作文案
-- 完成后 150ms fade-out
+- 同步期间状态区临时显示 `Fetching from origin…` 等操作文案（可取消）
+- 完成后 150ms fade-out；idle（仅显示分支名）不显示状态线
 
 ## 3. Sidebar
 
@@ -177,26 +196,26 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 无 commit（empty repo）：commit graph 显示空状态 + "Create your first commit" 按钮。
 
-## 6. Action Bar + Working Copy Modal（原 Working Copy Bar，已重构）
+## 6. ActionBar + Working Copy Modal（原 Working Copy Bar，已重构）
 
-> 2026-08 重构：底部常驻 WorkingCopyBar 移除，操作收敛到 ToolBar 下方的 ActionBar，
-> 变更操作通过 Local Changes 打开的 WorkingCopyModal 完成。
+> 2026-08 重构：底部常驻 WorkingCopyBar 移除，变更操作通过 Local Changes 打开的
+> WorkingCopyModal 完成。2026-09：ActionBar 不再独占一行，作为内容渲染在 §2 的
+> 自绘标题栏内（`TitleBar` 外壳 + `ActionBar` 内容/对话框）。
 
-### 6.1 ActionBar（TopBar 下方）
+### 6.1 ActionBar（标题栏右侧操作组）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│  LOCAL      WORKSPACE    REPOSITORY    BRANCH                                │
-│ [Changes] [⇱New][✎Rename][✦AI][⌫Del] [⩚Init][⤓Clone]… [⎇New][⇣][⇡]          │
+│ [Workspace▾] [📁][⌨][</>]  ······  [Changes(n)] [Stash] [Fetch] │ [Pull] [Push] │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- 四组操作水平居中；每组两行：第一行组头（居中大写），第二行操作按钮（图标在前、文字在后）
-- Local 组：Changes（打开 WorkingCopyModal）——干净时绿色 `Changes`，有变更时黄色 `Changes(n)`（n 为变更文件数）；无活动仓库时禁用
-- Workspace：New / Rename / AI Provider / Delete（作用于活动 workspace）
-- Repository：Init / Clone / Add Local / Fetch
-- Branch：New Branch（当前 tip）/ Pull（Fork 式对话框：Remote / Branch / Into + rebase + stash）/ Push
-- 背景：`bg-bg-primary`。fetch / pull / push 错误经条下方 ErrorAlert 呈现
+- 左起：Workspace 下拉（切换工作区），外部工具（文件管理器 / 终端 / 编辑器）
+- 右端：Local Changes（打开 WorkingCopyModal）——干净时绿色 `Changes`，有变更时黄色 `Changes(n)`（n 为变更文件数）；无活动仓库时禁用
+- Stash（保存贮藏）/ Fetch / Pull（Fork 式对话框：Remote / Branch / Into + rebase + stash）/ Push
+- Workspace 新建 / 重命名 / AI Provider / 删除、Repository Init / Clone / Add Local 等低频操作在 App 菜单（F 组）
+- 窄栏时外部工具文字折叠为图标（`@6xl` 容器查询）；同步状态区绝对居中于窗口
+- 背景：`bg-bg-primary`。fetch / pull / push 错误经标题栏下方 ErrorAlert 呈现
 
 ### 6.2 WorkingCopyModal
 
