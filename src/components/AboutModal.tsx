@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Github } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { formatAppError, getAppVersion, openDataDir } from "@/lib/api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { GithubIcon } from "@/components/ui/GithubIcon";
 
 const GITHUB_URL = "https://github.com/Yangshifu1024/GitWave";
 
@@ -69,7 +70,7 @@ export function AboutModal({ open, onOpenChange }: AboutModalProps): React.JSX.E
             {t("about.appData")}
           </Button>
           <Button variant="secondary" size="sm" onClick={() => void handleOpenRepo()}>
-            <Github size={14} />
+            <GithubIcon size={14} />
             {t("about.github")}
           </Button>
         </div>

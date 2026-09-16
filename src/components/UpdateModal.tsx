@@ -1,10 +1,10 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Github } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ProgressBar } from "@heroui/react";
 
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
+import { GithubIcon } from "@/components/ui/GithubIcon";
 import {
   useInstallUpdate,
   useOpenReleases,
@@ -138,7 +138,7 @@ export function UpdateModal(): React.JSX.Element {
 
         {newVersion ? (
           <Button variant="ghost" size="sm" className="self-start" onClick={handleOpenNotes}>
-            <Github size={14} />
+            <GithubIcon size={14} />
             {t("updater.viewReleaseNotes")}
           </Button>
         ) : null}
