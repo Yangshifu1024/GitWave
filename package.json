@@ -53,6 +53,7 @@
     "@playwright/test": "^1",
     "@tailwindcss/vite": "^4",
     "@tauri-apps/cli": "^2",
+    "@types/node": "^22",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^5.2.0",
@@ -61,7 +62,7 @@
     "globals": "^15",
     "prettier": "^3",
     "tailwindcss": "^4",
-    "typescript": "~5.8.3",
+    "typescript": "~6.0.3",
     "typescript-eslint": "^8",
     "vite": "^7.0.4",
     "vitest": "^2"
