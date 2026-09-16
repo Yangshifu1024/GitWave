@@ -6,13 +6,20 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
+     /* Bundler mode */
+     "moduleResolution": "bundler",
+     "allowImportingTsExtensions": true,
+     "resolveJsonModule": true,
+     "isolatedModules": true,
+     "noEmit": true,
+     "jsx": "react-jsx",
+
+     /* Node globals (node:fs / import.meta.dirname in the vitest suites).
+        TypeScript 6.0 stopped auto-including every @types/* package under
+        node_modules, so the ones the app relies on globally must be named
+        here. vite/client is referenced explicitly in src/vite-env.d.ts. */
+     "types": ["node"],
+
 
     /* Linting */
     "strict": true,
@@ -22,9 +29,8 @@
     "noUncheckedIndexedAccess": true,
 
     /* Path alias */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"],
