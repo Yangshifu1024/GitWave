@@ -1,7 +1,7 @@
 # GitWave · UI/UX 设计总览
 
 > 完整界面设计文档。配合 `01-tokens.md` / `02-components.md` / `03-layout.md` 一起阅读。
-> 状态：草案（IA 已与 PM 确认；token / 组件 / 布局待 review）。
+> 状态：已落地（对照 v0.8.7）。IA 与 3-pane 仍有效；组件栈见下方「库选择」修订。
 
 ## 目标
 
@@ -17,23 +17,26 @@
 | 主题 | **跟随系统 + 手动切换都要** | 系统默认跟随，留显式 toggle 给偏好用户 |
 | 配色 palette | **Native Blue（默认）+ Tide Studio 可选**，Settings 内切换 | 2026-08-27 与 PM 确认：默认贴近 macOS 原生观感；青绿签名 Tide 保留为选项。见 `06-color-palettes.md` |
 
-## 库选择（决策见 `docs/tech/decisions/0005-ui-library-stack.md`）
+## 库选择（决策见 `docs/tech/decisions/00-overview.md` ADR 0005）
+
+原选择是 Radix Primitives。2026-08-28 起 `src/components/ui/` 换成 **HeroUI v3**（见 `docs/tasks/feat-heroui-migration/plan.md`）。截至 v0.8.7：
 
 | 用途 | 库 | 理由 |
 |---|---|---|
-| Utility CSS | **Tailwind CSS v4** | 纯函数 CSS、token-driven；v4 CSS-first 配置无需 JS config |
-| 原子组件（headless）| **Radix UI Primitives** | 完整 a11y；不锁定样式；体积小（按需引入）|
-| 变体管理 | **class-variance-authority (cva)** + **tailwind-merge** | 标准 Tailwind 配套 |
-| 图标 | **Lucide React** | MIT、tree-shakeable、stroke 风格契合 macOS 风格 |
-| 语法高亮 | **Shiki** | VS Code TextMate 引擎，准确度高；预编译 token 一次性 |
-| 虚拟滚动 | **@tanstack/react-virtual** | 与现有 TanStack Query 生态一致；Sprint 3 history graph 需要 |
-| 动效 | **Framer Motion** | 体积略大但声明式 API 干净；v0.1 可选 |
+| Utility CSS | **Tailwind CSS v4** | 纯函数 CSS、token-driven；v4 CSS-first |
+| 交互组件 | **HeroUI v3**（React Aria） | 取代 Radix；wrapper 保持原 props |
+| 变体管理 | **cva** + **tailwind-merge** | Button / StatusBadge；其余走 HeroUI |
+| 图标 | **Lucide React** | MIT、tree-shakeable |
+| 语法高亮 | **Shiki**（依赖已入，**DiffViewer 未接线**） | 规划仍是 TextMate 引擎；当前 diff 为自绘 character-level |
+| 虚拟滚动 | **@tanstack/react-virtual** | history graph |
+| 动效 | HeroUI CSS | **未**引入 Framer Motion |
+| 3-pane / Split | 自研 | HeroUI 无 splitter |
 
 **不引入**：
 
 - shadcn/ui（copy-paste 模型与"headless + 自定义样式"目标冲突）
 - Material UI / Ant Design（视觉风格锁定 macOS feel）
-- Monaco / CodeMirror（diff viewer 选 Shiki + 自建 viewer，不引编辑器）
+- Monaco / CodeMirror（diff viewer 自建，不引编辑器）
 
 ## 视觉风格基调（原生桌面壳 + GitWave 身份）
 
@@ -84,6 +87,8 @@
 
 ## Primitive 清单
 
+> 下表是 2026-08-26 的待建清单。截至 v0.8.7 这些 primitive 都已在 `src/components/ui/`（HeroUI wrapper），Working Copy 相关也已落地。保留原表作历史对照。
+
 ### Core primitives
 
 | Primitive | 用途 | 状态 |
@@ -116,6 +121,8 @@
 
 ## 迁移路径
 
+> 历史排期（Sprint 3 设计落地）。Radix 阶段已完成并在后续被 HeroUI v3 替换。不是当前待办。
+
 | 阶段 | 内容 | 工作量估算 |
 |---|---|---|
 | **0** | 安装依赖 + Tailwind 配置 + 暗色跟随系统 | 0.5 天 |
@@ -135,7 +142,7 @@
 - `pre-commit run --all-files` 全过
 - 手动 pnpm tauri dev 跑通 + 3-pane 可拖拽 resize
 - 主题：跟随系统切换 + 手动 override 都生效
-- 所有 Primitive 通过 Radix 内置 a11y 测试（键盘 Tab 序、焦点环、aria-属性）
+- 交互组件走 HeroUI / React Aria 的键盘与 aria 行为（原计划写的是 Radix 内置 a11y）
 
 ## 关联
 
@@ -143,6 +150,6 @@
 - `02-components.md`：组件清单 + API（含 Working Copy primitives §3）
 - `03-layout.md`：3-pane 详细规格（含 Working Copy Bar 占位 §6）
 - `04-working-copy.md`：Working Copy Bar 完整规范（Sprint 4 实施依据）
-- `docs/tech/decisions/0005-ui-library-stack.md`：库选择 ADR
+- `docs/tech/decisions/00-overview.md` ADR 0005：库选择（含 HeroUI 修订）
 - `docs/pm/core/01-features.md` §1.10：平台与 UX 约束
 - `docs/tech/architecture/00-overview.md`：前端架构

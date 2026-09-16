@@ -51,7 +51,7 @@ v0.1 内实现 Workspace 的完整 CRUD + 单 Workspace 内 active repo 切换�
 
 ## 决策
 
-- **状态**：接受
+- **状态**：已合并
 - **决策人**：PM
 - **决策日期**：2026-08-26
 - **关联决策**：`docs/tech/decisions/0002`（Workspace 无 FS 实体）、`docs/tech/decisions/0004`（AI 双轨）

@@ -1,6 +1,7 @@
 # GitWave · 功能列表
 
 > 本文仅列出 GitWave 应具备的功能与明确不做的事。产品原则与 Workspace 概念作为内联说明融入对应功能小节。
+> 当前发布版本 **v0.8.7**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
 
 ## 1. 功能范围
 
@@ -14,7 +15,7 @@ clone / init / open · commit / amend / revert · branch / checkout / switch / c
 
 性能为入场券级要求（基线对标 Fork / Sublime Merge）：打开应用到首个可交互界面不可有可感知等待；仓库 history 图（含数万 commit）渲染必须流畅；大文件 diff 不卡 UI；后台 git 操作不阻塞用户主操作；视觉化渲染具备 lazy 策略。
 
-History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，syntax highlight）· blame / annotate · file tree · branch tree
+History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，character-level 高亮；Shiki 语法高亮已入依赖尚未接线）· blame / annotate · file tree（**未交付**）· branch tree
 
 ### 1.3 Advanced Git
 
@@ -45,8 +46,8 @@ RepoRef { id, path, nickname?, settingsOverride? }
 - Repo 移除 / 重新链接缺失 repo
 - Workspace 内切换 repo（侧边栏点击主视图，单 active）
 - 多 Workspace 同时打开，状态并行
-- Workspace-scoped 配置：AI provider / prompt 模板 / commit 规范 / 主题 / key binding profile
-- Per-repo 覆盖 Workspace 配置
+- Workspace-scoped 配置：AI provider / prompt 模板 / commit 规范 / 主题 / key binding profile（**schema 有字段，快捷键配置 UI 未交付**）
+- Per-repo 覆盖 Workspace 配置（**repos.settings_override 列存在，无 UI**）
 
 **用户旅程**：
 
@@ -59,7 +60,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 - ❌ 不做并排双 repo 视图
 - ❌ 不做 Workspace 嵌套 / 共享 / 同步
-- 🔍 待评估：Workspace 模板、导入导出、全局搜索、启动快捷键
+- 🔍 待评估：Workspace 模板、全局搜索、启动快捷键（导入 / 导出已交付）
 
 ### 1.5 AI 增强能力
 
@@ -68,7 +69,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 - AI commit message 生成：多 commit 累积理解
 - AI conflict 解释：语义级，非 diff 罗列
 - AI PR 描述
-- AI command palette（may-slip v0.2）：Cmd+K 自然语言驱动
+- AI command palette：Cmd+K / Ctrl+K 自然语言驱动（已随 v0.2 交付）
 - AI history 解释
 - AI repo health
 - AI 误操作恢复
@@ -79,7 +80,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 - BYOK：OpenAI / Anthropic / Gemini / DeepSeek / Qwen / Azure OpenAI / 自定义 endpoint
 - 本地：Ollama 一键检测 + LM Studio 兼容 endpoint
-- Prompt 模板管理（三套：commit / conflict / PR）
+- Prompt 模板管理（commit / conflict / PR / reflog / health；后两套随 v0.3 恢复与 health 接入）
 - Per-repo AI rules（从 `.gitwave/` 目录读取）
 - Provider 故障转移
 
@@ -97,7 +98,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 ### 1.9 Collaboration
 
-Remote 管理（GitHub / GitLab / Gitea / 自建）· PR / MR 创建 · Lightweight code review · Issue 链接
+Remote 管理（GitHub / GitLab / Gitea / 自建）— **已交付** · PR / MR 创建 · Lightweight code review · Issue 链接 — **未交付**（AI PR 描述只生成文本）
 
 ### 1.10 Platform & UX
 
@@ -107,8 +108,8 @@ Remote 管理（GitHub / GitLab / Gitea / 自建）· PR / MR 创建 · Lightwei
 - Windows
 - Linux
 - Theme：light / dark / follow system + CSS 变量覆盖
-- 快捷键全可配（支持 vim mode）
-- 本地化：中文 / English 双语
+- 快捷键全可配（支持 vim mode）— **未交付**
+- 本地化：中文 / English 双语 — **已交付**
 
 ---
 
@@ -131,4 +132,3 @@ Remote 管理（GitHub / GitLab / Gitea / 自建）· PR / MR 创建 · Lightwei
 - Issue 管理
 - 自托管 Git 服务
 - 移动端
-- Linux 稳定版（后续版本完成）

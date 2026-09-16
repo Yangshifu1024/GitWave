@@ -26,7 +26,7 @@ GitWave 已有 tag 触发的三平台 CI 与 draft release，但缺少面向用�
 
 ## 决策
 
-- 状态：接受
+- 状态：已合并
 - 决策人：用户（yangzhenbiao）
 - 决策日期：2026-08-30
 - 关联决策：分支 `feature/website`；执行计划见 `docs/tasks/feat-website/plan.md`

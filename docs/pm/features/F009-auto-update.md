@@ -29,7 +29,7 @@ GitWave 通过 GitHub Releases 分发（tag → CI 三平台构建 → draft rel
 
 ## 决策
 
-- 状态：接受
+- 状态：已合并
 - 决策人：用户（yangzhenbiao）
 - 决策日期：2026-08-30
 - 关联决策：分支 `feature/f009-auto-update`；执行计划见 `docs/tasks/feat-auto-update/plan.md`；deb/rpm 走降级提示（用户确认），apt/rpm 仓库与强制更新明确不做

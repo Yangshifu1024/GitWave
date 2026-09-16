@@ -1,6 +1,7 @@
 # GitWave · 工程约定
 
 > 工程实践与质量门禁。Git 工作流与分支 / Commit / PR 规则见 `AGENTS.md`，本目录仅补充工程层面未覆盖的内容。
+> CI / 测试 / 发布描述对照 **v0.8.7** 的 `.github/workflows/` 与仓库现状。
 
 ## 代码风格
 
@@ -15,15 +16,16 @@
 
 ## 测试策略（测试金字塔）
 
-| 层 | 范围 | 工具 |
-|---|---|---|
-| **单元** | domain / application / 纯函数 | `cargo test`（Rust）、Vitest（TS） |
-| **集成** | infrastructure 适配（libgit2、SQLite、Keychain、HTTP） | 真实依赖 + fixture |
-| **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | Playwright + tauri-driver |
+| 层 | 范围 | 工具 | 现状（v0.8.7） |
+|---|---|---|---|
+| **单元** | domain / application / 前端纯函数与 store | `cargo test`、Vitest | 已落地 |
+| **集成** | infrastructure 适配（libgit2、SQLite、HTTP、代理、凭证） | 真实依赖 + 临时 fixture，走同一套 `cargo test --all-targets` | 已落地 |
+| **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | Playwright + tauri-driver | **未落地**。`@playwright/test` 在 package.json，`pnpm test:e2e` 无 config / spec |
+| **组件** | React 组件 / hook | React Testing Library | **未引入** |
 
 - 关键算法（diff、3-way merge、scrubber、credential callback）必须有专项单测
-- AI stream 必须有 mock provider 测试，覆盖中断、错误、流式边界
-- v0.1 完成定义（见 `docs/pm/core/02-scope.md` §2.1）：三个核心场景端到端 + 主要场景无崩溃
+- AI provider 有 mock / 错误映射测试；当前请求是非流式 `stream: false`，没有 SSE 中断用例
+- 产品完成定义见 `docs/pm/core/02-scope.md` §3；E2E 自动化仍是缺口，不把「文档里写了 Playwright」当成已有测试
 
 ## 错误处理与日志
 
@@ -42,28 +44,35 @@
 
 ### 日志
 
-- **Rust**：`tracing` + 结构化字段（JSON）；本地文件 rotation，默认 7 天，30 天可调
-- **前端**：console + 可选 Sentry（v0.2+ 评估；**不采集 PII / 凭证 / 用户代码**）
-- **崩溃**：仅上传堆栈 + 版本号 + 平台，不上传用户路径与仓库内容
-- **PII 过滤**：所有日志输出前过 scrubber，与 AI 共享同一套规则
+- **Rust**：`tracing` + 结构化字段；日志写在 `dirs::data_dir()/GitWave/logs/`
+- **前端**：console。**未接入 Sentry**（曾列为 v0.2 评估，未做）
+- **崩溃**：无自动上报。不上传用户路径与仓库内容
+- **PII 过滤**：AI prompt 与部分错误日志过 scrubber；不是每一条 tracing 事件都经过同一套规则
 
 ## CI/CD
 
 ### CI（GitHub Actions）
 
-| Job | Runner | 校验内容 |
+工作流在 `.github/workflows/`。push/PR 到 `main` 时 `docs/**` 与 `*.md` 被 paths-ignore，**纯文档变更不跑 lint/test**。
+
+| Workflow / Job | Runner | 校验内容 |
 |---|---|---|
-| `lint` | ubuntu-latest | rustfmt + clippy + ESLint + Prettier + commitlint |
-| `test-unit` | macOS + linux | cargo test + vitest |
-| `test-integration` | macOS + linux | 真实 libgit2 / SQLite / Keychain / HTTP fixture |
-| `build` | macOS + windows + linux | tauri build 产出 .app / .exe / .AppImage |
+| `lint.yml` · `rust-lint` | macOS + Ubuntu + Windows | rustfmt + clippy `-D warnings` |
+| `lint.yml` · `frontend-lint` | 同上 | Prettier + ESLint + `tsc --noEmit` |
+| `test.yml` · `rust-test` | 同上 | `cargo test --all-targets` + git2 `https` feature 断言 |
+| `test.yml` · `frontend-test` | 同上 | Vitest |
+| `build.yml` | tag（`**`） | 见 Release |
+| `pages.yml` | 官网 | 部署 `site/` 到 GitHub Pages |
 
-### Release（v0.2 起）
+commitlint 只在本地 `pre-commit` 的 commit-msg hook，**不在 CI**。
 
-- tag 触发；CHANGELOG 由 release-please 或 git-cliff 自动生成
-- 自动产出：`.dmg`（含 notarization）/ `.exe` / `.AppImage`
-- **签名**：macOS Developer ID；Windows code signing（视证书可用情况）
-- v0.1 期间：CI 跑 lint + test，release 手动产出
+### Release
+
+- **触发**：推送任意 tag → `build.yml`
+- **产物**：macOS aarch64 `.dmg`（Developer ID 签名 + 公证，CI 再 staple）；Windows NSIS；Linux deb / rpm / AppImage
+- **发布**：先建 **draft** GitHub Release，说明来自 `git log`（不是 release-please / git-cliff）；人审后 publish。publish 同时发出 `latest.json` 给应用内更新
+- **更新**：macOS / Windows / AppImage 可应用内下载安装；deb/rpm 只提示打开 Releases 页
+- **签名密钥**：`TAURI_SIGNING_PRIVATE_KEY`；macOS 另需 `APPLE_*`
 
 ## 仓库目录约定
 

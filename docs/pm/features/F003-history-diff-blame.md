@@ -90,7 +90,7 @@ v0.1 必须包含 §`docs/pm/core/02-scope.md` 1.1 的 5 / 7 两项 must-have：
 
 ## 决策
 
-- **状态**：接受
+- **状态**：已合并
 - **决策人**：PM
 - **决策日期**：2026-08-26
 - **关联决策**：`docs/tech/architecture/00-overview.md`（分层 + 性能预算）；`docs/tech/tech-selection/00-overview.md`（libgit2 全量 + 钩子不自动跑）

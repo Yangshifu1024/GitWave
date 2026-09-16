@@ -43,10 +43,10 @@ docs/tech/
 |---|---|---|
 | tech-selection | [tech-selection/00-overview.md](./tech-selection/00-overview.md) | 桌面框架 / 前端栈 / Git 后端 / 存储 / AI 集成的选型与理由 |
 | architecture | [architecture/00-overview.md](./architecture/00-overview.md) | 进程拓扑、DDD 分层、IPC 边界、性能热点、多 Workspace 并行 |
-| decisions | [decisions/00-overview.md](./decisions/00-overview.md) | ADR 汇总（框架 / Workspace / 凭证 / AI 双轨） |
+| decisions | [decisions/00-overview.md](./decisions/00-overview.md) | ADR 汇总（框架 / Workspace / 凭证 / AI 双轨 / HeroUI / i18n） |
 | engineering | [engineering/00-overview.md](./engineering/00-overview.md) | 代码风格 / 测试策略 / 错误与日志 / CI/CD / 安全 |
-| planning | [planning/roadmap-v0.2.md](./planning/roadmap-v0.2.md) | v0.2 开发计划：里程碑 M0–M3、依赖、验收、风险 |
-| planning | [planning/roadmap-v0.3.md](./planning/roadmap-v0.3.md) | v0.3 开发计划：里程碑 M0–M4、依赖、验收、风险 |
+| planning | [planning/roadmap-v0.2.md](./planning/roadmap-v0.2.md) | v0.2 开发计划（**已执行**；文内「现状」是开工前快照） |
+| planning | [planning/roadmap-v0.3.md](./planning/roadmap-v0.3.md) | v0.3 开发计划（**已执行**；PR/MR 按决策未做） |
 
 ## 关联
 

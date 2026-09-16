@@ -10,7 +10,7 @@
 | 0002 | Workspace 抽象：无 FS 实体 | 已采纳 |
 | 0003 | 凭证策略：混合（Keychain + git helper） | 已采纳 |
 | 0004 | AI 双轨：写 = 确定性，建议 = AI | 已采纳 |
-| 0005 | 前端 UI 库栈：Tailwind v4 + Radix + Lucide + Shiki | 已采纳 |
+| 0005 | 前端 UI 库栈：Tailwind v4 + HeroUI v3 + Lucide（原 Radix，见修订） | 已采纳 |
 | 0006 | i18n 架构：react-i18next + 错误 key 化 | 已采纳 |
 
 ---
@@ -156,7 +156,7 @@ Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 
 
 ### 决策
 
-采用**库组合 C**：
+采用**库组合 C**（Sprint 3 当时的选择）：
 
 | 用途 | 库 |
 |---|---|
@@ -170,11 +170,27 @@ Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 
 
 **总开销**（除 Shiki 外）：约 50KB gzip。Shiki 在 Sprint 3 才引入。
 
+### 修订（2026-08-28 · HeroUI v3）
+
+`docs/tasks/feat-heroui-migration/plan.md` 把 `src/components/ui/` 的通用原语从 Radix 换成 **HeroUI v3**（底层 React Aria Components）。对外文件名 / 导出 / props 保持兼容。截至 v0.8.7 的实际栈：
+
+| 用途 | 库 | 备注 |
+|---|---|---|
+| Utility CSS | Tailwind CSS v4 | 未变 |
+| 交互组件 | **HeroUI v3**（`@heroui/react` + `@heroui/styles`） | 取代 Radix |
+| 变体管理 | cva + tailwind-merge | Button / StatusBadge 仍用；其余走 HeroUI |
+| 图标 | Lucide React | 未变（v0.8.7 升到 lucide 1.x） |
+| 语法高亮 | Shiki | **依赖已入，DiffViewer 尚未接线**；当前是自绘 character-level 高亮 |
+| 虚拟滚动 | @tanstack/react-virtual | 未变 |
+| 动效 | （无 Framer Motion） | 未引入；动效走 HeroUI CSS |
+
+3-pane 布局壳（`ThreePaneLayout` / `Split`）仍是自研，HeroUI 无 splitter。
+
 ### 后果
 
-- **正面**：a11y 完整；主题切换干净；变体管理标准化；Sprint 3 引入 Shiki / react-virtual 风险低
-- **负面**：学习成本（Radix API + cva 模式）；自定义样式需熟悉 Tailwind v4 CSS-first
-- **风险**：Tailwind v4 较新，生态适配可能滞后；Radix 各 Primitives 独立发布，需手动同步版本。缓解：固定 package.json 版本范围，季度升级
+- **正面**：a11y 由 React Aria 承担；主题走 token + HeroUI；3-pane 几何未锁进组件库
+- **负面**：HeroUI v3 API 与 Radix 不同，wrapper 层要维持旧 props；无官方 ContextMenu，用 Popover + Menu 复刻
+- **风险**：HeroUI 大版本；缓解：锁 package.json 版本，升级单独任务
 
 ### 关联
 
@@ -182,6 +198,7 @@ Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 
 - `docs/design/01-tokens.md`：tokens
 - `docs/design/02-components.md`：组件 API
 - `docs/design/03-layout.md`：3-pane 布局
+- `docs/tasks/feat-heroui-migration/plan.md`：迁移方案
 
 ---
 
@@ -213,7 +230,7 @@ Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 
 ### 后果
 
 - **正面**：两语言即时切换零重启；错误翻译与 UI 同源同步切换；AI 语言零存储 schema 变更；parity 测试防 key 漂移
-- **负面**：228 处错误构造点一次性机械改造；AI 命令签名变化（specta 类型再生成）；新增文案需双 locale 同步维护
+- **负面**：228 处错误构造点一次性机械改造；AI 命令签名变化（`src/lib/api.ts` 手工类型需同步）；新增文案需双 locale 同步维护
 - **风险**：翻译质量（中文第一优先，术语以 PM 文档为准）；key 命名约定在 `docs/tasks/feat-i18n/plan.md` 固化
 
 ### 关联
