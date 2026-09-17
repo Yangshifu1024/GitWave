@@ -21,11 +21,12 @@ import {
   FolderOpen,
   SquareCode,
   SquareTerminal,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
-  addLocalRepo,
+  addLocalRepos,
   addWorktree,
   cloneRepo,
   createBranch,
@@ -52,6 +53,7 @@ import {
   type InlineAuth,
 } from "@/lib/api";
 import { remoteHost } from "@/lib/authRetry";
+import { mergeUniquePaths } from "@/lib/paths";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -305,6 +307,9 @@ export function ActionBar(): React.JSX.Element {
   const [cloneProgress, setCloneProgress] = useState<CloneProgress | null>(null);
   const [cloneFailed, setCloneFailed] = useState(false);
   const [localPath, setLocalPath] = useState("");
+  // Staged paths for the batch add — the input above feeds this list (browse
+  // multi-selection or Enter), and the primary action submits it.
+  const [localPaths, setLocalPaths] = useState<string[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [stashOpen, setStashOpen] = useState(false);
   const [stashMessage, setStashMessage] = useState("");
@@ -341,6 +346,8 @@ export function ActionBar(): React.JSX.Element {
     setActionError(null);
     setCloneProgress(null);
     setCloneFailed(false);
+    setLocalPath("");
+    setLocalPaths([]);
   }
 
   useEffect(() => {
@@ -414,13 +421,39 @@ export function ActionBar(): React.JSX.Element {
     },
   });
 
+  // Paths the primary action will submit: the staged list plus whatever is
+  // still typed in the input, trimmed and de-duplicated.
+  const localAddPayload = mergeUniquePaths(localPaths, [localPath]);
+
   const localMut = useMutation({
-    mutationFn: ({ path }: { path: string }) => addLocalRepo(activeWorkspaceId!, path),
-    onSuccess: (repo) => {
+    mutationFn: ({ paths }: { paths: string[] }) => addLocalRepos(activeWorkspaceId!, paths),
+    onSuccess: (summary) => {
+      const lastAdded = summary.added[summary.added.length - 1];
+      const firstFailure = summary.failed[0];
+      if (!lastAdded) {
+        // Nothing landed — keep the form open so the user can adjust.
+        setActionError(
+          firstFailure
+            ? t("commits.repo.addAllFailed", {
+                error: formatAppError(firstFailure.error),
+              })
+            : t("commits.repo.addAllSkipped", { count: summary.skipped.length }),
+        );
+        return;
+      }
       refreshRepos();
-      setLocalPath("");
       endAdd();
-      void activateRepo(repo.id);
+      void activateRepo(lastAdded.id);
+      if (summary.skipped.length > 0 || summary.failed.length > 0) {
+        setStatus(
+          t("status.repoAddedPartial", {
+            added: summary.added.length,
+            skipped: summary.skipped.length,
+            failed: summary.failed.length,
+          }),
+          "info",
+        );
+      }
     },
     onError: (e: unknown) => setActionError(formatAppError(e)),
   });
@@ -1238,10 +1271,10 @@ export function ActionBar(): React.JSX.Element {
                 variant="primary"
                 size="sm"
                 className="min-w-0 flex-[7]"
-                onClick={() => localMut.mutate({ path: localPath.trim() })}
-                disabled={!localPath.trim() || localMut.isPending}
+                onClick={() => localMut.mutate({ paths: localAddPayload })}
+                disabled={localAddPayload.length === 0 || localMut.isPending}
               >
-                {t("commits.action.add")}
+                {t("commits.action.addRepositories", { count: localAddPayload.length })}
               </Button>
             </>
           }
@@ -1254,15 +1287,53 @@ export function ActionBar(): React.JSX.Element {
               id="add-local-path"
               autoFocus
               directory
+              multiple
               value={localPath}
               onChange={setLocalPath}
+              onPickMany={(paths) => setLocalPaths((prev) => mergeUniquePaths(prev, paths))}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && localPath.trim())
-                  localMut.mutate({ path: localPath.trim() });
+                if (e.key === "Enter" && localPath.trim()) {
+                  setLocalPaths((prev) => mergeUniquePaths(prev, [localPath]));
+                  setLocalPath("");
+                }
               }}
               placeholder="/Users/me/projects/existing"
               error={actionError}
             />
+            {localPaths.length > 0 ? (
+              <>
+                <p className="pt-1 text-xs text-text-muted">
+                  {t("commits.repo.addLocalSelected", { count: localPaths.length })}
+                </p>
+                <ul className="flex max-h-40 flex-col gap-1 overflow-auto">
+                  {localPaths.map((path) => (
+                    <li
+                      key={path}
+                      className="flex items-center gap-2 rounded-md bg-bg-secondary px-2 py-1"
+                    >
+                      <span
+                        className="min-w-0 flex-1 truncate text-xs text-text-secondary"
+                        title={path}
+                      >
+                        {path}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={t("common.remove")}
+                        onClick={() =>
+                          setLocalPaths((prev) => prev.filter((item) => item !== path))
+                        }
+                        className="flex size-5 shrink-0 items-center justify-center rounded text-text-muted transition-colors hover:bg-bg-primary hover:text-text-primary"
+                      >
+                        <X size={12} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="text-xs text-text-muted">{t("commits.repo.addLocalEmptyHint")}</p>
+            )}
           </div>
         </Modal>
       )}

@@ -2,7 +2,7 @@
 //!
 //! See `docs/tasks/feat-history-graph/plan.md` steps 6-10.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -18,7 +18,8 @@ use crate::domain::lfs::LfsStatus;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
-    RepoRef, RepoStatus, Workspace, WorkspaceFetchSummary, WorkspaceSettings, WorkspaceSummary,
+    AddRepoFailure, AddReposSummary, RepoRef, RepoStatus, Workspace, WorkspaceFetchSummary,
+    WorkspaceSettings, WorkspaceSummary,
 };
 use crate::domain::worktree::WorktreeInfo;
 use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
@@ -486,6 +487,78 @@ pub fn add_local_repo(ctx: &AppContext, workspace_id: String, path: String) -> R
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .add_repo(&repo)?;
     Ok(repo)
+}
+
+/// Canonical form used for batch-add duplicate detection: the resolved path
+/// when it exists (Windows lowercased, since its filesystem is
+/// case-insensitive), otherwise the raw string.
+fn normalize_repo_path(path: &str) -> String {
+    let resolved = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
+    let text = resolved.to_string_lossy().to_string();
+    #[cfg(windows)]
+    let text = text.to_lowercase();
+    text
+}
+
+/// Add several local repos to a workspace at once, best-effort. Each path is
+/// validated and inserted independently: duplicates (already in the workspace
+/// or repeated within `paths`) are skipped, invalid paths are reported, and
+/// every valid one is added in iteration order. A single bad path never fails
+/// the batch.
+pub fn add_local_repos(
+    ctx: &AppContext,
+    workspace_id: &str,
+    paths: Vec<String>,
+) -> Result<AddReposSummary> {
+    let mut seen: HashSet<String> = ctx
+        .workspaces
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .list_repos(workspace_id)?
+        .iter()
+        .map(|r| normalize_repo_path(&r.path))
+        .collect();
+
+    let mut summary = AddReposSummary::default();
+    for path in paths {
+        let normalized = normalize_repo_path(&path);
+        if seen.contains(&normalized) {
+            summary.skipped.push(path);
+            continue;
+        }
+        if let Err(e) = crate::infrastructure::git::git2_adapter::open_local(&PathBuf::from(&path))
+        {
+            summary.failed.push(AddRepoFailure { path, error: e });
+            continue;
+        }
+
+        let repo = RepoRef {
+            id: new_repo_id(),
+            workspace_id: workspace_id.to_string(),
+            path,
+            nickname: None,
+            settings_override: None,
+            status: RepoStatus::Active,
+            missing_since: None,
+            added_at: now_unix(),
+        };
+        match ctx
+            .workspaces
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .add_repo(&repo)
+        {
+            Ok(()) => {
+                seen.insert(normalized);
+                summary.added.push(repo);
+            }
+            Err(e) => summary.failed.push(AddRepoFailure {
+                path: repo.path,
+                error: e,
+            }),
+        }
+    }
+    Ok(summary)
 }
 
 pub fn remove_repo(ctx: &AppContext, workspace_id: String, repo_id: String) -> Result<()> {
@@ -3448,6 +3521,115 @@ mod tests {
         assert_eq!(list[0].status, RepoStatus::Active);
 
         fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn add_local_repos_adds_all_in_order() {
+        let (a_path, _a) = build_linear_repo(1);
+        let (b_path, _b) = build_linear_repo(1);
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+
+        let summary = add_local_repos(
+            &ctx,
+            &ws.id,
+            vec![
+                a_path.to_string_lossy().to_string(),
+                b_path.to_string_lossy().to_string(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(summary.added.len(), 2);
+        assert!(summary.skipped.is_empty());
+        assert!(summary.failed.is_empty());
+
+        let listed: Vec<String> = list_repos(&ctx, ws.id.clone())
+            .unwrap()
+            .iter()
+            .map(|r| r.path.clone())
+            .collect();
+        assert_eq!(
+            listed,
+            vec![
+                a_path.to_string_lossy().to_string(),
+                b_path.to_string_lossy().to_string(),
+            ],
+            "tabs must follow selection order"
+        );
+
+        let _ = fs::remove_dir_all(&a_path);
+        let _ = fs::remove_dir_all(&b_path);
+    }
+
+    #[test]
+    fn add_local_repos_skips_existing_and_batch_duplicates() {
+        let (existing_path, _existing) = build_linear_repo(1);
+        let (new_path, _new) = build_linear_repo(1);
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        add_local_repo(
+            &ctx,
+            ws.id.clone(),
+            existing_path.to_string_lossy().to_string(),
+        )
+        .expect("seed repo");
+
+        let existing = existing_path.to_string_lossy().to_string();
+        let new = new_path.to_string_lossy().to_string();
+        let summary = add_local_repos(
+            &ctx,
+            &ws.id,
+            vec![existing.clone(), new.clone(), new.clone()],
+        )
+        .unwrap();
+
+        assert_eq!(summary.added.len(), 1);
+        assert_eq!(summary.added[0].path, new);
+        assert_eq!(summary.skipped, vec![existing, new]);
+        assert!(summary.failed.is_empty());
+        assert_eq!(list_repos(&ctx, ws.id.clone()).unwrap().len(), 2);
+
+        let _ = fs::remove_dir_all(&existing_path);
+        let _ = fs::remove_dir_all(&new_path);
+    }
+
+    #[test]
+    fn add_local_repos_reports_invalid_without_aborting() {
+        let (a_path, _a) = build_linear_repo(1);
+        let (b_path, _b) = build_linear_repo(1);
+        let bad_path =
+            std::env::temp_dir().join(format!("gitwave-uc-bad-add-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&bad_path);
+        fs::create_dir_all(&bad_path).unwrap();
+
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        let bad = bad_path.to_string_lossy().to_string();
+        let summary = add_local_repos(
+            &ctx,
+            &ws.id,
+            vec![
+                a_path.to_string_lossy().to_string(),
+                bad.clone(),
+                b_path.to_string_lossy().to_string(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            summary.added.len(),
+            2,
+            "valid paths on both sides must be added"
+        );
+        assert_eq!(summary.failed.len(), 1);
+        assert_eq!(summary.failed[0].path, bad);
+        assert_eq!(summary.failed[0].error.category(), "Protocol");
+        assert!(summary.skipped.is_empty());
+        assert_eq!(list_repos(&ctx, ws.id.clone()).unwrap().len(), 2);
+
+        let _ = fs::remove_dir_all(&a_path);
+        let _ = fs::remove_dir_all(&b_path);
+        let _ = fs::remove_dir_all(&bad_path);
     }
 
     #[test]

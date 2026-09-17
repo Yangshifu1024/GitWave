@@ -6,6 +6,7 @@
       "save": "保存",
       "delete": "删除",
       "add": "添加",
+      "addRepositories": "添加 {{count}} 个仓库",
       "close": "关闭",
       "retry": "重试",
       "clone": "克隆",
@@ -141,7 +142,11 @@
       "urlLabel": "URL",
       "destinationPath": "目标路径",
       "addLocalTitle": "添加现有本地仓库",
-      "addLocalDescription": "将现有的 Git 工作树注册到此工作区。",
+      "addLocalDescription": "将一个或多个现有 Git 工作树注册到此工作区。",
+      "addLocalSelected": "已选（{{count}}）",
+      "addLocalEmptyHint": "选择一个或多个文件夹，或输入路径后按 Enter。",
+      "addAllSkipped": "所选的 {{count}} 个仓库都已在当前工作区中。",
+      "addAllFailed": "未能添加任何仓库——{{error}}",
       "location": "位置"
     },
     "workspace": {

@@ -17,7 +17,7 @@ pub type ErrorCode = &'static str;
 /// side). The English `message` keeps the same values inline as fallback.
 pub type ErrorParams = Vec<(&'static str, String)>;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum AppError {
     #[error("network error: {message}")]
     Network {

@@ -5,6 +5,7 @@
     "checkedOut": "已检出 {{name}}",
     "createdTag": "已创建 tag {{name}}",
     "changesStashed": "改动已贮藏",
+    "repoAddedPartial": "已添加 {{added}} 个仓库 · 跳过 {{skipped}} · 失败 {{failed}}",
     "sync": {
       "fetch": "获取",
       "pull": "拉取",

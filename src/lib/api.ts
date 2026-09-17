@@ -443,6 +443,24 @@ export function addLocalRepo(workspaceId: string, path: string): Promise<RepoRef
   return invoke<RepoRef>("cmd_add_local_repo", { workspaceId, path });
 }
 
+/** One path in a batch add that is not a usable git repository. */
+export interface AddRepoFailure {
+  path: string;
+  error: AppError;
+}
+
+/** Best-effort result of a batch add: `skipped` lists paths already in the
+ *  workspace (or repeated in the request); `failed` lists invalid paths. */
+export interface AddReposSummary {
+  added: RepoRef[];
+  skipped: string[];
+  failed: AddRepoFailure[];
+}
+
+export function addLocalRepos(workspaceId: string, paths: string[]): Promise<AddReposSummary> {
+  return invoke<AddReposSummary>("cmd_add_local_repos", { workspaceId, paths });
+}
+
 export function removeRepo(workspaceId: string, repoId: string): Promise<void> {
   return invoke<void>("cmd_remove_repo", { workspaceId, repoId });
 }

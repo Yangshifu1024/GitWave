@@ -581,6 +581,17 @@ fn cmd_add_local_repo(
     add_local_repo(&ctx, workspace_id, path)
 }
 
+/// Add several local repos at once, best-effort (see `add_local_repos`).
+#[tauri::command]
+fn cmd_add_local_repos(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<domain::workspace::AddReposSummary, AppError> {
+    use application::use_cases::add_local_repos;
+    add_local_repos(&ctx, &workspace_id, paths)
+}
+
 #[tauri::command]
 fn cmd_remove_repo(
     ctx: tauri::State<'_, AppContext>,
@@ -1947,6 +1958,7 @@ pub fn run() {
             cmd_init_repo,
             cmd_clone_repo,
             cmd_add_local_repo,
+            cmd_add_local_repos,
             cmd_remove_repo,
             cmd_relink_repo,
             cmd_list_repos,
