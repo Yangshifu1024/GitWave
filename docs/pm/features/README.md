@@ -71,6 +71,7 @@
 | [F014](./F014-open-external-tools.md) | ActionBar 外部打开按钮（文件管理器 / 终端） | 已合并 | v0.7.12 |
 | [F015](./F015-open-in-editor.md) | ActionBar 编辑器按钮（VS Code / Zed / VSCodium） | 已合并 | v0.7.x |
 | [F016](./F016-image-diff.md) | DiffView 图片 diff（左右分栏对比） | 已合并 | v0.7.x |
+| [F017](./F017-repo-tab-wheel-scroll.md) | Repository Tab 溢出时滚轮横向滚动 + 激活 tab 入视野 | 已合并 | v0.9.x |
 
 ## 相关文档
 
