@@ -28,7 +28,7 @@
 
 ## 决策
 
-- 状态：接受
+- 状态：已合并
 - 决策人：用户（yangzhenbiao）
 - 决策日期：2026-08-29
 - 关联决策：范围确认为「仅迁移现有菜单」，不追加 Edit / Window / Help 标准 macOS 菜单；分支 `feature/macos-native-menu`；关联 [F005](./F005-repo-tab-drag-reorder.md) 同类平台适配经验

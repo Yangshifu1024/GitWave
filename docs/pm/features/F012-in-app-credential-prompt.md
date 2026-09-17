@@ -1,6 +1,6 @@
 # F012 · 应用内凭证恢复（认证失败自动弹窗）
 
-> 状态：已实现（并入 fix/push-tag-non-ff 分支；触发面扩全见
+> 状态：已合并（并入 fix/push-tag-non-ff 分支；触发面扩全见
 > docs/tasks/fix-credential-dialog-convergence/）
 > 关联任务：docs/tasks/fix-push-tag-non-ff/plan.md、
 > docs/tasks/fix-credential-dialog-convergence/plan.md

@@ -1,8 +1,9 @@
 # GitWave · Component Inventory
 
-> Primitive + composite 组件清单。所有组件位于 `web/src/components/` 或 `web/src/components/ui/`。
+> Primitive + composite 组件清单。实现位于 `src/components/` 与 `src/components/ui/`。
+> 下文「底层：Radix …」是 2026-08 设计稿。截至 v0.8.7，通用 primitive 的实现是 **HeroUI v3 wrapper**（见 ADR 0005 修订）；API 意图（variant / size / 几何）仍以本文件为准。
 
-## 1. Primitive（自建 + Radix 包壳）
+## 1. Primitive（HeroUI wrapper；设计稿曾写 Radix 包壳）
 
 ### 1.1 Button
 

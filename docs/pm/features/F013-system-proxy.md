@@ -37,7 +37,7 @@ GitWave 的所有网络能力——AI 请求（commit message / PR 描述 / comm
 
 ## 决策
 
-- 状态：接受
+- 状态：已合并
 - 决策人：杨师傅
 - 决策日期：2026-09-02
 - 关联决策：F009（更新检查路径同样纳入代理覆盖）；[docs/tech/engineering/00-overview.md](../../tech/engineering/00-overview.md) 错误文案约定「网络不可达，检查代理 / VPN」

@@ -1,6 +1,6 @@
 # GitWave · 系统架构
 
-> 与 `docs/tech/tech-selection/` 配套的总体架构视图。
+> 与 `docs/tech/tech-selection/` 配套的总体架构视图。对照 **v0.8.7** 代码，不是早期规划草案。
 
 ## 进程拓扑
 
@@ -32,7 +32,7 @@
 | 层 | 职责 | 例子 |
 |---|---|---|
 | **presentation** | WebView 渲染 + UI 状态 | React components, hooks, stores |
-| **application** | 用例编排、事务边界 | `CloneRepoUseCase`, `SwitchWorkspaceUseCase`, `GenerateCommitMessageUseCase` |
+| **application** | 用例编排、事务边界 | `use_cases.rs` 中的自由函数（`clone_repo`、`generate_commit_message`、…），不是每用例一个 struct |
 | **domain** | 核心模型与不变量 | `Workspace`, `RepoRef`, `CommitMessage`, `RebaseAction` |
 | **infrastructure** | 外部能力适配 | `Git2RepoAdapter`, `SqliteWorkspaceStore`, `KeychainSecretStore`, `HttpAiProvider` |
 
@@ -40,58 +40,59 @@
 
 ## IPC 边界
 
-- **Command**（request / response）：typed Rust function + typed params + typed result；用于一次性动作（如 clone、commit、switch workspace）
-- **Event**（push）：后端 → 前端的流式 / 状态变更通知（如 clone 进度、git 操作状态、AI stream chunk）
-- **序列化**：默认 JSON；未来若遇性能瓶颈可升级到 MessagePack / bincode
-- **类型生成**：`tauri-specta` 自动生成 TS 端类型，前端可直接调用
+- **Command**（request / response）：`src-tauri/src/lib.rs` 里的 `#[tauri::command]` 薄封装，转发到 `application::use_cases`；用于一次性动作（clone、commit、switch workspace、AI 生成等）
+- **Event**（push）：后端 → 前端的进度 / 凭证存储结果等（如 sync-progress）。**AI 生成不是 event 流**
+- **序列化**：JSON
+- **类型**：前端 `src/lib/api.ts` **手工**镜像 Rust 结构与命令名。未使用 tauri-specta；新增命令必须同时改 Rust 与 `api.ts`
 
 ## 性能热点处理
 
-| 热点 | 策略 |
-|---|---|
-| history DAG（数万 commit） | virtual scroll + 视口窗口分片渲染；后端按需取 |
-| 大文件 diff | 后端分块返回 + 前端 lazy 渲染；长行截断 + 折叠 |
-| syntax highlight | 按需加载对应 grammar；diff 关闭时释放 worker |
-| 后台 git 操作 | tokio task + 取消令牌；UI 主线程不等待；进度事件推送 |
-| AI stream | SSE → Tauri event → 前端流式渲染；背压由 IPC 缓冲 |
+| 热点 | 策略 | 现状 |
+|---|---|---|
+| history DAG（数万 commit） | `@tanstack/react-virtual` 虚拟滚动；后端 `commit_log` 按需取 | 已落地 |
+| 大文件 diff | 超大文件走占位、不把数十 MB 灌进 IPC；前端按文件折叠 | 无 hunk 级 Tauri event 流 |
+| syntax highlight | Shiki 按需 grammar | **未接线**；DiffViewer 自绘 character-level 高亮 |
+| 后台 git 操作 | tokio + 超时 / 取消；进度进状态区 | 已落地 |
+| 仓库变化感知 | 无 FS watcher | **60s 轮询**（`useAutoRefresh`）+ 手动刷新（Cmd+R） |
+| AI 生成 | 单次 HTTP，`stream: false`，command 返回全文 | 非 SSE |
 
 ## 多 Workspace 并行
 
 - **单一 SQLite** + `workspace_id` 列区分数据
-- **切换语义**：保存当前 React state snapshot + 重新加载 lastActiveRepo；切换过程不阻塞 UI（增量渲染）
-- **单 active repo 模型**：UI 全局只渲染一个 repo 的主视图；侧边栏多 Workspace 平行排列
-- **数据隔离**：每个 repo 的 per-repo 配置、AI 缓存、settings override 都以 `repo_id` 隔离
+- **切换语义**：Zustand 记下 lastActiveRepo，切 Workspace 后重新拉该 Workspace 的 repo 列表与 lastActiveRepo；无独立 git watcher 可卸
+- **单 active repo 模型**：UI 全局只渲染一个 repo 的主视图
+- **数据隔离**：Workspace settings 在 `workspaces.settings_json`。`repos.settings_override_json` 列存在，写入恒为 `None`，无 per-repo 覆盖 UI。AI rules 读各仓 `.gitwave/AI.md`
 
 ## Workspace 切换时序
 
 ```
 用户点击 Workspace B
   ↓
-保存 A 的 UI snapshot（Zustand persist）
+记下 B 为 active（Zustand + lastActiveRepo）
   ↓
-unload A 的 git watcher（释放订阅）
+listRepos(B) → pickRestoredRepo
   ↓
-load B 的 lastActiveRepo
+React Query 按新 workspaceId / repoId 重拉
   ↓
-触发 React reconciliation（渐进）
-  ↓
-re-subscribe B 的 git watcher
+各面板（history / working copy / sidebar）跟随 query key 刷新
 ```
+
+没有 git watcher 的 subscribe / unsubscribe。自动刷新是全局 60s 定时器，只作用于当前 active repo。
 
 ## AI 调用时序
 
 ```
 UI 触发 "生成 commit message"
   ↓
-GenerateCommitMessageUseCase
+generate_commit_message 命令（可带 language）
   ↓
-domain: 拼装最近 N 个 commit + 当前 diff
+use case: 拼装最近 N 个 commit + 当前 diff + 可选 .gitwave/AI.md
   ↓
 infrastructure: scrubber 扫描 → 注入 prompt
   ↓
-Provider::stream → SSE chunks
+failover 链上 generate_text（HTTP JSON，stream: false）
   ↓
-Tauri event 推送 → 前端流式渲染
+命令返回全文 + provider_used
   ↓
 用户编辑 / 确认 → 走确定性 commit 用例
 ```
@@ -100,3 +101,6 @@ Tauri event 推送 → 前端流式渲染
 
 - 跨 Workspace 全局搜索的索引策略
 - 大仓库（monorepo）的 lazy load 策略
+- FS watcher 取代（或补强）60s 轮询
+- 大 diff hunk 流式 / 分页
+- IPC 类型生成（若再评估 tauri-specta）

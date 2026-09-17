@@ -1,6 +1,7 @@
 # GitWave · 范围与优先级
 
 > 本文档定义功能优先级与各版本范围。
+> §1–§2 是规划基线（写于 v0.1 之前）；§3 是截至 **v0.8.7** 的交付对照，不以规划原文当待办。
 
 ## 1. 范围优先级
 
@@ -112,3 +113,41 @@
 - 三平台可用
 - AI 智能能力端到端可用
 - 协作能力走通
+
+---
+
+## 3. 截至 v0.8.7 的交付对照
+
+规划原文不改；本表说明每一项现在是否已在产品里。
+
+### 3.1 Must（§1.1）
+
+全部 14 项已交付，含原 may-slip 的项 14（AI command palette，随 v0.2）。
+
+### 3.2 Should（§1.2）
+
+| 编号 | 场景 | 状态 |
+|---|---|---|
+| S1 | submodule init / update | **已交付**（含 add / recursive update / deinit / status） |
+| S2 | .gitignore 编辑器 | **已交付**（纯文本编辑；无语法高亮） |
+| S3 | tag + annotated tag | **已交付** |
+| S4 | PR 创建（GitHub） | **部分**：AI 生成可编辑 title / body + Copy；**不**调 GitHub API 建 PR |
+| S5 | 主题切换（light / dark / follow system） | **已交付**（另有 Native Blue / Tide 配色） |
+| S6 | Workspace 导入 / 导出 | **已交付**（`.gitwave-workspace.json`） |
+
+### 3.3 Could（§1.3）
+
+| 编号 | 场景 | 状态 |
+|---|---|---|
+| N1 | Git LFS | **已交付** |
+| N2 | reflog 浏览器 + 误操作恢复 | **已交付**（时间线 + 确认后 reset / 建恢复分支 + AI 解释） |
+| N3 | hooks 编辑器 | **已交付**（只编辑，不执行；与 libgit2 边界一致） |
+| N4 | AI repo health | **已交付** |
+
+### 3.4 版本完成定义
+
+| 版本 | 规划完成定义 | 现状 |
+|---|---|---|
+| v0.1 | 14 must-have（palette 可顺延）、三核心场景、P1 | **已交付** |
+| v0.2 | 双平台 + AI 进阶 + 平滑升级 | **已交付** |
+| v0.3 | 三平台 + AI 智能 + 协作走通 | **已交付**（协作 = remote 管理；PR/MR 仍未做） |

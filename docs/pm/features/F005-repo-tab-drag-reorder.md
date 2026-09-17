@@ -21,7 +21,7 @@ Workspace 内多仓库以 tab 形式展示（`WorkspaceRepoTabs`），当前顺�
 
 ## 决策
 
-- 状态：接受
+- 状态：已合并
 - 决策人：用户（直接提出该需求）
 - 决策日期：2026-08-29
 - 关联决策：F002-repo-ingestion（`repos` 表结构）

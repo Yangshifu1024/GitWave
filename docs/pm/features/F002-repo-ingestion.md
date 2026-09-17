@@ -71,7 +71,7 @@ Sprint 1（F001）实现了 Workspace CRUD，但 Workspace 是空壳——还没
 
 ## 决策
 
-- **状态**：接受
+- **状态**：已合并
 - **决策人**：PM
 - **决策日期**：2026-08-26
 - **关联决策**：`docs/tech/decisions/0003`（凭证策略：BYOK Keychain + git helper / ssh-agent）
