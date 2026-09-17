@@ -27,6 +27,8 @@ import {
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { applyOrder, arrayMove, useTabDragReorder } from "@/hooks/useTabDragReorder";
+import { useHorizontalWheelScroll } from "@/hooks/useHorizontalWheelScroll";
+import { useRevealActiveTab } from "@/hooks/useRevealActiveTab";
 import { pickRestoredRepo } from "@/lib/repoSelection";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -101,6 +103,19 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
     // pointercancel / released back on the original order — fall back to the
     // stored order so an uncommitted preview can't leak into later commits.
     onAbort: () => setPreviewOrder(null),
+  });
+
+  // F017: a wheel over the strip scrolls it horizontally (the strip is always
+  // on screen, so the handler binds while a workspace is active), and the
+  // active tab is pulled back into view whenever the selection or the tab list
+  // changes — a hidden scrollbar otherwise leaves an off-screen selection
+  // invisible.
+  useHorizontalWheelScroll(tabstripRef, activeWorkspaceId !== null);
+  useRevealActiveTab({
+    containerRef: tabstripRef,
+    activeWorkspaceId,
+    activeRepoId,
+    tabCount: renderedRepos.length,
   });
 
   const moveRepo = (repo: RepoRef, dir: -1 | 1): void => {
