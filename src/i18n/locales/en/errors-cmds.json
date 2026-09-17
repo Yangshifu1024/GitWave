@@ -3,6 +3,7 @@
     "cmds": {
       "clone_task_join": "Clone task failed: {{error}}",
       "fetch_task_join": "Fetch task failed: {{error}}",
+      "fetch_workspace_task_join": "Workspace fetch task failed: {{error}}",
       "pull_task_join": "Pull task failed: {{error}}",
       "list_remotes_task_join": "Failed to list remotes: {{error}}",
       "list_repos_task_join": "Failed to list repos: {{error}}",

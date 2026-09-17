@@ -18,7 +18,7 @@ use crate::domain::lfs::LfsStatus;
 use crate::domain::stash::StashEntry;
 use crate::domain::working_copy::WorkingCopy;
 use crate::domain::workspace::{
-    RepoRef, RepoStatus, Workspace, WorkspaceSettings, WorkspaceSummary,
+    RepoRef, RepoStatus, Workspace, WorkspaceFetchSummary, WorkspaceSettings, WorkspaceSummary,
 };
 use crate::domain::worktree::WorktreeInfo;
 use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
@@ -2538,11 +2538,26 @@ pub fn fetch(
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
+    fetch_repo_remotes(&repo, remote, on_progress, cancel, auth, request_id)
+}
+
+/// Fetch a single repo's remote(s). `remote = None` fans out to every
+/// configured remote, best-effort: each is attempted even if one fails and
+/// the first error wins. Cancellation and auth failures stop the batch
+/// immediately. Callers must already hold the workspace sync lock.
+fn fetch_repo_remotes(
+    repo: &git2::Repository,
+    remote: Option<String>,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
+    request_id: &str,
+) -> Result<()> {
     let Some(remote) = remote else {
         // No name given means "fetch every configured remote" (toolbar
         // Fetch, command palette and auto-refresh all pass None). Each
         // remote is attempted even if one fails; the first error wins.
-        let names = infra_list_remotes(&repo)?;
+        let names = infra_list_remotes(repo)?;
         // The progress closure is not Clone; share it behind a Mutex and
         // re-box per remote so transfer events keep flowing for each fetch.
         // (Arc<Mutex<_>> is Send+Sync, so the per-remote wrapper stays Send.)
@@ -2555,7 +2570,7 @@ pub fn fetch(
                 }) as Box<dyn Fn(SyncProgress) + Send>
             });
             if let Err(e) = infra_fetch(
-                &repo,
+                repo,
                 &name,
                 crate::infrastructure::git::remote::SyncOperation::Fetch,
                 cb,
@@ -2588,7 +2603,7 @@ pub fn fetch(
         };
     };
     infra_fetch(
-        &repo,
+        repo,
         &remote,
         crate::infrastructure::git::remote::SyncOperation::Fetch,
         on_progress,
@@ -2596,6 +2611,66 @@ pub fn fetch(
         auth.as_ref(),
         request_id,
     )
+}
+
+/// Fetch every present repository in a workspace (auto-refresh). Best-effort:
+/// a repo that fails to open or fetch is counted and skipped, the rest keep
+/// going. Serialized under the workspace sync lock. Cancellation stops the
+/// sweep at the next repo boundary. Callers must not hold the lock.
+///
+/// `summary.total` counts the repos actually attempted (== succeeded +
+/// failed); `Missing` repos never enter the sweep.
+pub fn fetch_workspace_repos(
+    ctx: &AppContext,
+    workspace_id: &str,
+    on_progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
+    cancel: Option<CancelFlag>,
+    auth: Option<InlineAuth>,
+    request_id: &str,
+) -> Result<WorkspaceFetchSummary> {
+    let sync_lock = workspace_sync_lock(workspace_id);
+    let _serialized = sync_lock
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    // `list_repos` sweeps filesystem presence first, so Missing repos are
+    // already flagged and get skipped rather than failing the sweep.
+    let repos: Vec<RepoRef> = list_repos(ctx, workspace_id.to_string())?
+        .into_iter()
+        .filter(|r| r.status != RepoStatus::Missing)
+        .collect();
+
+    // The progress closure is not Clone; share it and re-box per repo.
+    let shared = on_progress.map(|f| Arc::new(Mutex::new(f)));
+    let mut summary = WorkspaceFetchSummary::default();
+
+    for repo_ref in repos {
+        if cancel
+            .as_deref()
+            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+        {
+            break;
+        }
+        match ctx.open_repo(&repo_ref.path) {
+            Ok(repo) => {
+                let cb = shared.clone().map(|f| {
+                    Box::new(move |p: SyncProgress| {
+                        (f.lock().unwrap_or_else(std::sync::PoisonError::into_inner))(p);
+                    }) as Box<dyn Fn(SyncProgress) + Send>
+                });
+                match fetch_repo_remotes(&repo, None, cb, cancel.clone(), auth.clone(), request_id)
+                {
+                    Ok(()) => summary.succeeded += 1,
+                    Err(_) => summary.failed += 1,
+                }
+            }
+            // A path that no longer opens (removed between the presence sweep
+            // and now) is a failure, not a crash — keep sweeping.
+            Err(_) => summary.failed += 1,
+        }
+    }
+    summary.total = summary.succeeded + summary.failed;
+    Ok(summary)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3462,7 +3537,7 @@ mod tests {
     // ─── fetch: remote=None fans out to every configured remote ─────────
 
     use crate::infrastructure::git::test_helpers::{
-        build_linear_repo, make_commit, write_and_stage,
+        build_linear_repo, init_empty_repo, make_commit, write_and_stage,
     };
 
     fn uc_sig() -> git2::Signature<'static> {
@@ -3638,6 +3713,148 @@ mod tests {
 
         let _ = fs::remove_dir_all(&origin_path);
         let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn fetch_workspace_repos_fetches_every_repo() {
+        let (origin_a_path, origin_a) = build_linear_repo(1);
+        let (origin_b_path, origin_b) = build_linear_repo(1);
+        let local_a_path = origin_a_path.with_extension("clone");
+        let local_b_path = origin_b_path.with_extension("clone");
+        let local_a =
+            git2::Repository::clone(origin_a_path.to_str().unwrap(), &local_a_path).unwrap();
+        let local_b =
+            git2::Repository::clone(origin_b_path.to_str().unwrap(), &local_b_path).unwrap();
+
+        // A fresh commit on each origin that the clones do not know yet.
+        let a_base = local_a.head().unwrap().peel_to_commit().unwrap().id();
+        let a_tree = write_and_stage(&origin_a, "a-new.txt", "a\n");
+        let a_tip = make_commit(&origin_a, &uc_sig(), "a tip", a_tree, &[a_base]);
+        let b_base = local_b.head().unwrap().peel_to_commit().unwrap().id();
+        let b_tree = write_and_stage(&origin_b, "b-new.txt", "b\n");
+        let b_tip = make_commit(&origin_b, &uc_sig(), "b tip", b_tree, &[b_base]);
+
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        add_local_repo(
+            &ctx,
+            ws.id.clone(),
+            local_a_path.to_string_lossy().to_string(),
+        )
+        .unwrap();
+        add_local_repo(
+            &ctx,
+            ws.id.clone(),
+            local_b_path.to_string_lossy().to_string(),
+        )
+        .unwrap();
+
+        let summary = fetch_workspace_repos(&ctx, &ws.id, None, None, None, "test-req")
+            .expect("sweep succeeds");
+        assert_eq!(summary.total, 2);
+        assert_eq!(summary.succeeded, 2);
+        assert_eq!(summary.failed, 0);
+
+        let local_a = git2::Repository::open(&local_a_path).unwrap();
+        assert_eq!(
+            local_a
+                .find_reference("refs/remotes/origin/main")
+                .unwrap()
+                .target()
+                .unwrap(),
+            a_tip,
+            "first repo's remote-tracking ref must advance"
+        );
+        let local_b = git2::Repository::open(&local_b_path).unwrap();
+        assert_eq!(
+            local_b
+                .find_reference("refs/remotes/origin/main")
+                .unwrap()
+                .target()
+                .unwrap(),
+            b_tip,
+            "second repo's remote-tracking ref must advance"
+        );
+
+        let _ = fs::remove_dir_all(&origin_a_path);
+        let _ = fs::remove_dir_all(&origin_b_path);
+        let _ = fs::remove_dir_all(&local_a_path);
+        let _ = fs::remove_dir_all(&local_b_path);
+    }
+
+    #[test]
+    fn fetch_workspace_repos_skips_failing_repo() {
+        // A good repo cloned from origin, plus a repo whose only remote points
+        // at a missing path. The sweep fetches the good one and counts the
+        // other as failed — never aborting the batch.
+        let (origin_path, origin) = build_linear_repo(1);
+        let good_path = origin_path.with_extension("clone");
+        let good = git2::Repository::clone(origin_path.to_str().unwrap(), &good_path).unwrap();
+
+        let (bad_root, bad) = init_empty_repo();
+        crate::infrastructure::git::remote::add_remote(
+            &bad,
+            "bad",
+            bad_root.with_extension("missing").to_str().unwrap(),
+        )
+        .unwrap();
+
+        let base = good.head().unwrap().peel_to_commit().unwrap().id();
+        let tree = write_and_stage(&origin, "advanced.txt", "o\n");
+        let origin_tip = make_commit(&origin, &uc_sig(), "origin tip", tree, &[base]);
+
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        add_local_repo(&ctx, ws.id.clone(), good_path.to_string_lossy().to_string()).unwrap();
+        add_local_repo(&ctx, ws.id.clone(), bad_root.to_string_lossy().to_string()).unwrap();
+
+        let summary = fetch_workspace_repos(&ctx, &ws.id, None, None, None, "test-req")
+            .expect("best-effort sweep still returns a summary");
+        assert_eq!(summary.total, 2);
+        assert_eq!(summary.succeeded, 1);
+        assert_eq!(summary.failed, 1);
+
+        let good = git2::Repository::open(&good_path).unwrap();
+        assert_eq!(
+            good.find_reference("refs/remotes/origin/main")
+                .unwrap()
+                .target()
+                .unwrap(),
+            origin_tip,
+            "the good repo must still be fetched after the other fails"
+        );
+
+        let _ = fs::remove_dir_all(&origin_path);
+        let _ = fs::remove_dir_all(&good_path);
+        let _ = fs::remove_dir_all(&bad_root);
+    }
+
+    #[test]
+    fn fetch_workspace_repos_skips_missing_repos() {
+        let (origin_path, _origin) = build_linear_repo(1);
+        let local_path = origin_path.with_extension("clone");
+        git2::Repository::clone(origin_path.to_str().unwrap(), &local_path).unwrap();
+
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Default".into()).unwrap();
+        add_local_repo(
+            &ctx,
+            ws.id.clone(),
+            local_path.to_string_lossy().to_string(),
+        )
+        .unwrap();
+
+        // Remove the working tree: the presence sweep flags the repo Missing,
+        // so the sweep must skip it instead of counting a failure.
+        let _ = fs::remove_dir_all(&local_path);
+
+        let summary = fetch_workspace_repos(&ctx, &ws.id, None, None, None, "test-req")
+            .expect("sweep succeeds with only missing repos");
+        assert_eq!(summary.total, 0);
+        assert_eq!(summary.succeeded, 0);
+        assert_eq!(summary.failed, 0);
+
+        let _ = fs::remove_dir_all(&origin_path);
     }
 
     #[test]

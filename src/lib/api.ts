@@ -1166,6 +1166,31 @@ export function fetchRemote(workspaceId: string, options?: FetchOptions): Promis
   });
 }
 
+/** Best-effort outcome of fetching every repo in a workspace. `total` is the
+ *  number of repos attempted and equals `succeeded + failed`. */
+export interface WorkspaceFetchSummary {
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+export interface FetchWorkspaceOptions {
+  /** Caller-generated instance id; the store matches progress events by it. */
+  requestId?: string;
+}
+
+/** Fetch every present repo in the workspace (auto-refresh). Never prompts
+ *  for credentials — a repo that needs them is counted as `failed`. */
+export function fetchWorkspaceRepos(
+  workspaceId: string,
+  options?: FetchWorkspaceOptions,
+): Promise<WorkspaceFetchSummary> {
+  return invoke<WorkspaceFetchSummary>("cmd_fetch_workspace_repos", {
+    workspaceId,
+    requestId: options?.requestId ?? null,
+  });
+}
+
 export interface PullOptions {
   remote?: string;
   /** Remote-tracking branch short name (e.g. `main`); defaults to the configured upstream. */

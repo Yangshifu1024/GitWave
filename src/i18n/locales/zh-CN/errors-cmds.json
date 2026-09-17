@@ -3,6 +3,7 @@
     "cmds": {
       "clone_task_join": "克隆任务失败：{{error}}",
       "fetch_task_join": "获取（fetch）任务失败：{{error}}",
+      "fetch_workspace_task_join": "获取整个 workspace 所有仓库失败：{{error}}",
       "pull_task_join": "拉取（pull）任务失败：{{error}}",
       "list_remotes_task_join": "列出远程仓库失败：{{error}}",
       "list_repos_task_join": "列出仓库失败：{{error}}",

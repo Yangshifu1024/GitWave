@@ -12,6 +12,11 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import {
+  MAX_INTERVAL_MINUTES,
+  MIN_INTERVAL_MINUTES,
+  sanitizeIntervalMinutes,
+} from "@/stores/autoRefreshStore";
 import { useAutoUpdateSetting, useCheckForUpdates } from "@/hooks/useUpdater";
 import { useFonts } from "@/hooks/useFonts";
 import { usePalette } from "@/hooks/usePalette";
@@ -132,7 +137,20 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
 
 function GeneralSection(): React.JSX.Element {
   const { t } = useTranslation();
-  const { autoRefresh, setAutoRefresh } = useAutoRefresh();
+  const { autoRefresh, setAutoRefresh, intervalMinutes, setIntervalMinutes } = useAutoRefresh();
+  // The text field is buffered locally so a partially typed value (empty, "1"
+  // on the way to "12") isn't clamped mid-keystroke; the store is only
+  // written on blur / Enter, which also normalizes the field to the clamped
+  // value. This input is the only writer of the interval, so no sync effect
+  // back from the store is needed.
+  const [intervalText, setIntervalText] = useState(String(intervalMinutes));
+
+  const commitInterval = (): void => {
+    const sanitized = sanitizeIntervalMinutes(intervalText);
+    setIntervalMinutes(sanitized);
+    setIntervalText(String(sanitized));
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <LanguageSection />
@@ -144,6 +162,21 @@ function GeneralSection(): React.JSX.Element {
           {t("settings.general.autoRefreshCheckbox")}
         </Checkbox>
         <p className="text-xs text-text-muted">{t("settings.general.autoRefreshHint")}</p>
+        <Input
+          type="number"
+          min={MIN_INTERVAL_MINUTES}
+          max={MAX_INTERVAL_MINUTES}
+          value={intervalText}
+          disabled={!autoRefresh}
+          onChange={setIntervalText}
+          onBlur={commitInterval}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitInterval();
+          }}
+          label={t("settings.general.autoRefreshIntervalLabel")}
+          description={t("settings.general.autoRefreshIntervalHint")}
+          className="mt-1 w-40"
+        />
       </section>
       <UpdatesSection />
     </div>

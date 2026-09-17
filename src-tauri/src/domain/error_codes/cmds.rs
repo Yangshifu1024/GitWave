@@ -6,6 +6,9 @@ pub const CLONE_TASK_JOIN: &str = "cmds.clone_task_join";
 /// 等待获取（fetch）后台任务结束失败。
 pub const FETCH_TASK_JOIN: &str = "cmds.fetch_task_join";
 
+/// 等待获取整个 workspace 所有仓库的后台任务结束失败。
+pub const FETCH_WORKSPACE_TASK_JOIN: &str = "cmds.fetch_workspace_task_join";
+
 /// 等待拉取（pull）后台任务结束失败。
 pub const PULL_TASK_JOIN: &str = "cmds.pull_task_join";
 
