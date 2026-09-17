@@ -93,6 +93,16 @@ pub struct RepoRef {
     pub added_at: i64,
 }
 
+/// Best-effort outcome of fetching every repository in a workspace
+/// (auto-refresh). `total` counts repos that were eligible (present, not
+/// `Missing`); `succeeded` + `failed` sum to it.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct WorkspaceFetchSummary {
+    pub total: usize,
+    pub succeeded: usize,
+    pub failed: usize,
+}
+
 /// Lightweight projection of `RepoRef` for sidebar/listing UIs.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoSummary {

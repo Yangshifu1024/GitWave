@@ -32,6 +32,8 @@
       "cancelled": "已取消",
       "refreshing": "正在刷新…",
       "refreshed": "已刷新",
+      "refreshedAll": "已刷新 {{count}} 个仓库",
+      "refreshedAllPartial": "已刷新 {{ok}}/{{total}} 个仓库（{{failed}} 个失败）",
       "credentialFallback": "凭据已保存到应用钥匙串（系统 credential helper 未确认），GitWave 将自动复用",
       "credentialSaveFailed": "凭据暂未能保存——下次操作可能需要重新输入"
     }

@@ -31,6 +31,12 @@ use crate::domain::error_codes as codes;
 /// transfer (the user can retry).
 pub const SYNC_OP_TIMEOUT: Duration = Duration::from_secs(180);
 
+/// Wall-clock budget for a whole-workspace fetch sweep (auto-refresh), which
+/// fetches every repo serially. Larger than [`SYNC_OP_TIMEOUT`] so a handful
+/// of repos can each consume a normal fetch budget; the timeout still bounds
+/// a swept workspace whose transports hang.
+pub const WORKSPACE_FETCH_TIMEOUT: Duration = Duration::from_secs(300);
+
 type Flag = Arc<AtomicBool>;
 
 fn registry() -> &'static Mutex<HashMap<String, Vec<Flag>>> {

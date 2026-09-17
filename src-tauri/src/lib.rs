@@ -15,6 +15,7 @@ pub mod infrastructure;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use crate::domain::error_codes as codes;
 use application::sync_ops;
@@ -26,22 +27,22 @@ use application::{
     deinit_submodule, delete_branch, delete_remote_branch, delete_ssh_key, delete_tag,
     delete_workspace, discard_changes, drop_stash, execute_interactive_rebase, explain_commit,
     explain_conflict, explain_health, explain_reflog, export_workspace, fetch,
-    generate_commit_message, generate_pr_description, get_ahead_behind, get_ai_key_status,
-    get_blame, get_branches, get_commit_details, get_commit_diff, get_commit_log,
-    get_conflict_sides, get_dirty_repos, get_file_diff, get_gitignore, get_health, get_hook,
-    get_image_content, get_proxy_settings, get_repo_ai_rules, get_stash_diff, get_workdir_diff,
-    get_working_copy, get_workspace, ignore_path, import_workspace, init_repo, init_submodule,
-    interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack, list_conflicts,
-    list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys, list_stashes,
-    list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch, merge_in_progress,
-    merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push, rebase_branch,
-    relink_repo, remove_remote, remove_repo, remove_worktree, rename_branch, rename_remote,
-    rename_workspace, reorder_repos, reset_hard, resolve_conflict, revert_commit, save_hook,
-    save_stash, set_active_repo, set_ai_api_key, set_branch_upstream, set_proxy_settings,
-    set_remote_push_url, set_remote_url, stage_all, stage_files, start_ssh_agent_service,
-    test_ssh_connection, unstage_files, update_submodule, update_workspace_settings,
-    write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus, AppContext, DirtyRepoSummary,
-    PaletteIntent, PrDescriptionOutcome,
+    fetch_workspace_repos, generate_commit_message, generate_pr_description, get_ahead_behind,
+    get_ai_key_status, get_blame, get_branches, get_commit_details, get_commit_diff,
+    get_commit_log, get_conflict_sides, get_dirty_repos, get_file_diff, get_gitignore, get_health,
+    get_hook, get_image_content, get_proxy_settings, get_repo_ai_rules, get_stash_diff,
+    get_workdir_diff, get_working_copy, get_workspace, ignore_path, import_workspace, init_repo,
+    init_submodule, interactive_rebase_paused, lfs_install, lfs_status, lfs_track, lfs_untrack,
+    list_conflicts, list_hooks, list_reflog, list_remote_details, list_repos, list_ssh_keys,
+    list_stashes, list_submodules, list_tags, list_workspaces, list_worktrees, merge_branch,
+    merge_in_progress, merge_preview, plan_interactive_rebase, pop_stash, probe_ollama, pull, push,
+    rebase_branch, relink_repo, remove_remote, remove_repo, remove_worktree, rename_branch,
+    rename_remote, rename_workspace, reorder_repos, reset_hard, resolve_conflict, revert_commit,
+    save_hook, save_stash, set_active_repo, set_ai_api_key, set_branch_upstream,
+    set_proxy_settings, set_remote_push_url, set_remote_url, stage_all, stage_files,
+    start_ssh_agent_service, test_ssh_connection, unstage_files, update_submodule,
+    update_workspace_settings, write_gitignore, AheadBehind, AiGenerateOutcome, AiKeyStatus,
+    AppContext, DirtyRepoSummary, PaletteIntent, PrDescriptionOutcome,
 };
 use domain::app_settings::ProxySettings;
 use domain::blame::BlameLine;
@@ -551,6 +552,7 @@ async fn cmd_clone_repo(
         &workspace_id,
         "clone",
         codes::cmds::CLONE_TASK_JOIN,
+        sync_ops::SYNC_OP_TIMEOUT,
         &ctx,
         move |local_ctx, cancel| {
             clone_repo(
@@ -772,6 +774,7 @@ async fn cmd_delete_remote_branch(
         &workspace_id,
         "delete remote branch",
         codes::cmds::DELETE_REMOTE_BRANCH_TASK_JOIN,
+        sync_ops::SYNC_OP_TIMEOUT,
         &ctx,
         move |local_ctx, cancel| {
             delete_remote_branch(local_ctx, &ws_id, &remote, &branch, Some(cancel), auth)
@@ -1010,6 +1013,7 @@ async fn cmd_update_submodule(
         &workspace_id,
         "update submodule",
         codes::cmds::UPDATE_SUBMODULE_TASK_JOIN,
+        sync_ops::SYNC_OP_TIMEOUT,
         &ctx,
         move |local_ctx, cancel| {
             update_submodule(
@@ -1041,6 +1045,7 @@ async fn cmd_add_submodule(
         &workspace_id,
         "add submodule",
         codes::cmds::ADD_SUBMODULE_TASK_JOIN,
+        sync_ops::SYNC_OP_TIMEOUT,
         &ctx,
         move |local_ctx, cancel| add_submodule(local_ctx, &ws_id, url, path, Some(cancel), auth),
     )
@@ -1402,6 +1407,7 @@ async fn run_sync_op<T, F>(
     workspace_id: &str,
     operation: &'static str,
     join_error_code: &'static str,
+    timeout: Duration,
     ctx: &tauri::State<'_, AppContext>,
     op: F,
 ) -> Result<T, AppError>
@@ -1422,7 +1428,7 @@ where
         let local_ctx = AppContext::new(workspaces, app_settings);
         op(&local_ctx, inner)
     });
-    match tokio::time::timeout(sync_ops::SYNC_OP_TIMEOUT, handle).await {
+    match tokio::time::timeout(timeout, handle).await {
         // JoinHandle settles to Result<Result<T, AppError>, JoinError>:
         // map the join failure, then flatten the operation's own result.
         Ok(result) => result
@@ -1477,6 +1483,7 @@ async fn cmd_fetch(
         &workspace_id,
         "fetch",
         codes::cmds::FETCH_TASK_JOIN,
+        sync_ops::SYNC_OP_TIMEOUT,
         &ctx,
         move |local_ctx, cancel| {
             fetch(
@@ -1495,7 +1502,51 @@ async fn cmd_fetch(
     result
 }
 
-/// Surface how (and whether) accepted credentials were persisted during a
+/// Fetch every repo in a workspace (auto-refresh). No remote / auth: the
+/// sweep is best-effort and background, so it never prompts for
+/// credentials — a repo needing them is counted as failed.
+#[tauri::command]
+async fn cmd_fetch_workspace_repos(
+    app: tauri::AppHandle,
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    request_id: Option<String>,
+) -> Result<domain::workspace::WorkspaceFetchSummary, AppError> {
+    use application::use_cases::fetch_workspace_repos;
+    use infrastructure::git::remote::SyncProgress;
+    use tauri::Emitter;
+
+    let request_id = request_id.unwrap_or_else(next_sync_request_id);
+    let app_emit = app.clone();
+    let on_progress: Option<Box<dyn Fn(SyncProgress) + Send>> =
+        Some(Box::new(move |p: SyncProgress| {
+            let _ = app_emit.emit("sync-progress", &p);
+        }));
+
+    let ws_id = workspace_id.clone();
+    let result = run_sync_op(
+        &workspace_id,
+        "fetch",
+        codes::cmds::FETCH_WORKSPACE_TASK_JOIN,
+        sync_ops::WORKSPACE_FETCH_TIMEOUT,
+        &ctx,
+        move |local_ctx, cancel| {
+            fetch_workspace_repos(
+                local_ctx,
+                &ws_id,
+                on_progress,
+                Some(cancel),
+                None,
+                &request_id,
+            )
+        },
+    )
+    .await;
+    emit_storage_outcome(&app);
+    result
+}
+
+/// Surface how (and whether) accepted credentials were persisted during an
 /// sync op. Emitted after the operation settles — success or failure —
 /// because a silent persistence failure must not resurface as an
 /// unexplained auth prompt on the next operation. Silence itself (no
@@ -1539,6 +1590,7 @@ async fn cmd_pull(
         &workspace_id,
         "pull",
         codes::cmds::PULL_TASK_JOIN,
+        sync_ops::SYNC_OP_TIMEOUT,
         &ctx,
         move |local_ctx, cancel| {
             pull(
@@ -1613,6 +1665,7 @@ async fn cmd_push(
         &workspace_id,
         "push",
         codes::cmds::PUSH_TASK_JOIN,
+        sync_ops::SYNC_OP_TIMEOUT,
         &ctx,
         move |local_ctx, cancel| {
             push(
@@ -1966,6 +2019,7 @@ pub fn run() {
             cmd_discard_changes,
             cmd_ignore_path,
             cmd_fetch,
+            cmd_fetch_workspace_repos,
             cmd_pull,
             cmd_cancel_sync,
             cmd_list_remotes,

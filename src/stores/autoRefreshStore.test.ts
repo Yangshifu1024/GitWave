@@ -73,4 +73,54 @@ describe("autoRefreshStore", () => {
 
     expect(useAutoRefreshStore.getState().autoRefresh).toBe(true);
   });
+
+  it("defaults the interval to 5 minutes when nothing is stored", async () => {
+    stubStorage(memoryStorage());
+    const { useAutoRefreshStore, DEFAULT_INTERVAL_MINUTES } = await loadStore();
+
+    expect(useAutoRefreshStore.getState().intervalMinutes).toBe(DEFAULT_INTERVAL_MINUTES);
+  });
+
+  it("reads and sanitizes the persisted interval at module load", async () => {
+    stubStorage(memoryStorage({ "gitwave-auto-refresh-interval": "42" }));
+    const { useAutoRefreshStore } = await loadStore();
+
+    expect(useAutoRefreshStore.getState().intervalMinutes).toBe(42);
+  });
+
+  it("clamps a persisted interval outside the allowed range", async () => {
+    stubStorage(memoryStorage({ "gitwave-auto-refresh-interval": "0" }));
+    const below = await loadStore();
+    expect(below.useAutoRefreshStore.getState().intervalMinutes).toBe(1);
+
+    stubStorage(memoryStorage({ "gitwave-auto-refresh-interval": "99999" }));
+    const above = await loadStore();
+    expect(above.useAutoRefreshStore.getState().intervalMinutes).toBe(1440);
+  });
+
+  it("setIntervalMinutes clamps and persists the value", async () => {
+    const storage = memoryStorage();
+    stubStorage(storage);
+    const { useAutoRefreshStore } = await loadStore();
+
+    useAutoRefreshStore.getState().setIntervalMinutes(99999);
+    expect(useAutoRefreshStore.getState().intervalMinutes).toBe(1440);
+    expect(storage.data.get("gitwave-auto-refresh-interval")).toBe("1440");
+
+    useAutoRefreshStore.getState().setIntervalMinutes(0);
+    expect(useAutoRefreshStore.getState().intervalMinutes).toBe(1);
+    expect(storage.data.get("gitwave-auto-refresh-interval")).toBe("1");
+  });
+
+  it("sanitizeIntervalMinutes clamps bounds and falls back on non-numbers", async () => {
+    const { sanitizeIntervalMinutes } = await loadStore();
+
+    expect(sanitizeIntervalMinutes(-5)).toBe(1);
+    expect(sanitizeIntervalMinutes(0)).toBe(1);
+    expect(sanitizeIntervalMinutes(5000)).toBe(1440);
+    expect(sanitizeIntervalMinutes("7")).toBe(7);
+    expect(sanitizeIntervalMinutes("abc")).toBe(5);
+    expect(sanitizeIntervalMinutes(Number.NaN)).toBe(5);
+    expect(sanitizeIntervalMinutes(undefined)).toBe(5);
+  });
 });
