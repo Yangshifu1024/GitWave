@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::domain::error::AppError;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Workspace {
     pub id: String,
@@ -101,6 +103,24 @@ pub struct WorkspaceFetchSummary {
     pub total: usize,
     pub succeeded: usize,
     pub failed: usize,
+}
+
+/// One failed or rejected path in a batch add; `error` carries the backend
+/// wire shape so the UI can render it with `formatAppError`.
+#[derive(Debug, Clone, Serialize)]
+pub struct AddRepoFailure {
+    pub path: String,
+    pub error: AppError,
+}
+
+/// Best-effort outcome of adding several local repos at once. `skipped`
+/// lists paths already present in the workspace (or duplicated in the
+/// batch); `failed` lists paths that are not valid git repositories.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct AddReposSummary {
+    pub added: Vec<RepoRef>,
+    pub skipped: Vec<String>,
+    pub failed: Vec<AddRepoFailure>,
 }
 
 /// Lightweight projection of `RepoRef` for sidebar/listing UIs.

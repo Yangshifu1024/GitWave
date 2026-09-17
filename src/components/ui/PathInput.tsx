@@ -12,6 +12,12 @@ import { Input } from "./Input";
 export interface PathInputProps {
   value: string;
   onChange: (v: string) => void;
+  /** Allow selecting several entries at once in the picker. Picked paths are
+   *  reported through `onPickMany` instead of `onChange` (used by batch add,
+   *  where the list is accumulated rather than replacing a single value). */
+  multiple?: boolean;
+  /** Receives every path from a multi-selection. Only called when `multiple`. */
+  onPickMany?: (paths: string[]) => void;
   /** When true, opens a directory picker; otherwise a file picker. */
   directory?: boolean;
   /** File-extension filters for the picker (ignored when `directory` is true). */
@@ -30,6 +36,8 @@ export interface PathInputProps {
 export function PathInput({
   value,
   onChange,
+  multiple = false,
+  onPickMany,
   directory = false,
   filters,
   placeholder,
@@ -43,9 +51,18 @@ export function PathInput({
     try {
       const result = await openDialog({
         directory,
-        multiple: false,
+        multiple,
         filters,
       });
+      if (multiple) {
+        const selected: unknown[] = Array.isArray(result) ? result : [];
+        const paths: string[] = [];
+        for (const entry of selected) {
+          if (typeof entry === "string" && entry.length > 0) paths.push(entry);
+        }
+        if (paths.length > 0) onPickMany?.(paths);
+        return;
+      }
       if (typeof result === "string" && result.length > 0) {
         onChange(result);
       }

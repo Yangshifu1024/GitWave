@@ -6,6 +6,7 @@
       "save": "Save",
       "delete": "Delete",
       "add": "Add",
+      "addRepositories": "Add {{count}} repositories",
       "close": "Close",
       "retry": "Retry",
       "clone": "Clone",
@@ -140,8 +141,12 @@
       "detectedProtocol": "Detected protocol:",
       "urlLabel": "URL",
       "destinationPath": "Destination path",
-      "addLocalTitle": "Add existing local repo",
-      "addLocalDescription": "Register an existing Git working tree with this workspace.",
+      "addLocalTitle": "Add existing local repos",
+      "addLocalDescription": "Register one or more existing Git working trees with this workspace.",
+      "addLocalSelected": "Selected ({{count}})",
+      "addLocalEmptyHint": "Pick one or more folders, or type a path and press Enter.",
+      "addAllSkipped": "All {{count}} selected repositories are already in this workspace.",
+      "addAllFailed": "Could not add any repository — {{error}}",
       "location": "Location"
     },
     "workspace": {

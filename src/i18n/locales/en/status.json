@@ -5,6 +5,7 @@
     "checkedOut": "Checked out {{name}}",
     "createdTag": "Created tag {{name}}",
     "changesStashed": "Changes stashed",
+    "repoAddedPartial": "Added {{added}} repositories · skipped {{skipped}} · failed {{failed}}",
     "sync": {
       "fetch": "Fetch",
       "pull": "Pull",
