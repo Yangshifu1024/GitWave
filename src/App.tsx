@@ -165,7 +165,7 @@ function App(): React.JSX.Element {
                     <HealthPanel />
                   </SidebarSection>
                   <BranchList onBranchSelect={handleBranchSelect} />
-                  <StashPanel compact />
+                  <StashPanel />
                   <TagsPanel onSelect={handleTagSelect} selectedSha={selectedCommitOid} />
                   <RemotesPanel />
                   <WorktreePanel compact />
