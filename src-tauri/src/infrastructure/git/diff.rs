@@ -1,7 +1,9 @@
 //! File-level diff operations. See
 //! `docs/tasks/feat-history-graph/plan.md` step 5.
 
-use git2::{Diff, DiffDelta, DiffOptions, Oid, Repository};
+use std::collections::HashSet;
+
+use git2::{Diff, DiffDelta, DiffOptions, Oid, Repository, Tree};
 
 use crate::domain::diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};
 use crate::domain::error::{AppError, Result};
@@ -25,7 +27,7 @@ pub struct DiffSummary {
 }
 
 impl DiffSummary {
-    fn new(files: Vec<FileDiff>) -> Self {
+    pub(crate) fn new(files: Vec<FileDiff>) -> Self {
         let total_additions = files.iter().map(|f| f.additions).sum();
         let total_deletions = files.iter().map(|f| f.deletions).sum();
         Self {
@@ -38,6 +40,21 @@ impl DiffSummary {
     pub fn merge(self, other: Self) -> Self {
         let mut files = self.files;
         files.extend(other.files);
+        Self::new(files)
+    }
+
+    /// Like [`merge`](Self::merge) but drops entries from `other` whose path is
+    /// already present in `self` — the first occurrence wins. Used by the stash
+    /// diff, where the untracked-commit side may collide with the
+    /// first-parent side and a duplicate path must never be emitted.
+    pub fn merge_dedup_by_path(self, other: Self) -> Self {
+        let mut files = self.files;
+        let mut seen: HashSet<String> = files.iter().map(|f| f.path.clone()).collect();
+        for file in other.files {
+            if seen.insert(file.path.clone()) {
+                files.push(file);
+            }
+        }
         Self::new(files)
     }
 
@@ -136,6 +153,21 @@ pub fn diff_commit_vs_parent_files(repo: &Repository, oid: Oid) -> Result<Vec<Fi
     diff_to_files(&diff)
 }
 
+/// Diff a tree against the empty tree, i.e. "every path in `tree` is a brand
+/// new file", including per-file hunks.
+///
+/// Used by the stash diff to surface the contents of a `git stash -u`
+/// untracked commit (a parentless commit whose tree is the only place those
+/// files live once the stash has cleaned the working tree).
+pub fn diff_tree_vs_empty(repo: &Repository, tree: &Tree<'_>) -> Result<Vec<FileDiff>> {
+    let mut opts = DiffOptions::new();
+    opts.context_lines(3);
+    let diff = repo
+        .diff_tree_to_tree(None, Some(tree), Some(&mut opts))
+        .map_err(map_git_err)?;
+    diff_to_files(&diff)
+}
+
 /// Diff two arbitrary commits (from_oid = old, to_oid = new).
 pub fn diff_paths(repo: &Repository, from_oid: Oid, to_oid: Oid) -> Result<Vec<FileDiff>> {
     let from_commit = repo.find_commit(from_oid).map_err(map_git_err)?;
@@ -197,6 +229,7 @@ fn diff_to_files(diff: &Diff) -> Result<Vec<FileDiff>> {
                 deletions: 0,
                 hunks: Vec::new(),
                 staged: None,
+                untracked: None,
             });
             true
         },
@@ -456,12 +489,77 @@ mod tests {
             deletions,
             hunks: vec![],
             staged: None,
+            untracked: None,
         };
         let merged = DiffSummary::new(vec![file("a.ts", 3, 1)])
             .merge(DiffSummary::new(vec![file("b.ts", 2, 4)]));
         assert_eq!(merged.files.len(), 2);
         assert_eq!(merged.total_additions, 5);
         assert_eq!(merged.total_deletions, 5);
+    }
+
+    #[test]
+    fn merge_dedup_by_path_keeps_first_occurrence_and_updates_totals() {
+        let file = |path: &str, additions: u32| FileDiff {
+            path: path.into(),
+            old_sha: None,
+            new_sha: None,
+            additions,
+            deletions: 0,
+            hunks: vec![],
+            staged: None,
+            untracked: None,
+        };
+        let merged = DiffSummary::new(vec![file("a.ts", 4)])
+            .merge_dedup_by_path(DiffSummary::new(vec![file("a.ts", 99), file("b.ts", 2)]));
+        assert_eq!(merged.files.len(), 2);
+        assert_eq!(merged.files[0].path, "a.ts");
+        assert_eq!(merged.files[0].additions, 4, "first occurrence wins");
+        assert_eq!(merged.files[1].path, "b.ts");
+        assert_eq!(merged.total_additions, 6);
+    }
+
+    #[test]
+    fn merge_dedup_by_path_keeps_the_other_side_untracked_flag() {
+        let file = |path: &str, untracked: Option<bool>| FileDiff {
+            path: path.into(),
+            old_sha: None,
+            new_sha: None,
+            additions: 1,
+            deletions: 0,
+            hunks: vec![],
+            staged: None,
+            untracked,
+        };
+        let merged = DiffSummary::new(vec![file("a.ts", None)])
+            .merge_dedup_by_path(DiffSummary::new(vec![file("b.ts", Some(true))]));
+        assert_eq!(merged.files[1].untracked, Some(true));
+        assert_eq!(merged.total_additions, 2);
+    }
+
+    #[test]
+    fn diff_tree_vs_empty_counts_every_line_as_added() {
+        let (path, repo) = build_linear_repo(1);
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        let tree = head.tree().unwrap();
+
+        let files = diff_tree_vs_empty(&repo, &tree).unwrap();
+        cleanup(&path);
+
+        let file = files
+            .iter()
+            .find(|f| f.path == "file0.txt")
+            .expect("file0.txt lives in the tree");
+        assert_eq!(file.additions, 1);
+        assert_eq!(file.deletions, 0);
+        assert_eq!(file.old_sha, None, "empty-tree side has no old blob");
+        let lines: Vec<&str> = file
+            .hunks
+            .iter()
+            .flat_map(|h| h.lines.iter())
+            .map(|l| l.content.as_str())
+            .collect();
+        assert_eq!(lines, ["v0"]);
     }
 
     #[test]
@@ -474,6 +572,7 @@ mod tests {
             deletions: 0,
             hunks: vec![],
             staged: None,
+            untracked: None,
         };
         let merged = DiffSummary::new(vec![file("a.ts", 4)])
             .mark_staged(true)

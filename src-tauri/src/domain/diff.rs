@@ -46,6 +46,11 @@ pub struct FileDiff {
     /// Working-copy only: `Some(true)` = index vs HEAD, `Some(false)` = worktree vs index.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub staged: Option<bool>,
+    /// Stash diff only: `Some(true)` = the file came from the stash's third
+    /// parent — the parentless "untracked files" commit that `git stash -u`
+    /// creates — so it was never part of the index/HEAD comparison.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub untracked: Option<bool>,
 }
 
 /// Raw bytes of one file version for the image diff view (F016),
@@ -111,6 +116,7 @@ mod tests {
             additions: 3,
             deletions: 1,
             staged: None,
+            untracked: None,
             hunks: vec![DiffHunk {
                 old_start: 1,
                 old_lines: 4,
@@ -133,7 +139,36 @@ mod tests {
             }],
         };
         let json = serde_json::to_string(&d).unwrap();
+        assert!(
+            !json.contains("untracked"),
+            "None must be skipped so existing payloads stay byte-identical: {json}"
+        );
         let back: FileDiff = serde_json::from_str(&json).unwrap();
         assert_eq!(d, back);
+    }
+
+    #[test]
+    fn file_diff_untracked_flag_is_optional_and_backward_compatible() {
+        let mut d = FileDiff {
+            path: "new.txt".into(),
+            old_sha: None,
+            new_sha: Some("b".into()),
+            additions: 1,
+            deletions: 0,
+            hunks: vec![],
+            staged: None,
+            untracked: Some(true),
+        };
+        let json = serde_json::to_string(&d).unwrap();
+        assert!(json.contains("\"untracked\":true"), "got {json}");
+        assert_eq!(serde_json::from_str::<FileDiff>(&json).unwrap(), d);
+
+        // A payload produced before the field existed must still deserialize.
+        let legacy = r#"{"path":"new.txt","old_sha":null,"new_sha":"b","additions":1,"deletions":0,"hunks":[]}"#;
+        let parsed: FileDiff = serde_json::from_str(legacy).unwrap();
+        assert_eq!(parsed.untracked, None);
+
+        d.untracked = None;
+        assert!(!serde_json::to_string(&d).unwrap().contains("untracked"));
     }
 }

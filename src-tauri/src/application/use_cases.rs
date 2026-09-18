@@ -2857,10 +2857,18 @@ pub fn drop_stash(ctx: &AppContext, workspace_id: &str, index: u32) -> Result<()
     infra_drop_stash(&mut repo, index as usize)
 }
 
-pub fn get_stash_diff(ctx: &AppContext, workspace_id: &str, oid: &str) -> Result<DiffSummary> {
+/// Diff one stash entry. `include_untracked` defaults to `true` (same stance as
+/// `cmd_save_stash`): a stash created with `-u` keeps its never-added files in
+/// the stash's third parent, so they only become visible with it enabled.
+pub fn get_stash_diff(
+    ctx: &AppContext,
+    workspace_id: &str,
+    oid: &str,
+    include_untracked: Option<bool>,
+) -> Result<DiffSummary> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
     let repo = ctx.open_repo(&repo_path)?;
-    infra_stash_diff(&repo, oid)
+    infra_stash_diff(&repo, oid, include_untracked.unwrap_or(true))
 }
 
 // ─── Worktree (Sprint 5) ────────────────────────────────────────────────────
@@ -3063,6 +3071,7 @@ mod tests {
                 ],
             }],
             staged: None,
+            untracked: None,
         }]
     }
 

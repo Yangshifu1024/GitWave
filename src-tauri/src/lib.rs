@@ -1761,8 +1761,9 @@ async fn cmd_get_stash_diff(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     oid: String,
+    include_untracked: Option<bool>,
 ) -> Result<DiffSummary, AppError> {
-    get_stash_diff(&ctx, &workspace_id, &oid)
+    get_stash_diff(&ctx, &workspace_id, &oid, include_untracked)
 }
 
 #[tauri::command]
