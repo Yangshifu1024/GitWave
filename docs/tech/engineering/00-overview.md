@@ -71,6 +71,7 @@ commitlint 只在本地 `pre-commit` 的 commit-msg hook，**不在 CI**。
 - **触发**：推送任意 tag → `build.yml`
 - **产物**：macOS aarch64 `.dmg`（Developer ID 签名 + 公证，CI 再 staple）；Windows NSIS；Linux deb / rpm / AppImage
 - **发布**：先建 **draft** GitHub Release，说明来自 `git log`（不是 release-please / git-cliff）；人审后 publish。publish 同时发出 `latest.json` 给应用内更新
+- **更新清单**：三个平台构建完成后由 `rewrite-manifest-urls` 任务把 `latest.json` 里的下载地址从接口地址（`api.github.com/.../releases/assets/<id>`）改写为普通下载地址（`github.com/.../releases/download/<tag>/<file>`）。接口地址缺请求头或接口额度耗尽（未登录每 IP 每小时 60 次）都会返回 403，普通下载地址不受影响
 - **更新**：macOS / Windows / AppImage 可应用内下载安装；deb/rpm 只提示打开 Releases 页
 - **签名密钥**：`TAURI_SIGNING_PRIVATE_KEY`；macOS 另需 `APPLE_*`
 

@@ -208,3 +208,62 @@ jobs:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           releaseBody: ${{ needs.prepare-release.outputs.release_notes }}
           args: --verbose
+
+  # tauri-action writes the updater manifest with API asset URLs
+  # (https://api.github.com/repos/<owner>/<repo>/releases/assets/<id>). Those
+  # answer 403 when the request carries no User-Agent header and they count
+  # against GitHub's unauthenticated API quota (60 requests/hour per IP), so
+  # the in-app updater failed with 403 on v0.9.2. Every asset is uploaded once
+  # the last build finishes, so rewrite the URLs to plain download links
+  # (https://github.com/<owner>/<repo>/releases/download/<tag>/<file>) and
+  # replace the uploaded manifest — the file the updater actually reads.
+  # The job-level permissions below are load-bearing: job-level overrides the
+  # workflow level, and a draft release is only visible to a token with push
+  # permission (set to contents: read once and gh answered "release not found"
+  # — see docs/tasks/fix-ci-redundant-publish-job/plan.md).
+  rewrite-manifest-urls:
+    name: Rewrite updater manifest URLs
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Rewrite API asset URLs to download URLs
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$REPO" --pattern latest.json --clobber
+          # id -> the release's own download link, straight from the API, so the
+          # rewrite neither assumes bundle file naming nor rebuilds URLs.
+          assets=$(gh api "repos/$REPO/releases/tags/$TAG" \
+            --jq '[.assets[] | {key: (.id | tostring), value: .browser_download_url}] | from_entries')
+          jq --argjson assets "$assets" '
+            .platforms |= with_entries(
+              .value.url = (
+                (.value.url | sub("^.*/releases/assets/"; "")) as $id
+                | if $assets[$id] then $assets[$id] else .value.url end
+              )
+            )' latest.json > latest.rewritten.json
+          mv latest.rewritten.json latest.json
+          # Fail loudly rather than shipping a manifest the updater cannot use:
+          # every platform URL has to be a plain download link (an api.github.com
+          # URL answers 403 to the updater) ...
+          bad_urls=$(jq -r '[.platforms[].url | select(startswith("https://github.com/") | not)] | length' latest.json)
+          if [ "$bad_urls" != "0" ]; then
+            echo "::error::latest.json has $bad_urls platform URL(s) that are not github.com download links"
+            jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
+            exit 1
+          fi
+          # ... and the three main platforms have to be there, since a platform
+          # that went missing means those installs silently stop updating.
+          if ! jq -e '.platforms | has("darwin-aarch64") and has("linux-x86_64") and has("windows-x86_64")' latest.json > /dev/null; then
+            echo "::error::latest.json is missing darwin-aarch64 / linux-x86_64 / windows-x86_64"
+            jq -r '.platforms | keys[]' latest.json
+            exit 1
+          fi
+          jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
+          gh release upload "$TAG" latest.json --repo "$REPO" --clobber
