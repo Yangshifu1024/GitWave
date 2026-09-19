@@ -15,6 +15,7 @@ import {
   formatAppError,
   getCommitDiff,
   getImageContent,
+  getStashDiff,
   getWorkdirDiff,
   isImageTooLargeError,
 } from "@/lib/api";
@@ -66,7 +67,9 @@ function WordDiffSpans({
   );
 }
 
-interface DiffViewerProps {
+export interface DiffViewerProps {
+  /** If provided, show diff of this stash entry. Wins over workdir / commitOid */
+  stashOid?: string;
   /** If provided, show diff for this commit vs its parent */
   commitOid?: string;
   /** If provided, show the working-copy diff */
@@ -510,6 +513,7 @@ function FileDiffView({
 }
 
 export function DiffViewer({
+  stashOid,
   commitOid,
   workdir = false,
   path,
@@ -552,11 +556,15 @@ export function DiffViewer({
     setPanel("diff");
     setBlamePath(null);
 
-    const promise = workdir
-      ? getWorkdirDiff(activeWorkspaceId)
-      : commitOid
-        ? getCommitDiff(activeWorkspaceId, commitOid)
-        : Promise.resolve(null);
+    // Stash wins over the other sources: the stash detail modal passes a
+    // stashOid alongside `path`, and that pair means "this stash's entry".
+    const promise = stashOid
+      ? getStashDiff(activeWorkspaceId, stashOid)
+      : workdir
+        ? getWorkdirDiff(activeWorkspaceId)
+        : commitOid
+          ? getCommitDiff(activeWorkspaceId, commitOid)
+          : Promise.resolve(null);
 
     promise
       .then((result) => {
@@ -572,7 +580,7 @@ export function DiffViewer({
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspaceId, activeRepoId, commitOid, workdir, fileSignature]);
+  }, [activeWorkspaceId, activeRepoId, stashOid, commitOid, workdir, fileSignature]);
 
   useEffect(() => {
     setPanel("diff");
@@ -632,6 +640,9 @@ export function DiffViewer({
   }
 
   if (!visible || visible.files.length === 0) {
+    // A stash viewer always passes a `path` (StashDetailModal mounts DiffViewer
+    // only once a file is selected), so the stash empty state is the `noForPath`
+    // arm — a bare `stashOid` arm would be unreachable and is gone.
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm px-4 text-center">
         {path

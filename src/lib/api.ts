@@ -560,6 +560,9 @@ export interface FileDiff {
   hunks: DiffHunk[];
   /** Working-copy only: true = index vs HEAD, false = worktree vs index. */
   staged?: boolean | null;
+  /** Stash diffs only: true for entries restored from the stash's untracked
+   *  tree (stash^3). Undefined / null for every other diff source. */
+  untracked?: boolean | null;
 }
 
 export interface DiffSummary {
@@ -1362,8 +1365,22 @@ export function dropStash(workspaceId: string, index: number): Promise<void> {
   return invoke<void>("cmd_drop_stash", { workspaceId, index });
 }
 
-export function getStashDiff(workspaceId: string, oid: string): Promise<DiffSummary> {
-  return invoke<DiffSummary>("cmd_get_stash_diff", { workspaceId, oid });
+/**
+ * Diff one stash entry. `includeUntracked` maps to the backend's
+ * `include_untracked: Option<bool>`, where null keeps the backend default
+ * (`true`, i.e. the stash's untracked tree / stash^3 is included). The UI has
+ * no switch for it — it is part of the command contract, not a user setting.
+ */
+export function getStashDiff(
+  workspaceId: string,
+  oid: string,
+  includeUntracked?: boolean,
+): Promise<DiffSummary> {
+  return invoke<DiffSummary>("cmd_get_stash_diff", {
+    workspaceId,
+    oid,
+    includeUntracked: includeUntracked ?? null,
+  });
 }
 
 // ─── Worktree ────────────────────────────────────────────────────────────────
