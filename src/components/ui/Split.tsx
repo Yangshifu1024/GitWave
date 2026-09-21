@@ -234,9 +234,8 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
 
         // Fallback: resize both panes (no grow pane in this pair).
         let prevSize = prevStart + delta;
-        let nextSize = nextStart - delta;
         prevSize = Math.max(prevMin, Math.min(prevMax, prevSize));
-        nextSize = prevStart + nextStart - prevSize;
+        let nextSize = prevStart + nextStart - prevSize;
         if (nextSize < nextMin) {
           nextSize = nextMin;
           prevSize = prevStart + nextStart - nextSize;
