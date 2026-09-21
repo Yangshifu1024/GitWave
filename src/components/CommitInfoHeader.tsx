@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import type { CommitRef } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatAbsoluteTime } from "@/lib/commitTime";
 import { useTags } from "@/hooks/useTags";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Button } from "@/components/ui/Button";
@@ -21,16 +22,6 @@ import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { TagManagerModal } from "@/components/TagManagerModal";
 import { RefBadge } from "@/components/RefBadge";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-
-function formatDateTime(time: number, locale: string): string {
-  return new Date(time * 1000).toLocaleString(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 type CommitAction = "revert" | "cherry-pick";
 
@@ -178,7 +169,7 @@ export function CommitInfoHeader({
         <span className="font-medium text-text-secondary">{data.author}</span>
         <span className="truncate">{data.author_email}</span>
         <span aria-hidden="true">·</span>
-        <span>{formatDateTime(data.time, i18n.language)}</span>
+        <span>{formatAbsoluteTime(data.time, "ymd-hm", i18n.language)}</span>
       </div>
       {commitRefs.length > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-1">

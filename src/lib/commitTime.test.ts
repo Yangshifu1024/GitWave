@@ -1,7 +1,8 @@
 import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
 
-import { formatCommitDate, formatCommitTime } from "./commitTime";
+import { formatAbsoluteTime, formatCommitDate, formatCommitTime } from "./commitTime";
+import type { AbsoluteTimeStyle } from "./commitTime";
 
 /** Minimal stand-in for i18next's `t`: key plus the `n` interpolation. */
 const t = ((key: string, opts?: { n?: number }) =>
@@ -95,5 +96,111 @@ describe("formatCommitTime now injection", () => {
   it("treats a future commit time (clock skew) as just-now", () => {
     // now < time → negative diff: must stay in the just-now bucket, as before.
     expect(formatCommitTime(NOW + 3600, t, NOW)).toBe("branches.time.justNow");
+  });
+});
+
+/** 直调对照表：与 src/lib/commitTime.ts 的 ABSOLUTE_STYLES 逐点对应但独立写下，
+ *  这样样式表里的 method/options 被改动时，字节级对比会立刻失败。 */
+const DIRECT: Record<AbsoluteTimeStyle, (time: number, locale?: string) => string> = {
+  // `date` / `date-time` 的调用点本来就不传 locale：undefined 走无参形式。
+  date: (time, locale) =>
+    locale === undefined
+      ? new Date(time * 1000).toLocaleDateString()
+      : new Date(time * 1000).toLocaleDateString(locale),
+  ymd: (time, locale) =>
+    new Date(time * 1000).toLocaleDateString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
+  "ymd-hm": (time, locale) =>
+    new Date(time * 1000).toLocaleString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  "md-hm": (time, locale) =>
+    new Date(time * 1000).toLocaleString(locale, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  "date-time": (time, locale) =>
+    locale === undefined
+      ? new Date(time * 1000).toLocaleString()
+      : new Date(time * 1000).toLocaleString(locale),
+};
+
+const STYLES = Object.keys(DIRECT) as AbsoluteTimeStyle[];
+
+/** undefined = 系统 locale（调用点不传 locale 的情形）。 */
+const LOCALES: (string | undefined)[] = [undefined, "en", "zh-CN"];
+
+describe("formatAbsoluteTime byte parity with the call sites", () => {
+  it("matches the literal Intl call for every style and locale", () => {
+    for (const style of STYLES) {
+      for (const locale of LOCALES) {
+        expect(formatAbsoluteTime(NOW, style, locale)).toBe(DIRECT[style](NOW, locale));
+      }
+    }
+  });
+
+  it("returns the same string for repeated identical inputs", () => {
+    for (const style of STYLES) {
+      const first = formatAbsoluteTime(NOW, style, "en");
+      expect(formatAbsoluteTime(NOW, style, "en")).toBe(first);
+    }
+  });
+});
+
+describe("formatAbsoluteTime cache keys", () => {
+  it("keeps locales apart, whichever one is formatted first", () => {
+    const enFirst = formatAbsoluteTime(NOW, "ymd", "en");
+    const zhSecond = formatAbsoluteTime(NOW, "ymd", "zh-CN");
+    expect(enFirst).toBe(DIRECT.ymd(NOW, "en"));
+    expect(zhSecond).toBe(DIRECT.ymd(NOW, "zh-CN"));
+    expect(zhSecond).not.toBe(enFirst);
+
+    // 反向顺序、另一个本地日 → 全新的缓存条目，同样不得串味。
+    const otherDay = NOW + 3 * 86400;
+    const zhFirst = formatAbsoluteTime(otherDay, "ymd", "zh-CN");
+    const enSecond = formatAbsoluteTime(otherDay, "ymd", "en");
+    expect(zhFirst).toBe(DIRECT.ymd(otherDay, "zh-CN"));
+    expect(enSecond).toBe(DIRECT.ymd(otherDay, "en"));
+    expect(enSecond).not.toBe(zhFirst);
+  });
+
+  it("keeps different times of one local day apart for time-bearing styles", () => {
+    // 同一本地日的两个时刻：粒度粗于标签时（按本地日缓存）会得到同一个 label，
+    // 这正是 fix-history-scroll-perf 🔴 R1 的同类陷阱，必须被拦住。
+    const morning = new Date(2024, 8, 21, 9, 0, 0).getTime() / 1000;
+    const afternoon = new Date(2024, 8, 21, 17, 45, 0).getTime() / 1000;
+
+    expect(formatAbsoluteTime(morning, "md-hm")).not.toBe(formatAbsoluteTime(afternoon, "md-hm"));
+    expect(formatAbsoluteTime(morning, "ymd-hm", "en")).not.toBe(
+      formatAbsoluteTime(afternoon, "ymd-hm", "en"),
+    );
+    // 秒粒度：相差 1 秒也必须不同
+    expect(formatAbsoluteTime(morning, "date-time")).not.toBe(
+      formatAbsoluteTime(morning + 1, "date-time"),
+    );
+    // 而纯日期粒度：同一本地日的不同时刻必须相同
+    expect(formatAbsoluteTime(morning, "date")).toBe(formatAbsoluteTime(afternoon, "date"));
+    expect(formatAbsoluteTime(morning, "ymd", "en")).toBe(
+      formatAbsoluteTime(afternoon, "ymd", "en"),
+    );
+  });
+});
+
+describe("formatAbsoluteTime edge inputs", () => {
+  it("returns a string instead of throwing for NaN / non-finite times", () => {
+    for (const style of STYLES) {
+      expect(typeof formatAbsoluteTime(Number.NaN, style)).toBe("string");
+      expect(typeof formatAbsoluteTime(Number.POSITIVE_INFINITY, style)).toBe("string");
+      expect(typeof formatAbsoluteTime(Number.NEGATIVE_INFINITY, style)).toBe("string");
+    }
   });
 });
