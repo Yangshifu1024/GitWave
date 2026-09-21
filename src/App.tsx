@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -106,10 +106,15 @@ function App(): React.JSX.Element {
   const selectedCommitOid =
     commitSelection && commitSelection.repoId === activeRepoId ? commitSelection.sha : null;
 
-  const handleCommitSelect = (sha: string): void => {
-    if (!activeRepoId) return;
-    setCommitSelection({ repoId: activeRepoId, sha });
-  };
+  // Stable so CommitGraph's memoised rows are not invalidated by every App
+  // re-render (a new onCommitSelect identity re-renders the whole window).
+  const handleCommitSelect = useCallback(
+    (sha: string): void => {
+      if (!activeRepoId) return;
+      setCommitSelection({ repoId: activeRepoId, sha });
+    },
+    [activeRepoId],
+  );
 
   const handleBranchSelect = (branch: BranchInfo): void => {
     if (!activeRepoId || !branch.last_commit_sha) return;

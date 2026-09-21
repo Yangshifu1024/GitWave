@@ -2,9 +2,11 @@ import {
   cloneElement,
   createContext,
   isValidElement,
+  useCallback,
   useContext,
   useEffect,
   useId,
+  useMemo,
   useState,
   type MouseEvent,
   type ReactElement,
@@ -45,10 +47,12 @@ export function ContextMenu({ children }: { children: ReactNode }): React.JSX.El
     return () => window.removeEventListener("scroll", close, { capture: true });
   }, [isOpen]);
 
+  // setOpen / setPoint 是 React 稳定 setter，无需进依赖；value 只在真正变化时重建，
+  // 历史列表里每行的 ContextMenu 才不会因为父级重渲染而连锁重渲染。
+  const value = useMemo(() => ({ isOpen, setOpen, point, setPoint }), [isOpen, point]);
+
   return (
-    <ContextMenuStateContext.Provider value={{ isOpen, setOpen, point, setPoint }}>
-      {children}
-    </ContextMenuStateContext.Provider>
+    <ContextMenuStateContext.Provider value={value}>{children}</ContextMenuStateContext.Provider>
   );
 }
 
@@ -66,21 +70,34 @@ export function ContextMenuTrigger({
   className?: string;
 }): React.JSX.Element {
   const ctx = useContextMenuState();
+  const { setOpen, setPoint } = ctx;
 
-  const onContextMenu = (event: MouseEvent<HTMLElement>): void => {
-    event.preventDefault();
-    event.stopPropagation();
-    ctx.setPoint({ x: event.clientX, y: event.clientY });
-    ctx.setOpen(true);
-  };
+  // 引用稳定：cloneElement 注入的 handler 每帧换新会让被注入的元素无法被 memo。
+  const onContextMenu = useCallback(
+    (event: MouseEvent<HTMLElement>): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      setPoint({ x: event.clientX, y: event.clientY });
+      setOpen(true);
+    },
+    [setPoint, setOpen],
+  );
+
+  const childOnContextMenu = isValidElement(children)
+    ? (children as ReactElement<TriggerChildProps>).props.onContextMenu
+    : undefined;
+  // 引用稳定：cloneElement 注入的 handler 每帧换新会让被注入的元素无法被 memo。
+  const triggerOnContextMenu = useCallback(
+    (event: MouseEvent<HTMLElement>): void => {
+      childOnContextMenu?.(event);
+      onContextMenu(event);
+    },
+    [childOnContextMenu, onContextMenu],
+  );
 
   if (asChild && isValidElement(children)) {
-    const child = children as ReactElement<TriggerChildProps>;
-    return cloneElement(child, {
-      onContextMenu: (event: MouseEvent<HTMLElement>) => {
-        child.props.onContextMenu?.(event);
-        onContextMenu(event);
-      },
+    return cloneElement(children as ReactElement<TriggerChildProps>, {
+      onContextMenu: triggerOnContextMenu,
     });
   }
 
@@ -100,18 +117,28 @@ export function ContextMenuContent({
 }): React.JSX.Element {
   const ctx = useContextMenuState();
 
+  // 关闭态不渲染隐形锚点：历史列表每行最多 4 套菜单，视口内约 200 个常驻 body 级
+  // fixed 节点是 macOS 滚动空白/卡顿的放大器之一。锚点在菜单打开这一帧才挂载，
+  // 坐标取 contextmenu 时写入的 ctx.point（最新 clientX/clientY），定位与
+  // docs/tasks/fix-history-menu-drift 的修复一致。
+  // 保留 <Popover> 本体挂载，是为了让 HeroUI 样式表驱动的退场动画
+  // （.popover[data-exiting=true]）仍然能播放。
+  const mountAnchor = ctx.isOpen;
+
   return (
     <Popover isOpen={ctx.isOpen} onOpenChange={ctx.setOpen}>
       {/* 锚点必须 portal 到 body：CommitGraph 虚拟行 wrapper 带 transform，
           会成为 fixed 后代的包含块，导致 clientX/clientY 被按行坐标解释、菜单漂移 */}
-      {createPortal(
-        <Popover.Trigger
-          aria-hidden
-          className="fixed z-popover h-px w-px overflow-hidden p-0 pointer-events-none"
-          style={{ left: ctx.point.x, top: ctx.point.y }}
-        />,
-        document.body,
-      )}
+      {mountAnchor
+        ? createPortal(
+            <Popover.Trigger
+              aria-hidden
+              className="fixed z-popover h-px w-px overflow-hidden p-0 pointer-events-none"
+              style={{ left: ctx.point.x, top: ctx.point.y }}
+            />,
+            document.body,
+          )
+        : null}
       <Popover.Content
         placement="bottom start"
         offset={2}
