@@ -1,11 +1,18 @@
-import React, { useMemo } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useRef, useState } from "react";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { CommitRef, CommitSummary } from "@/lib/api";
 import { formatAppError, getCommitLog } from "@/lib/api";
 import { remoteShortName } from "@/lib/branchNames";
+import { formatCommitTime } from "@/lib/commitTime";
 import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Surface } from "@heroui/react";
@@ -24,18 +31,13 @@ import { RefBadgeContextMenu } from "@/components/RefBadgeContextMenu";
 const ROW_H = 28;
 const INITIAL_LIMIT = 200;
 const PAGE_SIZE = 300;
+/** Paging trigger distance from the bottom of the scroll container (was 600).
+ *  Refetching a page every time the repo bottom comes back into view is one
+ *  source of the "stutter" macOS reports while flinging.
+ */
+const LOAD_MORE_MARGIN = 1200;
 const LANE_GAP = 14;
 const NODE_R = 3.2;
-
-function formatTime(time: number, t: TFunction): string {
-  const now = Math.floor(Date.now() / 1000);
-  const diff = now - time;
-  if (diff < 60) return t("branches.time.justNow");
-  if (diff < 3600) return t("branches.time.minutesAgo", { n: Math.floor(diff / 60) });
-  if (diff < 86400) return t("branches.time.hoursAgo", { n: Math.floor(diff / 3600) });
-  if (diff < 604800) return t("branches.time.daysAgo", { n: Math.floor(diff / 86400) });
-  return new Date(time * 1000).toLocaleDateString();
-}
 
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
@@ -110,7 +112,12 @@ interface GraphRowProps {
 }
 
 /** Per-row SVG: through-lines, incoming/outgoing curves, commit node (newest-first). */
-function GraphRow({ commit, art, maxLane, isHead }: GraphRowProps): React.JSX.Element {
+const GraphRow = React.memo(function GraphRow({
+  commit,
+  art,
+  maxLane,
+  isHead,
+}: GraphRowProps): React.JSX.Element {
   const width = laneX(maxLane) + LANE_GAP / 2;
   const cy = ROW_H / 2;
   const cx = laneX(commit.lane);
@@ -203,6 +210,24 @@ function GraphRow({ commit, art, maxLane, isHead }: GraphRowProps): React.JSX.El
       ) : null}
     </svg>
   );
+});
+
+/** 行菜单控制器（CommitGraph 每次渲染新建的对象）。经 context 下传而不是 props：
+ *  菜单体只在菜单打开时挂载（ui/ContextMenu.tsx 关闭态早退），因此每次都能读到
+ *  最新控制器 —— 既不用稳定那个 hook 的返回值，也不会有过期闭包。 */
+const CommitMenuContext = createContext<CommitMenuController | null>(null);
+
+/** 行菜单体：仅作为 <ContextMenuContent> 的 children 存在，关闭态不渲染。 */
+function CommitMenuBody({ commit }: { commit: CommitSummary }): React.JSX.Element | null {
+  const menu = useContext(CommitMenuContext);
+  if (!menu) return null;
+  return (
+    <CommitMenuItems
+      commit={commit}
+      onAction={menu.onAction}
+      state={{ currentBranch: menu.currentBranch, headSha: menu.headSha }}
+    />
+  );
 }
 
 interface CommitRowProps {
@@ -212,8 +237,6 @@ interface CommitRowProps {
   onSelect: (sha: string) => void;
   isSelected: boolean;
   isHead: boolean;
-  /** F011 row context menu controller (shared, modals live in CommitGraph). */
-  menu: CommitMenuController;
 }
 
 type DisplayRef = CommitRef & { synced?: boolean };
@@ -233,17 +256,18 @@ function mergeTrackedRefs(refs: CommitRef[]): DisplayRef[] {
     );
 }
 
-function CommitRow({
+/** Memoised: the virtualizer rebuilds the whole window on every scroll frame,
+ *  so a row must not re-render unless one of its own props changed. */
+const CommitRow = React.memo(function CommitRow({
   commit,
   art,
   maxLane,
   onSelect,
   isSelected,
   isHead,
-  menu,
 }: CommitRowProps): React.JSX.Element {
   const { t } = useTranslation();
-  const refs = mergeTrackedRefs(commit.refs ?? []);
+  const refs = useMemo(() => mergeTrackedRefs(commit.refs ?? []), [commit.refs]);
 
   return (
     <ContextMenu>
@@ -306,20 +330,16 @@ function CommitRow({
           {/* Shrinks first and collapses to nothing before the message gives
               up its room: tight rows hide author/time instead of the refs. */}
           <span className="min-w-0 shrink-[999] overflow-hidden whitespace-nowrap text-[10px] text-text-muted tabular-nums">
-            {commit.author} &middot; {formatTime(commit.time, t)}
+            {commit.author} &middot; {formatCommitTime(commit.time, t)}
           </span>
         </Surface>
       </ContextMenuTrigger>
       <ContextMenuContent className="max-w-[260px]">
-        <CommitMenuItems
-          commit={commit}
-          onAction={menu.onAction}
-          state={{ currentBranch: menu.currentBranch, headSha: menu.headSha }}
-        />
+        <CommitMenuBody commit={commit} />
       </ContextMenuContent>
     </ContextMenu>
   );
-}
+});
 
 interface CommitGraphProps {
   onCommitSelect?: (sha: string) => void;
@@ -401,19 +421,34 @@ export function CommitGraph({
     count: commits.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_H,
-    overscan: 10,
+    // Cheaper rows (memo + stable callbacks) make a slightly larger window a
+    // good trade: it closes the blank window on a fast flick/fling.
+    overscan: 14,
   });
 
   // "Load more" fires while scrolling near the bottom; a short page means the
   // walk reached the root.
   const hasMore = commits.length >= limit;
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el || loading || !hasMore) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 600) {
-      setLimit((l) => l + PAGE_SIZE);
-    }
+  const scrollRafRef = useRef<number | null>(null);
+  const handleScroll = (): void => {
+    // One layout read per frame: a wheel/trackpad fling fires scroll events
+    // far more often than frames, and scrollHeight/clientHeight force layout.
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = scrollRef.current;
+      if (!el || loading || !hasMore) return;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - LOAD_MORE_MARGIN) {
+        setLimit((l) => l + PAGE_SIZE);
+      }
+    });
   };
+  useEffect(
+    () => () => {
+      if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    },
+    [],
+  );
 
   // Locate request from the sidebar (branch click) or the palette commit
   // search: center the commit in the viewport. One-shot per seq — history
@@ -448,10 +483,13 @@ export function CommitGraph({
     virtualizer.scrollToIndex(index, { align: "center" });
   }, [locateRequest, activeRepoId, shaToIndex, virtualizer, loading, commits.length, limit]);
 
-  const handleSelect = (sha: string) => {
-    setLocalSelected(sha);
-    onCommitSelect?.(sha);
-  };
+  const handleSelect = useCallback(
+    (sha: string) => {
+      setLocalSelected(sha);
+      onCommitSelect?.(sha);
+    },
+    [onCommitSelect],
+  );
 
   if (!activeWorkspaceId) {
     return (
@@ -503,60 +541,70 @@ export function CommitGraph({
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      {showGraph ? (
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const commit = commits[virtualRow.index];
-              if (!commit) return null;
-              return (
-                <div
-                  key={commit.sha}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  <CommitRow
-                    commit={commit}
-                    art={rowArtByIndex[virtualRow.index] ?? EMPTY_ROW_ART}
-                    maxLane={maxLane}
-                    onSelect={handleSelect}
-                    isSelected={selectedSha === commit.sha}
-                    isHead={menu.headSha === commit.sha}
-                    menu={menu}
-                  />
-                </div>
-              );
-            })}
+    <CommitMenuContext.Provider value={menu}>
+      <div className="h-full flex flex-col min-h-0">
+        {showGraph ? (
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
+            <div
+              style={{
+                height: `${virtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+                // No will-change here on purpose: promoting a many-thousand-px sizer
+                // is an unverifiable memory risk on WKWebView; A/B it on a real Mac
+                // instead.
+              }}
+            >
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const commit = commits[virtualRow.index];
+                if (!commit) return null;
+                return (
+                  <div
+                    key={commit.sha}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`,
+                      // Uniform rows that never affect each other's layout: keep
+                      // their layout work inside the row box. Paint containment is
+                      // deliberately left out — it would clip the row's SVG stroke
+                      // overflow / horizontal bleed, and that cannot be verified on
+                      // this machine.
+                      contain: "layout",
+                    }}
+                  >
+                    <CommitRow
+                      commit={commit}
+                      art={rowArtByIndex[virtualRow.index] ?? EMPTY_ROW_ART}
+                      maxLane={maxLane}
+                      onSelect={handleSelect}
+                      isSelected={selectedSha === commit.sha}
+                      isHead={menu.headSha === commit.sha}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {loading && commits.length > 0 ? (
+              <div className="py-2 text-center text-[10px] text-text-muted">
+                {t("branches.graph.loadingOlder")}
+              </div>
+            ) : !hasMore && commits.length > 0 ? (
+              <div className="py-2 text-center text-[10px] text-text-muted">
+                {t("branches.graph.endOfHistory", { total: commits.length })}
+              </div>
+            ) : null}
           </div>
+        ) : (
+          stateContent
+        )}
 
-          {loading && commits.length > 0 ? (
-            <div className="py-2 text-center text-[10px] text-text-muted">
-              {t("branches.graph.loadingOlder")}
-            </div>
-          ) : !hasMore && commits.length > 0 ? (
-            <div className="py-2 text-center text-[10px] text-text-muted">
-              {t("branches.graph.endOfHistory", { total: commits.length })}
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        stateContent
-      )}
-
-      {menu.renderModals()}
-    </div>
+        {menu.renderModals()}
+      </div>
+    </CommitMenuContext.Provider>
   );
 }
