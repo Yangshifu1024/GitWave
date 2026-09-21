@@ -217,13 +217,25 @@ jobs:
   # the last build finishes, so rewrite the URLs to plain download links
   # (https://github.com/<owner>/<repo>/releases/download/<tag>/<file>) and
   # replace the uploaded manifest — the file the updater actually reads.
+  #
+  # Two facts about running this against a draft release — the first real run,
+  # on v0.9.3, died on both (see
+  # docs/tasks/fix-rewrite-manifest-draft/plan.md):
+  #   - GET /releases/tags/<tag> answers 404 for a draft, so direct API calls
+  #     go through prepare-release's release id. (`gh release download/upload`
+  #     are fine on a draft: gh resolves the tag through the releases list,
+  #     which does include it.)
+  #   - browser_download_url of a draft asset is
+  #     releases/download/untagged-<hash>/<file>, not the published
+  #     releases/download/<tag>/<file> the updater needs — build the URL from
+  #     the tag and the asset name instead.
   # The job-level permissions below are load-bearing: job-level overrides the
   # workflow level, and a draft release is only visible to a token with push
   # permission (set to contents: read once and gh answered "release not found"
   # — see docs/tasks/fix-ci-redundant-publish-job/plan.md).
   rewrite-manifest-urls:
     name: Rewrite updater manifest URLs
-    needs: [build-macos, build-linux, build-windows]
+    needs: [prepare-release, build-macos, build-linux, build-windows]
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
@@ -232,30 +244,51 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.ref_name }}
       REPO: ${{ github.repository }}
+      RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
     steps:
       - name: Rewrite API asset URLs to download URLs
         run: |
           set -euo pipefail
+          : "${RELEASE_ID:?prepare-release did not output a release id}"
+          # Deliberate, not leftover: the runner image's gh version is what
+          # decides how a draft release is resolved, so keep it in the log.
+          gh --version
           gh release download "$TAG" --repo "$REPO" --pattern latest.json --clobber
-          # id -> the release's own download link, straight from the API, so the
-          # rewrite neither assumes bundle file naming nor rebuilds URLs.
-          assets=$(gh api "repos/$REPO/releases/tags/$TAG" \
-            --jq '[.assets[] | {key: (.id | tostring), value: .browser_download_url}] | from_entries')
-          jq --argjson assets "$assets" '
+          # asset id -> published download link, plus the set of real asset
+          # names the guard below needs. Both come from the release id: the tag
+          # endpoint 404s while the release is a draft.
+          manifest=$(gh api "repos/$REPO/releases/$RELEASE_ID")
+          base="https://github.com/$REPO/releases/download/$TAG"
+          assets=$(printf '%s' "$manifest" \
+            | jq '[.assets[] | {key: (.id | tostring), value: .name}] | from_entries')
+          names=$(printf '%s' "$manifest" | jq '[.assets[].name]')
+          # Built from the tag and the asset name on purpose:
+          # browser_download_url points at the draft's untagged-<hash> pseudo
+          # path, which stops working once the release is published.
+          jq --argjson assets "$assets" --arg base "$base" '
             .platforms |= with_entries(
               .value.url = (
                 (.value.url | sub("^.*/releases/assets/"; "")) as $id
-                | if $assets[$id] then $assets[$id] else .value.url end
+                | if $assets[$id] then ($base + "/" + $assets[$id]) else .value.url end
               )
             )' latest.json > latest.rewritten.json
           mv latest.rewritten.json latest.json
-          # Fail loudly rather than shipping a manifest the updater cannot use:
-          # every platform URL has to be a plain download link (an api.github.com
+          # Fail loudly rather than shipping a manifest the updater cannot use.
+          # Every platform URL has to be a plain download link (an api.github.com
           # URL answers 403 to the updater) ...
-          bad_urls=$(jq -r '[.platforms[].url | select(startswith("https://github.com/") | not)] | length' latest.json)
+          bad_urls=$(jq -r --arg base "$base/" '[.platforms[].url | select(startswith($base) | not)] | length' latest.json)
           if [ "$bad_urls" != "0" ]; then
-            echo "::error::latest.json has $bad_urls platform URL(s) that are not github.com download links"
+            echo "::error::latest.json has $bad_urls platform URL(s) that are not $base/<file> links"
             jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
+            exit 1
+          fi
+          # ... every one of them has to name an asset that really exists
+          # (a link to a missing file breaks updates just as quietly) ...
+          bad_names=$(jq -r --argjson names "$names" '[.platforms[].url | split("/")[-1] | select(. as $n | $names | index($n) | not)] | length' latest.json)
+          if [ "$bad_names" != "0" ]; then
+            echo "::error::latest.json points at $bad_names file(s) that are not release assets"
+            jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
+            printf '%s' "$names" | jq -r '"assets: " + join(", ")'
             exit 1
           fi
           # ... and the three main platforms have to be there, since a platform
@@ -266,4 +299,17 @@ jobs:
             exit 1
           fi
           jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
+          # --clobber replaces the uploaded manifest (gh deletes the old asset
+          # and uploads the new one). If this step fails the job is red and the
+          # draft may briefly carry no latest.json — publishing stays a manual
+          # step precisely so a human sees that before the updater ever reads
+          # it (see the plan's known limitations).
           gh release upload "$TAG" latest.json --repo "$REPO" --clobber
+          # Prove what the release now serves instead of trusting the upload.
+          verify_dir=$(mktemp -d)
+          gh release download "$TAG" --repo "$REPO" --pattern latest.json --clobber -D "$verify_dir"
+          if ! cmp -s latest.json "$verify_dir/latest.json"; then
+            echo "::error::the re-downloaded latest.json differs from the rewritten manifest"
+            exit 1
+          fi
+          echo "latest.json rewritten and verified"
