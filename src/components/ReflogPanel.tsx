@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { cn } from "@/lib/utils";
+import { formatAbsoluteTime } from "@/lib/commitTime";
 
 // Reflog action → i18n key; labels resolve via t() at render time.
 const ACTION_LABEL_KEYS: Record<string, string> = {
@@ -37,15 +38,6 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   clone: "repo.reflog.actions.clone",
   other: "repo.reflog.actions.other",
 };
-
-function formatTime(time: number): string {
-  return new Date(time * 1000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 /** A reflog entry plus the resolved recovery position (see recoversOld). */
 type RecoveryTarget = ReflogEntry & { oid: string };
@@ -196,7 +188,7 @@ export function ReflogPanel(): React.JSX.Element {
                 {e.message}
               </span>
               <span className="shrink-0 font-mono text-[10px] text-text-muted tabular-nums">
-                {formatTime(e.time)}
+                {formatAbsoluteTime(e.time, "md-hm")}
               </span>
             </button>
           ))}

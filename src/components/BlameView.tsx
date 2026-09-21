@@ -4,14 +4,7 @@ import type { BlameLine } from "@/lib/api";
 import { formatAppError, getBlame } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
-
-function formatTime(time: number, locale: string): string {
-  return new Date(time * 1000).toLocaleDateString(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
+import { formatAbsoluteTime } from "@/lib/commitTime";
 
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
@@ -60,7 +53,7 @@ function BlameGutter({ line }: { line: BlameLine }): React.JSX.Element {
         <span className="text-accent font-mono text-xs shrink-0">{shortSha(line.sha)}</span>
         <span className="text-text-muted text-xs truncate shrink-0">{line.author}</span>
         <span className="text-text-muted text-xs ml-auto shrink-0">
-          {formatTime(line.time, i18n.language)}
+          {formatAbsoluteTime(line.time, "ymd", i18n.language)}
         </span>
       </div>
 
@@ -79,7 +72,9 @@ function BlameGutter({ line }: { line: BlameLine }): React.JSX.Element {
             <p className="font-mono text-xs text-accent">{shortSha(hoverInfo.sha)}</p>
             <p className="text-sm font-medium text-text-primary">{hoverInfo.author}</p>
             <p className="text-xs text-text-muted">{hoverInfo.author_email}</p>
-            <p className="text-xs text-text-muted">{formatTime(hoverInfo.time, i18n.language)}</p>
+            <p className="text-xs text-text-muted">
+              {formatAbsoluteTime(hoverInfo.time, "ymd", i18n.language)}
+            </p>
           </div>
         </div>
       )}

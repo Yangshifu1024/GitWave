@@ -4,7 +4,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { BranchInfo, InlineAuth } from "@/lib/api";
 import {
@@ -34,6 +33,7 @@ import { useTags } from "@/hooks/useTags";
 import { onBranchRevealed, useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/commitMenu";
+import { formatAbsoluteTime, formatCommitTime } from "@/lib/commitTime";
 import { withAuthRetry } from "@/lib/authRetry";
 import {
   allRemoteBranches,
@@ -77,17 +77,6 @@ import {
 } from "lucide-react";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
-
-function formatTime(time: number, t: TFunction): string {
-  if (time <= 0) return "";
-  const now = Math.floor(Date.now() / 1000);
-  const diff = now - time;
-  if (diff < 60) return t("branches.time.justNow");
-  if (diff < 3600) return t("branches.time.minutesAgo", { n: Math.floor(diff / 60) });
-  if (diff < 86400) return t("branches.time.hoursAgo", { n: Math.floor(diff / 3600) });
-  if (diff < 604800) return t("branches.time.daysAgo", { n: Math.floor(diff / 86400) });
-  return new Date(time * 1000).toLocaleDateString();
-}
 
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
@@ -192,7 +181,7 @@ function BranchRow({
             branch.upstream
               ? branch.upstream
               : branch.last_commit_sha
-                ? `${branch.last_commit_sha}${branch.last_commit_time > 0 ? ` · ${new Date(branch.last_commit_time * 1000).toLocaleString()}` : ""}`
+                ? `${branch.last_commit_sha}${branch.last_commit_time > 0 ? ` · ${formatAbsoluteTime(branch.last_commit_time, "date-time")}` : ""}`
                 : undefined
           }
         >
@@ -204,7 +193,9 @@ function BranchRow({
           ) : branch.last_commit_sha ? (
             <span className="truncate">
               <span className="font-mono">{shortSha(branch.last_commit_sha)}</span>
-              {branch.last_commit_time > 0 ? ` · ${formatTime(branch.last_commit_time, t)}` : ""}
+              {branch.last_commit_time > 0
+                ? ` · ${formatCommitTime(branch.last_commit_time, t)}`
+                : ""}
             </span>
           ) : null}
         </span>
