@@ -19,7 +19,7 @@
 └────────────┴──────────────────────────────────┴─────────────────────────┘
 ```
 
-最小窗口尺寸：960 × 600。
+最小窗口尺寸：1024 × 768。
 推荐：1280 × 800+。
 
 ## 2. TitleBar（自绘标题栏，唯一顶栏）
@@ -68,14 +68,12 @@ ahead/behind 数字显示在 Pull / Push 按钮上。
 
 ### 2.3 Branch 同步状态（标题栏 Pull / Push）
 
-ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上（`Pull ↓N` / `Push ↑N`）。
-
-格式：`Pull ↓N` / `Push ↑N`
+ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上，形如 `Pull (3)` / `Push (2)`：按钮内有一个固定宽度的 `(N)` 计数槽位，计数为 0 时留空（`ActionBarButton`，`src/components/ActionBar.tsx`）。
 
 示例：
-- `Pull` / `Push`（无数字，behind/ahead = 0 时按钮灰显）
-- `Pull ↓3`（behind 3，可 Pull）
-- `Push ↑2`（ahead 2，可 Push）
+- `Pull` / `Push`（计数 0，按钮灰显）
+- `Pull (3)`（behind 3，可 Pull）
+- `Push (2)`（ahead 2，可 Push）
 - detached HEAD 时 Pull/Push 均灰显
 
 当 branch 改变（如 commit / checkout / merge）时实时更新。ahead/behind 在每次 fetch 后刷新。
@@ -87,7 +85,7 @@ ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上（`Pull �
 - `⌘⇧F`：Fetch
 - `⌘⇧P`：Pull
 - `⌘⇧U`：Push（U = upstream；与 Tower 一致）
-- `⌘,`：打开 Preferences（v0.2）
+- `⌘,` / `Ctrl+,`：打开 Settings（已实现；macOS 系统菜单加速键 `CmdOrCtrl+,`，网页层另有兜底监听）
 
 详见 `04-working-copy.md` §8 完整快捷键表。
 
@@ -107,49 +105,52 @@ ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上（`Pull �
 
 ```
 ┌──────────────────────────┐
-│ WORKSPACES             +  │
-│   Client Work    [active] │
-│   Personal                │
-│ REPOS          Fetch  +  │
-│   gitwave      [active]   │
-│   notes                   │
-│ BRANCHES   Pull↓1 Push↑2 +│
+│ HEALTH                 ▸ │
+│ BRANCHES              +  │
 │   main             HEAD   │
 │   feature/tide-lanes      │
-│ STASH / TAGS / REMOTES …  │
+│ STASH                     │
+│ TAGS                      │
+│ REMOTES                   │
+│ WORKTREES                 │
+│ SUBMODULES                │
+│ RECOVERY (reflog)      ▸ │
 └──────────────────────────┘
 ```
 
-宽度：320px（可拖拽 320-480）。背景 Mist，与 Foam 画布区分。**Workspaces 列表置顶**，其下为 Repos / Branches 等 sections。
+宽度：320px（可拖拽 320-480）。背景 Mist，与 Foam 画布区分。**同步按钮不在侧栏**：Fetch / Pull / Push 位于标题栏右侧（§2.2 / §3.4）。
+
+**工作区与仓库的切换同样不在侧栏**（2026-09 起）：工作区在标题栏的工作区下拉里切换（`components/WorkspaceDropdown.tsx`），仓库在标题栏下方的仓库标签栏里切换（`components/WorkspaceRepoTabs.tsx`）。
 
 ### 3.2 元素
 
 | 元素 | 类型 | 备注 |
 |---|---|---|
-| WORKSPACES 标题 | 静态 + `+` | uppercase label；`+` → 新建 workspace |
-| Workspace 行 | ListItem | 点击 → selectWorkspace；hover 显示 AI / Rename / Delete |
-| REPOS 标题 | 静态 + actions | uppercase label；右侧 `Fetch`（repo 级）+ `+` |
-| Repo 行 | ListItem | 点击 → setActiveRepo；右键菜单：relink / remove |
-| BRANCHES 标题 | 静态 + actions | 右侧 `Pull ↓N` / `Push ↑N`（branch 级）+ `+` |
-| STASH / TAGS / … | SidebarSection | 见 §4 |
+| HEALTH 标题 | SidebarSection | uppercase label，默认折叠；内容见 §4 |
+| BRANCHES 标题 | 静态 + actions | 右侧 `+`（同步按钮已移至标题栏，见 §3.4）|
+| Branch 行 | ListItem | 见 `components/BranchList.tsx` |
+| STASH / TAGS / REMOTES / WORKTREES / SUBMODULES | SidebarSection | 见 §4 |
+| RECOVERY（reflog） | SidebarSection | uppercase label，默认折叠 |
 
-### 3.4 Sync 操作（侧栏标题栏）
+### 3.4 Sync 操作（标题栏右侧，不在侧栏）
 
-| 操作 | Section | 作用域 | 禁用 |
-|---|---|---|---|
-| Fetch | REPOS | 当前 active repo 的全部 remote | 无 active repo |
-| Pull | BRANCHES | 当前 HEAD branch | behind = 0 或 detached |
-| Push | BRANCHES | 当前 HEAD branch | ahead = 0 或 detached |
+> 2026-09 起 Fetch / Pull / Push 收进标题栏右侧（§2.2 / §2.3）；侧栏 section 标题栏不再有同步按钮。
 
-按钮为 10px 文字链，badge 颜色：ahead 绿 / behind 橙。进行中显示 spinner 替换文字。
+| 操作 | 作用域 | 禁用 |
+|---|---|---|
+| Fetch | 当前 active repo 的全部 remote | 无 active repo |
+| Pull | 当前 HEAD branch | behind = 0 或 detached |
+| Push | 当前 HEAD branch | ahead = 0 或 detached |
+
+同步进行中按钮 disabled，进度与取消入口在标题栏状态区（§2.5）。
 
 ### 3.3 状态标记
 
 | 状态 | Badge | 位置 |
 |---|---|---|
 | active（= workspace.last_active_repo_id） | 默认高亮（左侧 3px accent border） | repo 行 |
-| missing | `StatusBadge variant="missing"` | repo 行右侧 |
-| ahead / behind | `StatusBadge variant="ahead"/"behind"` | repo 行右侧（v0.1 fetch 后展示）|
+| missing | 仓库标签上无徽标：整行降透明度（`opacity-60`）+ 一个 warning 圆点，并带仅供读屏的 missing 文案（`StatusBadge` 的 `missing` 变体已定义，但当前没有调用点） | repo 标签 |
+| ahead / behind | `StatusBadge variant="ahead"/"behind"` | branch 行右侧（fetch 后展示）|
 
 ## 4. Feature 入口（侧栏 sections，无浏览器 Tab）
 
@@ -246,10 +247,10 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 | `ActionBar` | TopBar 下方操作条 | 本节 |
 | `WorkingCopyModal` | 变更模态（双列） | 本节 |
 | `ChangesPanel` | unstaged/staged 列表 + commit box（layout: stacked/bar/modal） | `04-working-copy.md` |
-| `BranchIndicator` | 当前 branch 名 + ahead/behind | `02-components.md` §1.13 |
-| `FileListItem` | 单个文件行（M/A/D/?/R/C + 路径 + +/-） | `02-components.md` §1.14 |
-| `StatusIcon` | 文件 status 字符 + 颜色 | `02-components.md` §1.15 |
-| `CommitMessageBox` | 多行输入 + AI placeholder + Amend prefill | `02-components.md` §1.16 |
+| `BranchIndicator` | 当前 branch 名 + ahead/behind | `02-components.md` §3.1 |
+| `FileListItem` | 单个文件行（M/A/D/?/R/C + 路径 + +/-） | `02-components.md` §3.2 |
+| `StatusIcon` | 文件 status 字符 + 颜色 | `02-components.md` §3.3 |
+| `CommitMessageBox` | 多行输入 + AI placeholder + Amend prefill | `02-components.md` §3.4 |
 
 
 ## 7. 响应式
@@ -261,7 +262,7 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 | 768-959px | sidebar 折叠成图标列；feature nav 折叠为下拉 |
 | < 768px | 单 pane（mobile 暂未支持，建议 PWA / Tauri mobile 后续） |
 
-v0.1 桌面端 only，响应式为 v0.2+。
+桌面端 only（当前仍是桌面应用）；窗口最小尺寸 1024 × 768（`src-tauri/tauri.conf.json`），表中更窄的断点当前不可达。
 
 ## 8. 键盘导航
 
@@ -283,7 +284,7 @@ v0.1 桌面端 only，响应式为 v0.2+。
 | `Enter` | 激活当前焦点项（sidebar 选中 repo / file 选中查看 diff） |
 | `Tab` / `Shift+Tab` | 在 main / 表单字段间移动 |
 | `Esc` | 关闭 Modal / popover / palette；取消 commit 框 focus |
-| `⌘Z` / `⌘⇧Z` | undo / redo（v0.2）|
+| `⌘Z` / `⌘⇧Z` | 文本输入框内的 undo / redo（无 git 操作级撤销）|
 
 完整工作副本快捷键见 `04-working-copy.md` §8。
 

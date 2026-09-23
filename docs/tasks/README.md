@@ -11,21 +11,26 @@
 
 ## 目录命名
 
-`<feat|fix>-<任务名>/`
+`<类型前缀>-<任务名>/`
 
 - `feat-`：新功能需求
 - `fix-`：缺陷修复
+- `chore-`：构建 / CI / 依赖等杂项（如 `chore-ci-dedupe-trigger`）
+- `refactor-`：不改变外部行为的重构（如 `refactor-unify-time-format`）
+- `style-`：纯格式 / 命名等外观调整（如 `style-sidebar-tag-sha-parentheses`）
 - `<任务名>`：小写字母与连字符；与 `docs/pm/features/` 中对应条目编号对齐
+
+截至当前，本目录共 132 个任务目录：`feat-` 66 个、`fix-` 61 个、`chore-` 3 个、`refactor-` 1 个、`style-` 1 个。
 
 例：
 
 ```
 docs/tasks/
-├── feat-ai-commit-multicontext/
-│   ├── plan.md
-│   └── review.md
-└── fix-clone-ssh-failure/
-    └── plan.md
+├── feat-stash-panel-ux/
+│   └── plan.md
+└── fix-history-scroll-perf/
+    ├── plan.md
+    └── review.md
 ```
 
 ## 文件结构
@@ -37,7 +42,7 @@ docs/tasks/
 | `plan.md` | 工程团队 / architect | 技术方案或修改方案，含目标、步骤、验证 |
 | `review.md` | code-reviewer | 审查结论报告（7 维度：正确性 / 安全 / 性能 / 可维护性 / 可读性 / 测试覆盖 / 最佳实践） |
 
-可选附加：
+可选附加（目前尚无任务使用这两个文件，全部任务目录只有 `plan.md` 与 `review.md`）：
 
 - `notes.md`：实施过程记录
 - `testing.md`：tester 输出的测试用例或缺陷分析

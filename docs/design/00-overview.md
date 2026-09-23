@@ -1,7 +1,7 @@
 # GitWave · UI/UX 设计总览
 
 > 完整界面设计文档。配合 `01-tokens.md` / `02-components.md` / `03-layout.md` 一起阅读。
-> 状态：已落地（对照 v0.8.7）。IA 与 3-pane 仍有效；组件栈见下方「库选择」修订。
+> 状态：已落地（对照 v0.9.3）。IA 与 3-pane 仍有效；组件栈见下方「库选择」修订。
 
 ## 目标
 
@@ -19,12 +19,12 @@
 
 ## 库选择（决策见 `docs/tech/decisions/00-overview.md` ADR 0005）
 
-原选择是 Radix Primitives。2026-08-28 起 `src/components/ui/` 换成 **HeroUI v3**（见 `docs/tasks/feat-heroui-migration/plan.md`）。截至 v0.8.7：
+原选择是 Radix Primitives。2026-08-28 起 `src/components/ui/` 换成 **HeroUI v3**（见 `docs/tasks/feat-heroui-migration/plan.md`）。截至 v0.9.3：
 
 | 用途 | 库 | 理由 |
 |---|---|---|
 | Utility CSS | **Tailwind CSS v4** | 纯函数 CSS、token-driven；v4 CSS-first |
-| 交互组件 | **HeroUI v3**（React Aria） | 取代 Radix；wrapper 保持原 props |
+| 交互组件 | **HeroUI v3**（底层 React Aria Components） | 取代 Radix；文件名 / 导出 / props 保持兼容 |
 | 变体管理 | **cva** + **tailwind-merge** | Button / StatusBadge；其余走 HeroUI |
 | 图标 | **Lucide React** | MIT、tree-shakeable |
 | 语法高亮 | **Shiki**（依赖已入，**DiffViewer 未接线**） | 规划仍是 TextMate 引擎；当前 diff 为自绘 character-level |
@@ -62,7 +62,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Toolbar  Client Work - gitwave - main（居中）                ⌘K  ☀ │
+│  TitleBar  菜单 · 工作区 · 外部工具 · 操作按钮 · 状态区（窗口居中）        │
 ├────────────┬───────────────────────────────┬────────────────────┤
 │ Sidebar    │  History graph（主角）         │  Inspector         │
 │ (320px)    │  flex                         │  (~360px)          │
@@ -77,8 +77,8 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Toolbar**：居中 `Workspace - Repository - branch`（只读上下文）。无品牌 Logo、无 Sync。SSH 进溢出菜单。
-- **Sidebar（Source List）**：**workspaces 列表**（最顶）+ repos（含 Fetch）+ branches（含 Pull/Push）+ stash / tags / remotes / worktrees。Mist 底，与 Foam 画布有材质差。
+- **TitleBar**：自绘标题栏（40px，唯一顶栏）。左侧应用菜单 + 工作区选择器 + 外部工具快捷入口；右侧 Local Changes / Stash / Fetch / Pull / Push；同步状态区绝对居中于窗口。详见 `03-layout.md` §2。
+- **Sidebar（Source List）**：branches + stash / tags / remotes / worktrees / submodules 等 sections（同步按钮不在侧栏）。Mist 底，与 Foam 画布有材质差。
 - **History graph**：永远是中栏主角，不是 Tab。
 - **Inspector**：选中 commit 或 working-copy 文件的详情 / diff。
 - **Working Copy Bar**：clean 32px / dirty 展开至 ~220px（文件列表从 Changes Tab 收回）。详见 `04-working-copy.md`。
@@ -87,35 +87,35 @@
 
 ## Primitive 清单
 
-> 下表是 2026-08-26 的待建清单。截至 v0.8.7 这些 primitive 都已在 `src/components/ui/`（HeroUI wrapper），Working Copy 相关也已落地。保留原表作历史对照。
+> 清单源自 2026-08-26 的待建计划，「状态」列已按当前实现（v0.9.3）更新。通用 primitive 位于 `src/components/ui/`（HeroUI v3 wrapper），Working Copy 相关同样在其中。
 
 ### Core primitives
 
 | Primitive | 用途 | 状态 |
 |---|---|---|
-| `Button` | primary / secondary / danger / ghost | 待建 |
-| `Input` | text / search | 待建 |
-| `Modal` | 居中模态（已有 HTMLDialogElement，待 Radix 替换以增强 a11y） | 部分已有 |
-| `Tooltip` | hover/focus 提示 | 待建 |
-| `Toast` | 非阻塞反馈 | 待建 |
-| `Tabs` | 二级导航 | 待建 |
-| `Split` / `Pane` | 3-pane 布局 + 可拖拽 handle | 待建 |
-| `ListItem` | hover / selected / actions slot / status badge slot | 待建 |
-| `StatusBadge` | active / missing / ahead / behind / conflict | 待建 |
-| `ContextMenu` | 右键菜单（interactive rebase 操作入口） | 待建 |
-| `KeyHint` | Cmd+K hint 等快捷键提示 | 待建 |
-| `EmptyState` | 引导文案 | 已有（待统一） |
+| `Button` | primary / secondary / danger / ghost | 已落地 |
+| `Input` | text / search | 已落地 |
+| `Modal` | 居中模态 | 已落地（HeroUI Dialog，取代 HTMLDialogElement） |
+| `Tooltip` | hover/focus 提示 | 已落地 |
+| `Toast` | 非阻塞反馈 | 未落地（无 Toast 组件；反馈走 `ErrorAlert` 与标题栏状态区） |
+| `Tabs` | 二级导航 | 已落地 |
+| `Split` / `Pane` | 3-pane 布局 + 可拖拽 handle | 已落地（`Split` + `ThreePaneLayout`，自研） |
+| `ListItem` | hover / selected / actions slot / status badge slot | 已落地 |
+| `StatusBadge` | active / missing / ahead / behind / conflict | 已落地 |
+| `ContextMenu` | 右键菜单（interactive rebase 操作入口） | 已落地 |
+| `KeyHint` | Cmd+K hint 等快捷键提示 | 未落地（`src/components/ui/` 无此组件） |
+| `EmptyState` | 引导文案 | 已落地 |
 
-### Working Copy primitives（Sprint 4）
+### Working Copy primitives
 
 | Primitive | 用途 | 状态 |
 |---|---|---|
-| `WorkingCopyBar` | 底部复合组件（bar 自身） | 待建 |
-| `BranchIndicator` | 当前 branch + ahead/behind chip | 待建 |
-| `FileListItem` | 单个文件变更行（M/A/D/? + +/-） | 待建 |
-| `StatusIcon` | 文件 status 字符 + 颜色 | 待建 |
-| `CommitMessageBox` | 多行 message 输入 + AI 按钮 | 待建 |
-| `SyncButtons` | REPOS 标题栏 Fetch + BRANCHES 标题栏 Pull/Push | 待建 |
+| `WorkingCopyBar` | 底部复合组件 | 已被 `WorkingCopyModal` 取代（2026-08 重构，见 `03-layout.md` §6） |
+| `BranchIndicator` | 当前 branch + ahead/behind chip | 已落地 |
+| `FileListItem` | 单个文件变更行（M/A/D/? + +/-） | 已落地 |
+| `StatusIcon` | 文件 status 字符 + 颜色 | 已落地 |
+| `CommitMessageBox` | 多行 message 输入 + AI 按钮 | 已落地 |
+| `SyncButtons` | 同步按钮组 | 已落地但当前未被引用；Fetch / Pull / Push 在标题栏内实现（见 `03-layout.md` §2.2） |
 
 详见 `02-components.md` §3 + `04-working-copy.md`。
 
@@ -132,9 +132,6 @@
 | **4** | App.tsx 重构为 3-pane + Working Copy Bar + 现有 Workspace/Repo/SSH 迁移到新 primitives | 1 天 |
 | **5** | 验证（lint / typecheck / build / 手动 / 全平台暗色）| 0.5 天 |
 | 合计 | | **~5 天**（原 ~4 + 1 增量 for Working Copy）|
-| **3** | App.tsx 重构为 3-pane 布局 + 现有 WorkspaceSwitcher / RepoList / SshKeyManager 迁移到新 primitives | 1 天 |
-| **4** | 验证（lint / typecheck / build / 手动 / 全平台暗色）| 0.5 天 |
-| 合计 | | **~5 天**（原 ~4 + 1 增量 for Working Copy）|
 
 ## 验证
 
@@ -150,6 +147,9 @@
 - `02-components.md`：组件清单 + API（含 Working Copy primitives §3）
 - `03-layout.md`：3-pane 详细规格（含 Working Copy Bar 占位 §6）
 - `04-working-copy.md`：Working Copy Bar 完整规范（Sprint 4 实施依据）
+- `05-visual-redesign.md`：主界面视觉重设计（v2，chrome 层叠与组件形态）
+- `06-color-palettes.md`：配色方案（native-blue 默认 / tide 可选）
+- `07-theme.md`：主题设计（颜色 / 字体 / 动效，已实施）
 - `docs/tech/decisions/00-overview.md` ADR 0005：库选择（含 HeroUI 修订）
 - `docs/pm/core/01-features.md` §1.10：平台与 UX 约束
 - `docs/tech/architecture/00-overview.md`：前端架构

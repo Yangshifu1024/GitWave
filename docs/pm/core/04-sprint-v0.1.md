@@ -4,7 +4,7 @@
 
 ## 状态
 
-**历史记录**（v0.1 范围已交付，后续版本已扩到 v0.8.x）。脚手架 Sprint 0 见 `docs/tasks/feat-bootstrap-tau-app/plan.md`。
+**历史记录**（v0.1 范围已交付，后续版本已扩到 v0.9.3）。脚手架 Sprint 0 见 `docs/tasks/feat-bootstrap-tau-app/plan.md`。
 
 ## 目标
 

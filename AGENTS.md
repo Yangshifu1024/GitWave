@@ -14,6 +14,8 @@ Read in this order:
 6. [docs/tech/README.md](./docs/tech/README.md) — tech docs index (architecture / selection / ADRs)
 7. [docs/design/00-overview.md](./docs/design/00-overview.md) — UI/UX design overview (3-pane / tokens / components / layout)
 8. [docs/tasks/README.md](./docs/tasks/README.md) — task tracking (plan / review)
+9. [04-sprint-v0.1.md](./docs/pm/core/04-sprint-v0.1.md) — the v0.1 sprint breakdown; a historical record, not a to-do list
+10. [CONTRIBUTING.md](./CONTRIBUTING.md) — contribution conventions and the local quality gates
 
 ## Core constraints (from product principles)
 
@@ -33,7 +35,9 @@ Engineering docs split across two directories by "cross-task vs single-task" to 
 | Directory | Nature | One doc corresponds to | Typical content |
 |---|---|---|---|
 | `docs/tech/` | Cross-task engineering docs | Referenced by multiple tasks / PRs | System architecture, technology selection, ADRs, system design, engineering conventions |
-| `docs/tasks/<feat\|fix>-<name>/` | Single-task execution artifacts | One PR / one task | `plan.md`, `review.md` |
+| `docs/tasks/<type>-<name>/` | Single-task execution artifacts | One PR / one task | `plan.md`, `review.md` |
+
+`<type>` is `feat` · `fix` · `chore` · `refactor` · `style` — see `docs/tasks/README.md`.
 
 Decision rules:
 
@@ -48,7 +52,7 @@ When `docs/tasks/<task-name>/plan.md` references an existing technical decision,
 
 - `main` is the only long-lived branch
 - New features / fixes branch off `main`: `feature/<name>` or `fix/<name>`
-- Names align with `docs/pm/features/F<number>.md` or `docs/tasks/<feat|fix>-<name>/`
+- Names align with `docs/pm/features/F<number>.md` or `docs/tasks/<type>-<name>/`
 
 ### Commit convention (Conventional Commits)
 
@@ -69,7 +73,7 @@ All PRs merge into `main` with a merge commit — branch history is preserved, n
 - **Every PR links a proposal or task**: the description references `docs/pm/features/F<number>.md` or `docs/tasks/<task-name>/plan.md`
 - **Confirm the branch before new work / new issues**: before handling, ask whether to use a new branch
   - No: continue on the current branch
-  - Yes: suggest a branch name (`feature/<name>` or `fix/<name>`, aligned with `docs/pm/features/F<number>.md` or `docs/tasks/<feat|fix>-<name>/`) and accept custom names; create it after confirmation
+  - Yes: suggest a branch name (`feature/<name>` or `fix/<name>`, aligned with `docs/pm/features/F<number>.md` or `docs/tasks/<type>-<name>/`) and accept custom names; create it after confirmation
 
 ## Task wrap-up checklist
 
@@ -80,6 +84,17 @@ make check   # fmt-check (prettier + cargo fmt) + lint (eslint + clippy + typech
 ```
 
 Or individually — frontend: `pnpm format:check` · `pnpm lint` · `pnpm typecheck` · `pnpm test`; backend: `cargo fmt -- --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --all-targets`. CI runs the same gates on all three platforms — a red formatting/lint check on the PR means this step was skipped.
+
+## Documentation maintenance
+
+A user-visible change is not done while its docs still describe the old behaviour. When a feature ships, check every place that repeats the same fact:
+
+- **`README.md`** — the **Status** line and the `### What's new in vX.Y.x` list
+- **`docs/pm/core/01-features.md` / `02-scope.md` / `03-roadmap.md`** — feature list, version scope, roadmap
+- **`site/index.html`** — the hero version badge and the feature cards
+- **`.agents/skills/gitwave-release/SKILL.md`** — the sync points registered for the release skill
+
+Nothing automated will catch a stale doc: Markdown is outside Prettier (`.prettierignore` excludes `*.md`) and the lint / test workflows skip `site/**`, `docs/**` and `**.md` changes. Verify by hand.
 
 ## Specialized agents
 

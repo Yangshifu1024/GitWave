@@ -1,7 +1,7 @@
 # GitWave · 功能列表
 
 > 本文仅列出 GitWave 应具备的功能与明确不做的事。产品原则与 Workspace 概念作为内联说明融入对应功能小节。
-> 当前发布版本 **v0.8.7**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
+> 当前发布版本 **v0.9.3**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
 
 ## 1. 功能范围
 
@@ -11,9 +11,11 @@ GUI友好的 Git 全集是基本盘，不做简化版 Git GUI。
 
 clone / init / open · commit / amend / revert · branch / checkout / switch / create / delete · merge · rebase (interactive) · cherry-pick · push / pull / fetch · stash · tag
 
+stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应用 / 应用并删除 / 删除）；详情窗口把文件列表与 diff 并排；应用前先检查工作区是否有未提交改动；丢弃前需确认；以未跟踪方式保存的文件也出现在 stash 内容里。
+
 ### 1.2 Visualization
 
-性能为入场券级要求（基线对标 Fork / Sublime Merge）：打开应用到首个可交互界面不可有可感知等待；仓库 history 图（含数万 commit）渲染必须流畅；大文件 diff 不卡 UI；后台 git 操作不阻塞用户主操作；视觉化渲染具备 lazy 策略。
+性能为入场券级要求（基线对标 Fork / Sublime Merge）：打开应用到首个可交互界面不可有可感知等待；仓库 history 图（含数万 commit）渲染必须流畅；提交列表在大仓库中滚动同样不得卡顿；大文件 diff 不卡 UI；后台 git 操作不阻塞用户主操作；视觉化渲染具备 lazy 策略。
 
 History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，character-level 高亮；Shiki 语法高亮已入依赖尚未接线）· blame / annotate · file tree（**未交付**）· branch tree
 
@@ -43,9 +45,12 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 - Workspace CRUD（创建 / 打开 / 重命名 / 删除）
 - Repo 添加：init 本地新仓库（不自动初始 commit）/ clone HTTPS（走 `git credential helper`）/ clone SSH（走配置 key）/ 本地已有仓库
+- Repo 批量添加：一次选择多个本地文件夹加入，跳过已加入的路径与本批内的重复；不可用的路径会报告，但不中断整批
 - Repo 移除 / 重新链接缺失 repo
 - Workspace 内切换 repo（侧边栏点击主视图，单 active）
+- 仓库标签栏在标签溢出时可用鼠标滚轮横向滚动，并把激活标签带回视野
 - 多 Workspace 同时打开，状态并行
+- 自动刷新：按可配置间隔刷新全部仓库的状态（一次刷新工作区里的每个仓库，默认 5 分钟，间隔可在设置里配置）
 - Workspace-scoped 配置：AI provider / prompt 模板 / commit 规范 / 主题 / key binding profile（**schema 有字段，快捷键配置 UI 未交付**）
 - Per-repo 覆盖 Workspace 配置（**repos.settings_override 列存在，无 UI**）
 
@@ -110,6 +115,7 @@ Remote 管理（GitHub / GitLab / Gitea / 自建）— **已交付** · PR / MR 
 - Theme：light / dark / follow system + CSS 变量覆盖
 - 快捷键全可配（支持 vim mode）— **未交付**
 - 本地化：中文 / English 双语 — **已交付**
+- 时间显示统一：各面板的提交时间与操作时间走同一套格式化规则，表现一致 — **已交付**
 
 ---
 

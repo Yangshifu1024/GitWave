@@ -9,7 +9,9 @@
 | 目录 | 性质 | 一份文档对应 | 典型内容 |
 |---|---|---|---|
 | `docs/tech/` | 跨任务工程文档 | 可被多个任务 / PR 引用 | 系统架构、技术选型、ADR、系统设计、工程约定 |
-| `docs/tasks/<feat\|fix>-<name>/` | 单任务执行产物 | 一个 PR / 一个任务 | `plan.md`、`review.md` |
+| `docs/tasks/<type>-<name>/` | 单任务执行产物 | 一个 PR / 一个任务 | `plan.md`、`review.md` |
+
+`<type>` 为 `feat` · `fix` · `chore` · `refactor` · `style`，详见 `docs/tasks/README.md`。
 
 判定规则：
 

@@ -1,13 +1,13 @@
 # GitWave · 技术选型
 
-> 当前主版本选型一览（对照 **v0.8.7** 代码）。详细 ADR 见 `docs/tech/decisions/`。
+> 当前主版本选型一览（对照 **v0.9.3** 代码）。详细 ADR 见 `docs/tech/decisions/`。
 
 ## 摘要
 
 | 维度 | 选择 | 关键原因 |
 |---|---|---|
 | 桌面框架 | **Tauri 2** | 跨平台路径 + Rust core 性能 + 较小包体积 |
-| 前端栈 | **React 19 + TypeScript + Vite 7** | 生态最广；虚拟滚动 / 自研 diff viewer |
+| 前端栈 | **React 19 + TypeScript + Vite 8** | 生态最广；虚拟滚动 / 自研 diff viewer |
 | UI | **Tailwind CSS v4 + HeroUI v3 + Lucide** | 见 ADR 0005 修订 |
 | Git 后端 | **libgit2（git2-rs，vendored + libssh2 + OpenSSL）** | 全量进程内运行，跨平台一致，无外部 CLI 依赖 |
 | 本地存储 | **SQLite（rusqlite，bundled）** | 结构化查询 + 嵌入迁移 + 跨平台 + WAL |
@@ -16,7 +16,7 @@
 
 ## 桌面框架：Tauri 2
 
-- **理由**：规划时 v0.1 仅 macOS，v0.2 扩 Windows，v0.3 加 Linux；截至 v0.8.7 三平台均由 tag 触发 CI 出包。WebView 跨平台一致性 + Rust core 补足性能与原生能力
+- **理由**：规划时 v0.1 仅 macOS，v0.2 扩 Windows，v0.3 加 Linux；截至 v0.9.3 三平台均由 tag 触发 CI 出包。WebView 跨平台一致性 + Rust core 补足性能与原生能力
 - **代价**：WebView 内核在 macOS / Win / Linux 三端不一致（WebKit / WebView2 / WebKitGTK），部分 CSS 与 JS 行为需适配与回归
 - **未选**：SwiftUI 原生（macOS 极致但 Win 重写代价大）、Electron（包体积与冷启动偏重）、Flutter Desktop（Web 生态无法复用）
 
@@ -27,7 +27,7 @@
   - diff viewer：自研 `DiffViewer`（character-level 高亮；图片左右对比）；**未**用 Monaco / CodeMirror
   - 拖拽：自研 pointer 逻辑（repo tab 排序、interactive rebase），**未**用 dnd-kit
   - 命令面板：自研 `CommandPalette`，**未**用 cmdk
-- **构建**：Vite 7；Tauri 命令类型由 `src/lib/api.ts` 手工维护（`Cargo.toml` 曾预留 tauri-specta，未加）
+- **构建**：Vite 8（`package.json` 中为 `^8.3.0`）；Tauri 命令类型由 `src/lib/api.ts` 手工维护（`Cargo.toml` 曾预留 tauri-specta，未加）
 - **状态**：Zustand（轻量 UI 状态）+ TanStack Query（IPC 结果缓存与失效）
 - **代码风格**：ESLint strict（含 type-checked 规则）+ Prettier
 - **测试**：Vitest 单元（纯函数 / store）；**无** React Testing Library 组件测试；Playwright 在 `package.json` 中但无 config / spec，E2E 未落地

@@ -1,6 +1,10 @@
 # GitWave · Working Copy Bar 详细规格
 
 > Sprint 4 的实施依据：覆盖 working copy 状态、文件 stage/unstage、commit message、push/pull/fetch。
+>
+> 状态：**历史设计稿**（Sprint 4 已交付）。此后有两处变化，下文保留当时的规格、未逐条改写：
+> 底部常驻的 Working Copy Bar 已改为弹窗（`src/components/ui/WorkingCopyModal.tsx`，见 `03-layout.md` §6）；
+> 同步按钮 Fetch / Pull / Push 已移入标题栏右侧（见 `03-layout.md` §2.2）。
 
 ## 1. 目标
 
@@ -181,7 +185,7 @@ src/
 | `fsnotify` 实时通知 | 文件改动立即反映 | 跨平台复杂度；macOS FSEvents / Linux inotify / Win ReadDirectoryChangesW |
 | Polling 2s | 简单、跨平台 | 改动反映有 2s 延迟 |
 
-**v0.1 选 Polling**。Sprint 4 实装时 polling interval 默认 2s，可在 Preferences 调。
+**选 Polling**。当前实现即 TanStack Query 的 `refetchInterval: 2000`（`src/hooks/useWorkingCopy.ts`），2 秒固定间隔，没有设置项可调。
 
 ### 6.3 TanStack Query 配置
 
@@ -267,8 +271,8 @@ mutation（stage / commit / push）成功后 `invalidateQueries(["working-copy",
 | Active repo missing（路径无效） | Bar 显示 "Repo path invalid" + Relink 按钮 |
 | Repo 是 bare | Bar 显示 "Bare repository — no working copy" |
 | Detached HEAD | BranchIndicator 显示 `(detached @ sha)` + ahead/behind 不显示 |
-| network 失败 | Toast danger + sync 按钮恢复 enabled |
-| 凭证被拒（pull / push） | Toast danger + "Configure credentials" 按钮（弹凭证设置 modal，Sprint 4 末或 v0.2） |
+| network 失败 | 失败信息在标题栏状态区提示（本仓无 Toast 组件，反馈走 `ErrorAlert` / 状态区）+ sync 按钮恢复 enabled |
+| 凭证被拒（pull / push） | 弹出应用内凭证提示（`AuthPromptDialog`，F012）：收集用户名 / 访问令牌，可勾选记住（交给系统凭证助手保存），提交后在原地重试该操作 |
 
 ## 10. Sprint 4 实施 checklist
 

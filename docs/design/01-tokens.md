@@ -19,13 +19,13 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
 - `<html data-palette="...">` 承载 palette 维度；light/dark 维度仍由 `.light/.dark` class 与 `prefers-color-scheme` 承载（见 `src/styles/tokens.css`）
 - 偏好持久化于 localStorage 键 `gitwave-palette`（缺省/非法值回落 native-blue）；启动预热见 `main.tsx` 的 `applyInitialPreferences()`
 - 常量与读写：`src/lib/palette.ts`（`PALETTES` / `DEFAULT_PALETTE` / `normalizePalette`），React hook：`usePalette()`
-- 设置入口：Toolbar ⋯ 菜单 → Settings… → Appearance → Color palette（即点即生效）
+- 设置入口：标题栏左侧应用菜单（File → Settings…；macOS 为系统菜单里的 Settings…，加速键 `CmdOrCtrl+,`；网页层另有 `⌘,` / `Ctrl+,` 兜底监听，命令面板亦可打开）→ Appearance → Color palette（即点即生效）
 
 ### 1.1 Light theme（native-blue 默认）
 
 ```
 背景
-  bg-primary        #ECECEE       系统窗口灰画布（应用根 / 顶栏 / 侧栏 / WorkingCopyBar）
+  bg-primary        #ECECEE       系统窗口灰画布（应用根 / 顶栏 / 侧栏 / WorkingCopyModal）
   bg-secondary      #DFDFDF       层次色（gutter / hover / 菜单焦点）
   bg-elevated       #F4F4F5       抬升面（列表 hover / 菜单 / 模态）
   bg-panel          #F8F8F8       三栏面板画布（sidebar / history / inspector）
@@ -76,7 +76,7 @@ GitWave 提供**两套配色 palette**，共享同一组语义状态色（succes
 
 ```
 背景
-  bg-primary        #262628       系统暗窗口画布（应用根 / 顶栏 / 侧栏 / WorkingCopyBar）
+  bg-primary        #262628       系统暗窗口画布（应用根 / 顶栏 / 侧栏 / WorkingCopyModal）
   bg-secondary      #202022       层次色
   bg-elevated       #313134       菜单 / 抬升面
   bg-panel          #2A2A2D       中 / 右面板画布（比窗口亮半档——dark 材质分层，见 07-theme.md §3.1）
@@ -268,7 +268,7 @@ ease-exit        cubic-bezier(0.3, 0, 0.8, 0.15) 浮层退出（accelerate）
 
 浮层进出场：自实现 tailwindcss-animate 子集（`animate-in` / `animate-out` + `fade-in-0` `fade-out-0` `fade-out-80` `zoom-in-95` `zoom-out-95` `slide-in-from-right-full` `slide-out-to-right-full`），keyframes 用 `transform` 合成 Tailwind v4 的 translate 属性定位；`duration-*` 类可覆盖默认时长（经 `--tw-duration`）。duration/ease 的 `--duration-*` / `--ease-*` 均由 Tailwind v4 生成同名工具类。
 
-`prefers-reduced-motion: reduce` → 全局动画 / 过渡即时完成（动画仍会触发 `animationend`，Radix 状态不受影响）。
+`prefers-reduced-motion: reduce` → 全局动画 / 过渡即时完成（动画仍会触发 `animationend`，浮层的退出状态机不受影响）。
 
 ## 7. Z-Index（层级）
 

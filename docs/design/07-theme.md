@@ -143,7 +143,7 @@ font-mono:
 |---|---|
 | `src/styles/tokens.css` | 字体栈、motion token、diff token、dark panel、animate-in/out 工具类、reduced-motion、tabular-nums |
 | `src/components/ui/Modal.tsx` | 移除 v3 slide hack 类；`duration-base` |
-| `src/components/ui/Toast.tsx` | duration token 化（动画类经工具类修复后自然生效） |
+| `src/components/ui/Toast.tsx`（未落地——仓库无 Toast 组件，见 `02-components.md` §1.5） | duration token 化（动画类经工具类修复后自然生效） |
 | `src/components/ui/DropdownMenu.tsx` | 补 content 进出场类；item `duration-fast` |
 | `src/components/ui/ContextMenu.tsx` / `Tooltip.tsx` | item `duration-fast`（动画类经工具类修复后生效） |
 | `src/components/ui/Tabs.tsx` | trigger `duration-base` |
