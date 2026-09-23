@@ -4,9 +4,9 @@
 
 ## Quick orientation
 
-- **New feature / idea** → product-manager workflow (see `AGENTS.md` §需求流程)
-- **Bug / regression** → tester workflow (see `AGENTS.md` §缺陷流程)
-- **PR ready for review** → code-reviewer workflow (see `AGENTS.md` §代码审查流程)
+- **New feature / idea** → product-manager workflow (see `AGENTS.md` §Requirements flow)
+- **Bug / regression** → tester workflow (see `AGENTS.md` §Defect flow)
+- **PR ready for review** → code-reviewer workflow (see `AGENTS.md` §Code review flow)
 
 ## Branch + commit conventions
 
@@ -23,7 +23,16 @@ All run automatically via `pre-commit` hook on `git commit`. To run manually:
 pre-commit run --all-files
 ```
 
-Or individually:
+`make check` is the same set of checks in one command, and is the equivalent entry point for the individual commands below (`make check` = `fmt-check` + `lint` + `test`):
+
+```bash
+make check      # CI-equivalent: format gates + lint + all tests, changes nothing
+make fmt-check  # pnpm exec prettier --check . + cargo fmt -- --check
+make lint       # pnpm lint + cargo clippy + pnpm typecheck + cargo check
+make test       # pnpm test + cargo test --all-targets
+```
+
+`make format` is the only target that rewrites files. Or run the commands individually:
 
 ```bash
 # Rust (from src-tauri/)
@@ -37,6 +46,8 @@ pnpm format:check
 pnpm typecheck
 pnpm test
 ```
+
+Markdown is not covered by Prettier — `.prettierignore` excludes `*.md` — so neither `pnpm format:check` nor `make fmt-check` ever inspects documentation. Doc changes are verified by hand; don't expect an automated check to stop a stale or badly formatted doc.
 
 ## PR checklist
 

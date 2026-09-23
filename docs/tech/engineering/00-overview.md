@@ -1,7 +1,7 @@
 # GitWave · 工程约定
 
 > 工程实践与质量门禁。Git 工作流与分支 / Commit / PR 规则见 `AGENTS.md`，本目录仅补充工程层面未覆盖的内容。
-> CI / 测试 / 发布描述对照 **v0.8.7** 的 `.github/workflows/` 与仓库现状。
+> CI / 测试 / 发布描述对照 **v0.9.3** 的 `.github/workflows/` 与仓库现状。
 
 ## 代码风格
 
@@ -13,14 +13,17 @@
 - **pre-commit hook**：rustfmt + clippy + Prettier + ESLint（仅对暂存文件）
 - **CI 校验**：每个 PR 必须通过；CI fail 不允许合入
 - **commit message**：Conventional Commits（见 `AGENTS.md`）；commitlint 校验
+- **工具链版本**：TypeScript 6（`package.json` 中为 `~6.0.3`）、Vitest 5、Node 22（CI 使用的版本，见 `.github/workflows/lint.yml:76`、`test.yml:99`、`build.yml:75/149/197`）
+- **Markdown 不在 Prettier 管辖内**：`.prettierignore` 排除了 `*.md`，所以文档改动不会被格式检查拦住，排版与事实只能人工核对
+- **`make check` 只覆盖代码门**：`fmt-check + lint + test`（见 `Makefile`），管的是代码的格式、静态检查与测试，不含任何文档检查
 
 ## 测试策略（测试金字塔）
 
-| 层 | 范围 | 工具 | 现状（v0.8.7） |
+| 层 | 范围 | 工具 | 现状（v0.9.3） |
 |---|---|---|---|
 | **单元** | domain / application / 前端纯函数与 store | `cargo test`、Vitest | 已落地 |
 | **集成** | infrastructure 适配（libgit2、SQLite、HTTP、代理、凭证） | 真实依赖 + 临时 fixture，走同一套 `cargo test --all-targets` | 已落地 |
-| **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | Playwright + tauri-driver | **未落地**。`@playwright/test` 在 package.json，`pnpm test:e2e` 无 config / spec |
+| **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | Playwright + tauri-driver | **未落地**。`@playwright/test` 在 package.json，`pnpm test:e2e` 只有脚本、没有测试套件：仓库内既无 `e2e/` 目录，也无 `playwright.config.*` |
 | **组件** | React 组件 / hook | React Testing Library | **未引入** |
 
 - 关键算法（diff、3-way merge、scrubber、credential callback）必须有专项单测

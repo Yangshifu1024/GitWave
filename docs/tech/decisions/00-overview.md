@@ -172,14 +172,14 @@ Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 
 
 ### 修订（2026-08-28 · HeroUI v3）
 
-`docs/tasks/feat-heroui-migration/plan.md` 把 `src/components/ui/` 的通用原语从 Radix 换成 **HeroUI v3**（底层 React Aria Components）。对外文件名 / 导出 / props 保持兼容。截至 v0.8.7 的实际栈：
+`docs/tasks/feat-heroui-migration/plan.md` 把 `src/components/ui/` 的通用原语从 Radix 换成 **HeroUI v3**（底层 React Aria Components）。对外文件名 / 导出 / props 保持兼容。截至 v0.9.3 的实际栈：
 
 | 用途 | 库 | 备注 |
 |---|---|---|
 | Utility CSS | Tailwind CSS v4 | 未变 |
 | 交互组件 | **HeroUI v3**（`@heroui/react` + `@heroui/styles`） | 取代 Radix |
 | 变体管理 | cva + tailwind-merge | Button / StatusBadge 仍用；其余走 HeroUI |
-| 图标 | Lucide React | 未变（v0.8.7 升到 lucide 1.x） |
+| 图标 | Lucide React | 未变（lucide-react 1.x） |
 | 语法高亮 | Shiki | **依赖已入，DiffViewer 尚未接线**；当前是自绘 character-level 高亮 |
 | 虚拟滚动 | @tanstack/react-virtual | 未变 |
 | 动效 | （无 Framer Motion） | 未引入；动效走 HeroUI CSS |

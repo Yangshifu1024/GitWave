@@ -1,6 +1,6 @@
 # GitWave · 系统架构
 
-> 与 `docs/tech/tech-selection/` 配套的总体架构视图。对照 **v0.8.7** 代码，不是早期规划草案。
+> 与 `docs/tech/tech-selection/` 配套的总体架构视图。对照 **v0.9.3** 代码，不是早期规划草案。
 
 ## 进程拓扑
 
@@ -77,7 +77,7 @@ React Query 按新 workspaceId / repoId 重拉
 各面板（history / working copy / sidebar）跟随 query key 刷新
 ```
 
-没有 git watcher 的 subscribe / unsubscribe。自动刷新是全局 60s 定时器，只作用于当前 active repo。
+没有 git watcher 的 subscribe / unsubscribe。自动刷新是一个全局定时器，按可配置的间隔（默认 5 分钟，在「设置 → 通用」里配置）扫过当前 Workspace 里的每一个仓库，对每个仓库尽力而为地抓取；一个仓库失败只让状态区显示部分成功，不把整轮刷新判成失败（`useAutoRefreshLoop` / `useRefreshWorkspaceRepos`）。⌘R / Ctrl+R 是按需刷新当前仓库（`useRefreshRepo`），它与自动刷新共用同一次本地重读，区别只在于抓取范围是当前仓库。
 
 ## AI 调用时序
 
@@ -101,6 +101,6 @@ failover 链上 generate_text（HTTP JSON，stream: false）
 
 - 跨 Workspace 全局搜索的索引策略
 - 大仓库（monorepo）的 lazy load 策略
-- FS watcher 取代（或补强）60s 轮询
+- FS watcher 取代（或补强）按可配置间隔的轮询
 - 大 diff hunk 流式 / 分页
 - IPC 类型生成（若再评估 tauri-specta）

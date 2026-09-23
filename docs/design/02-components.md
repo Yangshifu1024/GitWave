@@ -1,7 +1,7 @@
 # GitWave · Component Inventory
 
 > Primitive + composite 组件清单。实现位于 `src/components/` 与 `src/components/ui/`。
-> 下文「底层：Radix …」是 2026-08 设计稿。截至 v0.8.7，通用 primitive 的实现是 **HeroUI v3 wrapper**（见 ADR 0005 修订）；API 意图（variant / size / 几何）仍以本文件为准。
+> 下文「底层：Radix …」是 2026-08 设计稿。截至 v0.9.3，通用 primitive 的实现是 **HeroUI v3 wrapper**（见 ADR 0005 修订）；API 意图（variant / size / 几何）仍以本文件为准。
 
 ## 1. Primitive（HeroUI wrapper；设计稿曾写 Radix 包壳）
 
@@ -110,6 +110,8 @@ ghost     bg-transparent hover:bg-bg-secondary text-text-primary
 ### 1.5 Toast
 
 **目的**：异步操作结果反馈（"已推送"、"克隆失败"）。
+
+**状态**：未落地——仓库里没有 Toast 组件，反馈走 `ErrorAlert` 与标题栏状态区。
 
 **底层**：**Radix Toast** + 自建 hook `useToast()`。
 
@@ -284,17 +286,17 @@ toast({ title: "Clone failed", description: error.message, variant: "danger" });
 
 | 组件 | 位置 | 用途 |
 |---|---|---|
-| `WorkspaceSwitcher` | `components/WorkspaceSwitcher.tsx` | sidebar 顶部，列出 workspaces + 操作 |
-| `RepoTree` | `components/RepoTree.tsx` | sidebar 树状展开当前 workspace 的 repos |
-| `FeatureNav` | `components/FeatureNav.tsx` | 中栏二级导航（Tabs） |
+| `WorkspaceSwitcher` | `components/WorkspaceSwitcher.tsx` | 已落地但当前无引用——工作区切换在标题栏的下拉里（`components/WorkspaceDropdown.tsx`）|
+| `RepoTree`（仓库中无此组件） | — | 原设计的 sidebar 仓库树；实际仓库切换在仓库标签栏（`components/WorkspaceRepoTabs.tsx`）|
+| `FeatureNav`（仓库中无此组件） | — | 原设计的中栏二级导航；实际侧栏用可折叠分区（`components/ui/SidebarSection.tsx`）|
 | `CommitGraph` | `components/CommitGraph.tsx` | Main 上半部分，virtual scroll 历史图（Sprint 3）|
-| `DiffViewer` | `components/DiffViewer.tsx` | Main 下半部分，文件 diff + 语法高亮（Sprint 3）|
-| `BranchTree` | `components/BranchTree.tsx` | Branches tab 内容（Sprint 3）|
+| `DiffViewer` | `components/DiffViewer.tsx` | Inspector 内的文件 diff（并排 / 统一视图、行内字符级差异高亮、按块操作、并排图片 diff）|
+| `BranchList` | `components/BranchList.tsx` | 侧栏分支列表（原设计名 BranchTree）|
 | `BlameView` | `components/BlameView.tsx` | 文件 blame 行内注释（Sprint 3）|
-| `ConflictResolver` | `components/ConflictResolver.tsx` | 3-way merge UI（Sprint 6）|
+| `ConflictPanel` | `components/ConflictPanel.tsx` | 3-way merge UI（原设计名 ConflictResolver）|
 | `CommandPalette` | `components/CommandPalette.tsx` | Cmd+K 浮层：静态命令 + commit 搜索（选择后定位到 History 图中）+ Ask AI（Sprint 6）|
-| `WorkingCopyBar` | `components/WorkingCopyBar.tsx` | 底部复合组件：branch 状态 + 文件列表 + commit 框（Sprint 4）|
-| `SyncButtons` | `components/SyncButtons.tsx` | REPOS Fetch + BRANCHES Pull/Push（Sprint 4）|
+| `WorkingCopyModal` | `components/ui/WorkingCopyModal.tsx` | 工作副本弹窗（2026-08 起由底部常驻 Bar 改为弹窗）：branch 状态 + 文件列表 + commit 框 |
+| `SyncButtons` | `components/ui/SyncButtons.tsx` | Fetch / Pull / Push 按钮组（已落地；当前未被引用——同步动作在标题栏 `ActionBar` 内实现）|
 
 ## 3. Working Copy 相关 primitive（新增）
 
@@ -429,15 +431,15 @@ status 字符：M（modified） / A（added） / D（deleted） / ?（untracked�
 
 ### 3.5 SyncButtons
 
-**目的**：按 Git 作用域拆分的同步操作——`Fetch` 在 REPOS section 标题栏（repository 级），`Pull` / `Push` 在 BRANCHES section 标题栏（branch 级）。
+**目的**：同步操作按钮组——`Fetch`（repository 级）、`Pull` / `Push`（branch 级）。**2026-09 起三者都挂在标题栏右侧**（`ActionBar`，见 `03-layout.md` §2.2 / §3.4），不再出现在侧栏 section 标题栏。
 
 **API**：
 
 ```tsx
-// REPOS section actions slot
+// 标题栏右侧（repository 级）
 <FetchButton onFetch={() => fetch()} disabled={!repoId} inProgress={sync.fetch} />
 
-// BRANCHES section actions slot
+// 标题栏右侧（branch 级）
 <BranchSyncButtons
   ahead={2}
   behind={3}
@@ -464,30 +466,31 @@ status 字符：M（modified） / A（added） / D（deleted） / ?（untracked�
 **样式**：
 
 ```
-REPOS          Fetch  +
-BRANCHES   Pull↓3  Push↑2  +
+标题栏右侧   Changes (5)  Stash  Fetch │ Pull (3)  Push (2)
 ```
 
-10px 文字链，与 section `+` 并列。`↑N` 绿 / `↓N` 橙。disabled 时 `opacity: 0.35`。
+标题栏按钮为图标 + 短标签的 ghost Button（`size="sm"`、`text-xs`），tooltip 承载完整描述；ahead / behind 计数渲染在固定宽度的 `(N)` 槽位里，disabled 时按钮灰显。侧栏 branch 行上的 ahead / behind 仍用 `StatusBadge` 的 `↑N`（绿）/ `↓N`（橙）。
 
-实现：`SectionAction` + `FetchButton` + `BranchSyncButtons`（`src/components/ui/SectionAction.tsx`）。
+实现：`ActionBarButton`（`src/components/ActionBar.tsx`）。`SectionAction` + `FetchButton` + `BranchSyncButtons`（`src/components/ui/SectionAction.tsx`）仍保留，但当前没有任何组件引用。
 
 ### 3.6 SyncProgressBar
 
-**目的**：Fetch / Pull / Push 期间在 Toolbar 底边显示全局进度反馈。
+**目的**：Fetch / Pull / Push 期间在标题栏状态区（`src/components/SyncStatusArea.tsx`）底边显示全局进度反馈。
 
 **API**：
 
 ```tsx
-// 挂入 Toolbar，读 Zustand syncStore
+// 挂入标题栏状态区，读 Zustand syncStore
 <SyncProgressBar />
 ```
 
 **状态**：`useRemoteSync()` mutation 触发 `syncStore.startOp`；Tauri `sync-progress` 事件更新 `receivedObjects` / `totalObjects`。
 
-**样式**：2px `bg-accent`；determinate 宽度或 indeterminate shimmer（`.sync-progress-indeterminate`）。
+**样式**：2px `bg-accent`；determinate 宽度或 indeterminate shimmer。
 
-### 3.7 WorkingCopyBar
+### 3.7 WorkingCopyBar（历史设计稿）
+
+> 2026-08 起底部常驻 Bar 已改为弹窗 `WorkingCopyModal`；下文保留当时的组件规格。
 
 **目的**：底部复合组件，聚合 BranchIndicator + Unstaged/Staged 列表 + CommitMessageBox + 全局操作。
 

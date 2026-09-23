@@ -42,7 +42,8 @@ Verify with `git status --porcelain`: expect exactly those 4 files. Anything els
 ## 4. Sync user-facing surfaces
 
 - **README.md** — the "Cutting a release" section there is the release checklist's source of truth:
-  - Header **Status** line: `**Status:** vX.Y.Z — …`, weaving in this version's most user-visible capability.
+  - Header **Status** line: `**Status:** vX.Y.Z · Release notes · Product scope · Engineering decisions` — update the version number in place; the three links stay as they are.
+  - **What's new** list (`### What's new in vX.Y.x`, right below the Status line): add one bullet at the top for this version — `- **vX.Y.Z** — …`, a single line leading with its most user-visible capability — and keep the list to the current and the last few patch releases. Older releases live in the release notes, so trim the tail instead of letting the list grow.
   - **Features** list: add a bullet for new capabilities; don't re-list existing ones.
   - Download section: reconcile any version / platform mentions.
 - **site/index.html** (official site — a single English page, auto-deploys to GitHub Pages on push to main):
