@@ -46,10 +46,11 @@ Verify with `git status --porcelain`: expect exactly those 4 files. Anything els
   - **What's new** list (`### What's new in vX.Y.x`, right below the Status line): add one bullet at the top for this version — `- **vX.Y.Z** — …`, a single line leading with its most user-visible capability — and keep the list to the current and the last few patch releases. Older releases live in the release notes, so trim the tail instead of letting the list grow.
   - **Features** list: add a bullet for new capabilities; don't re-list existing ones.
   - Download section: reconcile any version / platform mentions.
-- **site/index.html** (official site — a single English page, auto-deploys to GitHub Pages on push to main):
-  - Hero badge: `<div class="badge">vX.Y.Z · <today></div>` — current version + current date (`YYYY-MM-DD`).
-  - Download area: `Latest release: vX.Y.Z`.
-  - Feature cards: fold small features into an existing card (e.g. the "Diff viewer" or "Batteries included" cards) rather than adding a new one and breaking the grid rhythm.
+- **`site/`** (official site — four pages, no build step, auto-deploys to GitHub Pages on push to `main`):
+  - `index.html` (English home) and `index.zh.html` (Chinese home) are a mirrored pair — the version-bearing surfaces must be updated in **both**: hero badge `<div class="badge">vX.Y.Z · <today></div>` (current version + current date `YYYY-MM-DD`), and the download line `Latest release: vX.Y.Z` / `最新版本：vX.Y.Z`.
+  - `getting-started.html` and `getting-started.zh.html` (the guide) carry **no version number and no date on purpose** — leave them untouched during a release; only edit them when the app's empty states, menus or dialogs change, and then in both languages.
+  - Feature cards: fold small features into an existing card (e.g. the "Diff viewer" or "Batteries included" cards) rather than adding a new one and breaking the grid rhythm — and translate the same change into `index.zh.html`.
+  - Shared styles live in `site/style.css` (no inline `<style>` blocks, no JavaScript anywhere on the site); guide screenshots live in `site/shots/en/` and `site/shots/zh/`.
 - Residue check: `grep -rn "<old-version>" README.md site/ package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml` — GitWave's own version should only appear at the new value (matches inside unrelated dependencies don't count).
 
 ## 5. Commit

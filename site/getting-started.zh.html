@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitWave 新手指南</title>
+    <meta
+      name="description"
+      content="写给已经会用 Git 的人：工作区、三栏界面、主路径四步、克隆远程仓库，以及常见的卡点。"
+    />
+    <meta property="og:title" content="GitWave 新手指南" />
+    <meta
+      property="og:description"
+      content="从空窗口到第一次推送：工作区、三栏界面、主路径四步和常见的卡点。"
+    />
+    <meta property="og:image" content="https://gitwave.work/icon.png" />
+    <meta property="og:url" content="https://gitwave.work/getting-started.zh.html" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="canonical" href="https://gitwave.work/getting-started.zh.html" />
+    <link rel="alternate" hreflang="en" href="https://gitwave.work/getting-started.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://gitwave.work/getting-started.zh.html" />
+    <link rel="alternate" hreflang="x-default" href="https://gitwave.work/getting-started.html" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0d" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <nav>
+      <div class="wrap nav-inner">
+        <a class="brand" href="/index.zh.html"><img src="/icon.png" alt="GitWave 图标" />GitWave</a>
+        <div class="nav-links">
+          <a class="hide-sm" href="/getting-started.zh.html">文档</a>
+          <a
+            class="gh hide-sm"
+            href="https://github.com/Yangshifu1024/GitWave"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.53-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.38-5.25 5.67.41.35.77 1.05.77 2.12 0 1.53-.01 2.76-.01 3.14 0 .3.2.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
+              />
+            </svg>
+            GitHub
+          </a>
+          <span class="lang"
+            ><a href="/getting-started.html" hreflang="en" lang="en">English</a
+            ><span class="lang-current">中文</span></span
+          >
+          <a class="btn btn-primary btn-sm" href="#download">下载</a>
+        </div>
+      </div>
+    </nav>
+
+    <header class="doc-head">
+      <div class="wrap">
+        <div class="badge">新手指南</div>
+        <h1>从空窗口到第一次推送</h1>
+        <p class="sub">
+          GitWave 是可视化 Git
+          客户端。这份指南带你看清窗口里每天都会用到的部分，以及让仓库从本机走到远程的四个动作。
+        </p>
+        <p class="meta">大约 10 分钟 · macOS、Windows、Linux</p>
+      </div>
+      <div class="wrap">
+        <div class="toc">
+          <a href="#workspaces">1 · 工作区与仓库</a>
+          <a href="#ui">2 · 界面地图</a>
+          <a href="#main-path">3 · 主路径四步</a>
+          <a href="#clone">4 · 克隆远程仓库</a>
+          <a href="#troubleshooting">5 · 常见卡点</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="doc-section" id="workspaces">
+      <div class="wrap">
+        <div class="prose">
+          <h2>工作区与仓库</h2>
+          <p>
+            工作区不是一个磁盘目录。它是一个抽象的分组，把你要放在一起处理的仓库装进来——后端和前端、同一个库的三个版本，或者一个仓库和它的子模块。这些仓库在文件系统上没有任何关系。
+          </p>
+          <p>
+            用标题栏最左侧的下拉切换工作区。在一个工作区里，每个仓库是一个标签页：点标签切换当前仓库，拖动标签调整顺序，标签放不下时用鼠标滚轮横向滚动，当前标签始终留在可见区域。
+          </p>
+          <p>
+            你看到的一切都属于当前仓库——提交历史图、左侧栏、工作副本、AI
+            上下文。切换标签，它们一起跟着切换。
+          </p>
+          <p class="note">
+            可以一次添加多个仓库。重复的路径和不可用的路径会被逐个报告出来，这一批里其余的仓库照样添加成功。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section alt" id="ui">
+      <div class="wrap">
+        <div class="prose">
+          <h2>界面地图</h2>
+          <p>
+            标题栏上有应用菜单、工作区下拉、同步动作（获取、拉取、推送），以及打开工作副本窗口的<strong>变更</strong>按钮。
+          </p>
+          <ul>
+            <li>
+              <strong>左侧栏</strong
+              >——可折叠的分组：分支、标签、贮藏、远程、子模块、worktree，还有工作副本入口。检出某个分支时，左侧栏会自动展开到它。
+            </li>
+            <li>
+              <strong>中间</strong
+              >——提交历史图：每个提交一行，用分叉样式绘制，滚动长历史时合并和并行分支依然看得清。右键提交可以检出、cherry-pick、还原、重置等操作。
+            </li>
+            <li>
+              <strong>右侧</strong
+              >——选中提交的详情：提交信息、作者，以及这次提交改动的文件列表。点文件看 diff。
+            </li>
+          </ul>
+          <figure class="shot">
+            <div class="shot-ph">
+              <span>截图占位</span>
+              <code>/shots/zh/ui-map.png</code>
+              <span>把文件保存到 site/shots/zh/ui-map.png 即可替换这个方块。</span>
+            </div>
+            <figcaption>
+              三栏布局：左侧栏、中间的提交历史图、右侧的提交详情；标题栏上是工作区下拉和同步动作。
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="main-path">
+      <div class="wrap">
+        <div class="prose">
+          <h2>主路径四步</h2>
+          <p>这四步就是日常循环：把仓库放进来、读一个提交、提交你的改动、推送。</p>
+          <ol class="steps">
+            <li class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <h3>把仓库放进来</h3>
+                <p>
+                  主区为空时，GitWave
+                  会直接给出三个按钮：<strong>克隆远程仓库</strong>、<strong>初始化新仓库</strong>、<strong>添加已有本地仓库</strong>。点<strong>添加已有本地仓库</strong>，选中已经含有
+                  <code>.git</code> 目录的文件夹，仓库就会作为一个标签页打开。一次可以选多个文件夹。
+                </p>
+                <p>
+                  这三个动作在应用菜单的<strong>仓库</strong>菜单里也有。macOS
+                  上应用菜单在系统菜单栏，Windows 和 Linux 上在窗口顶部的菜单栏。
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>截图占位</span>
+                    <code>/shots/zh/add-local-repo.png</code>
+                    <span>把文件保存到 site/shots/zh/add-local-repo.png 即可替换这个方块。</span>
+                  </div>
+                  <figcaption>「添加现有本地仓库」对话框，已经选好一个仓库路径。</figcaption>
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <h3>读一个提交</h3>
+                <p>
+                  在历史图里点任意一行。右侧详情会填上这次提交的信息、作者和改动的文件；点文件打开它的
+                  diff。可以在并排和统一两种视图之间切换；只想处理一个文件里的某一段改动时，用按
+                  hunk 划分的操作。
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>截图占位</span>
+                    <code>/shots/zh/pick-commit.png</code>
+                    <span>把文件保存到 site/shots/zh/pick-commit.png 即可替换这个方块。</span>
+                  </div>
+                  <figcaption>在历史图里选中一个提交，右侧的 diff 随之填充。</figcaption>
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <h3>提交你的改动</h3>
+                <p>
+                  用你习惯的编辑器改文件，GitWave
+                  会随文件变化刷新工作副本。标题栏的<strong>变更</strong>按钮打开工作副本窗口，未暂存和已暂存的文件分列两侧：把属于这次提交的文件暂存，写提交信息，然后点<strong>提交</strong>。
+                </p>
+                <p>
+                  约定式提交的类型标签（<code>feat</code>、<code>fix</code>、<code>docs</code>
+                  ……）会自动加在信息前面；配置好服务商密钥后，<strong>生成</strong>按钮会根据已暂存的
+                  diff 起草一条提交信息。
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>截图占位</span>
+                    <code>/shots/zh/commit-changes.png</code>
+                    <span>把文件保存到 site/shots/zh/commit-changes.png 即可替换这个方块。</span>
+                  </div>
+                  <figcaption>工作副本窗口，文件已暂存，提交信息已填好。</figcaption>
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <h3>推送</h3>
+                <p>
+                  标题栏的推送按钮会弹出确认框。这个对话框只提交三项：目标远程、是否推送这个提交上的标签、是否强制推送。确认远程和推送到的分支后推送即可。它不负责设置上游——如果这个分支还没有上游，去左侧分支列表里右键该分支，选<strong>跟踪分支…</strong>，挑一个它要跟踪的远程分支。获取和拉取按钮就在推送按钮旁边。
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>截图占位</span>
+                    <code>/shots/zh/push.png</code>
+                    <span>把文件保存到 site/shots/zh/push.png 即可替换这个方块。</span>
+                  </div>
+                  <figcaption>推送确认，显示目标远程和要推送的分支。</figcaption>
+                </figure>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section alt" id="clone">
+      <div class="wrap">
+        <div class="prose">
+          <h2>克隆远程仓库</h2>
+          <p>
+            克隆是另一种把仓库放进来的方式。用空主区的<strong>克隆远程仓库</strong>按钮，或者应用菜单<strong>仓库</strong>里的同一项。粘贴远程地址、选本地目录，GitWave
+            会获取这个仓库并把它作为一个标签页打开。地址栏同时接受 HTTPS 和 SSH
+            地址，检出的是远程的默认分支。
+          </p>
+          <p>
+            <strong>HTTPS。</strong
+            >第一次需要凭据的操作——通常是第一次推送或获取——会在应用内弹出登录窗口。你输入的内容交给系统的凭据管理器（macOS
+            是钥匙串，Windows 是凭据管理器，Linux 是 libsecret），之后的操作就不再询问。
+          </p>
+          <p>
+            <strong>SSH。</strong>如果远程地址以 <code>git@</code> 开头，GitWave 使用 ssh-agent
+            里的密钥——和 git 命令行用的是同一批。打开<strong>设置 → SSH 密钥</strong
+            >可以查看这些密钥；<strong>添加 SSH 密钥</strong
+            >可以把另一把私钥注册进去。推送前可以用<strong>测试 SSH 连接</strong>先和主机验证一次。
+          </p>
+          <figure class="shot">
+            <div class="shot-ph">
+              <span>截图占位</span>
+              <code>/shots/zh/clone.png</code>
+              <span>把文件保存到 site/shots/zh/clone.png 即可替换这个方块。</span>
+            </div>
+            <figcaption>「克隆远程仓库」对话框，已填好地址并显示目标目录。</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="troubleshooting">
+      <div class="wrap">
+        <div class="prose">
+          <h2>常见卡点</h2>
+          <p>第一天最容易卡住的五件事，以及各自在哪里解决。</p>
+          <h3>刚初始化的空仓库提交不了</h3>
+          <p>
+            新建的仓库里还没有任何提交，也没有文件，所以历史图显示的不是提交列表，而是<strong>创建第一个提交</strong>按钮。点这个按钮会打开标题为<strong>这是一个空仓库</strong>的弹窗，里面解释了为什么现在提交不了，并给出<strong>克隆远程仓库</strong>，把已有项目拿进来。想自己完成第一个提交，就先往工作目录里放文件，再打开工作副本窗口暂存并提交。
+          </p>
+          <h3>登录窗口反复出现</h3>
+          <p>
+            GitWave 通过系统的凭据管理器保存 HTTPS
+            凭据。如果每次推送都重新弹出，说明凭据没有存下来——重新输入一次，并确认系统的凭据管理器已解锁、正在运行。
+          </p>
+          <h3>SSH 要求输入口令，或者推送被拒绝</h3>
+          <p>
+            打开<strong>设置 → SSH 密钥</strong>。这个分区列出 ssh-agent 里的密钥，<strong
+              >添加 SSH 密钥</strong
+            >可以把另一把私钥注册进去，<strong>测试 SSH 连接</strong>只和主机通信，不碰你的仓库。用
+            <code>git@</code> 地址推送被拒绝，通常是主机上还没有你的公钥。带 passphrase
+            的密钥不能在这里添加——先在终端执行 <code>ssh-add</code>。
+          </p>
+          <h3>合并或变基停在冲突上</h3>
+          <p>
+            冲突文件会出现在工作副本和<strong>合并冲突</strong>面板里。在面板里打开文件，对照两边的改动，逐个文件选择保留哪一边，然后在同一个面板里继续合并或变基。
+          </p>
+          <h3>界面语言</h3>
+          <p>
+            <strong>设置 → 通用</strong>可以在中文和 English
+            之间切换界面语言。本指南的截图和页面语言一致：如果你的窗口和图片不一样，先切换应用语言再对照。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section alt" id="download">
+      <div class="wrap">
+        <div class="prose">
+          <h2>下载 GitWave</h2>
+          <p>
+            <a
+              class="btn btn-primary"
+              href="https://github.com/Yangshifu1024/GitWave/releases/latest"
+              target="_blank"
+              rel="noopener"
+              >下载最新版本</a
+            >
+          </p>
+          <p>
+            每个版本都附有 macOS（.dmg）、Windows（.exe 安装包）和
+            Linux（.deb、.rpm、.AppImage）的构建产物，不需要系统里预装 Git。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section">
+      <div class="wrap">
+        <div class="prose">
+          <div class="doc-foot">
+            <a href="/index.zh.html">← 返回首页</a>
+            <a href="/getting-started.html" hreflang="en" lang="en">Read in English</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap foot-inner">
+        <span
+          >GitWave ·
+          <a
+            href="https://github.com/Yangshifu1024/GitWave/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener"
+            >MIT License</a
+          >
+          © Yangzhenbiao</span
+        >
+        <span
+          ><a href="https://github.com/Yangshifu1024/GitWave" target="_blank" rel="noopener"
+            >GitHub</a
+          >
+          ·
+          <a href="https://github.com/Yangshifu1024/GitWave/issues" target="_blank" rel="noopener"
+            >Issues</a
+          ></span
+        >
+      </div>
+    </footer>
+  </body>
+</html>

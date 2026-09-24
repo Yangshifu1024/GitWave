@@ -1,6 +1,7 @@
 {
   "workspace": {
     "title": "Workspaces",
+    "selectorFallback": "Workspace",
     "new": "New workspace",
     "loadFailed": "Failed to load: {{error}}",
     "reposLoadFailed": "Failed to load repos: {{error}}",

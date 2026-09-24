@@ -193,9 +193,17 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 ### 5.3 空状态
 
-无 active repo：Main 显示空状态文案 + "Select a repository from the sidebar"。
+除 Inspector 的选择提示外，空状态一律给出下一步动作（`EmptyState` 的 `action` 参数），按钮只发动作请求，对话框仍由 `ActionBar` 独占：
 
-无 commit（empty repo）：commit graph 显示空状态 + "Create your first commit" 按钮。
+| 场景 | 显示 | 动作 |
+|---|---|---|
+| 无 Workspace（侧边栏） | 「未选择工作区」+ 说明 | 新建工作区 |
+| 无 Workspace（Main） | 「选择工作区」+ 说明 | 新建工作区 |
+| 有 Workspace、无 repo（Main） | 「未选择仓库」+ 说明 | 克隆远程仓库（主）/ 初始化新仓库 / 添加本地仓库 |
+| 有 repo、无 commit（empty repo，commit graph） | 空状态文案 + 「创建第一个提交」按钮 | 打开说明弹窗（空仓库要先有文件才能提交，或改用克隆） |
+| 有 repo、无 commit 选择（Inspector） | 空状态提示（选 commit 看 diff） | — |
+
+首次启动（没有任何 Workspace）时侧边栏与 Main 会同时显示各自的空状态，两处都要能直接新建 Workspace——2026-09 修复了一个死胡同：原先只提示「请在侧边栏中选择或创建工作区」，而侧边栏里并没有该入口，三个添加仓库动作又都被门控禁用。详见 `docs/pm/features/F018-getting-started.md`。
 
 ## 6. ActionBar + Working Copy Modal（原 Working Copy Bar，已重构）
 

@@ -145,6 +145,13 @@
       "selectRepoDesc": "Pick a repository from the sidebar to view commit history.",
       "loading": "Loading history...",
       "empty": "No commits yet",
+      "createFirstCommit": "Create first commit",
+      "firstCommitHint": {
+        "title": "This repository is empty",
+        "description": "A commit needs file changes, and an empty repository has no files yet — so there is nothing to commit.",
+        "step1": "Put files in the working directory first (or copy an existing project in), then open the Working Copy window to stage and commit them.",
+        "step2": "Or use {{clone}} to bring an existing project in."
+      },
       "loadingOlder": "Loading older commits…",
       "endOfHistory": "End of history · {{total}} commits"
     }

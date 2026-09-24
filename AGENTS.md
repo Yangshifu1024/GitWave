@@ -91,7 +91,7 @@ A user-visible change is not done while its docs still describe the old behaviou
 
 - **`README.md`** — the **Status** line and the `### What's new in vX.Y.x` list
 - **`docs/pm/core/01-features.md` / `02-scope.md` / `03-roadmap.md`** — feature list, version scope, roadmap
-- **`site/index.html`** — the hero version badge and the feature cards
+- **`site/`** — four pages: `index.html` and `index.zh.html` are a mirrored pair (the hero version badge appears in **both**), while `getting-started.html` / `getting-started.zh.html` deliberately carry no version or date. The guide walks through the app's empty states, menus and dialogs, so when a button or dialog moves, fix both language versions too (screenshots live in `site/shots/<lang>/`)
 - **`.agents/skills/gitwave-release/SKILL.md`** — the sync points registered for the release skill
 
 Nothing automated will catch a stale doc: Markdown is outside Prettier (`.prettierignore` excludes `*.md`) and the lint / test workflows skip `site/**`, `docs/**` and `**.md` changes. Verify by hand.

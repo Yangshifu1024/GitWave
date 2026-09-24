@@ -1,6 +1,7 @@
 {
   "workspace": {
     "title": "工作区",
+    "selectorFallback": "工作区",
     "new": "新建工作区",
     "loadFailed": "加载失败：{{error}}",
     "reposLoadFailed": "仓库列表加载失败：{{error}}",

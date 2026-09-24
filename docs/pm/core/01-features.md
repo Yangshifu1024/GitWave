@@ -48,6 +48,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 - Repo 批量添加：一次选择多个本地文件夹加入，跳过已加入的路径与本批内的重复；不可用的路径会报告，但不中断整批
 - Repo 移除 / 重新链接缺失 repo
 - Workspace 内切换 repo（侧边栏点击主视图，单 active）
+- 空状态引导：无 Workspace / 有 Workspace 但无 repo / 空仓库三种空状态都直接给出下一步动作（新建工作区、克隆 / 初始化 / 添加本地仓库、创建第一个提交），不需要先去应用菜单里找入口
 - 仓库标签栏在标签溢出时可用鼠标滚轮横向滚动，并把激活标签带回视野
 - 多 Workspace 同时打开，状态并行
 - 自动刷新：按可配置间隔刷新全部仓库的状态（一次刷新工作区里的每个仓库，默认 5 分钟，间隔可在设置里配置）
@@ -56,7 +57,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 **用户旅程**：
 
-- 首次启动：命名 + 添加 repo（手动 file picker / init / clone 任一方式）
+- 首次启动：命名 Workspace（空状态里直接给「新建工作区」按钮，不必先找到应用菜单）+ 添加 repo（克隆 / 初始化 / 添加本地仓库，空状态给三个按钮，与应用菜单同源）
 - 可选批量导入：用户指定扫描路径，自动加入 Git 仓库（便利功能，非必须）
 - 日常：侧边栏显示所有 repo，点击切换 active
 - 切换 Workspace：保存当前状态 + 加载 lastActiveRepo

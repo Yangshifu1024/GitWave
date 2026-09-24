@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Getting started with GitWave</title>
+    <meta
+      name="description"
+      content="A hands-on tour of GitWave for people who already know Git: workspaces, the three panes, the four-step main path, cloning, and the usual snags."
+    />
+    <meta property="og:title" content="Getting started with GitWave" />
+    <meta
+      property="og:description"
+      content="From an empty window to your first push: workspaces, the three panes, the four-step main path and the usual snags."
+    />
+    <meta property="og:image" content="https://gitwave.work/icon.png" />
+    <meta property="og:url" content="https://gitwave.work/getting-started.html" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="canonical" href="https://gitwave.work/getting-started.html" />
+    <link rel="alternate" hreflang="en" href="https://gitwave.work/getting-started.html" />
+    <link rel="alternate" hreflang="zh-CN" href="https://gitwave.work/getting-started.zh.html" />
+    <link rel="alternate" hreflang="x-default" href="https://gitwave.work/getting-started.html" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0d" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <nav>
+      <div class="wrap nav-inner">
+        <a class="brand" href="/index.html"><img src="/icon.png" alt="GitWave icon" />GitWave</a>
+        <div class="nav-links">
+          <a class="hide-sm" href="/getting-started.html">Docs</a>
+          <a
+            class="gh hide-sm"
+            href="https://github.com/Yangshifu1024/GitWave"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.53-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.83 1.18 3.09 0 4.41-2.69 5.38-5.25 5.67.41.35.77 1.05.77 2.12 0 1.53-.01 2.76-.01 3.14 0 .3.2.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
+              />
+            </svg>
+            GitHub
+          </a>
+          <span class="lang"
+            ><span class="lang-current">English</span
+            ><a href="/getting-started.zh.html" hreflang="zh-CN" lang="zh-CN">中文</a></span
+          >
+          <a class="btn btn-primary btn-sm" href="#download">Download</a>
+        </div>
+      </div>
+    </nav>
+
+    <header class="doc-head">
+      <div class="wrap">
+        <div class="badge">Getting started</div>
+        <h1>From an empty window to your first push</h1>
+        <p class="sub">
+          GitWave is a visual Git client. This tour shows you the parts of the window you will touch
+          every day, and the four actions that take a repository from your disk to your remote.
+        </p>
+        <p class="meta">About 10 minutes · macOS, Windows and Linux</p>
+      </div>
+      <div class="wrap">
+        <div class="toc">
+          <a href="#workspaces">1 · Workspaces and repositories</a>
+          <a href="#ui">2 · The window, pane by pane</a>
+          <a href="#main-path">3 · The main path in four steps</a>
+          <a href="#clone">4 · Cloning a remote repository</a>
+          <a href="#troubleshooting">5 · When something gets in the way</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="doc-section" id="workspaces">
+      <div class="wrap">
+        <div class="prose">
+          <h2>Workspaces and repositories</h2>
+          <p>
+            A workspace is not a folder on your disk. It is an abstract group that holds the
+            repositories you work on together — a backend and a frontend, three versions of the same
+            library, or a repository and its submodules. Nothing on the filesystem ties those
+            repositories to each other.
+          </p>
+          <p>
+            Switch between workspaces with the selector at the left end of the title bar. Inside a
+            workspace every repository is a tab: click a tab to make that repository active, drag
+            tabs to reorder them, and scroll the tab strip with the mouse wheel when it overflows.
+            The active tab is always kept in view.
+          </p>
+          <p>
+            Everything you see belongs to the active repository — the commit graph, the sidebar, the
+            working copy, the AI context. Switching tabs switches all of it at once.
+          </p>
+          <p class="note">
+            You can add several repositories at once. Duplicates and unusable paths are reported one
+            by one, and the rest of the batch still goes through.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section alt" id="ui">
+      <div class="wrap">
+        <div class="prose">
+          <h2>The window, pane by pane</h2>
+          <p>
+            The title bar carries the app menu, the workspace selector, the sync actions (fetch,
+            pull, push) and the <strong>Changes</strong> button that opens the working-copy window.
+          </p>
+          <ul>
+            <li>
+              <strong>Left sidebar</strong> — collapsible groups for branches, tags, stashes,
+              remotes, submodules and worktrees, plus the working-copy entry. It auto-expands to the
+              branch you check out.
+            </li>
+            <li>
+              <strong>Middle</strong> — the commit history graph: one row per commit, drawn in the
+              fork style so merges and parallel lines stay readable while you scroll. Right-click a
+              commit for checkout, cherry-pick, revert, reset and more.
+            </li>
+            <li>
+              <strong>Right</strong> — the inspector for the selected commit: its message, its
+              author and the list of files it touched. Click a file to read its diff.
+            </li>
+          </ul>
+          <figure class="shot">
+            <div class="shot-ph">
+              <span>Screenshot placeholder</span>
+              <code>/shots/en/ui-map.png</code>
+              <span>Save the file to site/shots/en/ui-map.png to replace this box.</span>
+            </div>
+            <figcaption>
+              The three panes: sidebar on the left, commit graph in the middle, commit inspector on
+              the right, with the workspace selector and the sync actions in the title bar.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="main-path">
+      <div class="wrap">
+        <div class="prose">
+          <h2>The main path in four steps</h2>
+          <p>
+            These four steps are the everyday loop: bring a repository in, read a commit, commit
+            your changes, push.
+          </p>
+          <ol class="steps">
+            <li class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <h3>Add a repository</h3>
+                <p>
+                  While the main area is empty, GitWave shows three buttons:
+                  <strong>Clone remote repo</strong>, <strong>Initialize new repo</strong> and
+                  <strong>Add existing local repo</strong>. Pick
+                  <strong>Add existing local repo</strong>, select the folder that already contains
+                  a <code>.git</code> directory, and the repository opens as a tab. You can select
+                  several folders in one go.
+                </p>
+                <p>
+                  The same three actions live in the app menu under <strong>Repository</strong>. On
+                  macOS that menu is in the system menu bar; on Windows and Linux it is the menu bar
+                  at the top of the window.
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>Screenshot placeholder</span>
+                    <code>/shots/en/add-local-repo.png</code>
+                    <span
+                      >Save the file to site/shots/en/add-local-repo.png to replace this box.</span
+                    >
+                  </div>
+                  <figcaption>
+                    The Add existing local repos dialog with a repository path already picked.
+                  </figcaption>
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <h3>Read a commit</h3>
+                <p>
+                  Click any row in the history graph. The inspector on the right fills with that
+                  commit's message, its author and its changed files; click a file to open its diff.
+                  Switch between side-by-side and unified views, and use the per-hunk actions when
+                  you want to deal with a single hunk of a file instead of the whole thing.
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>Screenshot placeholder</span>
+                    <code>/shots/en/pick-commit.png</code>
+                    <span>Save the file to site/shots/en/pick-commit.png to replace this box.</span>
+                  </div>
+                  <figcaption>
+                    A commit selected in the graph, so the diff on the right is populated.
+                  </figcaption>
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <h3>Commit your changes</h3>
+                <p>
+                  Edit your files in whatever editor you already use — GitWave refreshes the working
+                  copy as files change. The <strong>Changes</strong> button in the title bar opens
+                  the working-copy window, where unstaged and staged files are listed separately:
+                  stage what belongs in this commit, write the message, and press
+                  <strong>Commit</strong>.
+                </p>
+                <p>
+                  Conventional-commit type chips (<code>feat</code>, <code>fix</code>,
+                  <code>docs</code>, …) prefix the message for you, and the
+                  <strong>Generate</strong> button drafts a message from the staged diff once you
+                  have configured a provider key.
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>Screenshot placeholder</span>
+                    <code>/shots/en/commit-changes.png</code>
+                    <span
+                      >Save the file to site/shots/en/commit-changes.png to replace this box.</span
+                    >
+                  </div>
+                  <figcaption>
+                    The working-copy window with files staged and a commit message typed in.
+                  </figcaption>
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <h3>Push</h3>
+                <p>
+                  The push button in the title bar opens a confirmation. It takes three things: the
+                  target remote, whether to push the tags on this commit, and whether to force.
+                  Check the remote and the branch it pushes to, then confirm. The dialog never sets
+                  the upstream — if this branch has no upstream yet, right-click the branch in the
+                  left sidebar and choose <strong>Tracking…</strong> to pick the remote branch it
+                  should track. Fetch and pull sit next to the push button.
+                </p>
+                <figure class="shot">
+                  <div class="shot-ph">
+                    <span>Screenshot placeholder</span>
+                    <code>/shots/en/push.png</code>
+                    <span>Save the file to site/shots/en/push.png to replace this box.</span>
+                  </div>
+                  <figcaption>
+                    The push confirmation showing the target remote and the branch being pushed.
+                  </figcaption>
+                </figure>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section alt" id="clone">
+      <div class="wrap">
+        <div class="prose">
+          <h2>Cloning a remote repository</h2>
+          <p>
+            Cloning is the other way to get a repository in. Use
+            <strong>Clone remote repo</strong> in the empty main area, or the same entry in the app
+            menu under <strong>Repository</strong>. Paste the remote URL and choose the local
+            directory; GitWave fetches the repository and opens it as a tab. The URL field takes
+            HTTPS and SSH addresses alike, and the remote's default branch is checked out.
+          </p>
+          <p>
+            <strong>HTTPS.</strong> The first operation that needs credentials — usually the first
+            push or fetch — opens a sign-in window inside the app. What you type there is handed to
+            your system credential manager (Keychain on macOS, Credential Manager on Windows,
+            libsecret on Linux), so later operations do not ask again.
+          </p>
+          <p>
+            <strong>SSH.</strong> If the remote URL starts with <code>git@</code>, GitWave uses the
+            keys your ssh-agent holds — the same ones the git command line uses. Open
+            <strong>Settings → SSH Keys</strong> to see them; <strong>Add SSH key</strong> registers
+            another private key. Use <strong>Test SSH connection</strong> to check a key against a
+            host before you push.
+          </p>
+          <figure class="shot">
+            <div class="shot-ph">
+              <span>Screenshot placeholder</span>
+              <code>/shots/en/clone.png</code>
+              <span>Save the file to site/shots/en/clone.png to replace this box.</span>
+            </div>
+            <figcaption>
+              The Clone remote repo dialog with a URL filled in and the destination path shown.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="troubleshooting">
+      <div class="wrap">
+        <div class="prose">
+          <h2>When something gets in the way</h2>
+          <p>Five things that stop people on the first day, and where to fix them.</p>
+          <h3>An empty repository has nothing to commit</h3>
+          <p>
+            A repository you have just initialised has no commits and no files yet, so the commit
+            graph shows the <strong>Create first commit</strong> button instead of a history.
+            Clicking it opens a dialog titled <strong>This repository is empty</strong>, which
+            explains why there is nothing to commit and offers <strong>Clone remote repo</strong> to
+            bring an existing project in. To make the first commit yourself, put files in the
+            working directory, then open the working-copy window and commit them.
+          </p>
+          <h3>The sign-in window keeps coming back</h3>
+          <p>
+            GitWave saves HTTPS credentials through your system credential manager. If the prompt
+            reappears on every push, the credential was never stored — enter it once more and make
+            sure the credential manager is unlocked and running.
+          </p>
+          <h3>SSH asks for a passphrase, or the push is rejected</h3>
+          <p>
+            Open <strong>Settings → SSH Keys</strong>. That panel lists the keys in your ssh-agent,
+            <strong>Add SSH key</strong> registers another private key, and
+            <strong>Test SSH connection</strong> talks to a host without touching your repository. A
+            rejected push over a <code>git@</code> URL usually means the host does not have your
+            public key yet. A key with a passphrase cannot be added here — run
+            <code>ssh-add</code> in a terminal first.
+          </p>
+          <h3>A merge or rebase stops on a conflict</h3>
+          <p>
+            Conflicted files show up in the working copy and in the
+            <strong>Merge conflicts</strong> panel. Open a file there, compare both sides, and
+            choose which side to keep file by file — then continue the merge or rebase from the same
+            panel.
+          </p>
+          <h3>The interface language</h3>
+          <p>
+            <strong>Settings → General</strong> switches the interface between English and 中文. The
+            screenshots in this guide are in the language of the page you are reading, so switch the
+            app language first if your window does not look like the pictures.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section alt" id="download">
+      <div class="wrap">
+        <div class="prose">
+          <h2>Download GitWave</h2>
+          <p>
+            <a
+              class="btn btn-primary"
+              href="https://github.com/Yangshifu1024/GitWave/releases/latest"
+              target="_blank"
+              rel="noopener"
+              >Download the latest release</a
+            >
+          </p>
+          <p>
+            Builds for macOS (.dmg), Windows (.exe installer) and Linux (.deb, .rpm, .AppImage) are
+            attached to every release — no system Git required.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section">
+      <div class="wrap">
+        <div class="prose">
+          <div class="doc-foot">
+            <a href="/index.html">← Back to home</a>
+            <a href="/getting-started.zh.html" hreflang="zh-CN" lang="zh-CN">阅读中文版</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap foot-inner">
+        <span
+          >GitWave ·
+          <a
+            href="https://github.com/Yangshifu1024/GitWave/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener"
+            >MIT License</a
+          >
+          © Yangzhenbiao</span
+        >
+        <span
+          ><a href="https://github.com/Yangshifu1024/GitWave" target="_blank" rel="noopener"
+            >GitHub</a
+          >
+          ·
+          <a href="https://github.com/Yangshifu1024/GitWave/issues" target="_blank" rel="noopener"
+            >Issues</a
+          ></span
+        >
+      </div>
+    </footer>
+  </body>
+</html>

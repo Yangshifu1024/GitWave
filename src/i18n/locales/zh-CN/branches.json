@@ -145,6 +145,13 @@
       "selectRepoDesc": "从侧边栏选择一个仓库以查看提交历史。",
       "loading": "正在加载历史…",
       "empty": "暂无提交",
+      "createFirstCommit": "创建第一个提交",
+      "firstCommitHint": {
+        "title": "这是一个空仓库",
+        "description": "提交需要有文件改动，而空仓库里还没有任何文件，因此暂时无法提交。",
+        "step1": "先在工作目录中放入文件（或把已有项目的文件复制进来），再打开工作副本窗口暂存并提交。",
+        "step2": "或者改用「{{clone}}」，把已有项目拿进来。"
+      },
       "loadingOlder": "正在加载更早的提交…",
       "endOfHistory": "已到历史末尾 · 共 {{total}} 个提交"
     }

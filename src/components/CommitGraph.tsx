@@ -18,6 +18,8 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { FirstCommitHintModal } from "@/components/FirstCommitHintModal";
 import { FolderOpen } from "lucide-react";
 import { laneColor, RefBadge } from "@/components/RefBadge";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/ContextMenu";
@@ -362,6 +364,9 @@ export function CommitGraph({
   const [error, setError] = useState<string | null>(null);
   const [localSelected, setLocalSelected] = useState<string | null>(null);
   const [limit, setLimit] = useState(INITIAL_LIMIT);
+  // Empty-repository hint: a repo with no commits has nothing to stage, so the
+  // empty state explains the ways out instead of opening Working Copy.
+  const [firstCommitHintOpen, setFirstCommitHintOpen] = useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   // F011: one shared row-menu controller; its modals render once below.
   const menu = useCommitMenuActions(activeWorkspaceId);
@@ -533,8 +538,11 @@ export function CommitGraph({
       );
     } else if (commits.length === 0) {
       stateContent = (
-        <div className="flex items-center justify-center h-full text-text-muted text-sm">
+        <div className="flex flex-col items-center justify-center gap-3 h-full text-text-muted text-sm">
           {t("branches.graph.empty")}
+          <Button variant="secondary" size="sm" onClick={() => setFirstCommitHintOpen(true)}>
+            {t("branches.graph.createFirstCommit")}
+          </Button>
         </div>
       );
     }
@@ -604,6 +612,8 @@ export function CommitGraph({
         )}
 
         {menu.renderModals()}
+
+        <FirstCommitHintModal open={firstCommitHintOpen} onOpenChange={setFirstCommitHintOpen} />
       </div>
     </CommitMenuContext.Provider>
   );

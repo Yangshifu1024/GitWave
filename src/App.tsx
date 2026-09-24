@@ -8,6 +8,8 @@ import { ActionBar } from "@/components/ActionBar";
 import { WorkspaceRepoTabs } from "@/components/WorkspaceRepoTabs";
 import { useWorkspaceUiStore, readLastActive } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
+import { useUiStore } from "@/stores/uiStore";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SidebarSection } from "@/components/ui/SidebarSection";
 import { FolderOpen, GitCommitHorizontal } from "lucide-react";
@@ -57,6 +59,9 @@ function App(): React.JSX.Element {
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
   const setInspectorMaximized = useLayoutStore((s) => s.setInspectorMaximized);
+  // Empty-state buttons drive the same handlers as the menus: they only ask
+  // ActionBar for the action, never reach into its dialogs directly.
+  const requestMenuAction = useUiStore((s) => s.requestMenuAction);
   const titlebarMode = useTitlebarActivation();
   useTheme();
   useAutoRefreshLoop();
@@ -184,6 +189,15 @@ function App(): React.JSX.Element {
                   icon={<FolderOpen size={22} />}
                   title={t("app.emptyState.noWorkspaceTitle")}
                   description={t("app.emptyState.noWorkspaceDescription")}
+                  action={
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => requestMenuAction("workspace:new")}
+                    >
+                      {t("workspace.new")}
+                    </Button>
+                  }
                   className="flex-1"
                 />
               )}
@@ -230,6 +244,7 @@ function MainContent({
   const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const requestMenuAction = useUiStore((s) => s.requestMenuAction);
 
   if (!activeWorkspaceId) {
     return (
@@ -238,6 +253,11 @@ function MainContent({
           icon={<FolderOpen size={28} />}
           title={t("app.emptyState.selectWorkspaceTitle")}
           description={t("app.emptyState.selectWorkspaceDescription")}
+          action={
+            <Button variant="primary" size="sm" onClick={() => requestMenuAction("workspace:new")}>
+              {t("workspace.new")}
+            </Button>
+          }
           className="py-16"
         />
       </main>
@@ -251,6 +271,19 @@ function MainContent({
           icon={<FolderOpen size={28} />}
           title={t("app.emptyState.noRepoTitle")}
           description={t("app.emptyState.noRepoDescription")}
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button variant="primary" size="sm" onClick={() => requestMenuAction("repo:clone")}>
+                {t("menu.repository.clone.text")}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => requestMenuAction("repo:init")}>
+                {t("menu.repository.init.text")}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => requestMenuAction("repo:add")}>
+                {t("menu.repository.add.text")}
+              </Button>
+            </div>
+          }
           className="py-16"
         />
       </main>

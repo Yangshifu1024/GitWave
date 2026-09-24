@@ -1,0 +1,575 @@
+/* GitWave website — shared stylesheet.
+ *
+ * Shared by four pages:
+ *   /index.html              English home
+ *   /index.zh.html           Chinese home
+ *   /getting-started.html    English getting-started guide
+ *   /getting-started.zh.html Chinese getting-started guide
+ *
+ * Extracted from the inline <style> block that used to live in index.html.
+ * Keep the comment-section layout: variables, reset, nav, buttons, hero,
+ * sections, features, download, footer, guide, responsive.
+ */
+
+:root {
+  --accent: #007aff;
+  --accent-hover: #0071eb;
+  --bg: #ffffff;
+  --bg-subtle: #f5f5f7;
+  --card: #ffffff;
+  --text: #1d1d1f;
+  --text-2: #6e6e73;
+  --border: rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-icon: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0d;
+    --bg-subtle: #131316;
+    --card: #16161a;
+    --text: #f5f5f7;
+    --text-2: #a1a1a6;
+    --border: rgba(255, 255, 255, 0.1);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+    --shadow-icon: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+}
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Cantarell, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* nav */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand img {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.nav-links a {
+  color: var(--text-2);
+  text-decoration: none;
+  font-size: 14px;
+}
+.nav-links a:hover {
+  color: var(--text);
+}
+.nav-links a.gh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Language switcher: the language you are reading is plain bold text, the
+   other one is a link. Two pages, two files, no script. */
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.lang .lang-current {
+  color: var(--text);
+  font-weight: 600;
+}
+.lang a {
+  font-size: 13px;
+}
+
+/* buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 160ms ease-out,
+    transform 160ms ease-out;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+.btn-secondary {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+  background: color-mix(in srgb, var(--bg-subtle) 88%, var(--text));
+}
+.btn-sm {
+  padding: 7px 14px;
+  font-size: 13px;
+}
+
+/* hero */
+.hero {
+  padding: 88px 0 72px;
+  text-align: center;
+}
+.hero img.app-icon {
+  width: 104px;
+  height: 104px;
+  border-radius: 22%;
+  box-shadow: var(--shadow-icon);
+}
+.badge {
+  display: inline-block;
+  margin-top: 28px;
+  padding: 4px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+}
+.hero h1 {
+  margin-top: 16px;
+  font-size: clamp(40px, 7vw, 64px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.hero .tagline {
+  margin-top: 12px;
+  font-size: clamp(18px, 3vw, 22px);
+  color: var(--text-2);
+}
+.hero .sub {
+  margin: 16px auto 0;
+  max-width: 560px;
+  font-size: 15px;
+  color: var(--text-2);
+}
+.hero .cta {
+  margin-top: 32px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.hero .platforms {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* sections */
+section {
+  padding: 72px 0;
+}
+.section-head {
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto 48px;
+}
+.section-head h2 {
+  font-size: clamp(28px, 4vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.section-head p {
+  margin-top: 12px;
+  color: var(--text-2);
+  font-size: 16px;
+}
+
+/* features */
+.features {
+  background: var(--bg-subtle);
+}
+.grid {
+  display: grid;
+  /* min(300px, 100%) so a single track can shrink below 300px: on a 320px-wide
+     phone the content box is 272px and a bare 300px minimum overflows it. */
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+.card .icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+.card h3 {
+  margin-top: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.card p {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+/* download */
+.download {
+  background: var(--bg-subtle);
+}
+.dl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.dl-card {
+  text-align: center;
+  padding: 32px 24px;
+}
+.dl-card .os {
+  font-size: 28px;
+}
+.dl-card h3 {
+  margin-top: 12px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.dl-card .fmt {
+  margin-top: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.dl-card .btn {
+  margin-top: 20px;
+  width: 100%;
+  justify-content: center;
+}
+.dl-note {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-2);
+  /* The release URL is one unbreakable token; without this it widens the page
+     past the viewport on a 320px-wide phone. */
+  overflow-wrap: anywhere;
+}
+.dl-note a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* footer */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 0;
+}
+.foot-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.foot-inner a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+.foot-inner a:hover {
+  color: var(--text);
+}
+
+/* getting-started guide */
+.doc-head {
+  padding: 72px 0 40px;
+  text-align: center;
+}
+.doc-head h1 {
+  margin-top: 16px;
+  font-size: clamp(32px, 5.4vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.doc-head .sub {
+  margin: 16px auto 0;
+  max-width: 620px;
+  font-size: 16px;
+  color: var(--text-2);
+}
+.doc-head .meta {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+/* Reading column: the guide body is narrower than the 1080px page container. */
+.prose {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.prose h2 {
+  font-size: clamp(24px, 3.4vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.prose h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.prose p {
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--text-2);
+}
+.prose ul,
+.prose ol:not(.steps) {
+  margin-top: 12px;
+  padding-left: 22px;
+  display: grid;
+  gap: 6px;
+  font-size: 15px;
+  color: var(--text-2);
+}
+.prose a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.prose a:hover {
+  text-decoration: underline;
+}
+.prose code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+}
+.doc-section {
+  padding: 48px 0;
+  border-top: 1px solid var(--border);
+}
+.doc-section.alt {
+  background: var(--bg-subtle);
+}
+/* Table of contents, only at the top of the guide. */
+.toc {
+  margin: 28px auto 0;
+  max-width: 760px;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+.toc a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+.toc a:hover {
+  color: var(--text);
+}
+/* Numbered steps: one step per action the reader has to take. */
+.steps {
+  list-style: none;
+  margin-top: 24px;
+  padding: 0;
+  display: grid;
+  gap: 32px;
+}
+.step {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.step-num {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.step-body {
+  flex: 1;
+  min-width: 0;
+}
+.step-body > p {
+  margin-top: 8px;
+  font-size: 15px;
+  color: var(--text-2);
+}
+/* Callout for the things that trip people up. */
+.note {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--bg-subtle);
+  font-size: 14px;
+  color: var(--text-2);
+}
+/* Screenshots. While a shot is missing the page shows .shot-ph instead of a
+   broken <img>; swapping in the real file means replacing that block with
+   <img src="/shots/<lang>/<name>.png" alt="..."> inside the same <figure>. */
+.shot {
+  margin-top: 16px;
+}
+.shot img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.shot figcaption {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.shot-ph {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 32px 16px;
+  border: 1px dashed color-mix(in srgb, var(--text-2) 45%, transparent);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.shot-ph code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.doc-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  font-size: 14px;
+}
+.doc-foot a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.doc-foot a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 64px 0 56px;
+  }
+  section {
+    padding: 56px 0;
+  }
+  .doc-head {
+    padding: 56px 0 32px;
+  }
+  .doc-section {
+    padding: 40px 0;
+  }
+  /* The brand plus the nav items have to fit on a phone, so the language
+     switcher and the download button shrink and every .hide-sm link drops out.
+     On the two home pages the Docs link carries no .hide-sm and survives; on the
+     two guide pages it does, so the guide's own Docs link is hidden here too. */
+  .nav-links {
+    gap: 10px;
+  }
+  .nav-links a.hide-sm {
+    display: none;
+  }
+  .lang,
+  .lang a {
+    font-size: 12px;
+  }
+  .lang {
+    gap: 6px;
+  }
+  .nav-links .btn-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .step {
+    gap: 12px;
+  }
+}
+
+/* A 320px window on Windows loses ~15px to a classic scrollbar, so the widest
+   nav (brand + Docs + language switch + download button) has to fit in about
+   305px, not 320px. Shrink one more step at the very narrow end. */
+@media (max-width: 380px) {
+  .nav-links {
+    gap: 6px;
+  }
+  .brand {
+    font-size: 15px;
+  }
+  .nav-links .btn-sm {
+    padding: 6px 8px;
+  }
+}
