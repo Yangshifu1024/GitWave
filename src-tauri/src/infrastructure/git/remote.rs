@@ -644,6 +644,21 @@ pub fn pull_with_options(
     auth: Option<&InlineAuth>,
     request_id: &str,
 ) -> Result<()> {
+    // libgit2 cannot stash an index with unmerged entries. Refuse before
+    // fetching or changing the worktree, regardless of the stash option.
+    if repo.index().map_err(map_git_err)?.has_conflicts() {
+        return Err(AppError::version_conflict(
+            codes::git::PULL_UNMERGED_INDEX,
+            "resolve the unmerged files in the index before pulling; finish or abort any merge/rebase in progress",
+        ));
+    }
+    if repo.state() != git2::RepositoryState::Clean {
+        return Err(AppError::version_conflict(
+            codes::git::PULL_OPERATION_IN_PROGRESS,
+            "finish or abort the current Git operation before pulling",
+        ));
+    }
+
     // Newest stash entry is index 0.
     let mut stashed = false;
     if opts.stash && worktree_is_dirty(repo)? {
@@ -1054,6 +1069,118 @@ mod tests {
             rebase: true,
             stash,
         }
+    }
+
+    #[test]
+    fn pull_refuses_unmerged_index_before_stashing_or_fetching() {
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        let local_tree = write_and_stage(&local, "file0.txt", "local\n");
+        make_commit(
+            &local,
+            &sig(),
+            "local edit",
+            local_tree,
+            &[head_oid(&local)],
+        );
+        let server_tree = write_and_stage(&server, "file0.txt", "remote\n");
+        let server_tip = make_commit(
+            &server,
+            &sig(),
+            "remote edit",
+            server_tree,
+            &[head_oid(&server)],
+        );
+        let before = head_oid(&local);
+        local
+            .find_remote("origin")
+            .unwrap()
+            .fetch(&["main"], None, None)
+            .unwrap();
+        let annotated = local.find_annotated_commit(server_tip).unwrap();
+        local.merge(&[&annotated], None, None).unwrap();
+        drop(annotated);
+        assert!(local.index().unwrap().has_conflicts());
+        let conflicted_content = fs::read(local_path.join("file0.txt")).unwrap();
+        let tracked_before = local
+            .find_reference("refs/remotes/origin/main")
+            .unwrap()
+            .target()
+            .unwrap();
+        let newer_tree = write_and_stage(&server, "newer.txt", "newer\n");
+        make_commit(
+            &server,
+            &sig(),
+            "newer remote commit",
+            newer_tree,
+            &[head_oid(&server)],
+        );
+
+        for stash in [false, true] {
+            let err = pull_with_options(
+                &mut local,
+                "origin",
+                rebase_opts(stash),
+                None,
+                None,
+                None,
+                "test-req",
+            )
+            .expect_err("unmerged index must refuse pull");
+            assert_eq!(err.code(), codes::git::PULL_UNMERGED_INDEX);
+            assert_eq!(head_oid(&local), before);
+            assert!(local.index().unwrap().has_conflicts());
+            assert_eq!(
+                fs::read(local_path.join("file0.txt")).unwrap(),
+                conflicted_content
+            );
+            assert_eq!(
+                local
+                    .find_reference("refs/remotes/origin/main")
+                    .unwrap()
+                    .target()
+                    .unwrap(),
+                tracked_before,
+                "pull must not fetch while conflicts are unresolved"
+            );
+            assert!(crate::infrastructure::git::stash::list_stashes(&mut local)
+                .unwrap()
+                .is_empty());
+        }
+
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
+    }
+
+    #[test]
+    fn pull_refuses_merge_in_progress_with_resolved_index() {
+        let (server_path, local_path, server, mut local) = cloned_from_server();
+        let server_tip = diverge(&server, &local);
+        local
+            .find_remote("origin")
+            .unwrap()
+            .fetch(&["main"], None, None)
+            .unwrap();
+        let annotated = local.find_annotated_commit(server_tip).unwrap();
+        local.merge(&[&annotated], None, None).unwrap();
+        drop(annotated);
+        assert!(!local.index().unwrap().has_conflicts());
+        assert_eq!(local.state(), git2::RepositoryState::Merge);
+
+        let err = pull_with_options(
+            &mut local,
+            "origin",
+            rebase_opts(true),
+            None,
+            None,
+            None,
+            "test-req",
+        )
+        .expect_err("unfinished merge must refuse pull");
+        assert_eq!(err.code(), codes::git::PULL_OPERATION_IN_PROGRESS);
+        assert_eq!(local.state(), git2::RepositoryState::Merge);
+
+        let _ = fs::remove_dir_all(&server_path);
+        let _ = fs::remove_dir_all(&local_path);
     }
 
     #[test]

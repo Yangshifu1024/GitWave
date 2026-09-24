@@ -27,6 +27,8 @@
       "stash_restore_failed": "{{error}}; the stash could not be restored either and was kept",
       "cannot_resolve_ref": "Cannot resolve “{{ref}}”: {{error}}",
       "pull_dirty_worktree": "Pull needs a clean worktree — check “Stash and reapply” or commit your changes first",
+      "pull_unmerged_index": "This repository has unresolved index conflicts. Resolve them, and finish or abort any merge or rebase in progress before pulling again.",
+      "pull_operation_in_progress": "A Git operation is still in progress. Finish or abort the current merge or rebase before pulling again.",
       "pull_rebase_conflicts": "Pull with rebase hit conflicts; your local commits were left untouched",
       "pull_needs_merge": "Pull would require a merge — enable Rebase, or use Merge from Branches",
       "pull_unexpected": "Pull ended in an unexpected merge state",

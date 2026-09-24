@@ -27,6 +27,8 @@
       "stash_restore_failed": "{{error}}；贮藏恢复同样失败，已保留该贮藏",
       "cannot_resolve_ref": "无法解析「{{ref}}」：{{error}}",
       "pull_dirty_worktree": "拉取需要干净的工作区——请勾选「贮藏并重新应用」，或先提交更改",
+      "pull_unmerged_index": "当前仓库的 index 仍有未解决的冲突。请先解决冲突；若有正在进行的合并或变基，也请完成或中止后再拉取。",
+      "pull_operation_in_progress": "当前 Git 操作尚未完成。请先完成或中止当前合并／变基，再重新拉取。",
       "pull_rebase_conflicts": "拉取（变基方式）遇到冲突；本地提交未被改动",
       "pull_needs_merge": "拉取需要合并——请启用变基（Rebase），或在分支面板使用合并",
       "pull_unexpected": "拉取进入了意外的合并状态",
