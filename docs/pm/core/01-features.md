@@ -1,7 +1,7 @@
 # GitWave · 功能列表
 
 > 本文仅列出 GitWave 应具备的功能与明确不做的事。产品原则与 Workspace 概念作为内联说明融入对应功能小节。
-> 当前发布版本 **v0.9.3**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
+> 当前发布版本 **v0.9.4**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
 
 ## 1. 功能范围
 
@@ -12,6 +12,8 @@ GUI友好的 Git 全集是基本盘，不做简化版 Git GUI。
 clone / init / open · commit / amend / revert · branch / checkout / switch / create / delete · merge · rebase (interactive) · cherry-pick · push / pull / fetch · stash · tag
 
 stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应用 / 应用并删除 / 删除）；详情窗口把文件列表与 diff 并排；应用前先检查工作区是否有未提交改动；丢弃前需确认；以未跟踪方式保存的文件也出现在 stash 内容里。
+
+未解决的 index 冲突即使没有进行中的合并，也计入「变更」数量并可打开冲突解决面板；拉取在 stash / fetch 前检查冲突及未完成的 Git 操作。
 
 ### 1.2 Visualization
 
