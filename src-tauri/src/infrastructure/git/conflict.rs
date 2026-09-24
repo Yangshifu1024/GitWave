@@ -225,6 +225,15 @@ mod tests {
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].path, "file0.txt");
 
+        // An interrupted operation can leave unmerged index entries without
+        // MERGE_HEAD. The conflict list must still expose them to the UI.
+        let merge_head_path = repo.path().join("MERGE_HEAD");
+        let merge_head = fs::read(&merge_head_path).unwrap();
+        fs::remove_file(&merge_head_path).unwrap();
+        assert!(!is_merge_in_progress(&repo));
+        assert_eq!(list_conflicts(&repo).unwrap()[0].path, "file0.txt");
+        fs::write(&merge_head_path, merge_head).unwrap();
+
         let sides = get_conflict_sides(&repo, "file0.txt").unwrap();
         assert!(sides.ours.as_deref().unwrap().contains("main"));
         assert!(sides.theirs.as_deref().unwrap().contains("feature"));

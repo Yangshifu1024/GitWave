@@ -147,7 +147,10 @@ function App(): React.JSX.Element {
       className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-bg-primary"
       data-titlebar-mode={titlebarMode === "pending" ? undefined : titlebarMode}
     >
-      <ActionBar />
+      <ActionBar
+        conflictCount={mergeConflicts.files.length}
+        onResolveConflicts={() => setConflictPanelOpen(true)}
+      />
 
       <MergeBanner merge={mergeConflicts} onResolve={() => setConflictPanelOpen(true)} />
 

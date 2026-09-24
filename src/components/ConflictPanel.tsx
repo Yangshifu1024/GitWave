@@ -33,7 +33,7 @@ export function ConflictPanel({
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
-  const { active, files, refresh, abort } = merge;
+  const { active, mergeInProgress, files, refresh, abort } = merge;
 
   const [selected, setSelected] = useState<string | null>(null);
   const [sides, setSides] = useState<ConflictSides | null>(null);
@@ -204,14 +204,18 @@ export function ConflictPanel({
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} className="text-warning" />
             <h2 className="text-sm font-semibold text-text-primary">
-              {t("conflicts.title", { total: files.length })}
+              {t(mergeInProgress ? "conflicts.title" : "conflicts.indexTitle", {
+                total: files.length,
+              })}
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="danger" size="sm" disabled={busy} onClick={handleAbort}>
-              <XCircle size={14} />
-              {t("conflicts.abortMerge")}
-            </Button>
+            {mergeInProgress ? (
+              <Button variant="danger" size="sm" disabled={busy} onClick={handleAbort}>
+                <XCircle size={14} />
+                {t("conflicts.abortMerge")}
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="sm"

@@ -74,6 +74,12 @@ pub const CANNOT_RESOLVE_REF: &str = "git.cannot_resolve_ref";
 /// 拉取需要干净的工作区。
 pub const PULL_DIRTY_WORKTREE: &str = "git.pull_dirty_worktree";
 
+/// 拉取前存在未解决的 index 冲突。
+pub const PULL_UNMERGED_INDEX: &str = "git.pull_unmerged_index";
+
+/// 拉取前存在尚未完成的合并或变基。
+pub const PULL_OPERATION_IN_PROGRESS: &str = "git.pull_operation_in_progress";
+
 /// 拉取（rebase 方式）遇到冲突，本地提交未被改动。
 pub const PULL_REBASE_CONFLICTS: &str = "git.pull_rebase_conflicts";
 

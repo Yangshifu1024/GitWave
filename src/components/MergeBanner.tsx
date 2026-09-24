@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { MergeConflictsState } from "@/hooks/useMergeConflicts";
 import { formatAppError } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -18,7 +19,8 @@ interface MergeBannerProps {
  * usable and Resolve opens the panel on demand.
  */
 export function MergeBanner({ merge, onResolve }: MergeBannerProps): React.JSX.Element | null {
-  const { active, files, abort } = merge;
+  const { active, mergeInProgress, files, abort } = merge;
+  const { t } = useTranslation();
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const [busy, setBusy] = useState(false);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
@@ -45,19 +47,23 @@ export function MergeBanner({ merge, onResolve }: MergeBannerProps): React.JSX.E
       <p className="flex min-w-0 items-center gap-2 text-xs text-text-secondary">
         <AlertTriangle size={14} className="shrink-0 text-warning" />
         <span className="truncate">
-          {allResolved
-            ? "Merge in progress — all conflicts resolved. Commit the merge from Working Copy to finish it."
-            : `Merge in progress — ${files.length} conflicted file${files.length === 1 ? "" : "s"}`}
+          {mergeInProgress
+            ? allResolved
+              ? t("conflicts.banner.mergeResolved")
+              : t("conflicts.banner.mergeCount", { count: files.length })
+            : t("conflicts.banner.indexCount", { count: files.length })}
         </span>
       </p>
       <span className="flex shrink-0 items-center gap-2">
         <Button variant="primary" size="sm" disabled={busy || allResolved} onClick={onResolve}>
-          Resolve
+          {t("conflicts.banner.resolve")}
         </Button>
-        <Button variant="danger" size="sm" disabled={busy} onClick={handleAbort}>
-          <XCircle size={14} />
-          Abort merge
-        </Button>
+        {mergeInProgress ? (
+          <Button variant="danger" size="sm" disabled={busy} onClick={handleAbort}>
+            <XCircle size={14} />
+            {t("conflicts.abortMerge")}
+          </Button>
+        ) : null}
       </span>
     </div>
   );

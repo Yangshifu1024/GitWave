@@ -1,7 +1,14 @@
 {
   "conflicts": {
     "title": "合并冲突（{{total}}）",
+    "indexTitle": "未解决的冲突（{{total}}）",
     "abortMerge": "中止合并",
+    "banner": {
+      "mergeResolved": "合并进行中：冲突已全部解决。请在工作副本中提交以完成合并。",
+      "mergeCount": "合并进行中：{{count}} 个文件存在冲突",
+      "indexCount": "index 中有 {{count}} 个未解决的冲突文件。请先解决，再继续拉取。",
+      "resolve": "解决冲突"
+    },
     "close": "关闭",
     "fileListAria": "冲突文件列表",
     "emptyList": "没有待解决的冲突路径。就绪后请在工作副本（Working Copy）中提交这次合并。",

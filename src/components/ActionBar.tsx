@@ -168,7 +168,13 @@ function deriveDestName(url: string): string {
   return (noProto.split("/").pop() ?? "repo").replace(/\.git$/, "");
 }
 
-export function ActionBar(): React.JSX.Element {
+export function ActionBar({
+  conflictCount,
+  onResolveConflicts,
+}: {
+  conflictCount: number;
+  onResolveConflicts: () => void;
+}): React.JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
@@ -644,7 +650,7 @@ export function ActionBar(): React.JSX.Element {
 
   // ── Local Changes ──────────────────────────────────────────────────────
   const [wcModalOpen, setWcModalOpen] = useState(false);
-  const changeCount = wc.data?.files.length ?? 0;
+  const changeCount = (wc.data?.files.length ?? 0) + conflictCount;
   const localChangesDisabled = !activeRepoId || changeCount === 0;
 
   const noRepo = !activeRepoId;
@@ -831,13 +837,13 @@ export function ActionBar(): React.JSX.Element {
             title={t("changes.actionBar.localChangesTitle")}
             tone={changeCount > 0 ? "warning" : "success"}
             disabled={localChangesDisabled}
-            onClick={() => setWcModalOpen(true)}
+            onClick={() => (conflictCount > 0 ? onResolveConflicts() : setWcModalOpen(true))}
           />
           <ActionBarButton
             icon={<Archive size={14} />}
             label={t("changes.stash.title")}
             title={t("changes.stash.buttonTitle")}
-            disabled={localChangesDisabled}
+            disabled={localChangesDisabled || conflictCount > 0}
             onClick={() => setStashOpen(true)}
           />
           <ActionBarButton

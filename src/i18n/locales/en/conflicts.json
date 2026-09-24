@@ -1,7 +1,14 @@
 {
   "conflicts": {
     "title": "Merge conflicts ({{total}})",
+    "indexTitle": "Unresolved conflicts ({{total}})",
     "abortMerge": "Abort merge",
+    "banner": {
+      "mergeResolved": "Merge in progress — all conflicts resolved. Commit the merge from Working Copy to finish it.",
+      "mergeCount": "Merge in progress — {{count}} conflicted file(s)",
+      "indexCount": "The index has {{count}} unresolved conflict file(s). Resolve them before pulling.",
+      "resolve": "Resolve"
+    },
     "close": "Close",
     "fileListAria": "Conflicted files",
     "emptyList": "No conflicted paths left. Commit the merge from Working Copy when ready.",
