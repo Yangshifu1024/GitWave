@@ -360,7 +360,7 @@
     <header class="hero">
       <div class="wrap">
         <img class="app-icon" src="/icon.png" alt="GitWave app icon" width="104" height="104" />
-        <div class="badge">v0.9.4 · 2026-09-25</div>
+        <div class="badge">v0.9.5 · 2026-09-27</div>
         <h1>GitWave</h1>
         <p class="tagline">A local-first Git client with AI collaboration.</p>
         <p class="sub">
@@ -515,9 +515,9 @@
             <p>
               Side-by-side and unified views with character-level highlighting inside changed lines,
               side-by-side image diffs (old vs new, common image formats — for unstaged changes the
-              new side reflects the live worktree), and file-level context. Next release (not in
-              v0.9.4): on-demand file previews, virtual scrolling, syntax highlighting and
-              adjustable Working Copy panes.
+              new side reflects the live worktree), and file-level context. Selected-file / side
+              previews with explicit truncation, virtualised text rows, paired split replacements
+              and syntax highlighting keep large diffs fast.
             </p>
           </div>
           <div class="card">
@@ -542,7 +542,9 @@
             <h3>AI collaboration</h3>
             <p>
               Bring your own key. Explain commits, draft PR descriptions, assist commit messages —
-              diffs stay local unless you send them to your chosen provider.
+              diffs stay local unless you send them to your chosen provider. Offline AI now enforces
+              loopback-only connectivity, bypasses proxies, disables redirects, and screens complete
+              blob versions for private-key material before any diff fragment is sent.
             </p>
           </div>
           <div class="card">
@@ -629,7 +631,7 @@
           </div>
         </div>
         <p class="dl-note">
-          Latest release: v0.9.4 ·
+          Latest release: v0.9.5 ·
           <a
             href="https://github.com/Yangshifu1024/GitWave/releases/latest"
             target="_blank"

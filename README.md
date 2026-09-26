@@ -2,22 +2,17 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.9.4 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
+**Status:** v0.9.5 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
 ### What's new in v0.9.x
 
+- **v0.9.5** — offline AI requests now enforce loopback-only connectivity, bypass system proxies, disable redirects, and screen complete blob versions for private-key material before any diff fragment is sent; commit drafts and conflict buffers survive navigation; clean working copies support message-only amend; the diff viewer ships selected-file previews with truncation, virtualised text rows, paired split replacements and syntax highlighting; history pages with bounded search and visible scan scope; hooks resolve against linked-worktree common directories and core.hooksPath
 - **v0.9.4** — unresolved index conflicts now appear in the Changes count and open directly in the conflict editor, even when no merge is in progress; Pull stops before stash or fetch and explains what to resolve
 - **v0.9.3** — update checks work again: the updater manifest now points at plain release download links (v0.9.2 published API URLs, which answer 403 without a User-Agent header); the commit list stays smooth while scrolling large repositories; every panel formats its timestamps through one shared formatter; the icon family moved to lucide 1.x
-- **v0.9.2** — stash panel reworked: every stash has a permanently visible row of labelled actions (View / Apply / Apply & delete / Delete) and a detail window with its file list beside the diff; apply pre-checks a working copy that has uncommitted changes and drop asks for confirmation before it runs; files saved as untracked now appear in the stash contents instead of staying invisible
-- **v0.9.1** — the repository tab strip scrolls horizontally with the mouse wheel once its tabs overflow the window, and pulls the active tab back into view
 
 Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWave/releases).
 
 ![GitWave's window: a self-drawn title bar carrying the app menu, workspace selector and sync actions, a commit graph with ref badges in the centre, the selected commit's details in the right pane, and a working copy bar along the bottom.](./assets/gitwave-screenshot.png)
-
-### Next release (unreleased)
-
-The source branch includes stricter offline AI privacy and whole-file private-key filtering, repository-scoped session commit drafts, message-only amend, protected conflict buffers, cursor-based history/search, configured hooks paths, and bounded on-demand diff previews with virtual scrolling and syntax highlighting. Working Copy supports adjustable panes and keyboard file selection. These changes are not included in the v0.9.4 installers yet.
 
 ## Download
 
