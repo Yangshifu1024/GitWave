@@ -1,5 +1,5 @@
 //! Git hooks editor support — list, read, and write hook scripts under
-//! `.git/hooks`. GitWave only EDITS hooks and never executes them (P1 /
+//! the effective Git hooks directory. GitWave only EDITS hooks and never executes them (P1 /
 //! design note in `infrastructure::git`); the filesystem entry itself is
 //! what git invokes.
 
@@ -32,14 +32,31 @@ pub const COMMON_HOOKS: [&str; 8] = [
     "post-checkout",
 ];
 
-fn hooks_dir(repo: &Repository) -> Result<PathBuf> {
+pub fn hooks_dir(repo: &Repository) -> Result<PathBuf> {
     let workdir = repo.workdir().ok_or_else(|| {
         AppError::protocol(
             codes::git::BARE_REPO,
             "bare repository has no working directory",
         )
     })?;
-    Ok(workdir.join(".git").join("hooks"))
+    match repo
+        .config()
+        .map_err(map_git_err)?
+        .get_path("core.hooksPath")
+    {
+        Ok(path) => {
+            return Ok(if path.is_absolute() {
+                path
+            } else {
+                workdir.join(path)
+            })
+        }
+        Err(e) if e.code() == git2::ErrorCode::NotFound => {}
+        Err(e) => return Err(map_git_err(e)),
+    }
+    // libgit2 resolves the common directory for linked worktrees and
+    // separate-git-dir repositories; neither has to contain a .git folder.
+    Ok(repo.commondir().join("hooks"))
 }
 
 fn hook_path(repo: &Repository, name: &str) -> Result<PathBuf> {
@@ -89,6 +106,7 @@ pub fn list_hooks(repo: &Repository) -> Result<Vec<HookInfo>> {
             let path = dir.join(name);
             HookInfo {
                 name: name.to_string(),
+                actual_path: path.to_string_lossy().into_owned(),
                 exists: path.is_file(),
                 executable: is_executable(&path),
             }
@@ -116,6 +134,15 @@ pub fn read_hook(repo: &Repository, name: &str) -> Result<String> {
 /// non-executable hook file is skipped by git.
 pub fn write_hook(repo: &Repository, name: &str, content: &str) -> Result<()> {
     let path = hook_path(repo, name)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            AppError::unknown_with(
+                codes::git::WRITE_HOOK,
+                format!("create hooks directory: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
+    }
     std::fs::write(&path, content).map_err(|e| {
         AppError::unknown_with(
             codes::git::WRITE_HOOK,
@@ -163,6 +190,10 @@ mod tests {
         let hooks = list_hooks(&repo).expect("list");
         let pre = hooks.iter().find(|h| h.name == "pre-commit").expect("pre");
         assert!(pre.exists);
+        assert_eq!(
+            Path::new(&pre.actual_path),
+            dir.join(".git/hooks/pre-commit")
+        );
         #[cfg(unix)]
         assert!(pre.executable, "hook is chmod +x on unix");
         let _ = fs::remove_dir_all(&dir);
@@ -176,5 +207,61 @@ mod tests {
         assert!(validate_name("").is_err());
         assert!(write_hook(&repo, "../evil", "x").is_err());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn configured_paths_are_used_and_created() {
+        let (dir, repo) = init_empty_repo();
+        for path in [
+            dir.join("custom hooks"),
+            PathBuf::from("relative hooks/nested"),
+        ] {
+            repo.config()
+                .unwrap()
+                .set_str("core.hooksPath", path.to_str().unwrap())
+                .unwrap();
+            write_hook(&repo, "pre-commit", "echo configured\n").unwrap();
+            let expected = if path.is_absolute() {
+                path
+            } else {
+                dir.join(path)
+            };
+            assert_eq!(hooks_dir(&repo).unwrap(), expected);
+            assert_eq!(
+                fs::read_to_string(expected.join("pre-commit")).unwrap(),
+                "echo configured\n"
+            );
+            assert_eq!(read_hook(&repo, "pre-commit").unwrap(), "echo configured\n");
+            assert!(list_hooks(&repo)
+                .unwrap()
+                .iter()
+                .any(|hook| hook.name == "pre-commit" && hook.exists));
+        }
+        drop(repo);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn linked_worktree_uses_common_hooks_and_relative_override() {
+        use crate::infrastructure::git::test_helpers::build_linear_repo;
+        let (dir, repo) = build_linear_repo(1);
+        let worktree_path = dir.join("linked");
+        repo.worktree("linked", &worktree_path, None).unwrap();
+        let linked = Repository::open(&worktree_path).unwrap();
+        write_hook(&linked, "pre-commit", "echo shared\n").unwrap();
+        assert_eq!(read_hook(&repo, "pre-commit").unwrap(), "echo shared\n");
+        linked
+            .config()
+            .unwrap()
+            .set_str("core.hooksPath", "custom-hooks")
+            .unwrap();
+        write_hook(&linked, "pre-commit", "echo linked\n").unwrap();
+        assert_eq!(
+            fs::read_to_string(worktree_path.join("custom-hooks/pre-commit")).unwrap(),
+            "echo linked\n"
+        );
+        drop(linked);
+        drop(repo);
+        let _ = fs::remove_dir_all(dir);
     }
 }

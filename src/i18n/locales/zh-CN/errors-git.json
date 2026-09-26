@@ -1,6 +1,7 @@
 {
   "errors": {
     "git": {
+      "history_cursor_expired": "历史已变更或分页缓存已过期，请重新加载历史后继续。",
       "raw": "Git 错误：{{detail}}",
       "error": "Git 操作失败：{{error}}",
       "auth_failed": "认证失败：{{error}}",
