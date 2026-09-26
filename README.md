@@ -15,6 +15,10 @@ Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWa
 
 ![GitWave's window: a self-drawn title bar carrying the app menu, workspace selector and sync actions, a commit graph with ref badges in the centre, the selected commit's details in the right pane, and a working copy bar along the bottom.](./assets/gitwave-screenshot.png)
 
+### Next release (unreleased)
+
+The source branch includes stricter offline AI privacy and whole-file private-key filtering, repository-scoped session commit drafts, message-only amend, protected conflict buffers, cursor-based history/search, configured hooks paths, and bounded on-demand diff previews with virtual scrolling and syntax highlighting. Working Copy supports adjustable panes and keyboard file selection. These changes are not included in the v0.9.4 installers yet.
+
 ## Download
 
 Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Linux (deb / rpm / AppImage) are on <https://gitwave.work> and the [GitHub Releases](https://github.com/Yangshifu1024/GitWave/releases/latest) page.
@@ -25,7 +29,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **Working copy** — stage / unstage, discard, ignore, commit with conventional-commit type chips (amend the last commit included), commit message AI assist
 - **Branches & sync** — create / switch / delete / rename / set upstream tracking (the picker lists every remote-tracking branch, `origin/main` included), double-click a remote branch to create its tracked local branch and switch to it (DWIM), push / pull with a target-remote picker, tag pushes that send only the tags on the pushed commit (conflicting tags are skipped and named instead of failing the batch), fetch across all remotes with stale tracking-ref pruning, time-boxed network syncs with an in-flight cancel button, an in-app auth prompt that collects a username / token and retries in place when a remote challenges for credentials (optionally saved to your system keychain), merge (ff & no-ff) with a conflict panel that also exposes unresolved index entries outside an active merge, and a collapsible sidebar that groups prefixed branches into folders and auto-expands to the branch you check out
 - **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info) that reveal the checked-out branch in the sidebar; ref badges merge tracked remotes into a single synced badge on a nine-colour lane palette
-- **Diff viewer** — side-by-side and unified views, character-level highlighting inside changed lines, per-hunk operations, and side-by-side image diffs (old / new versions rendered for png / jpg / gif / webp / bmp / ico / svg — for unstaged changes the new side reflects the live worktree)
+- **Diff viewer** — side-by-side and unified views, character-level highlighting inside changed lines, and side-by-side image diffs (old / new versions rendered for png / jpg / gif / webp / bmp / ico / svg — for unstaged changes the new side reflects the live worktree)
 - **Advanced Git** — stash (scoped to the active repo; each entry opens a detail window with its file list and diff, its actions are labelled buttons with tooltips, apply pre-checks a working copy that has uncommitted changes and drop confirms before running, and files saved as untracked are listed), interactive rebase, worktrees, submodules, LFS, remotes, .gitignore editor, Git hooks panel, repo health checks
 - **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider. AI replies in Chinese / Japanese / Korean / English per your preference
 - **Automatic updates** — in-app check for updates with signed downloads and one-click install (macOS / Windows / AppImage); deb / rpm installs get update prompts pointing at the releases page
@@ -38,7 +42,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 
 - **Frontend:** React 19 + TypeScript 6 + Vite 8, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query / Virtual
 - **Backend:** Rust + [Tauri 2](https://tauri.app), clean-architecture layers (`domain` / `application` / `infrastructure`), `git2` (vendored libgit2 + libssh2 + OpenSSL) — no system Git dependency
-- **Testing:** Vitest (unit); Playwright end-to-end tests have a script but no suite yet
+- **Testing:** Vitest (unit and React Testing Library/jsdom component behavior); Playwright end-to-end tests have a script but no suite yet
 
 ## Quick start
 

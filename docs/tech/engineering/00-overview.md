@@ -24,7 +24,7 @@
 | **单元** | domain / application / 前端纯函数与 store | `cargo test`、Vitest | 已落地 |
 | **集成** | infrastructure 适配（libgit2、SQLite、HTTP、代理、凭证） | 真实依赖 + 临时 fixture，走同一套 `cargo test --all-targets` | 已落地 |
 | **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | Playwright + tauri-driver | **未落地**。`@playwright/test` 在 package.json，`pnpm test:e2e` 只有脚本、没有测试套件：仓库内既无 `e2e/` 目录，也无 `playwright.config.*` |
-| **组件** | React 组件 / hook | React Testing Library | **未引入** |
+| **组件** | React 组件 / hook | React Testing Library + jsdom | 已引入（下一版本）：草稿/冲突编辑、分页乱序、diff、blame、hooks 的行为测试 |
 
 - 关键算法（diff、3-way merge、scrubber、credential callback）必须有专项单测
 - AI provider 有 mock / 错误映射测试；当前请求是非流式 `stream: false`，没有 SSE 中断用例
