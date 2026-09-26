@@ -2,7 +2,7 @@
 // only edits hook files; it never executes them (P1). Saving marks the
 // file executable on unix, mirroring `git init` samples.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { formatAppError, getHook, listHooks, saveHook, type HookInfo } from "@/lib/api";
@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { cn } from "@/lib/utils";
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 const SAMPLE_PRE_COMMIT = `#!/bin/sh
 # GitWave sample pre-commit hook. Non-zero exit aborts the commit.
@@ -31,6 +32,8 @@ export function HooksPanel({
   onClose: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const request = useRef(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -39,19 +42,33 @@ export function HooksPanel({
   const queryClient = useQueryClient();
 
   const { data: hooks = [] } = useQuery({
-    queryKey: ["hooks", workspaceId],
+    queryKey: ["hooks", workspaceId, repoId],
     queryFn: () => listHooks(workspaceId),
-    enabled: open,
+    enabled: open && !!repoId,
   });
 
+  useEffect(() => {
+    request.current += 1;
+    setSelected(null);
+    setContent("");
+    setError(null);
+    setDirty(false);
+    return () => {
+      request.current += 1;
+    };
+  }, [workspaceId, repoId, open]);
+
   const pick = async (hook: HookInfo): Promise<void> => {
+    const mine = ++request.current;
     setError(null);
     setDirty(false);
     setSelected(hook.name);
+    setContent("");
     try {
-      setContent(await getHook(workspaceId, hook.name));
+      const next = await getHook(workspaceId, hook.name);
+      if (mine === request.current) setContent(next);
     } catch (e) {
-      setError(formatAppError(e));
+      if (mine === request.current) setError(formatAppError(e));
     }
   };
 
@@ -114,6 +131,11 @@ export function HooksPanel({
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           {selected ? (
             <>
+              <p className="break-all font-mono text-[11px] text-text-muted">
+                {t("repo.hooks.actualPath", {
+                  path: hooks.find((hook) => hook.name === selected)?.actual_path ?? "",
+                })}
+              </p>
               <Textarea
                 value={content}
                 onChange={(v) => {

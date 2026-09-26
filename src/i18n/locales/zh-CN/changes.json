@@ -9,7 +9,9 @@
     "fileSection": {
       "titleWithCount": "{{title}}（{{total}}）",
       "allFilesTooltip": "{{action}}文件",
-      "selectedFilesTooltip": "{{action}}所选文件"
+      "selectedFilesTooltip": "{{action}}所选文件",
+      "stageFile": "暂存 {{path}}",
+      "unstageFile": "取消暂存 {{path}}"
     },
     "action": {
       "stage": "暂存",
@@ -67,7 +69,8 @@
       "commit": "提交",
       "generate": "生成",
       "generating": "生成中…",
-      "generateTitle": "用 AI 生成提交信息"
+      "generateTitle": "用 AI 生成提交信息",
+      "restoreDraft": "恢复此前草稿"
     },
     "amend": {
       "button": "修正",
@@ -128,7 +131,10 @@
       "title": "本地变更",
       "statusSummary": "未暂存 {{unstaged}} 项 · 已暂存 {{staged}} 项",
       "noFileSelected": "未选择文件",
-      "noFileSelectedDescription": "点击左侧文件以查看其 diff。"
+      "noFileSelectedDescription": "点击左侧文件以查看其 diff。",
+      "resize": "调整文件列表与 diff 宽度",
+      "expandDiff": "展开 diff",
+      "restoreLayout": "显示文件列表"
     }
   }
 }

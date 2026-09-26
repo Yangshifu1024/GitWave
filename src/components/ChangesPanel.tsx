@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, EyeOff, FolderOpen, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +22,7 @@ import { GitignoreEditor } from "@/components/GitignoreEditor";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Radio, RadioGroup } from "@heroui/react";
 import { formatAppError, generateCommitMessage, getWorkspace, type FileChange } from "@/lib/api";
+import { commitDraftKey, getCommitDraft, useCommitDraftStore } from "@/stores/commitDraftStore";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { deriveIgnorePatterns } from "@/lib/ignorePattern";
 import { modifierFromPointerEvent, nextFileSelection } from "@/lib/fileSelection";
@@ -87,6 +88,7 @@ function FileSection({
   const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);
   const sectionOpen = fixed || open;
 
@@ -101,9 +103,12 @@ function FileSection({
       orderedPaths,
       selected,
       path,
-      modifierFromPointerEvent(event),
+      "key" in event && event.key === " " && !event.shiftKey
+        ? "toggle"
+        : modifierFromPointerEvent(event),
       anchor,
     );
+    setFocusedPath(path);
     setSelected(next.selected);
     setAnchor(next.anchor);
     const file = files.find((entry) => entry.path === path);
@@ -239,11 +244,39 @@ function FileSection({
               const key = `${file.staged ? "s" : "u"}-${file.path}`;
               const row = (
                 <FileListItem
+                  key={key}
                   change={file}
-                  selected={
-                    selected.has(file.path) ||
-                    (selectedPath === file.path && selectedStaged === file.staged)
+                  tabIndex={
+                    file.path ===
+                    (orderedPaths.includes(focusedPath ?? "") ? focusedPath : orderedPaths[0])
+                      ? 0
+                      : -1
                   }
+                  onFocus={() => setFocusedPath(file.path)}
+                  onKeyDown={(event) => {
+                    const index = orderedPaths.indexOf(file.path);
+                    const nextIndex =
+                      event.key === "ArrowDown"
+                        ? Math.min(index + 1, files.length - 1)
+                        : event.key === "ArrowUp"
+                          ? Math.max(index - 1, 0)
+                          : event.key === "Home"
+                            ? 0
+                            : event.key === "End"
+                              ? files.length - 1
+                              : null;
+                    if (nextIndex === null) return;
+                    event.preventDefault();
+                    const path = orderedPaths[nextIndex];
+                    if (!path) return;
+                    const rows = event.currentTarget
+                      .closest('[role="listbox"]')
+                      ?.querySelectorAll<HTMLElement>('[role="option"]');
+                    rows?.[nextIndex]?.focus();
+                    if (!(event.ctrlKey || event.metaKey)) handleFileClick(path, event);
+                  }}
+                  selected={selected.has(file.path)}
+                  active={selectedPath === file.path && selectedStaged === file.staged}
                   onClick={(event) => handleFileClick(file.path, event)}
                   onStageToggle={() => onStageToggle(file)}
                 />
@@ -327,9 +360,24 @@ export function ChangesPanel({
     commitMessage,
     commitPending,
   } = useWorkingCopy();
-  const [message, setMessage] = useState("");
-  /** Amend mode: prefill HEAD message and rewrite HEAD on submit. */
-  const [amendMode, setAmendMode] = useState(false);
+  const draftKey = commitDraftKey(workspaceId, repoId);
+  const draft = useCommitDraftStore((state) => getCommitDraft(state.drafts, draftKey));
+  const updateDraft = useCommitDraftStore((state) => state.update);
+  const clearDraft = useCommitDraftStore((state) => state.clear);
+  const message = draft.message;
+  const setMessage = (value: string) => updateDraft(draftKey, { message: value });
+  const amendMode = Boolean(draft.amendHead && draft.amendHead === data?.sha);
+  const scopeRef = useRef(draftKey);
+  const aiRequestRef = useRef(0);
+  if (scopeRef.current !== draftKey) aiRequestRef.current += 1;
+  scopeRef.current = draftKey;
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const [amendConfirmOpen, setAmendConfirmOpen] = useState(false);
   const headMessage = data?.head_message ?? null;
   const canAmend = headMessage != null && data?.branch !== "(detached)";
@@ -356,34 +404,40 @@ export function ChangesPanel({
     enabled: Boolean(workspaceId),
   });
 
-  const startGenerate = (provider: string | null | undefined) => {
-    if (!workspaceId) return;
-    if (!provider?.trim()) {
-      setAiPromptOpen(true);
-      return;
-    }
-    setAiBusy(true);
-    setActionError(null);
-    generateCommitMessage(workspaceId)
-      .then((res) => {
-        setMessage(res.text);
-        if (res.used_fallback) {
-          setStatus(t("changes.ai.fallbackNotice", { provider: res.provider_used }), "info");
-        }
-      })
-      .catch((e) => setActionError(formatAppError(e)))
-      .finally(() => setAiBusy(false));
-  };
+  useEffect(() => {
+    setAiBusy(false);
+    setAiPromptOpen(false);
+    setAmendConfirmOpen(false);
+    setPendingAction(null);
+  }, [draftKey]);
 
   const handleAiGenerate = () => {
     if (!workspaceId || aiBusy) return;
-    if (workspace) {
-      startGenerate(workspace.settings.ai_provider);
-      return;
-    }
-    getWorkspace(workspaceId)
-      .then((ws) => startGenerate(ws.settings.ai_provider))
-      .catch((e) => setActionError(formatAppError(e)));
+    const request = ++aiRequestRef.current;
+    const isCurrent = () =>
+      mountedRef.current && scopeRef.current === draftKey && aiRequestRef.current === request;
+    setAiBusy(true);
+    setActionError(null);
+    void (async () => {
+      try {
+        const currentWorkspace = workspace ?? (await getWorkspace(workspaceId));
+        if (!isCurrent()) return;
+        if (!currentWorkspace.settings.ai_provider?.trim()) {
+          setAiPromptOpen(true);
+          return;
+        }
+        const res = await generateCommitMessage(workspaceId);
+        if (!isCurrent()) return;
+        updateDraft(draftKey, { message: res.text, previousMessage: message });
+        if (res.used_fallback) {
+          setStatus(t("changes.ai.fallbackNotice", { provider: res.provider_used }), "info");
+        }
+      } catch (e) {
+        if (isCurrent()) setActionError(formatAppError(e));
+      } finally {
+        if (isCurrent()) setAiBusy(false);
+      }
+    })();
   };
 
   const aiDialogs = (
@@ -471,15 +525,18 @@ export function ChangesPanel({
         value={message}
         onChange={setMessage}
         onSubmit={() => {
-          if (stagedFiles.length === 0 || !message.trim()) return;
+          if ((!amendMode && stagedFiles.length === 0) || !message.trim()) return;
           // Snapshot taken at submit time: unstaged work is not part of the
           // commit, so its presence means the modal should stay open.
           const hasLeftoverUnstaged = unstagedFiles.length > 0;
           commitMessage(message, {
             amend: amendMode,
             onSuccess: () => {
-              setMessage("");
-              setAmendMode(false);
+              if (
+                getCommitDraft(useCommitDraftStore.getState().drafts, draftKey).message === message
+              )
+                clearDraft(draftKey);
+              if (scopeRef.current !== draftKey || !mountedRef.current) return;
               if (!hasLeftoverUnstaged) onCommitted?.();
             },
           });
@@ -488,7 +545,18 @@ export function ChangesPanel({
         aiLoading={aiBusy}
         amendMessage={amendMode ? headMessage : null}
         onAmend={canAmend ? () => setAmendConfirmOpen(true) : undefined}
-        disabled={stagedFiles.length === 0 || commitPending || aiBusy}
+        disabled={commitPending || aiBusy}
+        submitDisabled={!amendMode && stagedFiles.length === 0}
+        aiDisabled={stagedFiles.length === 0}
+        onRestoreDraft={
+          draft.previousMessage !== undefined
+            ? () =>
+                updateDraft(draftKey, {
+                  message: draft.previousMessage!,
+                  previousMessage: undefined,
+                })
+            : undefined
+        }
         className={bar ? "h-full" : undefined}
       />
     </div>
@@ -516,6 +584,7 @@ export function ChangesPanel({
 
   const unstagedSection = (
     <FileSection
+      key={`${draftKey}-unstaged`}
       title={t("changes.section.unstaged")}
       actionLabel={t("changes.action.stage")}
       actionVariant="secondary"
@@ -546,6 +615,7 @@ export function ChangesPanel({
 
   const stagedSection = (
     <FileSection
+      key={`${draftKey}-staged`}
       title={t("changes.section.staged")}
       actionLabel={t("changes.action.unstage")}
       actionVariant="secondary"
@@ -570,8 +640,7 @@ export function ChangesPanel({
       hasUpstream={data?.upstream != null}
       onCancel={() => setAmendConfirmOpen(false)}
       onConfirm={() => {
-        setMessage(headMessage);
-        setAmendMode(true);
+        updateDraft(draftKey, { message: headMessage, amendHead: data?.sha });
         setAmendConfirmOpen(false);
       }}
     />

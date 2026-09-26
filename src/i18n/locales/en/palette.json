@@ -27,6 +27,8 @@
       "fetchRemote": "Fetch from remote"
     },
     "commitsTitle": "Commits",
-    "searchingCommits": "Searching commits…"
+    "searchingCommits": "Searching commits…",
+    "searchProgress": "Searched {{scanned}} of {{total}} commits",
+    "continueSearch": "Continue searching older commits"
   }
 }

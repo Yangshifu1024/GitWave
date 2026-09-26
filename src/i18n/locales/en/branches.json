@@ -146,7 +146,9 @@
       "loading": "Loading history...",
       "empty": "No commits yet",
       "loadingOlder": "Loading older commits…",
-      "endOfHistory": "End of history · {{total}} commits"
+      "endOfHistory": "End of history · {{total}} commits",
+      "snapshotLimited": "History is limited to the newest {{total}} commits. Older commits are outside this search.",
+      "endOfSnapshot": "End of loaded range · {{total}} commits"
     }
   }
 }

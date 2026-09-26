@@ -9,7 +9,9 @@
     "fileSection": {
       "titleWithCount": "{{title}} ({{total}})",
       "allFilesTooltip": "{{action}} files",
-      "selectedFilesTooltip": "{{action}} selected files"
+      "selectedFilesTooltip": "{{action}} selected files",
+      "stageFile": "Stage {{path}}",
+      "unstageFile": "Unstage {{path}}"
     },
     "action": {
       "stage": "Stage",
@@ -67,7 +69,8 @@
       "commit": "Commit",
       "generate": "Generate",
       "generating": "Generating…",
-      "generateTitle": "Generate commit message with AI"
+      "generateTitle": "Generate commit message with AI",
+      "restoreDraft": "Restore previous draft"
     },
     "amend": {
       "button": "Amend",
@@ -128,7 +131,10 @@
       "title": "Local Changes",
       "statusSummary": "{{unstaged}} unstaged · {{staged}} staged",
       "noFileSelected": "No file selected",
-      "noFileSelectedDescription": "Click a file on the left to see its diff."
+      "noFileSelectedDescription": "Click a file on the left to see its diff.",
+      "resize": "Resize file list and diff",
+      "expandDiff": "Expand diff",
+      "restoreLayout": "Show file list"
     }
   }
 }

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/Button";
 import { BranchIndicator } from "@/components/ui/BranchIndicator";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
@@ -26,10 +27,31 @@ export function WorkingCopyModal({
   const wc = useWorkingCopy();
   const [selected, setSelected] = useState<{ path: string; staged: boolean } | null>(null);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [ratio, setRatio] = useState(() => {
+    try {
+      const value = Number(localStorage.getItem("gitwave.workingCopy.ratio") ?? 40);
+      return Number.isFinite(value) ? Math.max(25, Math.min(65, value)) : 40;
+    } catch {
+      return 40;
+    }
+  });
+  const [expanded, setExpanded] = useState(false);
+  const resize = (value: number) => {
+    const next = Math.max(25, Math.min(65, value));
+    setRatio(next);
+    try {
+      localStorage.setItem("gitwave.workingCopy.ratio", String(next));
+    } catch {
+      /* Session still works without storage. */
+    }
+  };
+
   // Repo switches reset the in-modal selection.
   useEffect(() => {
     setSelected(null);
-  }, [wc.repoId]);
+    setExpanded(false);
+  }, [wc.workspaceId, wc.repoId]);
 
   // Keep the selection from pointing at a file that just got committed away.
   useEffect(() => {
@@ -71,8 +93,25 @@ export function WorkingCopyModal({
         </div>
       ) : null}
 
-      <div className="h-[62vh] min-h-0 grid grid-cols-2 border border-border-subtle rounded-md overflow-hidden bg-bg-primary">
-        <div className="min-h-0 border-r border-border-subtle">
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!selected && !expanded}
+          aria-pressed={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {t(expanded ? "changes.panel.restoreLayout" : "changes.panel.expandDiff")}
+        </Button>
+      </div>
+      <div
+        ref={containerRef}
+        style={{
+          gridTemplateColumns: expanded ? "minmax(0, 1fr)" : ratio + "% 6px minmax(0, 1fr)",
+        }}
+        className="h-[62vh] min-h-0 grid border border-border-subtle rounded-md overflow-hidden bg-bg-primary"
+      >
+        <div className="min-h-0 min-w-0" hidden={expanded}>
           <ChangesPanel
             selectedPath={selected?.path ?? null}
             selectedStaged={selected?.staged ?? null}
@@ -81,7 +120,37 @@ export function WorkingCopyModal({
             onCommitted={() => onOpenChange(false)}
           />
         </div>
-        <div className="min-h-0 overflow-hidden">
+        {!expanded ? (
+          <div
+            role="separator"
+            aria-label={t("changes.panel.resize")}
+            aria-orientation="vertical"
+            aria-valuemin={25}
+            aria-valuemax={65}
+            aria-valuenow={Math.round(ratio)}
+            tabIndex={0}
+            className="cursor-col-resize touch-none bg-border-subtle hover:bg-accent focus-visible:bg-accent outline-none"
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              event.preventDefault();
+              resize(ratio + (event.key === "ArrowLeft" ? -2 : 2));
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+              const rect = containerRef.current?.getBoundingClientRect();
+              if (rect) resize(((event.clientX - rect.left) / rect.width) * 100);
+            }}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+          />
+        ) : null}
+        <div className="min-h-0 min-w-0 overflow-hidden">
           {selected ? (
             <DiffViewer
               workdir

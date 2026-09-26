@@ -114,17 +114,29 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setLines([]);
     if (!activeWorkspaceId || !activeRepoId || !path) {
       setLines([]);
       setError(null);
+      setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    getBlame(activeWorkspaceId, path)
-      .then(setLines)
-      .catch((e) => setError(formatAppError(e)))
-      .finally(() => setLoading(false));
+    getBlame(activeWorkspaceId, path, activeRepoId)
+      .then((result) => {
+        if (!cancelled) setLines(result);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(formatAppError(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [activeWorkspaceId, activeRepoId, path]);
 
   if (!activeWorkspaceId) {

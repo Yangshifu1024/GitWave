@@ -19,6 +19,9 @@ export interface CommitMessageBoxProps {
    *  Parent then sets `amendMessage` to enter amend mode. */
   onAmend?: () => void;
   disabled?: boolean;
+  submitDisabled?: boolean;
+  aiDisabled?: boolean;
+  onRestoreDraft?: () => void;
   className?: string;
 }
 
@@ -48,6 +51,9 @@ export function CommitMessageBox({
   amendMessage = null,
   onAmend,
   disabled = false,
+  submitDisabled = false,
+  aiDisabled = false,
+  onRestoreDraft,
   className,
 }: CommitMessageBoxProps): React.JSX.Element {
   const { t } = useTranslation();
@@ -56,7 +62,7 @@ export function CommitMessageBox({
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      if (!disabled && value.trim()) {
+      if (!disabled && !submitDisabled && value.trim()) {
         onSubmit();
       }
     }
@@ -75,7 +81,7 @@ export function CommitMessageBox({
     });
   };
 
-  const canSubmit = value.trim().length > 0 && !disabled;
+  const canSubmit = value.trim().length > 0 && !disabled && !submitDisabled;
   // Git convention caps the subject line (~50 soft / 72 hard); the body may
   // be any length, so the warning must look at the first line only.
   const firstLineLength = (value.split("\n", 1)[0] ?? "").length;
@@ -118,7 +124,6 @@ export function CommitMessageBox({
             onKeyDown={handleKeyDown}
             placeholder={t("changes.messageBox.placeholder")}
             rows={6}
-            maxLength={500}
             className="w-full resize-none px-3 py-2 text-sm"
           />
         </InputGroup>
@@ -133,7 +138,12 @@ export function CommitMessageBox({
               })}
         </p>
       ) : null}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {onRestoreDraft ? (
+          <Button variant="ghost" size="sm" disabled={disabled} onClick={onRestoreDraft}>
+            {t("changes.messageBox.restoreDraft")}
+          </Button>
+        ) : null}
         {onAmend && amendMessage == null && (
           <Button
             variant="secondary"
@@ -163,7 +173,7 @@ export function CommitMessageBox({
           <Button
             variant="ghost"
             size="sm"
-            disabled={disabled || aiLoading}
+            disabled={disabled || aiLoading || aiDisabled}
             onClick={onAiGenerate}
             title={t("changes.messageBox.generateTitle")}
             aria-label={t("changes.messageBox.generateTitle")}
