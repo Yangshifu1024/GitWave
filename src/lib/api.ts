@@ -671,11 +671,13 @@ export function getImageContent(
   workspaceId: string,
   path: string,
   oid?: string,
+  repoId?: string,
 ): Promise<ImageContent> {
   return invoke<ImageContent>("cmd_get_image_content", {
     workspaceId,
     path,
     oid: oid ?? null,
+    repoId: repoId ?? null,
   });
 }
 
@@ -688,8 +690,8 @@ export function isImageTooLargeError(err: unknown): boolean {
   );
 }
 
-export function getBlame(workspaceId: string, path: string): Promise<BlameLine[]> {
-  return invoke<BlameLine[]>("cmd_get_blame", { workspaceId, path });
+export function getBlame(workspaceId: string, path: string, repoId?: string): Promise<BlameLine[]> {
+  return invoke<BlameLine[]>("cmd_get_blame", { workspaceId, path, repoId });
 }
 
 export function getBranches(workspaceId: string): Promise<BranchInfo[]> {
@@ -933,6 +935,7 @@ export function deinitSubmodule(workspaceId: string, name: string): Promise<void
 
 /** One known git hook and whether it is present in `.git/hooks`. */
 export interface HookInfo {
+  actual_path: string;
   name: string;
   exists: boolean;
   executable: boolean;
@@ -1099,8 +1102,8 @@ export interface WorkingCopy {
   files: FileChange[];
 }
 
-export function getWorkingCopy(workspaceId: string): Promise<WorkingCopy> {
-  return invoke<WorkingCopy>("cmd_get_working_copy", { workspaceId });
+export function getWorkingCopy(workspaceId: string, repoId?: string): Promise<WorkingCopy> {
+  return invoke<WorkingCopy>("cmd_get_working_copy", { workspaceId, repoId: repoId ?? null });
 }
 
 export interface DirtyRepoSummary {
@@ -1417,4 +1420,41 @@ export function addWorktree(
 
 export function removeWorktree(workspaceId: string, name: string): Promise<void> {
   return invoke<void>("cmd_remove_worktree", { workspaceId, name });
+}
+
+export interface CommitPage {
+  commits: CommitSummary[];
+  next_cursor: string | null;
+  has_more: boolean;
+  scanned: number;
+  snapshot_size: number;
+  snapshot_truncated: boolean;
+}
+export function getCommitPage(
+  workspaceId: string,
+  repoId: string,
+  limit: number,
+  filter: string | null = null,
+  cursor: string | null = null,
+): Promise<CommitPage> {
+  return invoke("cmd_get_commit_page", { workspaceId, repoId, limit, filter, cursor });
+}
+export interface DiffPreview {
+  diff: DiffSummary;
+  truncated: boolean;
+  too_large: boolean;
+}
+export interface DiffPreviewRequest {
+  path?: string;
+  staged?: boolean | null;
+  commit_oid?: string;
+  stash_oid?: string;
+  expanded?: boolean;
+}
+export function getDiffPreview(
+  workspaceId: string,
+  repoId: string,
+  request: DiffPreviewRequest,
+): Promise<DiffPreview> {
+  return invoke("cmd_get_diff_preview", { workspaceId, repoId, request });
 }

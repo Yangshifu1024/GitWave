@@ -12,14 +12,14 @@
       "label": "Provider",
       "openai": "OpenAI",
       "anthropic": "Anthropic",
-      "ollama": "Ollama (local)"
+      "ollama": "Ollama"
     },
     "modelPlaceholder": "Model",
     "baseUrlPlaceholder": "API base URL",
     "baseUrlHint": {
       "openai": "Default: https://api.openai.com (compatible /v1/chat/completions)",
       "anthropic": "Default: https://api.anthropic.com",
-      "ollama": "Default: http://127.0.0.1:11434"
+      "ollama": "Default: http://127.0.0.1:11434. Custom remote endpoints send data off this device."
     },
     "detectOllama": "Detect Ollama",
     "ollamaFound": "Found {{num}} local model(s)",
@@ -28,7 +28,7 @@
     "apiKeyKeep": "API key (leave blank to keep existing)",
     "apiKeyCleared": "API key cleared",
     "clearStoredKey": "Clear stored key",
-    "offlineMode": "Offline mode — disable all cloud AI calls (Ollama still allowed)",
+    "offlineMode": "Offline mode — only allow Ollama on this device; bypass proxies and block redirects",
     "fallback": {
       "label": "Fallback providers",
       "hint": "Tried in order when the provider above fails with a network error. Cloud entries need their own API key (stored per provider in the OS keychain).",

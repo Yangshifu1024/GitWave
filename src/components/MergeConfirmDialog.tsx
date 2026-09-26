@@ -41,7 +41,7 @@ export function MergeConfirmDialog({
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const { data: workingCopy } = useQuery({
     queryKey: ["working-copy", workspaceId, activeRepoId],
-    queryFn: () => getWorkingCopy(workspaceId),
+    queryFn: () => getWorkingCopy(workspaceId, activeRepoId!),
     enabled: !!activeRepoId,
   });
 

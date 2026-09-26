@@ -36,6 +36,15 @@
       "loading": "加载中…",
       "tooLarge": "图片过大，无法显示",
       "cannotDisplay": "无法显示该图片"
+    },
+    "preview": {
+      "loading": "正在加载 diff…",
+      "back": "返回 diff",
+      "truncated": "预览已截断，以保持滚动流畅。",
+      "tooLarge": "该文件超过预览大小限制。",
+      "loadMore": "加载更多内容",
+      "limit": "已达到预览上限，请在编辑器中查看完整内容。",
+      "noText": "无文本预览（可能为二进制、仅元数据变化或已达预览上限）。"
     }
   }
 }

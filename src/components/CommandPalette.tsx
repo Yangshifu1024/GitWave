@@ -1,7 +1,7 @@
 // Global command palette (Cmd+K / Ctrl+K). Three layers:
 //  1. Static commands — navigation and quick ops, no AI needed.
 //  2. Commit search — the typed query also matches commit message/author
-//     (backend filter of cmd_get_commit_log); selecting a result locates
+//     (cursor pages from cmd_get_commit_page); selecting a result locates
 //     that commit in the History graph via requestLocate.
 //  3. "Ask AI" — the typed request is interpreted into ONE whitelisted
 //     action (cmd_ai_palette_intent). Mutating actions show a confirm card
@@ -26,12 +26,10 @@ import {
   createTag,
   fetchRemote,
   formatAppError,
-  getCommitLog,
   getWorkingCopy,
   interactiveRebasePaused,
   mergeInProgress,
   saveStash,
-  type CommitSummary,
   type PaletteIntent,
 } from "@/lib/api";
 import { gateCheckout } from "@/lib/checkoutGate";
@@ -43,6 +41,7 @@ import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { nextSyncRequestId, useSyncStore } from "@/stores/syncStore";
 import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { cn } from "@/lib/utils";
+import { useCommitPages } from "@/hooks/useCommitPages";
 
 const ACTION_LABEL_KEYS: Record<string, string> = {
   explain_commit: "palette.action.explain_commit",
@@ -65,6 +64,8 @@ export function CommandPalette({
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const queryClient = useQueryClient();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
@@ -73,9 +74,25 @@ export function CommandPalette({
   const [intent, setIntent] = useState<PaletteIntent | null>(null);
   const [intentError, setIntentError] = useState<string | null>(null);
   const [explain, setExplain] = useState<{ sha: string } | null>(null);
-  const [commitResults, setCommitResults] = useState<CommitSummary[]>([]);
-  const [commitsLoading, setCommitsLoading] = useState(false);
-  const [commitsError, setCommitsError] = useState<string | null>(null);
+  const {
+    commits: commitResults,
+    loading: commitsLoading,
+    error: commitsError,
+    hasMore,
+    scanned,
+    snapshotSize,
+    snapshotTruncated,
+    loadMore,
+    retry,
+  } = useCommitPages({
+    workspaceId,
+    repoId,
+    epoch: historyEpoch,
+    filter: query.trim(),
+    enabled: open && !!query.trim(),
+    pageSize: 10,
+    debounceMs: 300,
+  });
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -97,9 +114,6 @@ export function CommandPalette({
     setQuery("");
     setIntent(null);
     setIntentError(null);
-    setCommitResults([]);
-    setCommitsLoading(false);
-    setCommitsError(null);
     setSelectedIndex(-1);
     // Focus after mount so the input is attached.
     window.setTimeout(() => inputRef.current?.focus(), 0);
@@ -144,44 +158,9 @@ export function CommandPalette({
     c.label.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
-  // Commit search (F003 history search, moved here from the History toolbar):
-  // debounced top-N match on message/author via the backend filter. Selecting
-  // a result only locates the commit in the graph — it never filters the list.
   useEffect(() => {
-    if (!open) return;
-    const needle = query.trim();
-    if (!needle || !workspaceId) {
-      setCommitResults([]);
-      setCommitsLoading(false);
-      setCommitsError(null);
-      setSelectedIndex(-1);
-      return;
-    }
-    let cancelled = false;
-    setCommitsLoading(true);
-    const timer = window.setTimeout(() => {
-      getCommitLog(workspaceId, 10, needle)
-        .then((list) => {
-          if (!cancelled) {
-            setCommitResults(list);
-            setCommitsError(null);
-          }
-        })
-        .catch((e) => {
-          if (!cancelled) {
-            setCommitResults([]);
-            setCommitsError(formatAppError(e));
-          }
-        })
-        .finally(() => {
-          if (!cancelled) setCommitsLoading(false);
-        });
-    }, 300);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [open, query, workspaceId]);
+    setSelectedIndex(-1);
+  }, [workspaceId, repoId]);
 
   const locateCommit = (sha: string): void => {
     setOpen(false);
@@ -451,10 +430,35 @@ export function CommandPalette({
                 </p>
               ) : null}
               {commitsError ? (
-                <p className="px-2.5 py-2 text-xs text-danger">{commitsError}</p>
+                <p className="px-2.5 py-2 text-xs text-danger">
+                  {commitsError}{" "}
+                  <button type="button" className="underline" onClick={retry}>
+                    {t("common.retry")}
+                  </button>
+                </p>
+              ) : null}
+              {scanned > 0 ? (
+                <p className="px-2.5 py-1 text-xs text-text-muted">
+                  {t("palette.searchProgress", { scanned, total: snapshotSize })}
+                </p>
+              ) : null}
+              {snapshotTruncated ? (
+                <p className="px-2.5 py-1 text-xs text-warning">
+                  {t("branches.graph.snapshotLimited", { total: snapshotSize })}
+                </p>
+              ) : null}
+              {hasMore ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={commitsLoading || !!commitsError}
+                  onClick={loadMore}
+                >
+                  {t("palette.continueSearch")}
+                </Button>
               ) : null}
 
-              {!commitsLoading && commitResults.length > 0 ? (
+              {commitResults.length > 0 ? (
                 <>
                   <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
                     {t("palette.commitsTitle")}

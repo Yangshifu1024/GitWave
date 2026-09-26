@@ -8,13 +8,14 @@
     },
     "hooks": {
       "title": "Git hooks",
-      "description": "编辑 .git/hooks 中的 hook 脚本。GitWave 只负责编辑——绝不会替你执行 hook。",
+      "description": "编辑仓库实际配置目录中的 hook 脚本。GitWave 负责编辑，不执行 hook。",
       "saveName": "保存 {{name}}",
       "scriptPlaceholder": "#!/bin/sh\n# {{name}} 脚本",
       "insertSample": "插入示例",
       "insertSampleTitle": "插入一段起始脚本（仅限 pre-commit）",
       "selectHint": "请在左侧选择要编辑的 hook。",
-      "saved": "已保存 hook {{name}}"
+      "saved": "已保存 hook {{name}}",
+      "actualPath": "正在编辑：{{path}}"
     },
     "lfs": {
       "title": "Git LFS",

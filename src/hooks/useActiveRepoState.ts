@@ -21,7 +21,7 @@ export function useActiveRepoState(): ActiveRepoHeadState {
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const { data } = useQuery({
     queryKey: ["working-copy", workspaceId, repoId],
-    queryFn: () => getWorkingCopy(workspaceId!),
+    queryFn: () => getWorkingCopy(workspaceId!, repoId!),
     enabled: Boolean(workspaceId && repoId),
   });
   const branch = data?.branch;

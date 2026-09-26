@@ -676,6 +676,57 @@ fn cmd_start_ssh_agent_service() -> Result<(), AppError> {
 
 // ─── History / Diff / Blame commands (Sprint 3) ───────────────────────────
 
+async fn local_git_task<T: Send + 'static>(
+    job: impl FnOnce() -> Result<T, AppError> + Send + 'static,
+) -> Result<T, AppError> {
+    tauri::async_runtime::spawn_blocking(job)
+        .await
+        .map_err(|e| {
+            AppError::unknown_with(
+                codes::git::GIT_ERROR,
+                "local Git task failed",
+                &[("error", e.to_string())],
+            )
+        })?
+}
+
+#[tauri::command]
+async fn cmd_get_diff_preview(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+    request: application::use_cases::DiffPreviewRequest,
+) -> Result<infrastructure::git::diff_preview::DiffPreview, AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        application::use_cases::get_diff_preview(&ctx, &workspace_id, &repo_id, &request)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn cmd_get_commit_page(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+    limit: u32,
+    filter: Option<String>,
+    cursor: Option<String>,
+) -> Result<domain::history::CommitPage, AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        application::use_cases::get_commit_page(
+            &ctx,
+            &workspace_id,
+            &repo_id,
+            limit,
+            filter.as_deref(),
+            cursor.as_deref(),
+        )
+    })
+    .await
+}
+
 #[tauri::command]
 async fn cmd_get_commit_log(
     ctx: tauri::State<'_, AppContext>,
@@ -683,7 +734,8 @@ async fn cmd_get_commit_log(
     max: u32,
     filter: Option<String>,
 ) -> Result<Vec<CommitSummary>, AppError> {
-    get_commit_log(&ctx, &workspace_id, max, filter)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || get_commit_log(&ctx, &workspace_id, max, filter)).await
 }
 
 #[tauri::command]
@@ -691,7 +743,8 @@ async fn cmd_get_workdir_diff(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
 ) -> Result<DiffSummary, AppError> {
-    get_workdir_diff(&ctx, &workspace_id)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || get_workdir_diff(&ctx, &workspace_id)).await
 }
 
 #[tauri::command]
@@ -700,7 +753,8 @@ async fn cmd_get_commit_details(
     workspace_id: String,
     commit_oid: String,
 ) -> Result<CommitDetails, AppError> {
-    get_commit_details(&ctx, &workspace_id, &commit_oid)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || get_commit_details(&ctx, &workspace_id, &commit_oid)).await
 }
 
 #[tauri::command]
@@ -709,7 +763,8 @@ async fn cmd_get_commit_diff(
     workspace_id: String,
     commit_oid: String,
 ) -> Result<DiffSummary, AppError> {
-    get_commit_diff(&ctx, &workspace_id, &commit_oid)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || get_commit_diff(&ctx, &workspace_id, &commit_oid)).await
 }
 
 #[tauri::command]
@@ -719,7 +774,8 @@ async fn cmd_get_file_diff(
     from_oid: String,
     to_oid: String,
 ) -> Result<Vec<FileDiff>, AppError> {
-    get_file_diff(&ctx, &workspace_id, &from_oid, &to_oid)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || get_file_diff(&ctx, &workspace_id, &from_oid, &to_oid)).await
 }
 
 /// Raw bytes of one file version for the image diff view (F016), base64.
@@ -729,8 +785,19 @@ async fn cmd_get_image_content(
     workspace_id: String,
     path: String,
     oid: Option<String>,
+    repo_id: Option<String>,
 ) -> Result<ImageContent, AppError> {
-    get_image_content(&ctx, &workspace_id, &path, oid.as_deref())
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        if let Some(repo_id) = repo_id {
+            let selected =
+                application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+            application::use_cases::get_image_content_at(&ctx, &selected, &path, oid.as_deref())
+        } else {
+            get_image_content(&ctx, &workspace_id, &path, oid.as_deref())
+        }
+    })
+    .await
 }
 
 #[tauri::command]
@@ -738,8 +805,20 @@ async fn cmd_get_blame(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
     path: String,
+    repo_id: Option<String>,
 ) -> Result<Vec<BlameLine>, AppError> {
-    get_blame(&ctx, &workspace_id, &path)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        if let Some(repo_id) = repo_id {
+            let selected =
+                application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+            let repo = ctx.open_repo(&selected)?;
+            infrastructure::git::blame::blame_file(&repo, &path)
+        } else {
+            get_blame(&ctx, &workspace_id, &path)
+        }
+    })
+    .await
 }
 
 // ─── Branch commands (Sprint 3) ───────────────────────────────────────────
@@ -1331,8 +1410,20 @@ async fn cmd_interactive_rebase_paused(
 async fn cmd_get_working_copy(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
 ) -> Result<WorkingCopy, AppError> {
-    get_working_copy(&ctx, &workspace_id)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        if let Some(repo_id) = repo_id {
+            let selected =
+                application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+            let repo = ctx.open_repo(&selected)?;
+            infrastructure::git::working_copy::status(&repo, &repo_id)
+        } else {
+            get_working_copy(&ctx, &workspace_id)
+        }
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1340,7 +1431,8 @@ async fn cmd_get_dirty_repos(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
 ) -> Result<Vec<DirtyRepoSummary>, AppError> {
-    get_dirty_repos(&ctx, &workspace_id)
+    let ctx = ctx.inner().clone();
+    local_git_task(move || get_dirty_repos(&ctx, &workspace_id)).await
 }
 
 #[tauri::command]
@@ -1970,6 +2062,8 @@ pub fn run() {
             cmd_test_ssh_connection,
             cmd_start_ssh_agent_service,
             cmd_get_commit_log,
+            cmd_get_commit_page,
+            cmd_get_diff_preview,
             cmd_get_commit_details,
             cmd_get_workdir_diff,
             cmd_get_commit_diff,

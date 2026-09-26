@@ -146,7 +146,9 @@
       "loading": "正在加载历史…",
       "empty": "暂无提交",
       "loadingOlder": "正在加载更早的提交…",
-      "endOfHistory": "已到历史末尾 · 共 {{total}} 个提交"
+      "endOfHistory": "已到历史末尾 · 共 {{total}} 个提交",
+      "snapshotLimited": "历史范围限于最近 {{total}} 个提交，更早的提交不在此次搜索范围内。",
+      "endOfSnapshot": "已到加载范围末尾 · 共 {{total}} 个提交"
     }
   }
 }

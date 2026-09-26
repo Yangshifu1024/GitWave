@@ -9,6 +9,7 @@ pub mod branch;
 pub mod conflict;
 pub mod credentials;
 pub mod diff;
+pub mod diff_preview;
 pub mod git2_adapter;
 pub mod health;
 pub mod history;

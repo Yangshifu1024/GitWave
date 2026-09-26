@@ -10,15 +10,8 @@ import {
   Square,
   UnfoldVertical,
 } from "lucide-react";
-import type { DiffSummary, FileDiff, DiffHunk, DiffLine, FileStatusKind } from "@/lib/api";
-import {
-  formatAppError,
-  getCommitDiff,
-  getImageContent,
-  getStashDiff,
-  getWorkdirDiff,
-  isImageTooLargeError,
-} from "@/lib/api";
+import type { FileDiff, FileStatusKind, DiffPreview, DiffPreviewRequest } from "@/lib/api";
+import { formatAppError, getDiffPreview, getImageContent, isImageTooLargeError } from "@/lib/api";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
@@ -26,46 +19,10 @@ import { Button } from "@/components/ui/Button";
 import { Chip } from "@heroui/react";
 import { BlameView } from "@/components/BlameView";
 import { filterDiffSummary, imageMimeFromPath, isImagePath } from "@/lib/diff";
-import { cn } from "@/lib/utils";
-import { useWorkingCopy } from "@/hooks/useWorkingCopy";
+import { DiffText } from "@/components/DiffText";
 
 type DiffViewMode = "unified" | "split";
 type PanelMode = "diff" | "blame";
-
-/** Highlight character-level changes between old and new strings. */
-function WordDiffSpans({
-  before,
-  after,
-  side,
-}: {
-  before: string;
-  after: string;
-  side: "removed" | "added";
-}): React.JSX.Element {
-  // Longest common prefix/suffix → middle is the changed span.
-  let start = 0;
-  while (start < before.length && start < after.length && before[start] === after[start]) {
-    start += 1;
-  }
-  let endBefore = before.length;
-  let endAfter = after.length;
-  while (endBefore > start && endAfter > start && before[endBefore - 1] === after[endAfter - 1]) {
-    endBefore -= 1;
-    endAfter -= 1;
-  }
-  const text = side === "removed" ? before : after;
-  const midStart = start;
-  const midEnd = side === "removed" ? endBefore : endAfter;
-  return (
-    <>
-      {text.slice(0, midStart)}
-      <span className={side === "removed" ? "bg-diff-del-word" : "bg-diff-add-word"}>
-        {text.slice(midStart, midEnd)}
-      </span>
-      {text.slice(midEnd)}
-    </>
-  );
-}
 
 export interface DiffViewerProps {
   /** If provided, show diff of this stash entry. Wins over workdir / commitOid */
@@ -83,158 +40,6 @@ export interface DiffViewerProps {
   workdirKind?: FileStatusKind;
   /** Hide the inspector-maximize button (e.g. inside WorkingCopyModal). */
   hideMaximize?: boolean;
-}
-
-function getExt(path: string): string {
-  const parts = path.split(".");
-  return parts.length > 1 ? (parts[parts.length - 1] ?? "") : "";
-}
-
-function getLanguage(ext: string): string {
-  const map: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "jsx",
-    rs: "rust",
-    py: "python",
-    go: "go",
-    java: "java",
-    c: "c",
-    cpp: "cpp",
-    md: "markdown",
-    json: "json",
-    toml: "toml",
-    yaml: "yaml",
-    yml: "yaml",
-    sh: "bash",
-    bash: "bash",
-    zsh: "bash",
-  };
-  return map[ext] ?? "text";
-}
-
-function DiffLineView({ line, mode }: { line: DiffLine; mode: DiffViewMode }): React.JSX.Element {
-  const prefix = line.kind === "added" ? "+" : line.kind === "removed" ? "-" : " ";
-
-  if (mode === "split") {
-    const leftContent =
-      line.kind === "added" ? (
-        <span className="flex-1 px-2 text-text-muted select-none">&nbsp;</span>
-      ) : (
-        <span
-          className={cn(
-            "flex-1 px-2 whitespace-pre",
-            line.kind === "removed" && "bg-diff-del-bg",
-            line.kind === "context" && "text-text-primary",
-          )}
-        >
-          {line.kind === "removed" ? `- ${line.content}` : `  ${line.content}`}
-        </span>
-      );
-
-    const rightContent =
-      line.kind === "removed" ? (
-        <span className="flex-1 px-2 text-text-muted select-none">&nbsp;</span>
-      ) : (
-        <span
-          className={cn(
-            "flex-1 px-2 whitespace-pre",
-            line.kind === "added" && "bg-diff-add-bg",
-            line.kind === "context" && "text-text-primary",
-          )}
-        >
-          {line.kind === "added" ? `+ ${line.content}` : `  ${line.content}`}
-        </span>
-      );
-
-    return (
-      <div className="flex text-xs font-mono leading-5 border-b border-border-subtle/40">
-        <span className="sticky left-0 z-10 bg-bg-elevated text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
-          {line.kind === "added" ? "" : (line.old_line_no ?? "")}
-        </span>
-        <div className="flex-1 min-w-0 border-r border-border-subtle">{leftContent}</div>
-        <span className="sticky left-9 z-10 bg-bg-elevated text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
-          {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
-        </span>
-        <div className="flex-1 min-w-0">{rightContent}</div>
-      </div>
-    );
-  }
-
-  // Line text stays text-primary (GitHub diffBlob style); only the +/- prefix
-  // and word-diff spans carry semantic color.
-  const bgClass =
-    line.kind === "added"
-      ? "bg-diff-add-bg"
-      : line.kind === "removed"
-        ? "bg-diff-del-bg"
-        : "text-text-primary";
-
-  return (
-    <div
-      className={cn(
-        "flex text-xs font-mono leading-5",
-        line.kind === "added" && "bg-diff-add-bg",
-        line.kind === "removed" && "bg-diff-del-bg",
-      )}
-    >
-      <span className="sticky left-0 z-10 shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
-        {line.kind === "added" ? "" : (line.old_line_no ?? "")}
-      </span>
-      <span className="sticky left-9 z-10 shrink-0 w-9 text-right pr-1.5 pl-1 bg-bg-elevated border-r border-border-subtle text-text-muted select-none tabular-nums">
-        {line.kind === "removed" ? "" : (line.new_line_no ?? "")}
-      </span>
-      <span className={cn("flex-1 px-2 min-w-0 whitespace-pre", bgClass)}>
-        {prefix} {line.content}
-      </span>
-    </div>
-  );
-}
-
-function DiffHunkView({ hunk, mode }: { hunk: DiffHunk; mode: DiffViewMode }): React.JSX.Element {
-  const rendered: React.JSX.Element[] = [];
-  const lines = hunk.lines;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
-    const next = lines[i + 1];
-    if (mode === "unified" && line.kind === "removed" && next?.kind === "added") {
-      rendered.push(
-        <div key={`w-${i}`}>
-          <div className="flex text-xs font-mono leading-5 bg-diff-del-bg">
-            <span className="sticky left-0 z-10 bg-diff-del-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
-              {line.old_line_no ?? ""}
-            </span>
-            <span className="sticky left-9 z-10 bg-diff-del-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
-            <span className="flex-1 px-2 text-danger whitespace-pre">
-              - <WordDiffSpans before={line.content} after={next.content} side="removed" />
-            </span>
-          </div>
-          <div className="flex text-xs font-mono leading-5 bg-diff-add-bg">
-            <span className="sticky left-0 z-10 bg-diff-add-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums" />
-            <span className="sticky left-9 z-10 bg-diff-add-bg-solid text-text-muted font-mono text-xs w-9 text-right pr-1.5 shrink-0 select-none tabular-nums">
-              {next.new_line_no ?? ""}
-            </span>
-            <span className="flex-1 px-2 text-success whitespace-pre">
-              + <WordDiffSpans before={line.content} after={next.content} side="added" />
-            </span>
-          </div>
-        </div>,
-      );
-      i += 1;
-      continue;
-    }
-    rendered.push(<DiffLineView key={i} line={line} mode={mode} />);
-  }
-
-  return (
-    <div className="border border-border-subtle mb-3">
-      <div className="bg-diff-hunk-bg px-3 py-1 text-xs text-text-muted font-mono border-b border-border-subtle">
-        @@ -{hunk.old_start},{hunk.old_lines} +{hunk.new_start},{hunk.new_lines} @@
-      </div>
-      {rendered}
-    </div>
-  );
 }
 
 function splitPath(path: string): { dir: string; name: string } {
@@ -267,10 +72,12 @@ function ImageDiffPane({
 }): React.JSX.Element {
   const { t } = useTranslation();
   const [broken, setBroken] = useState(false);
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const query = useQuery({
-    queryKey: ["diff-image", workspaceId, path, oid ?? "<worktree>"],
-    queryFn: () => getImageContent(workspaceId, path, oid ?? undefined),
+    queryKey: ["diff-image", workspaceId, repoId, path, oid ?? "<worktree>"],
+    queryFn: () => getImageContent(workspaceId, path, oid ?? undefined, repoId ?? undefined),
     staleTime: oid ? Infinity : 0,
+    refetchInterval: oid ? false : 2000,
     // A missing version (deleted file, unreadable bytes) is final — surface
     // the error state instead of burning ~7s on react-query's default retries.
     retry: false,
@@ -413,8 +220,7 @@ function FileDiffView({
   onBlame?: (path: string) => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
-  // Language for future shiki integration
-  void getLanguage(getExt(fileDiff.path));
+
   const { dir, name } = splitPath(fileDiff.path);
 
   return (
@@ -462,8 +268,12 @@ function FileDiffView({
             {fileDiff.new_sha?.slice(0, 7) ?? "0000000"}
           </span>
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            <span className="text-success">+{fileDiff.additions}</span>
-            <span className="text-danger">-{fileDiff.deletions}</span>
+            {fileDiff.hunks.length > 0 ? (
+              <>
+                <span className="text-success">+{fileDiff.additions}</span>
+                <span className="text-danger">-{fileDiff.deletions}</span>
+              </>
+            ) : null}
             {onBlame ? (
               <Button
                 type="button"
@@ -488,7 +298,7 @@ function FileDiffView({
                 borders stay continuous while scrolling horizontally. */}
             <div className="w-max min-w-full">
               {fileDiff.hunks.length > 0 ? (
-                fileDiff.hunks.map((hunk, i) => <DiffHunkView key={i} hunk={hunk} mode={mode} />)
+                <DiffText file={fileDiff} mode={mode} />
               ) : (
                 // Fallback: show additions/deletions summary when no hunk detail available
                 <div className="py-4 text-center text-sm text-text-muted">
@@ -500,7 +310,7 @@ function FileDiffView({
                       <span className="text-text-muted">{t("diff.file.noHunkDetail")}</span>
                     </>
                   ) : (
-                    t("diff.file.noChanges")
+                    t("diff.preview.noText")
                   )}
                 </div>
               )}
@@ -526,61 +336,36 @@ export function DiffViewer({
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const inspectorMaximized = useLayoutStore((s) => s.inspectorMaximized);
   const toggleInspectorMaximized = useLayoutStore((s) => s.toggleInspectorMaximized);
-  const { data: workingCopy } = useWorkingCopy();
-  // Content-aware signature: an in-place edit keeps staged/path/kind
-  // identical, so additions/deletions (+tree sha) must participate or the
-  // 2s working-copy poll never refreshes the panel.
-  const fileSignature = workdir
-    ? `${workingCopy?.sha ?? ""}|` +
-      (workingCopy?.files
-        .map((f) => `${f.staged}:${f.path}:${f.kind}:${f.additions}:${f.deletions}`)
-        .join("|") ?? "")
-    : "";
-  const [diff, setDiff] = useState<DiffSummary | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<DiffViewMode>("unified");
   const [panel, setPanel] = useState<PanelMode>("diff");
   const [blamePath, setBlamePath] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
-
+  const request: DiffPreviewRequest = {
+    path,
+    staged,
+    commit_oid: commitOid,
+    stash_oid: stashOid,
+    expanded,
+  };
+  const query = useQuery({
+    queryKey: ["diff-preview", activeWorkspaceId, activeRepoId, request],
+    queryFn: () => getDiffPreview(activeWorkspaceId!, activeRepoId!, request),
+    enabled: Boolean(activeWorkspaceId && activeRepoId && (workdir || commitOid || stashOid)),
+    // A successful status poll can have identical metadata after content edits.
+    // Poll only the selected file, independent of path/status/line-count changes.
+    refetchInterval: workdir ? 2000 : false,
+    retry: false,
+  });
+  const diff = query.data?.diff ?? null;
+  const loading = query.isPending;
+  const error = query.error ? formatAppError(query.error) : null;
   useEffect(() => {
-    if (!activeWorkspaceId || !activeRepoId) {
-      setDiff(null);
-      setError(null);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+    setExpanded(false);
+    setCollapsedFiles(new Set());
     setPanel("diff");
     setBlamePath(null);
-
-    // Stash wins over the other sources: the stash detail modal passes a
-    // stashOid alongside `path`, and that pair means "this stash's entry".
-    const promise = stashOid
-      ? getStashDiff(activeWorkspaceId, stashOid)
-      : workdir
-        ? getWorkdirDiff(activeWorkspaceId)
-        : commitOid
-          ? getCommitDiff(activeWorkspaceId, commitOid)
-          : Promise.resolve(null);
-
-    promise
-      .then((result) => {
-        if (!cancelled) setDiff(result);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(formatAppError(e));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeWorkspaceId, activeRepoId, stashOid, commitOid, workdir, fileSignature]);
+  }, [activeWorkspaceId, activeRepoId, commitOid, stashOid, path, staged]);
 
   useEffect(() => {
     setPanel("diff");
@@ -589,12 +374,14 @@ export function DiffViewer({
 
   const visible = diff ? filterDiffSummary(diff, path, staged) : null;
   const fileKeys = visible ? visible.files.map(fileChangeKey) : [];
-  const anyCollapsed = fileKeys.some((k) => collapsedFiles.has(k));
+  const anyCollapsed = fileKeys.some((k) =>
+    path ? collapsedFiles.has(k) : !collapsedFiles.has(k),
+  );
 
   if (!activeWorkspaceId) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Select a workspace to view diff
+        {t("repo.blame.selectWorkspace")}
       </div>
     );
   }
@@ -602,7 +389,7 @@ export function DiffViewer({
   if (!activeRepoId) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Select a repository to view diff
+        {t("repo.blame.selectRepo")}
       </div>
     );
   }
@@ -610,7 +397,7 @@ export function DiffViewer({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-text-muted text-sm">
-        Loading diff...
+        {t("diff.preview.loading")}
       </div>
     );
   }
@@ -628,7 +415,7 @@ export function DiffViewer({
       <div className="h-full min-h-0 flex flex-col overflow-hidden">
         <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-border-subtle">
           <Button type="button" variant="secondary" size="sm" onClick={() => setPanel("diff")}>
-            Back to diff
+            {t("diff.preview.back")}
           </Button>
           <span className="text-sm text-text-secondary font-mono truncate">{blamePath}</span>
         </div>
@@ -668,9 +455,11 @@ export function DiffViewer({
           <span className="min-w-0 truncate text-xs font-mono text-text-muted">
             {splitPath(path).dir}
           </span>
-          <span className="ml-auto text-xs text-text-muted tabular-nums">
-            +{visible.total_additions} / -{visible.total_deletions}
-          </span>
+          {!query.data?.too_large ? (
+            <span className="ml-auto text-xs text-text-muted tabular-nums">
+              +{visible.total_additions} / -{visible.total_deletions}
+            </span>
+          ) : null}
         </div>
       ) : null}
       {/* Toolbar */}
@@ -688,8 +477,12 @@ export function DiffViewer({
             {t("diff.chip.unstaged")}
           </span>
         ) : null}
-        <span className="text-success text-sm">+{visible.total_additions}</span>
-        <span className="text-danger text-sm">-{visible.total_deletions}</span>
+        {path && !query.data?.too_large ? (
+          <>
+            <span className="text-success text-sm">+{visible.total_additions}</span>
+            <span className="text-danger text-sm">-{visible.total_deletions}</span>
+          </>
+        ) : null}
         <div className="ml-auto flex items-center gap-1.5">
           {/* Icon toggles styled like the panel button: the icon shows the
               state clicking switches to (action semantics). */}
@@ -704,7 +497,9 @@ export function DiffViewer({
             title={t(anyCollapsed ? "diff.toolbar.expandAll" : "diff.toolbar.collapseAll")}
             onClick={() =>
               setCollapsedFiles(
-                anyCollapsed ? new Set() : new Set(visible.files.map(fileChangeKey)),
+                anyCollapsed === Boolean(path)
+                  ? new Set()
+                  : new Set(visible.files.map(fileChangeKey)),
               )
             }
           >
@@ -745,16 +540,31 @@ export function DiffViewer({
         </div>
       </div>
 
+      {query.data && path ? (
+        <PreviewNotice
+          preview={query.data}
+          expanded={expanded}
+          onExpand={() => setExpanded(true)}
+        />
+      ) : null}
       {/* Files */}
       <div className="pb-2 select-text">
         {visible.files.map((file) => (
-          <FileDiffView
+          <LazyFileDiffView
+            workspaceId={activeWorkspaceId}
+            repoId={activeRepoId}
+            request={request}
+            alreadyLoaded={Boolean(path)}
             key={fileChangeKey(file)}
             fileDiff={file}
             mode={mode}
             workdir={workdir}
             workdirKind={workdirKind}
-            collapsed={collapsedFiles.has(fileChangeKey(file))}
+            collapsed={
+              path
+                ? collapsedFiles.has(fileChangeKey(file))
+                : !collapsedFiles.has(fileChangeKey(file))
+            }
             onToggleCollapsed={() =>
               setCollapsedFiles((prev) => {
                 const next = new Set(prev);
@@ -775,5 +585,84 @@ export function DiffViewer({
         ))}
       </div>
     </div>
+  );
+}
+
+function PreviewNotice({
+  preview,
+  expanded,
+  onExpand,
+}: {
+  preview: DiffPreview;
+  expanded: boolean;
+  onExpand: () => void;
+}): React.JSX.Element | null {
+  const { t } = useTranslation();
+  if (!preview.truncated) return null;
+  return (
+    <div className="p-3 text-xs text-text-muted bg-bg-elevated" role="status">
+      {t(preview.too_large ? "diff.preview.tooLarge" : "diff.preview.truncated")}
+      {!expanded ? (
+        <Button size="sm" variant="secondary" onClick={onExpand}>
+          {t("diff.preview.loadMore")}
+        </Button>
+      ) : (
+        <span className="ml-2">{t("diff.preview.limit")}</span>
+      )}
+    </div>
+  );
+}
+
+function LazyFileDiffView({
+  workspaceId,
+  repoId,
+  request,
+  alreadyLoaded,
+  ...props
+}: React.ComponentProps<typeof FileDiffView> & {
+  workspaceId: string;
+  repoId: string;
+  request: DiffPreviewRequest;
+  alreadyLoaded: boolean;
+}): React.JSX.Element {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const selectedRequest = {
+    ...request,
+    path: props.fileDiff.path,
+    staged: props.fileDiff.staged,
+    expanded,
+  };
+  const query = useQuery({
+    queryKey: ["diff-preview", workspaceId, repoId, selectedRequest],
+    queryFn: () => getDiffPreview(workspaceId, repoId, selectedRequest),
+    enabled: !alreadyLoaded && !props.collapsed,
+    retry: false,
+    refetchInterval: props.workdir && !props.collapsed ? 2000 : false,
+  });
+  const file = alreadyLoaded ? props.fileDiff : (query.data?.diff.files[0] ?? props.fileDiff);
+  return (
+    <>
+      <FileDiffView
+        {...props}
+        fileDiff={file}
+        collapsed={props.collapsed || (!alreadyLoaded && !query.data)}
+      />
+      {!props.collapsed && !alreadyLoaded ? (
+        <>
+          {query.isPending ? (
+            <p className="p-3 text-text-muted">{t("diff.preview.loading")}</p>
+          ) : query.error ? (
+            <p className="p-3 text-danger">{formatAppError(query.error)}</p>
+          ) : query.data ? (
+            <PreviewNotice
+              preview={query.data}
+              expanded={expanded}
+              onExpand={() => setExpanded(true)}
+            />
+          ) : null}
+        </>
+      ) : null}
+    </>
   );
 }

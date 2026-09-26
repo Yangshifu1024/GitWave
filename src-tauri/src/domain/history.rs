@@ -69,6 +69,18 @@ pub struct CommitSummary {
     pub refs: Vec<CommitRef>,
 }
 
+/// A bounded page from a stable history snapshot. Search can return an empty
+/// page with more candidates to scan; consumers must use `has_more`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CommitPage {
+    pub commits: Vec<CommitSummary>,
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+    pub scanned: u32,
+    pub snapshot_size: u32,
+    pub snapshot_truncated: bool,
+}
+
 /// Full commit details loaded on demand when a commit is selected.
 /// Includes the full message body and the list of changed files.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

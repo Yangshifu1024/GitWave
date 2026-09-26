@@ -6,6 +6,9 @@ pub const RAW: &str = "git.raw";
 /// Git 操作失败（libgit2 通用错误）。
 pub const GIT_ERROR: &str = "git.error";
 
+/// A history cursor was evicted or belongs to an obsolete repository snapshot.
+pub const HISTORY_CURSOR_EXPIRED: &str = "git.history_cursor_expired";
+
 // ─── fetch / push / pull（remote.rs） ─────────────────────────────────
 
 /// 认证失败。

@@ -27,7 +27,7 @@
 | 交互组件 | **HeroUI v3**（底层 React Aria Components） | 取代 Radix；文件名 / 导出 / props 保持兼容 |
 | 变体管理 | **cva** + **tailwind-merge** | Button / StatusBadge；其余走 HeroUI |
 | 图标 | **Lucide React** | MIT、tree-shakeable |
-| 语法高亮 | **Shiki**（依赖已入，**DiffViewer 未接线**） | 规划仍是 TextMate 引擎；当前 diff 为自绘 character-level |
+| 语法高亮 | **Shiki**（依赖已入，**下一版本 DiffViewer 已按需接线**） | 规划仍是 TextMate 引擎；当前 diff 为自绘 character-level |
 | 虚拟滚动 | **@tanstack/react-virtual** | history graph |
 | 动效 | HeroUI CSS | **未**引入 Framer Motion |
 | 3-pane / Split | 自研 | HeroUI 无 splitter |
@@ -153,3 +153,6 @@
 - `docs/tech/decisions/00-overview.md` ADR 0005：库选择（含 HeroUI 修订）
 - `docs/pm/core/01-features.md` §1.10：平台与 UX 约束
 - `docs/tech/architecture/00-overview.md`：前端架构
+## 下一版本交互更新（未发布）
+
+Working Copy 使用可拖拽/键盘调整的分栏，比例在本机保存，并可单独放大 diff；commit 草稿按 workspace/repo 保留在内存中。commit diff 首先列文件，展开后加载单文件正文；超出预览上限必须明确提示，不把未计算统计显示为零。冲突编辑器切换文件保留缓冲区，所有关闭路径检查未保存内容。详见 [任务计划](../tasks/fix-reliability-and-workflow/plan.md)。

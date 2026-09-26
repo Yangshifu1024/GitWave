@@ -57,7 +57,7 @@ export function useWorkingCopy(): UseWorkingCopyResult {
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["working-copy", workspaceId, repoId],
-    queryFn: () => getWorkingCopy(workspaceId!),
+    queryFn: () => getWorkingCopy(workspaceId!, repoId!),
     enabled: Boolean(workspaceId && repoId),
     refetchInterval: 2000,
   });

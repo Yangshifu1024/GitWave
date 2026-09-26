@@ -129,6 +129,7 @@ use crate::infrastructure::ssh::keys::{expand_tilde, SshKey, SshKeyList, SshTest
 
 /// Application context — bundles infrastructure adapters and exposes use
 /// cases. Held by Tauri as managed state.
+#[derive(Clone)]
 pub struct AppContext {
     pub workspaces: Arc<Mutex<SqliteWorkspaceRepo>>,
     /// App-level global settings (`app_settings` table, F013). Own SQLite
@@ -734,6 +735,7 @@ fn ollama_probe_allowed(base_url: Option<&str>) -> bool {
 /// `AiGenerateOutcome` (key-free) is returned to the frontend.
 #[derive(Clone)]
 pub struct ResolvedAiProvider {
+    pub offline: bool,
     pub provider: String,
     pub model: String,
     pub base_url: Option<String>,
@@ -798,6 +800,7 @@ fn resolve_ai_chain(
                    base_url: &Option<String>|
      -> Result<ResolvedAiProvider> {
         Ok(ResolvedAiProvider {
+            offline: settings.ai_offline,
             provider: provider.to_string(),
             model: model
                 .clone()
@@ -823,11 +826,16 @@ fn resolve_ai_chain(
             )
         })?;
 
-    // Offline mode: keep only Ollama entries, before any cloud key checks —
+    // Offline mode: keep only loopback Ollama entries, before cloud key checks —
     // demanding a key for a provider the user just disabled is misleading.
     if settings.ai_offline {
         let mut chain = Vec::new();
-        if primary == "ollama" {
+        if primary == "ollama"
+            && crate::infrastructure::ai::provider::offline_ollama_base(
+                settings.ai_base_url.clone(),
+            )
+            .is_ok()
+        {
             chain.push(resolve(
                 &primary,
                 &settings.ai_model,
@@ -835,14 +843,17 @@ fn resolve_ai_chain(
             )?);
         }
         for fb in &settings.ai_failover {
-            if fb.provider.trim() == "ollama" {
+            if fb.provider.trim() == "ollama"
+                && crate::infrastructure::ai::provider::offline_ollama_base(fb.base_url.clone())
+                    .is_ok()
+            {
                 chain.push(resolve("ollama", &fb.model, &fb.base_url)?);
             }
         }
         if chain.is_empty() {
             return Err(AppError::protocol(
                 codes::usecases::AI_OFFLINE_MODE,
-                "offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)",
+                "offline mode requires a loopback Ollama endpoint (configure a local endpoint or disable offline mode in AI settings)",
             ));
         }
         return Ok(chain);
@@ -897,6 +908,7 @@ async fn generate_with_failover(
             "ai generate"
         );
         let req = crate::infrastructure::ai::AiGenerateRequest {
+            offline: entry.offline,
             provider: entry.provider.clone(),
             model: entry.model,
             base_url: entry.base_url,
@@ -982,7 +994,7 @@ pub async fn generate_commit_message(
     // alone make it hallucinate plausible-sounding but wrong subjects (the
     // Aug 2026 "word wrap toggle" incident). Capped so huge diffs cannot
     // blow the context.
-    let staged_files = infra_diff_index_to_head_files(&repo)?;
+    let staged_files = ai_safe_diff_files(&repo, infra_diff_index_to_head_files(&repo)?);
     user.push_str("\nStaged diff (unified format, may be truncated):\n");
     append_diff_patch(&mut user, &staged_files, 12_000);
 
@@ -1086,6 +1098,26 @@ fn append_diff_patch(buf: &mut String, files: &[FileDiff], budget: usize) {
     }
 }
 
+/// Do not send any hunk from a file whose old OR new full blob contains
+/// private-key material, even when the changed hunk omits its delimiters.
+/// AI patches only come from committed/index blobs. An unreadable blob is
+/// excluded conservatively rather than falling back to unverified hunks.
+fn ai_safe_diff_files(repo: &git2::Repository, mut files: Vec<FileDiff>) -> Vec<FileDiff> {
+    files.retain(|file| {
+        [&file.old_sha, &file.new_sha].iter().all(|sha| {
+            sha.as_deref().is_none_or(|sha| {
+                git2::Oid::from_str(sha)
+                    .ok()
+                    .and_then(|oid| repo.find_blob(oid).ok())
+                    .is_some_and(|blob| {
+                        !crate::infrastructure::ai::scrubber::contains_private_key(blob.content())
+                    })
+            })
+        })
+    });
+    files
+}
+
 // ─── History use cases (Sprint 3) ───────────────────────────────────────────
 
 /// Get the commit log for the active repo in a workspace.
@@ -1180,7 +1212,16 @@ pub fn get_image_content(
     oid: Option<&str>,
 ) -> Result<ImageContent> {
     let repo_path = active_repo_path(ctx, workspace_id)?;
-    let repo = ctx.open_repo(&repo_path)?;
+    get_image_content_at(ctx, &repo_path, path, oid)
+}
+
+pub fn get_image_content_at(
+    ctx: &AppContext,
+    repo_path: &str,
+    path: &str,
+    oid: Option<&str>,
+) -> Result<ImageContent> {
+    let repo = ctx.open_repo(repo_path)?;
     let oid = oid.map(git2::Oid::from_str).transpose().map_err(|e| {
         AppError::protocol_with(
             codes::usecases::IMAGE_OID_INVALID,
@@ -1572,7 +1613,7 @@ pub async fn generate_pr_description(
                 &[("base_name", base_name.clone())],
             ));
         }
-        let files = infra_diff_paths(&repo, merge_base, head.id())?;
+        let files = ai_safe_diff_files(&repo, infra_diff_paths(&repo, merge_base, head.id())?);
 
         let user = build_pr_user_prompt(&branch, &base_name, &commits, &files);
         let system = with_reply_language(
@@ -1641,7 +1682,7 @@ pub async fn explain_commit(
         let oid = infra_resolve_ref_oid(&repo, &sha)?;
         let details = infra_commit_details(&repo, &sha)?;
         let summary = infra_diff_commit_vs_parent(&repo, oid)?;
-        let files = infra_diff_commit_vs_parent_files(&repo, oid)?;
+        let files = ai_safe_diff_files(&repo, infra_diff_commit_vs_parent_files(&repo, oid)?);
         let user = build_explain_user_prompt(&details.message_full, &summary, &files);
         let system = with_reply_language(
             with_repo_rules(
@@ -2908,6 +2949,65 @@ pub fn remove_worktree(ctx: &AppContext, workspace_id: &str, name: String) -> Re
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
 
+/// Resolve an explicit repository, rather than a mutable active selection.
+pub fn selected_repo_path(ctx: &AppContext, workspace_id: &str, repo_id: &str) -> Result<String> {
+    let workspaces = ctx
+        .workspaces
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    workspaces
+        .list_repos(workspace_id)?
+        .into_iter()
+        .find(|repo| repo.id == repo_id)
+        .map(|repo| repo.path)
+        .ok_or_else(|| {
+            AppError::protocol_with(
+                codes::usecases::REPO_NOT_FOUND,
+                "repository not in workspace",
+                &[("id", repo_id.to_string())],
+            )
+        })
+}
+
+pub fn get_diff_preview(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: &str,
+    request: &DiffPreviewRequest,
+) -> Result<crate::infrastructure::git::diff_preview::DiffPreview> {
+    let repo = ctx.open_repo(&selected_repo_path(ctx, workspace_id, repo_id)?)?;
+    crate::infrastructure::git::diff_preview::preview(
+        &repo,
+        request.path.as_deref(),
+        request.staged,
+        request.commit_oid.as_deref(),
+        request.stash_oid.as_deref(),
+        request.expanded,
+    )
+}
+
+#[derive(serde::Deserialize)]
+pub struct DiffPreviewRequest {
+    pub path: Option<String>,
+    pub staged: Option<bool>,
+    pub commit_oid: Option<String>,
+    pub stash_oid: Option<String>,
+    #[serde(default)]
+    pub expanded: bool,
+}
+
+pub fn get_commit_page(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: &str,
+    limit: u32,
+    filter: Option<&str>,
+    cursor: Option<&str>,
+) -> Result<crate::domain::history::CommitPage> {
+    let repo = ctx.open_repo(&selected_repo_path(ctx, workspace_id, repo_id)?)?;
+    crate::infrastructure::git::history::commit_log_page(&repo, limit, filter, cursor)
+}
+
 /// Look up the active repo path for a workspace.
 fn active_repo_path(ctx: &AppContext, workspace_id: &str) -> Result<String> {
     let workspaces = ctx
@@ -3091,6 +3191,39 @@ mod tests {
         append_diff_patch(&mut buf, &patch_fixture(Some("x".repeat(500))), 40);
         assert!(buf.contains("[diff truncated due to size]"));
         assert!(buf.len() < 500, "budget must bound output: {}", buf.len());
+    }
+
+    #[test]
+    fn ai_patch_excludes_body_only_changes_using_both_full_blobs() {
+        let path = std::env::temp_dir().join(format!(
+            "gitwave-ai-key-blobs-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let repo = git2::Repository::init(&path).unwrap();
+        let key = repo.blob(b"-----BEGIN OPENSSH PRIVATE KEY-----\nveryShort\n-----END OPENSSH PRIVATE KEY-----\n").unwrap().to_string();
+        let plain = repo.blob(b"ordinary text\n").unwrap().to_string();
+        for (old, new) in [
+            (Some(key.clone()), Some(plain.clone())),
+            (Some(plain.clone()), Some(key.clone())),
+            (None, Some(key)),
+            (
+                Some("0000000000000000000000000000000000000001".into()),
+                Some(plain.clone()),
+            ),
+        ] {
+            let mut files = patch_fixture(Some("tiny".into()));
+            files[0].old_sha = old;
+            files[0].new_sha = new;
+            assert!(ai_safe_diff_files(&repo, files).is_empty());
+        }
+        let mut ordinary = patch_fixture(None);
+        ordinary[0].new_sha = Some(plain);
+        assert_eq!(ai_safe_diff_files(&repo, ordinary).len(), 1);
+        drop(repo);
+        cleanup(&path);
     }
 
     // ── AI provider chain ──
@@ -3314,6 +3447,39 @@ mod tests {
         let chain = resolve_ai_chain(&settings, &lookup).expect("chain reaches ollama");
         assert_eq!(chain.len(), 1);
         assert_eq!(chain[0].provider, "ollama");
+    }
+
+    #[test]
+    fn ai_chain_offline_skips_remote_primary_and_fallback() {
+        let mut settings = chain_settings(
+            Some("ollama"),
+            vec![
+                AiProviderConfig {
+                    provider: "ollama".into(),
+                    model: None,
+                    base_url: Some("https://remote.example".into()),
+                },
+                AiProviderConfig {
+                    provider: "ollama".into(),
+                    model: None,
+                    base_url: None,
+                },
+            ],
+            true,
+        );
+        settings.ai_base_url = Some("http://192.168.1.20:11434".into());
+        let lookup = key_lookup_for(&[]);
+        let chain = resolve_ai_chain(&settings, &lookup).unwrap();
+        assert_eq!(chain.len(), 1);
+        assert!(chain[0].offline);
+        assert!(chain[0].base_url.is_none());
+        settings.ai_failover.pop();
+        assert_eq!(
+            resolve_ai_chain(&settings, &lookup).unwrap_err().code(),
+            codes::usecases::AI_OFFLINE_MODE
+        );
+        settings.ai_offline = false;
+        assert_eq!(resolve_ai_chain(&settings, &lookup).unwrap().len(), 2);
     }
 
     fn fresh_ctx() -> AppContext {

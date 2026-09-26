@@ -1,6 +1,7 @@
 {
   "errors": {
     "git": {
+      "history_cursor_expired": "History changed or its cached page expired. Reload history to continue.",
       "raw": "Git error: {{detail}}",
       "error": "Git operation failed: {{error}}",
       "auth_failed": "Authentication failed: {{error}}",

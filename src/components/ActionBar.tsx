@@ -651,7 +651,7 @@ export function ActionBar({
   // ── Local Changes ──────────────────────────────────────────────────────
   const [wcModalOpen, setWcModalOpen] = useState(false);
   const changeCount = (wc.data?.files.length ?? 0) + conflictCount;
-  const localChangesDisabled = !activeRepoId || changeCount === 0;
+  const localChangesDisabled = !activeRepoId;
 
   const noRepo = !activeRepoId;
 
@@ -843,7 +843,7 @@ export function ActionBar({
             icon={<Archive size={14} />}
             label={t("changes.stash.title")}
             title={t("changes.stash.buttonTitle")}
-            disabled={localChangesDisabled || conflictCount > 0}
+            disabled={localChangesDisabled || changeCount === 0 || conflictCount > 0}
             onClick={() => setStashOpen(true)}
           />
           <ActionBarButton

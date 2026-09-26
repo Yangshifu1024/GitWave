@@ -2,7 +2,9 @@
 //!
 //! See `docs/tasks/feat-history-graph/plan.md` step 2.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use git2::Repository;
 
@@ -10,7 +12,8 @@ use crate::domain::branch::{BranchInfo, BranchKind};
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 use crate::domain::history::{
-    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary, PrCommit,
+    CommitDetails, CommitPage, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary,
+    PrCommit,
 };
 
 /// Full details for a single commit (inspector header): identity, full
@@ -192,6 +195,16 @@ pub fn commits_ahead_of(
 /// 2. Place each commit into the column that reserved it (or allocate a free column).
 /// 3. First parent continues on the same lane; additional parents open new lanes.
 /// 4. That produces forks on side lanes and merge curves back to the main lane.
+#[derive(Clone)]
+struct Raw {
+    sha: String,
+    author: String,
+    author_email: String,
+    time: i64,
+    message_summary: String,
+    parents: Vec<String>,
+}
+
 pub fn commit_log(repo: &Repository, max: u32, filter: Option<&str>) -> Result<Vec<CommitSummary>> {
     let filter = filter.map(str::trim).filter(|f| !f.is_empty());
     // Filtering has to scan deeper than the returned page size.
@@ -235,17 +248,11 @@ pub fn commit_log(repo: &Repository, max: u32, filter: Option<&str>) -> Result<V
     let refs_by_sha = collect_commit_refs(repo);
 
     // Collect raw commits first (newest → oldest).
-    struct Raw {
-        sha: String,
-        author: String,
-        author_email: String,
-        time: i64,
-        message_summary: String,
-        parents: Vec<String>,
-    }
-
     let mut raw: Vec<Raw> = Vec::with_capacity(max as usize);
     for oid in walk.take(scan_cap as usize) {
+        if raw.len() >= max as usize {
+            break;
+        }
         let oid = oid.map_err(map_git_err)?;
         let commit = repo.find_commit(oid).map_err(map_git_err)?;
         let author = commit.author();
@@ -269,6 +276,13 @@ pub fn commit_log(repo: &Repository, max: u32, filter: Option<&str>) -> Result<V
         });
     }
 
+    Ok(assign_lanes(raw, &refs_by_sha))
+}
+
+fn assign_lanes(
+    raw: Vec<Raw>,
+    refs_by_sha: &HashMap<String, Vec<CommitRef>>,
+) -> Vec<CommitSummary> {
     // columns[i] = (sha, branch tag) expected next in this lane. The tag is
     // the branch lineage the reservation belongs to: a commit carrying its
     // own branch ref only consumes a reservation for that same branch. Only
@@ -399,7 +413,213 @@ pub fn commit_log(repo: &Repository, max: u32, filter: Option<&str>) -> Result<V
         });
     }
 
-    Ok(out)
+    out
+}
+
+const SNAPSHOT_LIMIT: usize = 100_000;
+const SEARCH_SCAN_BUDGET: usize = 2_000;
+const SNAPSHOT_CACHE_SIZE: usize = 4;
+
+struct HistorySnapshot {
+    id: u64,
+    repo_path: std::path::PathBuf,
+    fingerprint: Vec<String>,
+    filter: Option<String>,
+    oids: Vec<git2::Oid>,
+    truncated: bool,
+    refs: HashMap<String, Vec<CommitRef>>,
+    raw: Vec<Raw>,
+    search_text: Vec<String>,
+}
+
+fn history_cursor_error() -> AppError {
+    AppError::protocol(
+        codes::git::HISTORY_CURSOR_EXPIRED,
+        "history cursor expired; reload history",
+    )
+}
+
+fn history_fingerprint(repo: &Repository) -> Result<Vec<String>> {
+    let mut fingerprint = Vec::new();
+    for reference in repo.references().map_err(map_git_err)? {
+        let reference = reference.map_err(map_git_err)?;
+        fingerprint.push(format!(
+            "{:?}:{:?}:{:?}",
+            reference.name_bytes(),
+            reference.target(),
+            reference.symbolic_target_bytes()
+        ));
+    }
+    if let Ok(head) = repo.head() {
+        fingerprint.push(format!("HEAD:{:?}:{:?}", head.name_bytes(), head.target()));
+    }
+    fingerprint.sort();
+    Ok(fingerprint)
+}
+
+impl HistorySnapshot {
+    fn new(repo: &Repository, filter: Option<String>, fingerprint: Vec<String>) -> Result<Self> {
+        static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+        let mut walk = repo.revwalk().map_err(map_git_err)?;
+        walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
+            .map_err(map_git_err)?;
+        for item in repo.branches(None).map_err(map_git_err)? {
+            let (branch, _) = item.map_err(map_git_err)?;
+            if let Some(oid) = branch.get().target() {
+                walk.push(oid).map_err(map_git_err)?;
+            }
+        }
+        if let Ok(head) = repo.head() {
+            if !head.is_branch() {
+                if let Some(oid) = head.target() {
+                    walk.push(oid).map_err(map_git_err)?;
+                }
+            }
+        }
+        let mut oids = walk
+            .take(SNAPSHOT_LIMIT + 1)
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(map_git_err)?;
+        let truncated = oids.len() > SNAPSHOT_LIMIT;
+        oids.truncate(SNAPSHOT_LIMIT);
+        let refs = collect_commit_refs(repo);
+        if history_fingerprint(repo)? != fingerprint {
+            return Err(history_cursor_error());
+        }
+        Ok(Self {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+            repo_path: repo.path().to_path_buf(),
+            fingerprint,
+            filter,
+            oids,
+            truncated,
+            refs,
+            raw: Vec::new(),
+            search_text: Vec::new(),
+        })
+    }
+
+    fn decode_through(&mut self, repo: &Repository, index: usize) -> Result<()> {
+        while self.raw.len() <= index {
+            let commit = repo
+                .find_commit(self.oids[self.raw.len()])
+                .map_err(map_git_err)?;
+            let author = commit.author();
+            let message = commit.message().unwrap_or("");
+            self.search_text.push(
+                format!(
+                    "{}\n{}\n{}\n{}",
+                    commit.id(),
+                    author.name().unwrap_or(""),
+                    author.email().unwrap_or(""),
+                    message
+                )
+                .to_lowercase(),
+            );
+            self.raw.push(Raw {
+                sha: commit.id().to_string(),
+                author: author.name().unwrap_or("").to_string(),
+                author_email: author.email().unwrap_or("").to_string(),
+                time: commit.time().seconds(),
+                message_summary: message.lines().next().unwrap_or("").to_string(),
+                parents: commit.parent_ids().map(|p| p.to_string()).collect(),
+            });
+        }
+        Ok(())
+    }
+
+    fn page(&mut self, repo: &Repository, start: usize, limit: usize) -> Result<CommitPage> {
+        if start > self.oids.len() {
+            return Err(history_cursor_error());
+        }
+        let mut index = start;
+        let mut matches = Vec::new();
+        let end = self
+            .oids
+            .len()
+            .min(start.saturating_add(SEARCH_SCAN_BUDGET));
+        while index < end && matches.len() < limit {
+            self.decode_through(repo, index)?;
+            if self
+                .filter
+                .as_ref()
+                .is_none_or(|needle| self.search_text[index].contains(needle))
+            {
+                matches.push(index);
+            }
+            index += 1;
+        }
+        // Decode each commit only once. Reuse the existing graph allocator on
+        // the cached prefix so lanes stay identical across page boundaries.
+        let laid_out = assign_lanes(self.raw[..index].to_vec(), &self.refs);
+        let commits = matches.into_iter().map(|i| laid_out[i].clone()).collect();
+        let has_more = index < self.oids.len();
+        Ok(CommitPage {
+            commits,
+            next_cursor: has_more.then(|| format!("{}:{index}", self.id)),
+            has_more,
+            scanned: index as u32,
+            snapshot_size: self.oids.len() as u32,
+            snapshot_truncated: self.truncated,
+        })
+    }
+}
+
+/// Stable cursor paging. The bounded cache stores OIDs and lazily decoded
+/// commits; following a cursor never rereads earlier commit objects or sends
+/// the previous result prefix. Ref changes invalidate old cursors explicitly.
+pub fn commit_log_page(
+    repo: &Repository,
+    limit: u32,
+    filter: Option<&str>,
+    cursor: Option<&str>,
+) -> Result<CommitPage> {
+    static CACHE: OnceLock<Mutex<VecDeque<HistorySnapshot>>> = OnceLock::new();
+    let mut cache = CACHE
+        .get_or_init(|| Mutex::new(VecDeque::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    commit_log_page_cached(repo, limit, filter, cursor, &mut cache)
+}
+
+fn commit_log_page_cached(
+    repo: &Repository,
+    limit: u32,
+    filter: Option<&str>,
+    cursor: Option<&str>,
+    cache: &mut VecDeque<HistorySnapshot>,
+) -> Result<CommitPage> {
+    let filter = filter
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_lowercase);
+    let fingerprint = history_fingerprint(repo)?;
+    let (mut snapshot, start) = if let Some(cursor) = cursor {
+        let (id, offset) = cursor.split_once(':').ok_or_else(history_cursor_error)?;
+        let id: u64 = id.parse().map_err(|_| history_cursor_error())?;
+        let offset: usize = offset.parse().map_err(|_| history_cursor_error())?;
+        let position = cache
+            .iter()
+            .position(|s| {
+                s.id == id
+                    && s.repo_path == repo.path()
+                    && s.fingerprint == fingerprint
+                    && s.filter == filter
+            })
+            .ok_or_else(history_cursor_error)?;
+        (
+            cache.remove(position).ok_or_else(history_cursor_error)?,
+            offset,
+        )
+    } else {
+        (HistorySnapshot::new(repo, filter, fingerprint)?, 0)
+    };
+    let result = snapshot.page(repo, start, limit.clamp(1, 500) as usize);
+    cache.push_back(snapshot);
+    while cache.len() > SNAPSHOT_CACHE_SIZE {
+        cache.pop_front();
+    }
+    result
 }
 
 /// Primary branch lineage name for a commit (first local/remote branch ref).
@@ -662,6 +882,111 @@ mod tests {
 
     fn cleanup(path: &std::path::Path) {
         let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn cursor_pages_match_full_graph_without_redecoding_prefix() {
+        let (path, repo) = build_merge_repo();
+        let expected = commit_log(&repo, 500, None).unwrap();
+        let mut cache = VecDeque::new();
+        let mut cursor = None;
+        let mut actual = Vec::new();
+        loop {
+            let page =
+                commit_log_page_cached(&repo, 2, None, cursor.as_deref(), &mut cache).unwrap();
+            assert!(page.commits.len() <= 2);
+            assert_eq!(cache.back().unwrap().raw.len(), page.scanned as usize);
+            actual.extend(page.commits);
+            cursor = page.next_cursor;
+            if !page.has_more {
+                break;
+            }
+        }
+        assert_eq!(actual, expected);
+        drop(repo);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn cursor_is_bound_to_repo_filter_and_refs() {
+        let (path, repo) = build_linear_repo(3);
+        let (other_path, other) = build_linear_repo(1);
+        let mut cache = VecDeque::new();
+        let first = commit_log_page_cached(&repo, 1, None, None, &mut cache).unwrap();
+        let cursor = first.next_cursor.as_deref();
+        assert!(commit_log_page_cached(&other, 1, None, cursor, &mut cache).is_err());
+        assert!(commit_log_page_cached(&repo, 1, Some("different"), cursor, &mut cache).is_err());
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.branch("new-ref", &head, false).unwrap();
+        assert!(commit_log_page_cached(&repo, 1, None, cursor, &mut cache).is_err());
+        drop(head);
+        drop(repo);
+        drop(other);
+        cleanup(&path);
+        cleanup(&other_path);
+    }
+
+    #[test]
+    fn sparse_search_continues_beyond_old_scan_cap_and_honors_limit() {
+        use crate::infrastructure::git::test_helpers::make_commit;
+        let (path, repo) = build_linear_repo(1);
+        let mut parent = repo.head().unwrap().target().unwrap();
+        let tree = repo.find_commit(parent).unwrap().tree_id();
+        let sig = git2::Signature::now("Test", "test@local").unwrap();
+        for i in 0..10_005 {
+            let message = if i < 2 {
+                "old match\n\nneedle in body"
+            } else {
+                "ordinary"
+            };
+            parent = make_commit(&repo, &sig, message, tree, &[parent]);
+        }
+        let mut cache = VecDeque::new();
+        let mut cursor = None;
+        let mut found = 0;
+        let mut saw_empty_page = false;
+        let mut previous_scanned = 0;
+        loop {
+            let page =
+                commit_log_page_cached(&repo, 1, Some("needle"), cursor.as_deref(), &mut cache)
+                    .unwrap();
+            assert!(page.commits.len() <= 1);
+            assert!(page.scanned - previous_scanned <= SEARCH_SCAN_BUDGET as u32);
+            previous_scanned = page.scanned;
+            found += page.commits.len();
+            saw_empty_page |= page.commits.is_empty() && page.has_more;
+            cursor = page.next_cursor;
+            if !page.has_more {
+                break;
+            }
+        }
+        assert_eq!(found, 2);
+        assert!(saw_empty_page);
+        assert!(previous_scanned > 10_000);
+        drop(repo);
+        cleanup(&path);
+    }
+
+    #[test]
+    fn empty_snapshot_and_evicted_cursor_are_explicit() {
+        let (empty_path, empty) = init_empty_repo();
+        let (path, repo) = build_linear_repo(2);
+        let mut cache = VecDeque::new();
+        let page = commit_log_page_cached(&empty, 10, None, None, &mut cache).unwrap();
+        assert_eq!(page.scanned, 0);
+        assert!(!page.has_more);
+        let old = commit_log_page_cached(&repo, 1, None, None, &mut cache).unwrap();
+        for _ in 0..SNAPSHOT_CACHE_SIZE {
+            commit_log_page_cached(&repo, 1, None, None, &mut cache).unwrap();
+        }
+        assert_eq!(cache.len(), SNAPSHOT_CACHE_SIZE);
+        assert!(
+            commit_log_page_cached(&repo, 1, None, old.next_cursor.as_deref(), &mut cache).is_err()
+        );
+        drop(repo);
+        drop(empty);
+        cleanup(&path);
+        cleanup(&empty_path);
     }
 
     #[test]

@@ -2,6 +2,7 @@ import { type FileStatusKind } from "@/components/ui/StatusIcon";
 import { StatusIcon } from "@/components/ui/StatusIcon";
 import { Button } from "@/components/ui/Button";
 import { Surface } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export interface FileChange {
@@ -18,7 +19,11 @@ export interface FileListItemProps {
   onClick?: (event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>) => void;
   onStageToggle?: () => void;
   selected?: boolean;
+  active?: boolean;
   className?: string;
+  tabIndex?: number;
+  onFocus?: () => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -30,8 +35,13 @@ export function FileListItem({
   onClick,
   onStageToggle,
   selected = false,
+  active = false,
   className,
+  tabIndex = 0,
+  onFocus,
+  onKeyDown,
 }: FileListItemProps): React.JSX.Element {
+  const { t } = useTranslation();
   const { path, kind, staged, additions, deletions } = change;
 
   return (
@@ -39,10 +49,17 @@ export function FileListItem({
       variant="transparent"
       role="option"
       aria-selected={selected}
-      tabIndex={0}
+      aria-current={active ? "true" : undefined}
+      tabIndex={tabIndex}
+      onFocus={onFocus}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onClick?.(e);
+        if (e.target !== e.currentTarget) return;
+        onKeyDown?.(e);
+        if (!e.defaultPrevented && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick?.(e);
+        }
       }}
       className={cn(
         "flex items-center gap-2 px-3 py-1.5",
@@ -52,6 +69,7 @@ export function FileListItem({
         "text-xs",
         "cursor-pointer shadow-none",
         selected && "bg-accent/10",
+        active && "ring-1 ring-inset ring-accent/30",
         !selected && "hover:bg-bg-secondary",
         className,
       )}
@@ -59,6 +77,7 @@ export function FileListItem({
       {/* Status icon — clicking toggles stage */}
       <Button
         type="button"
+        tabIndex={tabIndex}
         variant="ghost"
         size="sm"
         onClick={(e) => {
@@ -66,8 +85,11 @@ export function FileListItem({
           onStageToggle?.();
         }}
         className="shrink-0 h-auto p-0 border-0 bg-transparent rounded"
-        title={staged ? "Unstage" : "Stage"}
-        aria-label={staged ? `Unstage ${path}` : `Stage ${path}`}
+        title={t(staged ? "changes.action.unstage" : "changes.action.stage")}
+        aria-label={t(
+          staged ? "changes.fileSection.unstageFile" : "changes.fileSection.stageFile",
+          { path },
+        )}
       >
         <StatusIcon kind={kind} staged={staged} />
       </Button>
