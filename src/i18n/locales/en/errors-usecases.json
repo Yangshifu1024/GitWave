@@ -18,7 +18,7 @@
         "provider_unsupported": "Unsupported AI provider: {{provider}}",
         "failover_provider_unsupported": "Unsupported AI failover provider: {{provider}}",
         "provider_not_configured": "No AI provider is configured for this workspace",
-        "offline_mode": "Offline mode is enabled — cloud AI calls are disabled (use Ollama or turn it off in AI settings)",
+        "offline_mode": "Offline mode only permits Ollama at a loopback HTTP(S) address (localhost, 127.0.0.1 or ::1). Configure a local endpoint or turn offline mode off in AI settings.",
         "api_key_missing": "The {{provider}} API key is not configured",
         "all_providers_failed": "All providers failed — {{errors}}"
       },

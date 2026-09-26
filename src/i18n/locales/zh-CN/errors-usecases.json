@@ -18,7 +18,7 @@
         "provider_unsupported": "不支持的 AI 提供商：{{provider}}",
         "failover_provider_unsupported": "不支持的 AI 故障转移提供商：{{provider}}",
         "provider_not_configured": "此工作区未配置 AI 提供商",
-        "offline_mode": "离线模式已开启——云端 AI 调用已禁用（请使用 Ollama 或在 AI 设置中关闭）",
+        "offline_mode": "离线模式仅允许回环 HTTP(S) 地址上的 Ollama（localhost、127.0.0.1 或 ::1）。请配置本机地址，或在 AI 设置中关闭离线模式。",
         "api_key_missing": "未配置 {{provider}} 的 API key",
         "all_providers_failed": "所有提供商均失败——{{errors}}"
       },

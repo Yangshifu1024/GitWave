@@ -3,6 +3,7 @@
 // workspace's last active repo). Create / rename / delete stay in the
 // Workspace menu.
 
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, FolderGit2 } from "lucide-react";
 
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/DropdownMenu";
 
 export function WorkspaceDropdown(): React.JSX.Element {
+  const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const switchWorkspace = useValidatedWorkspaceSwitch();
   const { data: workspaces = [] } = useQuery({
@@ -34,11 +36,13 @@ export function WorkspaceDropdown(): React.JSX.Element {
         className="h-7 gap-1.5 border border-border-default px-2.5 text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
       >
         <FolderGit2 size={14} className="shrink-0" />
-        <span className="max-w-[180px] truncate">{active ? active.name : "Workspace"}</span>
+        <span className="max-w-[180px] truncate">
+          {active ? active.name : t("workspace.title")}
+        </span>
         <ChevronDown size={12} className="shrink-0 opacity-70" />
       </Button>
       <DropdownMenuContent placement="bottom start" className="min-w-[200px]">
-        <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("workspace.title")}</DropdownMenuLabel>
         {workspaces.map((w) => (
           <DropdownMenuItem
             key={w.id}
@@ -54,7 +58,7 @@ export function WorkspaceDropdown(): React.JSX.Element {
         ))}
         {workspaces.length === 0 ? (
           <DropdownMenuItem disabled textValue="none">
-            No workspaces yet
+            {t("workspace.empty.title")}
           </DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>

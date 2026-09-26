@@ -8,13 +8,14 @@
     },
     "hooks": {
       "title": "Git hooks",
-      "description": "Edit hook scripts in .git/hooks. GitWave only edits them — it never runs hooks for you.",
+      "description": "Edit scripts in the repository's configured hooks directory. GitWave edits hooks without executing them.",
       "saveName": "Save {{name}}",
       "scriptPlaceholder": "#!/bin/sh\n# {{name}} script",
       "insertSample": "Insert sample",
       "insertSampleTitle": "Insert a starter script (pre-commit only)",
       "selectHint": "Select a hook on the left to edit it.",
-      "saved": "Hook {{name}} saved"
+      "saved": "Hook {{name}} saved",
+      "actualPath": "Editing: {{path}}"
     },
     "lfs": {
       "title": "Git LFS",

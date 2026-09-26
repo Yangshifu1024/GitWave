@@ -19,7 +19,7 @@ stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应�
 
 性能为入场券级要求（基线对标 Fork / Sublime Merge）：打开应用到首个可交互界面不可有可感知等待；仓库 history 图（含数万 commit）渲染必须流畅；提交列表在大仓库中滚动同样不得卡顿；大文件 diff 不卡 UI；后台 git 操作不阻塞用户主操作；视觉化渲染具备 lazy 策略。
 
-History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，character-level 高亮；Shiki 语法高亮已入依赖尚未接线）· blame / annotate · file tree（**未交付**）· branch tree
+History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，character-level 高亮；Shiki 按需高亮已在下一版本接线，见末节）· blame / annotate · file tree（**未交付**）· branch tree
 
 ### 1.3 Advanced Git
 
@@ -140,3 +140,13 @@ Remote 管理（GitHub / GitLab / Gitea / 自建）— **已交付** · PR / MR 
 - Issue 管理
 - 自托管 Git 服务
 - 移动端
+
+## 下一版本：可靠性与工作流优化（未发布）
+
+实现与验证记录：[任务计划](../../tasks/fix-reliability-and-workflow/plan.md)。当前下载版本仍为 v0.9.4，本节描述待合入的源代码变更。
+
+- AI：按完整旧/新文件排除私钥 diff；离线请求仅允许本机 endpoint，绕过代理且不跟随重定向。
+- 用户输入：按 Workspace/repo 保留本次应用会话的 commit 草稿；冲突文件切换保留编辑，关闭时检查全部未保存缓冲区；支持 clean 状态下只改 message 的 amend。
+- 阅读：按文件/暂存侧加载 diff，超大文本明确提示并允许扩大有界预览；虚拟滚动、连续增删行配对、小文件按需语法高亮；Working Copy 可调分栏与放大。
+- 历史：cursor 分页追加，搜索可继续扫描并显示范围，snapshot 最大 100,000 条；过期请求不得覆盖新仓库。
+- 兼容与交互：hooks 尊重 worktree/common dir 与 core.hooksPath；文件列表支持方向键/Shift/Space，多语言文案同步。

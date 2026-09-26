@@ -48,6 +48,18 @@ export function ConflictPanel({
   /** Editor content the current buffer was seeded from — dirty check on close. */
   const seedRef = useRef("");
   const openRef = useRef(open);
+  const scope = JSON.stringify([workspaceId, repoId]);
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const draftsRef = useRef(
+    new Map<string, { sides: ConflictSides; seed: string; editor: string }>(),
+  );
+  const bufferKey = (path: string) => JSON.stringify([scope, path]);
+  const updateEditor = (value: string) => {
+    setEditor(value);
+    if (selected && sides)
+      draftsRef.current.set(bufferKey(selected), { sides, seed: seedRef.current, editor: value });
+  };
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   // The highlight backdrop derives from a deferred copy of the editor so a
@@ -67,23 +79,46 @@ export function ConflictPanel({
   // selected while A was in flight (rapid clicks).
   const seqRef = useRef(0);
   const openFile = async (path: string) => {
-    if (!workspaceId) return;
+    if (!workspaceId || busy) return;
     const my = seqRef.current + 1;
     seqRef.current = my;
     setSelected(path);
     setExplain(null);
     setError(null);
+    setSides(null);
+    setEditor("");
+    seedRef.current = "";
+    const draft = draftsRef.current.get(bufferKey(path));
+    if (draft) {
+      setSides(draft.sides);
+      setEditor(draft.editor);
+      seedRef.current = draft.seed;
+      return;
+    }
     try {
       const s = await getConflictSides(workspaceId, path);
-      if (!openRef.current || seqRef.current !== my) return; // closed or superseded
+      if (!openRef.current || seqRef.current !== my || scopeRef.current !== scope) return; // closed or superseded
       setSides(s);
       const seed = s.working ?? s.ours ?? s.theirs ?? "";
       seedRef.current = seed;
       setEditor(seed);
+      draftsRef.current.set(bufferKey(path), { sides: s, seed, editor: seed });
     } catch (e) {
-      if (openRef.current && seqRef.current === my) setError(formatAppError(e));
+      if (openRef.current && seqRef.current === my && scopeRef.current === scope)
+        setError(formatAppError(e));
     }
   };
+
+  useEffect(() => {
+    seqRef.current += 1;
+    setSelected(null);
+    setSides(null);
+    setEditor("");
+    seedRef.current = "";
+    setExplain(null);
+    setError(null);
+    setBusy(false);
+  }, [scope]);
 
   // Reset hunk navigation when switching files.
   useEffect(() => {
@@ -96,6 +131,9 @@ export function ConflictPanel({
       // Invalidate any in-flight load: a response racing the close must not
       // write into the freshly cleared panel right after a reopen.
       seqRef.current += 1;
+      draftsRef.current.clear();
+      seedRef.current = "";
+      setBusy(false);
       setSelected(null);
       setSides(null);
       setExplain(null);
@@ -114,7 +152,8 @@ export function ConflictPanel({
   }, [open, active, files.length, onClose]);
 
   const requestClose = () => {
-    if (editor !== seedRef.current) setDiscardPrompt(true);
+    if ([...draftsRef.current.values()].some((draft) => draft.editor !== draft.seed))
+      setDiscardPrompt(true);
     else onClose();
   };
   // Keep the Escape listener free of per-render re-subscription.
@@ -253,6 +292,7 @@ export function ConflictPanel({
                     aria-selected={selected === f.path}
                     tabIndex={0}
                     title={f.path}
+                    aria-disabled={busy}
                     onClick={() => void openFile(f.path)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") void openFile(f.path);
@@ -325,8 +365,7 @@ export function ConflictPanel({
                     size="sm"
                     disabled={busy}
                     onClick={() => {
-                      seedRef.current = sides.ours ?? "";
-                      setEditor(sides.ours ?? "");
+                      updateEditor(sides.ours ?? "");
                     }}
                   >
                     {t("conflicts.useOurs")}
@@ -336,8 +375,7 @@ export function ConflictPanel({
                     size="sm"
                     disabled={busy}
                     onClick={() => {
-                      seedRef.current = sides.theirs ?? "";
-                      setEditor(sides.theirs ?? "");
+                      updateEditor(sides.theirs ?? "");
                     }}
                   >
                     {t("conflicts.useTheirs")}
@@ -348,11 +386,17 @@ export function ConflictPanel({
                     disabled={busy}
                     onClick={() => {
                       void (async () => {
+                        const request = seqRef.current;
                         setBusy(true);
                         setExplain(null);
                         try {
                           const res = await explainConflict(workspaceId, sides.path);
-                          if (!openRef.current) return;
+                          if (
+                            !openRef.current ||
+                            scopeRef.current !== scope ||
+                            seqRef.current !== request
+                          )
+                            return;
                           setExplain(res.text);
                           if (res.used_fallback) {
                             setStatus(
@@ -361,9 +405,15 @@ export function ConflictPanel({
                             );
                           }
                         } catch (e) {
-                          if (openRef.current) setError(formatAppError(e));
+                          if (
+                            openRef.current &&
+                            scopeRef.current === scope &&
+                            seqRef.current === request
+                          )
+                            setError(formatAppError(e));
                         } finally {
-                          setBusy(false);
+                          if (scopeRef.current === scope && seqRef.current === request)
+                            setBusy(false);
                         }
                       })();
                     }}
@@ -378,18 +428,33 @@ export function ConflictPanel({
                     disabled={busy}
                     onClick={() => {
                       void (async () => {
+                        const request = seqRef.current;
                         setBusy(true);
                         try {
                           await resolveConflict(workspaceId, sides.path, editor);
+                          draftsRef.current.delete(bufferKey(sides.path));
                           bumpHistory();
                           await refresh();
-                          if (!openRef.current) return;
+                          if (
+                            !openRef.current ||
+                            scopeRef.current !== scope ||
+                            seqRef.current !== request
+                          )
+                            return;
                           setSelected(null);
                           setSides(null);
+                          setEditor("");
+                          seedRef.current = "";
                         } catch (e) {
-                          if (openRef.current) setError(formatAppError(e));
+                          if (
+                            openRef.current &&
+                            scopeRef.current === scope &&
+                            seqRef.current === request
+                          )
+                            setError(formatAppError(e));
                         } finally {
-                          setBusy(false);
+                          if (scopeRef.current === scope && seqRef.current === request)
+                            setBusy(false);
                         }
                       })();
                     }}
@@ -436,7 +501,8 @@ export function ConflictPanel({
                     <textarea
                       ref={editorRef}
                       value={editor}
-                      onChange={(e) => setEditor(e.target.value)}
+                      onChange={(e) => updateEditor(e.target.value)}
+                      disabled={busy}
                       onScroll={syncScroll}
                       wrap="off"
                       spellCheck={false}

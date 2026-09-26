@@ -10,7 +10,7 @@ import React, {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import type { CommitRef, CommitSummary } from "@/lib/api";
-import { formatAppError, getCommitLog } from "@/lib/api";
+import { useCommitPages } from "@/hooks/useCommitPages";
 import { remoteShortName } from "@/lib/branchNames";
 import { formatCommitTime } from "@/lib/commitTime";
 import { resolveLocateIndex, type LocateRequest } from "@/lib/commitLocate";
@@ -29,7 +29,6 @@ import {
 import { RefBadgeContextMenu } from "@/components/RefBadgeContextMenu";
 
 const ROW_H = 28;
-const INITIAL_LIMIT = 200;
 const PAGE_SIZE = 300;
 /** Paging trigger distance from the bottom of the scroll container (was 600).
  *  Refetching a page every time the repo bottom comes back into view is one
@@ -357,11 +356,14 @@ export function CommitGraph({
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
-  const [commits, setCommits] = useState<CommitSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { commits, loading, error, hasMore, snapshotTruncated, snapshotSize, loadMore, retry } =
+    useCommitPages({
+      workspaceId: activeWorkspaceId,
+      repoId: activeRepoId,
+      epoch: historyEpoch,
+      pageSize: PAGE_SIZE,
+    });
   const [localSelected, setLocalSelected] = useState<string | null>(null);
-  const [limit, setLimit] = useState(INITIAL_LIMIT);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   // F011: one shared row-menu controller; its modals render once below.
   const menu = useCommitMenuActions(activeWorkspaceId);
@@ -379,44 +381,6 @@ export function CommitGraph({
 
   const rowArtByIndex = useMemo(() => computeRowArt(commits, shaToIndex), [commits, shaToIndex]);
 
-  // Pagination key: context (workspace/repo/epoch) switch resets the window;
-  // growing `limit` refetches a larger prefix of the same deterministic walk.
-  const fetchKey = `${activeWorkspaceId ?? ""}|${activeRepoId ?? ""}|${historyEpoch}`;
-  const prevFetchKeyRef = React.useRef<string | null>(null);
-
-  useEffect(() => {
-    const isNewContext = prevFetchKeyRef.current !== fetchKey;
-    prevFetchKeyRef.current = fetchKey;
-    if (!activeWorkspaceId || !activeRepoId) {
-      setCommits([]);
-      setError(null);
-      return;
-    }
-    if (isNewContext && limit !== INITIAL_LIMIT) {
-      // Repo / epoch switched: drop the previous window and let this state
-      // change re-trigger the fetch with the initial size.
-      setLimit(INITIAL_LIMIT);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getCommitLog(activeWorkspaceId, limit)
-      .then(setCommits)
-      .catch((e) => {
-        if (!cancelled) {
-          setCommits([]);
-          setError(formatAppError(e));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeWorkspaceId, activeRepoId, historyEpoch, limit, fetchKey]);
-
   const virtualizer = useVirtualizer({
     count: commits.length,
     getScrollElement: () => scrollRef.current,
@@ -426,9 +390,7 @@ export function CommitGraph({
     overscan: 14,
   });
 
-  // "Load more" fires while scrolling near the bottom; a short page means the
-  // walk reached the root.
-  const hasMore = commits.length >= limit;
+  // The cursor, rather than result count, tells us whether more history exists.
   const scrollRafRef = useRef<number | null>(null);
   const handleScroll = (): void => {
     // One layout read per frame: a wheel/trackpad fling fires scroll events
@@ -439,7 +401,7 @@ export function CommitGraph({
       const el = scrollRef.current;
       if (!el || loading || !hasMore) return;
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - LOAD_MORE_MARGIN) {
-        setLimit((l) => l + PAGE_SIZE);
+        loadMore();
       }
     });
   };
@@ -467,21 +429,21 @@ export function CommitGraph({
     );
     if (index === null) {
       // Pending request for this repo and the log is idle but possibly
-      // truncated: widen the window so the retry can find the target. A short
-      // page (commits.length < limit) means the walk hit the root — give up.
+      // truncated: request the next cursor page until the target is found.
       if (
         locateRequest.repoId === activeRepoId &&
         locateRequest.seq !== handledLocateSeq.current &&
         !loading &&
-        commits.length >= limit
+        hasMore &&
+        !error
       ) {
-        setLimit((l) => l + PAGE_SIZE);
+        loadMore();
       }
       return;
     }
     handledLocateSeq.current = locateRequest.seq;
     virtualizer.scrollToIndex(index, { align: "center" });
-  }, [locateRequest, activeRepoId, shaToIndex, virtualizer, loading, commits.length, limit]);
+  }, [locateRequest, activeRepoId, shaToIndex, virtualizer, loading, hasMore, error, loadMore]);
 
   const handleSelect = useCallback(
     (sha: string) => {
@@ -515,7 +477,7 @@ export function CommitGraph({
     );
   }
 
-  const showGraph = !error && !(loading && commits.length === 0) && commits.length > 0;
+  const showGraph = commits.length > 0;
 
   let stateContent: React.JSX.Element | null = null;
   if (!showGraph) {
@@ -529,6 +491,9 @@ export function CommitGraph({
       stateContent = (
         <div className="flex items-center justify-center h-full text-danger text-sm px-4 text-center">
           {error}
+          <button type="button" className="ml-2 underline" onClick={retry}>
+            {t("common.retry")}
+          </button>
         </div>
       );
     } else if (commits.length === 0) {
@@ -543,6 +508,19 @@ export function CommitGraph({
   return (
     <CommitMenuContext.Provider value={menu}>
       <div className="h-full flex flex-col min-h-0">
+        {snapshotTruncated ? (
+          <p className="px-3 py-1 text-xs text-warning">
+            {t("branches.graph.snapshotLimited", { total: snapshotSize })}
+          </p>
+        ) : null}
+        {showGraph && error ? (
+          <p className="px-3 py-1 text-xs text-danger">
+            {error}{" "}
+            <button type="button" className="underline" onClick={retry}>
+              {t("common.retry")}
+            </button>
+          </p>
+        ) : null}
         {showGraph ? (
           <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
             <div
@@ -595,7 +573,12 @@ export function CommitGraph({
               </div>
             ) : !hasMore && commits.length > 0 ? (
               <div className="py-2 text-center text-[10px] text-text-muted">
-                {t("branches.graph.endOfHistory", { total: commits.length })}
+                {t(
+                  snapshotTruncated
+                    ? "branches.graph.endOfSnapshot"
+                    : "branches.graph.endOfHistory",
+                  { total: commits.length },
+                )}
               </div>
             ) : null}
           </div>

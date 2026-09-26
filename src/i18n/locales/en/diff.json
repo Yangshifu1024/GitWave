@@ -36,6 +36,15 @@
       "loading": "Loading…",
       "tooLarge": "Image too large to display",
       "cannotDisplay": "Unable to display this image"
+    },
+    "preview": {
+      "loading": "Loading diff…",
+      "back": "Back to diff",
+      "truncated": "Preview truncated to keep scrolling responsive.",
+      "tooLarge": "This file exceeds the preview size limit.",
+      "loadMore": "Load a larger preview",
+      "limit": "Preview limit reached. Open the file in your editor to inspect the full content.",
+      "noText": "No text preview (binary, metadata-only, or preview limit)."
     }
   }
 }

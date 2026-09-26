@@ -12,6 +12,7 @@ use crate::infrastructure::ai::scrubber::scrub_secrets;
 /// `{:?}` sneaks in (cf. credentials.rs `InlineAuth` masking).
 #[derive(Clone)]
 pub struct AiGenerateRequest {
+    pub offline: bool,
     pub provider: String,
     pub model: String,
     pub base_url: Option<String>,
@@ -91,7 +92,7 @@ fn http_error(provider: &str, status: reqwest::StatusCode, detail: &str) -> AppE
 /// Cloud-vendor base URLs must be https: the API key travels in
 /// `Authorization` / `x-api-key` headers and must never go out in cleartext
 /// because of a `http://` gateway typo. Loopback stays allowed (local LiteLLM
-/// / proxy gateways); Ollama is loopback-only by design and unchecked.
+/// / proxy gateways). Ollama can be remote unless offline mode is enabled.
 fn require_https_url(trimmed: &str) -> Result<String> {
     let url = reqwest::Url::parse(trimmed).map_err(|e| {
         AppError::protocol_with(
@@ -143,6 +144,45 @@ fn anthropic_endpoint(base: Option<String>) -> Result<String> {
 
 fn ollama_base(base: Option<String>) -> String {
     trim_base(base.as_deref().unwrap_or("http://127.0.0.1:11434"))
+}
+
+/// Offline destinations must be literal loopback addresses. Pin localhost
+/// rather than resolving it through DNS or a user configured proxy.
+pub fn offline_ollama_base(base: Option<String>) -> Result<String> {
+    let invalid = || {
+        AppError::protocol(
+            codes::usecases::AI_OFFLINE_MODE,
+            "offline mode requires an HTTP(S) Ollama endpoint on loopback",
+        )
+    };
+    let mut url = reqwest::Url::parse(&ollama_base(base)).map_err(|_| invalid())?;
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(invalid());
+    }
+    let host = url.host_str().unwrap_or("").trim_matches(['[', ']']);
+    if host.eq_ignore_ascii_case("localhost") {
+        url.set_host(Some("127.0.0.1")).map_err(|_| invalid())?;
+    } else if !host
+        .parse::<std::net::IpAddr>()
+        .is_ok_and(|ip| ip.is_loopback())
+    {
+        return Err(invalid());
+    }
+    Ok(trim_base(url.as_str()))
+}
+
+fn offline_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| AppError::network(codes::infra::AI_CLIENT_BUILD, e.to_string()))
 }
 
 /// Shared AI HTTP client slot. `None` = rebuild on next use (see
@@ -222,11 +262,26 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     attempts.extend(req.fallbacks);
     let total = attempts.len();
 
+    if req.offline {
+        for attempt in &mut attempts {
+            if !attempt.provider.eq_ignore_ascii_case("ollama") {
+                return Err(AppError::protocol(
+                    codes::usecases::AI_OFFLINE_MODE,
+                    "offline mode only permits local Ollama",
+                ));
+            }
+            attempt.base_url = Some(offline_ollama_base(attempt.base_url.take())?);
+        }
+    }
     let mut last_err: Option<AppError> = None;
-    let client = client()?;
-    for attempt in &attempts {
+    let client = if req.offline {
+        Arc::new(offline_client()?)
+    } else {
+        client()?
+    };
+    for attempt in attempts {
         for pass in 0..2 {
-            let result = attempt_chat(&client, attempt, &system, &user).await;
+            let result = attempt_chat(&client, &attempt, &system, &user).await;
             match result {
                 Ok(text) => return Ok(text),
                 Err(e) => {
@@ -295,11 +350,11 @@ async fn attempt_chat(
     }
 }
 
-/// Probe local Ollama (`GET /api/tags`) using the shared timeout client.
+/// Probe local Ollama without proxies or redirects, using a fixed timeout.
 pub async fn probe_ollama(base_url: Option<String>) -> Result<Vec<String>> {
-    let base = ollama_base(base_url);
+    let base = offline_ollama_base(base_url)?;
     let url = format!("{}/api/tags", base);
-    let resp = client()?.get(&url).send().await.map_err(|e| {
+    let resp = offline_client()?.get(&url).send().await.map_err(|e| {
         AppError::network_with(
             codes::infra::OLLAMA_UNREACHABLE,
             format!("ollama unreachable: {e}"),
@@ -542,9 +597,177 @@ async fn ollama_chat(
 mod tests {
     use super::*;
 
+    #[test]
+    fn offline_endpoints_only_allow_loopback_http() {
+        for base in [
+            "http://127.0.0.1:11434",
+            "http://127.3.2.1:11434",
+            "http://[::1]:11434",
+            "https://localhost:11434",
+        ] {
+            assert!(offline_ollama_base(Some(base.into())).is_ok(), "{base}");
+        }
+        assert_eq!(
+            offline_ollama_base(Some("http://localhost:11434".into())).unwrap(),
+            "http://127.0.0.1:11434"
+        );
+        for base in [
+            "http://192.168.1.2:11434",
+            "https://ollama.example",
+            "http://localhost.evil.example",
+            "http://localhost@evil.example",
+            "file://localhost/etc",
+            "http://localhost/?target=remote",
+            "http://user:pass@localhost",
+        ] {
+            assert!(offline_ollama_base(Some(base.into())).is_err(), "{base}");
+        }
+    }
+
+    async fn read_test_request(socket: &mut tokio::net::TcpStream) {
+        use tokio::io::AsyncReadExt;
+        let mut buffer = [0u8; 8192];
+        let mut received = 0;
+        loop {
+            assert!(received < buffer.len(), "test request exceeds size limit");
+            let count = socket.read(&mut buffer[received..]).await.unwrap();
+            assert!(count > 0, "connection closed before complete request");
+            received += count;
+            if let Some(end) = buffer[..received]
+                .windows(4)
+                .position(|part| part == b"\r\n\r\n")
+            {
+                let headers = std::str::from_utf8(&buffer[..end]).unwrap();
+                let content_length = headers
+                    .lines()
+                    .filter_map(|line| line.split_once(':'))
+                    .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                    .map_or(0, |(_, value)| value.trim().parse::<usize>().unwrap());
+                let total = end + 4 + content_length;
+                assert!(total <= buffer.len(), "test request exceeds size limit");
+                if received < total {
+                    socket
+                        .read_exact(&mut buffer[received..total])
+                        .await
+                        .unwrap();
+                }
+                return;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn offline_transport_does_not_follow_redirects() {
+        use tokio::io::AsyncWriteExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_test_request(&mut socket).await;
+            socket.write_all(b"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://192.0.2.1:11434/api/chat\r\nContent-Length: 2\r\n\r\n{}").await.unwrap();
+        });
+        let response = offline_client()
+            .unwrap()
+            .post(format!("http://{address}/api/chat"))
+            .body("private diff")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::TEMPORARY_REDIRECT);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn offline_transport_bypasses_environment_proxies() {
+        // Run the hostile environment in a child test process so parallel
+        // tests and the user's proxy settings are never modified.
+        if std::env::var_os("GITWAVE_AI_PROXY_TEST_CHILD").is_none() {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "offline_transport_bypasses_environment_proxies",
+                    "--nocapture",
+                ])
+                .env("GITWAVE_AI_PROXY_TEST_CHILD", "1")
+                .env("HTTP_PROXY", "http://127.0.0.1:9")
+                .env("http_proxy", "http://127.0.0.1:9")
+                .env("HTTPS_PROXY", "http://127.0.0.1:9")
+                .env("https_proxy", "http://127.0.0.1:9")
+                .env("ALL_PROXY", "http://127.0.0.1:9")
+                .env("all_proxy", "http://127.0.0.1:9")
+                .env("NO_PROXY", "")
+                .env("no_proxy", "")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        use tokio::io::AsyncWriteExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_test_request(&mut socket).await;
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+                .await
+                .unwrap();
+        });
+        let response = offline_client()
+            .unwrap()
+            .get(format!("http://{address}/api/tags"))
+            .send()
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn shared_generation_boundary_rejects_remote_offline_attempts() {
+        for provider in ["ollama", "openai"] {
+            let request = AiGenerateRequest {
+                offline: true,
+                provider: provider.into(),
+                model: "m".into(),
+                base_url: Some("http://192.0.2.1:11434".into()),
+                api_key: None,
+                system: "s".into(),
+                user: "private diff".into(),
+                fallbacks: vec![],
+            };
+            let error = generate_text(request).await.unwrap_err();
+            assert_eq!(error.code(), codes::usecases::AI_OFFLINE_MODE);
+        }
+        let request = AiGenerateRequest {
+            offline: true,
+            provider: "ollama".into(),
+            model: "m".into(),
+            base_url: None,
+            api_key: None,
+            system: "s".into(),
+            user: "u".into(),
+            fallbacks: vec![ProviderAttempt {
+                provider: "ollama".into(),
+                model: "m".into(),
+                base_url: Some("https://remote.example".into()),
+                api_key: None,
+            }],
+        };
+        assert_eq!(
+            generate_text(request).await.unwrap_err().code(),
+            codes::usecases::AI_OFFLINE_MODE
+        );
+    }
+
     #[tokio::test]
     async fn unsupported_chain_reports_last_error() {
         let req = AiGenerateRequest {
+            offline: false,
             provider: "acme".into(),
             model: "m".into(),
             base_url: None,
@@ -694,6 +917,7 @@ mod tests {
     #[test]
     fn debug_impls_mask_api_keys() {
         let req = AiGenerateRequest {
+            offline: false,
             provider: "openai".into(),
             model: "m".into(),
             base_url: None,
