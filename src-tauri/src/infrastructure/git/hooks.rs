@@ -190,9 +190,11 @@ mod tests {
         let hooks = list_hooks(&repo).expect("list");
         let pre = hooks.iter().find(|h| h.name == "pre-commit").expect("pre");
         assert!(pre.exists);
+        // libgit2 may resolve temporary-directory aliases (macOS /var,
+        // Windows 8.3 names); compare the existing filesystem destinations.
         assert_eq!(
-            Path::new(&pre.actual_path),
-            dir.join(".git/hooks/pre-commit")
+            fs::canonicalize(&pre.actual_path).unwrap(),
+            fs::canonicalize(dir.join(".git/hooks/pre-commit")).unwrap()
         );
         #[cfg(unix)]
         assert!(pre.executable, "hook is chmod +x on unix");
@@ -226,7 +228,10 @@ mod tests {
             } else {
                 dir.join(path)
             };
-            assert_eq!(hooks_dir(&repo).unwrap(), expected);
+            assert_eq!(
+                fs::canonicalize(hooks_dir(&repo).unwrap()).unwrap(),
+                fs::canonicalize(&expected).unwrap()
+            );
             assert_eq!(
                 fs::read_to_string(expected.join("pre-commit")).unwrap(),
                 "echo configured\n"

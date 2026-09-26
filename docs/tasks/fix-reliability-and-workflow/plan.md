@@ -26,6 +26,8 @@ The user requested implementation of all findings from the project audit, groupe
 
 ## Validation
 
+PR #123 CI follow-up: correct two hooks test assertions that compared lexical temporary paths with libgit2-resolved paths. Canonicalize both existing destinations after writing, retain content/executable checks, run the full local gate, and verify the Windows/macOS/Linux CI matrix on the follow-up commit.
+
 Delivery is grouped into three commits: backend privacy and bounded repository APIs; frontend workflows, rendering, and regression tests; synchronized documentation and review evidence. The five work areas above describe scope rather than one commit each.
 
 Run focused behavioral tests during each batch. Before committing/pushing, run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `cargo fmt -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo check --all-targets`, and `cargo test --all-targets`. Record actual results and limitations in `review.md`; do not equate source-string guards with behavioral coverage.

@@ -51,4 +51,10 @@ The independent reviewer performed static review across correctness, security, p
 
 ## 📝 Overall assessment
 
+### PR CI follow-up
+
+The initial [test run](https://github.com/Yangshifu1024/GitWave/actions/runs/36265923805) passed all frontend jobs and Linux Rust tests, but failed two hooks assertions on macOS and Windows. The assertions compared lexical temporary paths with libgit2-resolved paths: `/var` versus `/private/var` on macOS and an 8.3 username alias versus its full name on Windows. The initial lint matrix passed on all three platforms.
+
+The follow-up canonicalizes both independently computed, existing filesystem destinations in the two assertions. Content, existence, configured-location, and Unix executable checks remain intact; production behavior is unchanged. Tester analysis confirmed the cause, and independent code review approved the fix. The full local gate passed again: frontend formatting/lint/typecheck, 271 frontend tests, Rust formatting/Clippy, and 385 Rust tests with the same two ignored tests. The follow-up CI matrix is the source of cross-platform confirmation.
+
 The scoped reliability and workflow fixes are ready for PR review, with all local quality gates passing and no remaining review blockers. README, product scope/roadmap, design, engineering notes, and the site describe these changes as unreleased; the application version remains 0.9.4.
