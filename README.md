@@ -2,13 +2,13 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.9.5 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
+**Status:** v0.9.6 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
 ### What's new in v0.9.x
 
+- **v0.9.6** — refreshed application icons across the desktop app and website; smaller frontend bundles with on-demand syntax resources; more reliable dialog resets and repository switching, with warning-free frontend and Rust quality gates
 - **v0.9.5** — offline AI requests now enforce loopback-only connectivity, bypass system proxies, disable redirects, and screen complete blob versions for private-key material before any diff fragment is sent; commit drafts and conflict buffers survive navigation; clean working copies support message-only amend; the diff viewer ships selected-file previews with truncation, virtualised text rows, paired split replacements and syntax highlighting; history pages with bounded search and visible scan scope; hooks resolve against linked-worktree common directories and core.hooksPath
 - **v0.9.4** — unresolved index conflicts now appear in the Changes count and open directly in the conflict editor, even when no merge is in progress; Pull stops before stash or fetch and explains what to resolve
-- **v0.9.3** — update checks work again: the updater manifest now points at plain release download links (v0.9.2 published API URLs, which answer 403 without a User-Agent header); the commit list stays smooth while scrolling large repositories; every panel formats its timestamps through one shared formatter; the icon family moved to lucide 1.x
 
 Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWave/releases).
 

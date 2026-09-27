@@ -45,3 +45,5 @@
 ### Final gate evidence
 
 Implementation owner completed `make check` using a fresh Rust target directory: zero warnings, 320 frontend tests and 385 Rust tests passed (2 existing ignored Rust tests). Production build passed with no warnings; no warning threshold was raised. Plain Chrome validated emitted highlighter resources with the application CSP; full desktop UI still requires a Tauri host and remains outside that browser smoke's scope.
+
+Final v0.9.6 follow-up: the default repository target directory was cleaned and rebuilt successfully with plain `make check`; no environment override is needed for future checks. Release metadata and copied branding assets received a separate read-only review with no findings.

@@ -1,7 +1,7 @@
 # GitWave · 功能列表
 
 > 本文仅列出 GitWave 应具备的功能与明确不做的事。产品原则与 Workspace 概念作为内联说明融入对应功能小节。
-> 当前发布版本 **v0.9.5**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
+> 当前发布版本 **v0.9.6**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
 
 ## 1. 功能范围
 
@@ -19,7 +19,7 @@ stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应�
 
 性能为入场券级要求（基线对标 Fork / Sublime Merge）：打开应用到首个可交互界面不可有可感知等待；仓库 history 图（含数万 commit）渲染必须流畅；提交列表在大仓库中滚动同样不得卡顿；大文件 diff 不卡 UI；后台 git 操作不阻塞用户主操作；视觉化渲染具备 lazy 策略。
 
-History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，character-level 高亮；Shiki 按需高亮已在下一版本接线，见末节）· blame / annotate · file tree（**未交付**）· branch tree
+History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，character-level 高亮；Shiki 按需加载语言资源并高亮，小文件支持语法着色）· blame / annotate · file tree（**未交付**）· branch tree
 
 ### 1.3 Advanced Git
 
@@ -117,6 +117,7 @@ Remote 管理（GitHub / GitLab / Gitea / 自建）— **已交付** · PR / MR 
 - Theme：light / dark / follow system + CSS 变量覆盖
 - 快捷键全可配（支持 vim mode）— **未交付**
 - 本地化：中文 / English 双语 — **已交付**
+- 应用、关于窗口与官网使用一致的新版图标 — **v0.9.6**
 - 时间显示统一：各面板的提交时间与操作时间走同一套格式化规则，表现一致 — **已交付**
 
 ---

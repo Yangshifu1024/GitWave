@@ -50,6 +50,8 @@ Verify with `git status --porcelain`: expect exactly those 4 files. Anything els
   - Hero badge: `<div class="badge">vX.Y.Z · <today></div>` — current version + current date (`YYYY-MM-DD`).
   - Download area: `Latest release: vX.Y.Z`.
   - Feature cards: fold small features into an existing card (e.g. the "Diff viewer" or "Batteries included" cards) rather than adding a new one and breaking the grid rhythm.
+- **PM docs** — sync the current-version references in `docs/pm/core/README.md`, `01-features.md`, `02-scope.md`, and `03-roadmap.md`; add the release's representative changes to the scope table. Preserve historical version rows and release notes.
+- **Branding assets** — when application icons changed since the previous tag, copy `src-tauri/icons/icon.png` to `site/icon.png`, `32x32.png` to `site/favicon-32.png`, and `128x128.png` to `public/app-icon.png`. Keep the frontend favicon in `index.html` pointed at the app icon. Verify these are byte-identical copies; do not regenerate artwork during release sync.
 - Residue check: `grep -rn "<old-version>" README.md site/ package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml` — GitWave's own version should only appear at the new value (matches inside unrelated dependencies don't count).
 
 ## 5. Commit
