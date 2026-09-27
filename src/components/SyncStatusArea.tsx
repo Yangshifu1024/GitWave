@@ -8,7 +8,7 @@
 // something to report (accent while syncing, success/danger/info for the
 // last result; idle shows nothing).
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ProgressBar } from "@heroui/react";
 import { Card as HeroCard } from "@heroui/react";
 import { X } from "lucide-react";
@@ -59,9 +59,12 @@ export function SyncStatusArea(): React.JSX.Element {
 
   // A new operation resets the cancel button: the previous request died
   // with the operation it targeted.
-  useEffect(() => {
+  const scopeKey = JSON.stringify([activeOp, activeRemote]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setCancelRequested(false);
-  }, [activeOp, activeRemote]);
+  }
 
   const handleCancel = () => {
     setCancelRequested(true);

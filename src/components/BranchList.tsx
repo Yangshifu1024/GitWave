@@ -342,11 +342,12 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
   });
   const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data]);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(activeWorkspaceId && activeRepoId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [irebaseOnto, setIrebaseOnto] = useState<string | null>(null);
   const [irebasePaused, setIrebasePaused] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{ name: string; deleteRemote: boolean } | null>(
     null,
@@ -411,24 +412,27 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     return off;
   }, []);
 
-  useEffect(() => {
-    // Repo switch: drop the previous repo's selection immediately, but keep
-    // rendering the old rows — the refetch lands in milliseconds and the rows
-    // are inert while `loading`, so blanking would only flash the UI.
+  const selectionKey = JSON.stringify([activeRepoId]);
+  const [previousSelection, setPreviousSelection] = useState(selectionKey);
+  if (previousSelection !== selectionKey) {
+    setPreviousSelection(selectionKey);
     setSelectedName(null);
-  }, [activeRepoId]);
+  }
 
-  useEffect(() => {
+  const scopeKey = JSON.stringify([activeWorkspaceId, activeRepoId, historyEpoch]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     if (!activeWorkspaceId || !activeRepoId) {
       setBranches([]);
-      setError(null);
       setIrebasePaused(false);
-      setLoading(false);
-      return;
     }
-    let cancelled = false;
-    setLoading(true);
     setError(null);
+    setLoading(Boolean(activeWorkspaceId && activeRepoId));
+  }
+  useEffect(() => {
+    if (!activeWorkspaceId || !activeRepoId) return;
+    let cancelled = false;
     getBranches(activeWorkspaceId)
       .then((updated) => {
         if (cancelled) return;
@@ -734,7 +738,6 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     return [...map.entries()];
   })();
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   // Flip the *effective* collapsed state (raw value falls back to the
   // group's default), otherwise a default-collapsed group needs two clicks
   // — the first write (`!undefined` = true) is a visual no-op.

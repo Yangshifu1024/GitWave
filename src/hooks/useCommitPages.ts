@@ -22,8 +22,27 @@ export function useCommitPages({
 }) {
   const [commits, setCommits] = useState<CommitSummary[]>([]);
   const [page, setPage] = useState<CommitPage | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(enabled && !!workspaceId && !!repoId);
   const [error, setError] = useState<string | null>(null);
+  const requestKey = JSON.stringify([
+    workspaceId,
+    repoId,
+    filter,
+    epoch,
+    enabled,
+    pageSize,
+    debounceMs,
+  ]);
+  const [previousRequestKey, setPreviousRequestKey] = useState(requestKey);
+  // Reset before React commits children for a new query, so they never see
+  // another repository's rows or cursor while its replacement is loading.
+  if (previousRequestKey !== requestKey) {
+    setPreviousRequestKey(requestKey);
+    setCommits([]);
+    setPage(null);
+    setError(null);
+    setLoading(enabled && !!workspaceId && !!repoId);
+  }
   const generation = useRef(0);
   const busy = useRef(false);
   const fetchPage = useCallback(
@@ -70,10 +89,6 @@ export function useCommitPages({
   useEffect(() => {
     const mine = ++generation.current;
     busy.current = false;
-    setCommits([]);
-    setPage(null);
-    setError(null);
-    setLoading(enabled && !!workspaceId && !!repoId);
     if (!enabled || !workspaceId || !repoId) return;
     const timer = window.setTimeout(() => {
       void fetchPage(null, mine);

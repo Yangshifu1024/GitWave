@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronDown,
@@ -83,9 +83,11 @@ function ImageDiffPane({
     retry: false,
   });
 
-  useEffect(() => {
+  const [previousImage, setPreviousImage] = useState(query.data);
+  if (previousImage !== query.data) {
+    setPreviousImage(query.data);
     setBroken(false);
-  }, [query.data]);
+  }
 
   let body: React.ReactNode;
   if (query.isPending) {
@@ -360,17 +362,22 @@ export function DiffViewer({
   const diff = query.data?.diff ?? null;
   const loading = query.isPending;
   const error = query.error ? formatAppError(query.error) : null;
-  useEffect(() => {
+  const scopeKey = JSON.stringify([
+    activeWorkspaceId,
+    activeRepoId,
+    commitOid,
+    stashOid,
+    path,
+    staged,
+  ]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setExpanded(false);
     setCollapsedFiles(new Set());
     setPanel("diff");
     setBlamePath(null);
-  }, [activeWorkspaceId, activeRepoId, commitOid, stashOid, path, staged]);
-
-  useEffect(() => {
-    setPanel("diff");
-    setBlamePath(null);
-  }, [path, staged]);
+  }
 
   const visible = diff ? filterDiffSummary(diff, path, staged) : null;
   const fileKeys = visible ? visible.files.map(fileChangeKey) : [];

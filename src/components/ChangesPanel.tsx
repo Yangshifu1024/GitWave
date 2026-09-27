@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, EyeOff, FolderOpen, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -369,8 +369,10 @@ export function ChangesPanel({
   const amendMode = Boolean(draft.amendHead && draft.amendHead === data?.sha);
   const scopeRef = useRef(draftKey);
   const aiRequestRef = useRef(0);
-  if (scopeRef.current !== draftKey) aiRequestRef.current += 1;
-  scopeRef.current = draftKey;
+  useLayoutEffect(() => {
+    scopeRef.current = draftKey;
+    aiRequestRef.current += 1;
+  }, [draftKey]);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -404,12 +406,15 @@ export function ChangesPanel({
     enabled: Boolean(workspaceId),
   });
 
-  useEffect(() => {
+  const scopeKey = JSON.stringify([draftKey]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setAiBusy(false);
     setAiPromptOpen(false);
     setAmendConfirmOpen(false);
     setPendingAction(null);
-  }, [draftKey]);
+  }
 
   const handleAiGenerate = () => {
     if (!workspaceId || aiBusy) return;

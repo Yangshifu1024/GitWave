@@ -25,7 +25,7 @@ describe("CommitGraph render guards", () => {
   });
 
   it("keeps a widened overscan window", () => {
-    const args = /useVirtualizer\(\{([\s\S]*?)\}\)/.exec(source)?.[1] ?? "";
+    const args = /useFixedVirtualizer\(\{([\s\S]*?)\}\)/.exec(source)?.[1] ?? "";
     expect(args).not.toBe("");
     expect(args).toMatch(/overscan:\s*14/);
     expect(args).not.toMatch(/overscan:\s*10\b/);

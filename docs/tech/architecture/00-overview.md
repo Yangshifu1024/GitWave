@@ -49,9 +49,9 @@
 
 | 热点 | 策略 | 现状 |
 |---|---|---|
-| history DAG（数万 commit） | `@tanstack/react-virtual` 虚拟滚动；后端 `commit_log` 按需取 | 已落地 |
+| history DAG（数万 commit） | `useFixedVirtualizer` 固定行高虚拟滚动，以 `useSyncExternalStore` 提供不可变可见行；后端 cursor 分页 | 已落地 |
 | 大文件 diff | 超大文件走占位、不把数十 MB 灌进 IPC；前端按文件折叠 | 无 hunk 级 Tauri event 流 |
-| syntax highlight | Shiki 按需 grammar | **未接线**；DiffViewer 自绘 character-level 高亮 |
+| syntax highlight | Shiki 按需 grammar JSON + 独立 Oniguruma WASM；仅打包支持的语言 | 已接线；大文件回退纯文本，叠加 character-level 高亮 |
 | 后台 git 操作 | tokio + 超时 / 取消；进度进状态区 | 已落地 |
 | 仓库变化感知 | 无 FS watcher | **每 N 分钟轮询（可配置，默认 5）workspace 内所有仓库**（`useAutoRefresh`）+ 手动刷新（Cmd+R，仅 active 仓库） |
 | AI 生成 | 单次 HTTP，`stream: false`，command 返回全文 | 非 SSE |

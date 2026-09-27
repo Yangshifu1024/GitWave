@@ -186,6 +186,10 @@ Sprint 1+2 的前端用纯 HTML + 少量 CSS 实现（来自 Sprint 0 的 Tauri 
 
 3-pane 布局壳（`ThreePaneLayout` / `Split`）仍是自研，HeroUI 无 splitter。
 
+### 修订（2026-09-27 · React warning 清理）
+
+history 与 text diff 均为固定行高，改用 `useFixedVirtualizer`：`useSyncExternalStore` 订阅滚动/尺寸，向渲染返回不可变行快照，避免 TanStack Virtual 可变实例 getter 与 React memoization 不兼容。移除不再使用的依赖。Shiki 保留 Oniguruma，只打包已有支持的 15 种语言，grammar JSON 和 WASM 按需作为同源资源加载；Tauri CSP 仅增加同源连接与 `wasm-unsafe-eval`。见 [任务](../../tasks/fix-release-warnings/plan.md)。
+
 ### 后果
 
 - **正面**：a11y 由 React Aria 承担；主题走 token + HeroUI；3-pane 几何未锁进组件库

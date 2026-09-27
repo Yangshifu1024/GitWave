@@ -7,7 +7,7 @@
 // keeps click-to-switch and right-click intact, and `suppressClickRef` lets
 // the owner swallow the selection a drag release would otherwise trigger.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** Pointer must move this far (px) before a press becomes a drag. */
 export const DRAG_THRESHOLD_PX = 6;
@@ -88,7 +88,9 @@ export function useTabDragReorder(options: {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const pressRef = useRef<PressState | null>(null);
   const orderRef = useRef(ids);
-  orderRef.current = ids;
+  useLayoutEffect(() => {
+    orderRef.current = ids;
+  }, [ids]);
   const suppressClickRef = useRef(false);
   // Imperative window listeners from an in-flight press; unmount cleanup
   // below detaches them so a mid-drag unmount can't leak ghost handlers.

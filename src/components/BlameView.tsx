@@ -110,20 +110,20 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const [lines, setLines] = useState<BlameLine[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(activeWorkspaceId && activeRepoId && path));
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const scopeKey = JSON.stringify([activeWorkspaceId, activeRepoId, path]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setLines([]);
-    if (!activeWorkspaceId || !activeRepoId || !path) {
-      setLines([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
     setError(null);
+    setLoading(Boolean(activeWorkspaceId && activeRepoId && path));
+  }
+  useEffect(() => {
+    if (!activeWorkspaceId || !activeRepoId || !path) return;
+    let cancelled = false;
     getBlame(activeWorkspaceId, path, activeRepoId)
       .then((result) => {
         if (!cancelled) setLines(result);

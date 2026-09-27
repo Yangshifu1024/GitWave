@@ -35,7 +35,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 
 ## Tech stack
 
-- **Frontend:** React 19 + TypeScript 6 + Vite 8, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query / Virtual
+- **Frontend:** React 19 + TypeScript 6 + Vite 8, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query
 - **Backend:** Rust + [Tauri 2](https://tauri.app), clean-architecture layers (`domain` / `application` / `infrastructure`), `git2` (vendored libgit2 + libssh2 + OpenSSL) — no system Git dependency
 - **Testing:** Vitest (unit and React Testing Library/jsdom component behavior); Playwright end-to-end tests have a script but no suite yet
 

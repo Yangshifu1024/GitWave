@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useFixedVirtualizer } from "@/hooks/useFixedVirtualizer";
 import { useTranslation } from "react-i18next";
 import type { CommitRef, CommitSummary } from "@/lib/api";
 import { useCommitPages } from "@/hooks/useCommitPages";
@@ -364,7 +364,7 @@ export function CommitGraph({
       pageSize: PAGE_SIZE,
     });
   const [localSelected, setLocalSelected] = useState<string | null>(null);
-  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   // F011: one shared row-menu controller; its modals render once below.
   const menu = useCommitMenuActions(activeWorkspaceId);
 
@@ -381,10 +381,10 @@ export function CommitGraph({
 
   const rowArtByIndex = useMemo(() => computeRowArt(commits, shaToIndex), [commits, shaToIndex]);
 
-  const virtualizer = useVirtualizer({
+  const virtualizer = useFixedVirtualizer({
     count: commits.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_H,
+    element: scrollElement,
+    rowHeight: ROW_H,
     // Cheaper rows (memo + stable callbacks) make a slightly larger window a
     // good trade: it closes the blank window on a fast flick/fling.
     overscan: 14,
@@ -398,7 +398,7 @@ export function CommitGraph({
     if (scrollRafRef.current !== null) return;
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = null;
-      const el = scrollRef.current;
+      const el = scrollElement;
       if (!el || loading || !hasMore) return;
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - LOAD_MORE_MARGIN) {
         loadMore();
@@ -441,9 +441,20 @@ export function CommitGraph({
       }
       return;
     }
+    if (!scrollElement) return;
     handledLocateSeq.current = locateRequest.seq;
     virtualizer.scrollToIndex(index, { align: "center" });
-  }, [locateRequest, activeRepoId, shaToIndex, virtualizer, loading, hasMore, error, loadMore]);
+  }, [
+    locateRequest,
+    activeRepoId,
+    shaToIndex,
+    virtualizer,
+    loading,
+    hasMore,
+    error,
+    loadMore,
+    scrollElement,
+  ]);
 
   const handleSelect = useCallback(
     (sha: string) => {
@@ -522,10 +533,14 @@ export function CommitGraph({
           </p>
         ) : null}
         {showGraph ? (
-          <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto" onScroll={handleScroll}>
+          <div
+            ref={setScrollElement}
+            className="flex-1 min-h-0 overflow-auto"
+            onScroll={handleScroll}
+          >
             <div
               style={{
-                height: `${virtualizer.getTotalSize()}px`,
+                height: `${virtualizer.totalSize}px`,
                 width: "100%",
                 position: "relative",
                 // No will-change here on purpose: promoting a many-thousand-px sizer
@@ -533,7 +548,7 @@ export function CommitGraph({
                 // instead.
               }}
             >
-              {virtualizer.getVirtualItems().map((virtualRow) => {
+              {virtualizer.items.map((virtualRow) => {
                 const commit = commits[virtualRow.index];
                 if (!commit) return null;
                 return (

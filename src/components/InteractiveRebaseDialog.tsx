@@ -26,7 +26,19 @@ interface InteractiveRebaseDialogProps {
   onDone: (notice: string) => void;
 }
 
-export function InteractiveRebaseDialog({
+export function InteractiveRebaseDialog(
+  props: React.ComponentProps<typeof InteractiveRebaseDialogContent>,
+): React.JSX.Element {
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  return (
+    <InteractiveRebaseDialogContent
+      key={JSON.stringify([props.open, props.workspaceId, props.upstream, repoId])}
+      {...props}
+    />
+  );
+}
+
+function InteractiveRebaseDialogContent({
   open,
   workspaceId,
   upstream,
@@ -35,7 +47,7 @@ export function InteractiveRebaseDialog({
 }: InteractiveRebaseDialogProps): React.JSX.Element {
   const { t } = useTranslation();
   const [todos, setTodos] = useState<InteractiveRebaseTodo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -45,8 +57,6 @@ export function InteractiveRebaseDialog({
     // Session guard: a slow plan from a previous open must not overwrite
     // the current dialog's todos.
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     planInteractiveRebase(workspaceId, upstream)
       .then((todos) => {
         if (!cancelled) setTodos(todos);

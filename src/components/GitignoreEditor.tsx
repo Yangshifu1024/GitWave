@@ -18,21 +18,40 @@ export interface GitignoreEditorProps {
  * plain text (mono font), save back. The backend normalizes the trailing
  * newline so the per-file "Add to .gitignore" append keeps working.
  */
-export function GitignoreEditor({ open, onClose }: GitignoreEditorProps): React.JSX.Element | null {
+export function GitignoreEditor(
+  props: React.ComponentProps<typeof GitignoreEditorContent>,
+): React.JSX.Element {
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  return (
+    <GitignoreEditorContent key={JSON.stringify([props.open, workspaceId, repoId])} {...props} />
+  );
+}
+
+function GitignoreEditorContent({ open, onClose }: GitignoreEditorProps): React.JSX.Element | null {
   const { t } = useTranslation();
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
   const [content, setContent] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(open && !!workspaceId);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open || !workspaceId) return;
-    setLoading(true);
+    let cancelled = false;
     getGitignore(workspaceId)
-      .then(setContent)
-      .catch((e) => setStatus(formatAppError(e), "danger"))
-      .finally(() => setLoading(false));
+      .then((text) => {
+        if (!cancelled) setContent(text);
+      })
+      .catch((e) => {
+        if (!cancelled) setStatus(formatAppError(e), "danger");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, workspaceId, setStatus]);
 
   if (!open) return null;

@@ -23,7 +23,7 @@
 ## 前端栈：React + TypeScript
 
 - **实际库**（不是早期备选清单）：
-  - 虚拟滚动：`@tanstack/react-virtual`（history 图）
+  - 虚拟滚动：`useFixedVirtualizer`（history 图 / text diff 固定行高，以 `useSyncExternalStore` 订阅滚动和尺寸变化，返回不可变快照）
   - diff viewer：自研 `DiffViewer`（character-level 高亮；图片左右对比）；**未**用 Monaco / CodeMirror
   - 拖拽：自研 pointer 逻辑（repo tab 排序、interactive rebase），**未**用 dnd-kit
   - 命令面板：自研 `CommandPalette`，**未**用 cmdk

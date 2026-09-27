@@ -1,4 +1,12 @@
-import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { ConflictSides } from "@/lib/api";
 import { explainConflict, formatAppError, getConflictSides, resolveConflict } from "@/lib/api";
@@ -50,7 +58,9 @@ export function ConflictPanel({
   const openRef = useRef(open);
   const scope = JSON.stringify([workspaceId, repoId]);
   const scopeRef = useRef(scope);
-  scopeRef.current = scope;
+  useLayoutEffect(() => {
+    scopeRef.current = scope;
+  }, [scope]);
   const draftsRef = useRef(
     new Map<string, { sides: ConflictSides; seed: string; editor: string }>(),
   );
@@ -109,30 +119,35 @@ export function ConflictPanel({
     }
   };
 
-  useEffect(() => {
-    seqRef.current += 1;
+  const scopeKey = JSON.stringify([scope]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setSelected(null);
     setSides(null);
     setEditor("");
-    seedRef.current = "";
     setExplain(null);
     setError(null);
     setBusy(false);
+  }
+  useLayoutEffect(() => {
+    seqRef.current += 1;
+    seedRef.current = "";
   }, [scope]);
 
-  // Reset hunk navigation when switching files.
-  useEffect(() => {
+  const fileKey = JSON.stringify([selected]);
+  const [previousFile, setPreviousFile] = useState(fileKey);
+  if (previousFile !== fileKey) {
+    setPreviousFile(fileKey);
     setHunkIndex(0);
-  }, [selected]);
+  }
 
   // Clear in-progress state while hidden so reopening starts fresh.
-  useEffect(() => {
+  const visibilityKey = JSON.stringify([open]);
+  const [previousVisibility, setPreviousVisibility] = useState(visibilityKey);
+  if (previousVisibility !== visibilityKey) {
+    setPreviousVisibility(visibilityKey);
     if (!open) {
-      // Invalidate any in-flight load: a response racing the close must not
-      // write into the freshly cleared panel right after a reopen.
-      seqRef.current += 1;
-      draftsRef.current.clear();
-      seedRef.current = "";
       setBusy(false);
       setSelected(null);
       setSides(null);
@@ -140,6 +155,13 @@ export function ConflictPanel({
       setEditor("");
       setError(null);
       setDiscardPrompt(false);
+    }
+  }
+  useLayoutEffect(() => {
+    if (!open) {
+      seqRef.current += 1;
+      draftsRef.current.clear();
+      seedRef.current = "";
     }
   }, [open]);
 
@@ -158,7 +180,9 @@ export function ConflictPanel({
   };
   // Keep the Escape listener free of per-render re-subscription.
   const requestCloseRef = useRef(requestClose);
-  requestCloseRef.current = requestClose;
+  useLayoutEffect(() => {
+    requestCloseRef.current = requestClose;
+  });
 
   // Escape closes back to the main window (with a dirty check).
   useEffect(() => {
@@ -175,19 +199,23 @@ export function ConflictPanel({
   // classifies every line in O(n).
   const highlighted = useMemo(() => {
     let ri = 0;
-    return lines.map((line, i) => {
+    const result: { cls: string }[] = [];
+    for (const [i, line] of lines.entries()) {
       while (ri < regions.length && i > (regions[ri]?.end ?? -1)) ri += 1;
       const region = regions[ri];
       const inRegion = region !== undefined && i >= region.start;
       const kind = classifyConflictLine(line);
-      if (kind === "ours" || kind === "theirs") {
-        return { cls: "bg-conflict-marker-bg font-semibold text-danger" };
-      }
-      if (kind) {
-        return { cls: "bg-conflict-marker-bg font-semibold text-text-secondary" };
-      }
-      return { cls: inRegion ? "bg-conflict-region-bg" : "" };
-    });
+      const cls =
+        kind === "ours" || kind === "theirs"
+          ? "bg-conflict-marker-bg font-semibold text-danger"
+          : kind
+            ? "bg-conflict-marker-bg font-semibold text-text-secondary"
+            : inRegion
+              ? "bg-conflict-region-bg"
+              : "";
+      result.push({ cls });
+    }
+    return result;
   }, [lines, regions]);
 
   if (!open || !active || !workspaceId || !repoId) return null;

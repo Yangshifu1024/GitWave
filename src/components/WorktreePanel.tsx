@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { WorktreeInfo } from "@/lib/api";
 import {
@@ -24,31 +24,35 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
   const queryClient = useQueryClient();
 
-  const [items, setItems] = useState<WorktreeInfo[]>([]);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setError] = useState<string | null>(null);
 
   // epoch in deps: auto-refresh bumps it to re-run this manual effect.
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
 
-  const refresh = useCallback(async () => {
-    void historyEpoch; // re-run trigger: auto-refresh bumps the epoch.
-    if (!workspaceId) return;
-    setItems(await listWorktrees(workspaceId));
-  }, [workspaceId, historyEpoch]);
-
-  useEffect(() => {
-    if (!workspaceId || !repoId) {
-      setItems([]);
-      return;
-    }
-    setLoading(true);
+  const query = useQuery({
+    queryKey: ["worktrees", workspaceId, repoId, historyEpoch],
+    queryFn: () => listWorktrees(workspaceId!),
+    enabled: Boolean(workspaceId && repoId),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === workspaceId && previousQuery.queryKey[2] === repoId
+        ? previous
+        : undefined,
+  });
+  const refreshScope = JSON.stringify([workspaceId, repoId, historyEpoch]);
+  const [previousScope, setPreviousScope] = useState(refreshScope);
+  if (previousScope !== refreshScope) {
+    setPreviousScope(refreshScope);
     setError(null);
-    refresh()
-      .catch((e) => setError(formatAppError(e)))
-      .finally(() => setLoading(false));
-  }, [workspaceId, repoId, refresh]);
+  }
+  const items = query.data ?? [];
+  const error = actionError ?? (query.error ? formatAppError(query.error) : null);
+  const loading = query.isLoading;
+  const { refetch } = query;
+  const refresh = useCallback(async () => {
+    await refetch({ throwOnError: true });
+    setError(null);
+  }, [refetch]);
 
   const run = async (fn: () => Promise<void>) => {
     if (!workspaceId || busy) return;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StashEntry } from "@/lib/api";
 import {
@@ -67,12 +67,15 @@ export function StashPanel(): React.JSX.Element {
 
   // The stash list is repo-scoped: on a repo switch drop the previous repo's
   // dialogs and errors so they never act on another repo's stash.
-  useEffect(() => {
+  const scopeKey = JSON.stringify([repoId]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setDetail(null);
     setDirtyPrompt(null);
     setDropPrompt(null);
     setError(null);
-  }, [repoId]);
+  }
 
   const refresh = (): void => {
     invalidate();

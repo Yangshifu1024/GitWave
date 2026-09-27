@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 
@@ -19,9 +19,7 @@ export function ErrorAlert({
 }: ErrorAlertProps): React.JSX.Element {
   const [dismissed, setDismissed] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!message) setDismissed(null);
-  }, [message]);
+  if (!message && dismissed !== null) setDismissed(null);
 
   const open = Boolean(message && message !== dismissed);
 

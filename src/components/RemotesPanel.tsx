@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Menu, Popover } from "@heroui/react";
 
@@ -50,9 +50,8 @@ export function RemotesPanel(): React.JSX.Element {
   const endOp = useSyncStore((s) => s.endOp);
   const queryClient = useQueryClient();
 
-  const [items, setItems] = useState<RemoteInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addName, setAddName] = useState("");
   const [addUrl, setAddUrl] = useState("");
@@ -68,19 +67,28 @@ export function RemotesPanel(): React.JSX.Element {
   // Fetch attempts that already had one in-app auth retry (no loops).
   const authRetried = useRef(new Set<string>());
 
-  const refresh = useCallback(async () => {
-    void historyEpoch; // re-run trigger: auto-refresh bumps the epoch.
-    if (!workspaceId || !repoId) {
-      setItems([]);
-      return;
-    }
-    setItems(await listRemoteDetails(workspaceId));
+  const query = useQuery({
+    queryKey: ["remote-details", workspaceId, repoId, historyEpoch],
+    queryFn: () => listRemoteDetails(workspaceId!),
+    enabled: Boolean(workspaceId && repoId),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === workspaceId && previousQuery.queryKey[2] === repoId
+        ? previous
+        : undefined,
+  });
+  const refreshScope = JSON.stringify([workspaceId, repoId, historyEpoch]);
+  const [previousScope, setPreviousScope] = useState(refreshScope);
+  if (previousScope !== refreshScope) {
+    setPreviousScope(refreshScope);
     setError(null);
-  }, [workspaceId, repoId, historyEpoch]);
-
-  useEffect(() => {
-    refresh().catch((e) => setError(formatAppError(e)));
-  }, [refresh]);
+  }
+  const items = query.data ?? [];
+  const error = actionError ?? (query.error ? formatAppError(query.error) : null);
+  const { refetch } = query;
+  const refresh = useCallback(async () => {
+    await refetch({ throwOnError: true });
+    setError(null);
+  }, [refetch]);
 
   if (!workspaceId || !repoId) return <></>;
 

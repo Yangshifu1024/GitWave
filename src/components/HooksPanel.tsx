@@ -22,7 +22,16 @@ const SAMPLE_PRE_COMMIT = `#!/bin/sh
 # fi
 `;
 
-export function HooksPanel({
+export function HooksPanel(
+  props: React.ComponentProps<typeof HooksPanelContent>,
+): React.JSX.Element {
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  return (
+    <HooksPanelContent key={JSON.stringify([props.open, props.workspaceId, repoId])} {...props} />
+  );
+}
+
+function HooksPanelContent({
   workspaceId,
   open,
   onClose,
@@ -49,10 +58,6 @@ export function HooksPanel({
 
   useEffect(() => {
     request.current += 1;
-    setSelected(null);
-    setContent("");
-    setError(null);
-    setDirty(false);
     return () => {
       request.current += 1;
     };

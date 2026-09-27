@@ -169,4 +169,24 @@ describe("useCommitPages request lifecycle", () => {
     expect(result.current.commits).toEqual([]);
     expect(result.current.loading).toBe(false);
   });
+
+  it("clears settled rows and cursor immediately when a new filter is debouncing", async () => {
+    vi.mocked(getCommitPage).mockResolvedValue(page("old", "old:1"));
+    const { result, rerender } = renderHook(
+      ({ filter }) =>
+        useCommitPages({ workspaceId: "ws", repoId: "repo", filter, debounceMs: 300 }),
+      { initialProps: { filter: "old" } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    expect(result.current.commits[0]?.sha).toBe("old");
+    rerender({ filter: "new" });
+    expect(result.current.commits).toEqual([]);
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.scanned).toBe(0);
+    expect(result.current.loading).toBe(true);
+    act(() => result.current.loadMore());
+    expect(getCommitPage).toHaveBeenCalledTimes(1);
+  });
 });

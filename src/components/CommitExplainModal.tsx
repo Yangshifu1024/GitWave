@@ -1,3 +1,4 @@
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 // AI commit explanation modal — asks the provider to explain what a commit
 // changed and why it matters. Read-only: the output is advice, nothing is
 // applied to the repository (P1). Reused by CommitInfoHeader and the
@@ -12,7 +13,19 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 
-export function CommitExplainModal({
+export function CommitExplainModal(
+  props: React.ComponentProps<typeof CommitExplainModalContent>,
+): React.JSX.Element {
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  return (
+    <CommitExplainModalContent
+      key={JSON.stringify([props.open, props.workspaceId, props.sha, repoId])}
+      {...props}
+    />
+  );
+}
+
+function CommitExplainModalContent({
   workspaceId,
   sha,
   subject,
@@ -57,10 +70,10 @@ export function CommitExplainModal({
   useEffect(() => {
     if (!open) return;
     sessionRef.current += 1;
-    setText("");
-    setError(null);
-    setProvider(null);
     genMut.mutate();
+    return () => {
+      sessionRef.current += 1;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per open
   }, [open, workspaceId, sha]);
 

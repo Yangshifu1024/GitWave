@@ -8,7 +8,7 @@
 // handlers. The bar markup itself is provided by TitleBar; this component
 // owns the state and the dialogs.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -618,18 +618,14 @@ export function ActionBar({
   };
 
   // The fetched remote list wins over the seeded default once it arrives.
-  useEffect(() => {
-    if (remotes.length === 0) return;
+  if (remotes.length > 0) {
     if (pullDialog && !remotes.includes(pullDialog.remote)) {
       setPullDialog({ ...pullDialog, remote: remotes[0]! });
     }
-  }, [pullDialog, remotes]);
-  useEffect(() => {
-    if (remotes.length === 0) return;
     if (pushDialog && !remotes.includes(pushDialog.remote)) {
       setPushDialog({ ...pushDialog, remote: remotes[0]! });
     }
-  }, [pushDialog, remotes]);
+  }
 
   const remoteOptions =
     remotes.length > 0 ? remotes : [pullDialog?.remote ?? pushDialog?.remote ?? "origin"];
@@ -684,66 +680,68 @@ export function ActionBar({
   const clearMenuAction = useUiStore((s) => s.clearMenuAction);
 
   const runMenuActionRef = useRef<(action: AppMenuAction) => void>(() => undefined);
-  runMenuActionRef.current = (action) => {
-    switch (action) {
-      case "workspace:new":
-        openCreateWorkspace();
-        break;
-      case "workspace:rename":
-        openRename();
-        break;
-      case "workspace:ai":
-        setAiOpen(true);
-        break;
-      case "workspace:export":
-        openExport();
-        break;
-      case "workspace:import":
-        openImport();
-        break;
-      case "workspace:delete":
-        setDeleteOpen(true);
-        break;
-      case "repo:init":
-        startAdd("init");
-        break;
-      case "repo:clone":
-        startAdd("clone");
-        break;
-      case "repo:add":
-        startAdd("local");
-        break;
-      case "repo:fetch":
-        wc.fetch();
-        break;
-      case "repo:lfs":
-        setLfsOpen(true);
-        break;
-      case "repo:hooks":
-        setHooksOpen(true);
-        break;
-      case "repo:worktree-new":
-        openWorktreeCreate();
-        break;
-      case "branch:new":
-        openBranchCreate();
-        break;
-      case "branch:pull":
-        openPullDialog();
-        break;
-      case "branch:push":
-        openPushDialog();
-        break;
-      case "branch:pr":
-        setPrOpen(true);
-        break;
-      default: {
-        // Compile error when a new AppMenuAction member misses its routing.
-        const exhaustive: never = action;
-        throw new Error(`Unhandled menu action: ${String(exhaustive)}`);
+  useLayoutEffect(() => {
+    runMenuActionRef.current = (action) => {
+      switch (action) {
+        case "workspace:new":
+          openCreateWorkspace();
+          break;
+        case "workspace:rename":
+          openRename();
+          break;
+        case "workspace:ai":
+          setAiOpen(true);
+          break;
+        case "workspace:export":
+          openExport();
+          break;
+        case "workspace:import":
+          openImport();
+          break;
+        case "workspace:delete":
+          setDeleteOpen(true);
+          break;
+        case "repo:init":
+          startAdd("init");
+          break;
+        case "repo:clone":
+          startAdd("clone");
+          break;
+        case "repo:add":
+          startAdd("local");
+          break;
+        case "repo:fetch":
+          wc.fetch();
+          break;
+        case "repo:lfs":
+          setLfsOpen(true);
+          break;
+        case "repo:hooks":
+          setHooksOpen(true);
+          break;
+        case "repo:worktree-new":
+          openWorktreeCreate();
+          break;
+        case "branch:new":
+          openBranchCreate();
+          break;
+        case "branch:pull":
+          openPullDialog();
+          break;
+        case "branch:push":
+          openPushDialog();
+          break;
+        case "branch:pr":
+          setPrOpen(true);
+          break;
+        default: {
+          // Compile error when a new AppMenuAction member misses its routing.
+          const exhaustive: never = action;
+          throw new Error(`Unhandled menu action: ${String(exhaustive)}`);
+        }
       }
-    }
-  };
+    };
+  });
 
   useEffect(() => {
     if (!menuAction) return;

@@ -108,15 +108,19 @@ export function CommandPalette({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [setOpen]);
 
-  // Fresh state every time the palette opens; focus the input.
+  const visibilityKey = JSON.stringify([open]);
+  const [previousVisibility, setPreviousVisibility] = useState(visibilityKey);
+  if (previousVisibility !== visibilityKey) {
+    setPreviousVisibility(visibilityKey);
+    if (open) {
+      setQuery("");
+      setIntent(null);
+      setIntentError(null);
+      setSelectedIndex(-1);
+    }
+  }
   useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setIntent(null);
-    setIntentError(null);
-    setSelectedIndex(-1);
-    // Focus after mount so the input is attached.
-    window.setTimeout(() => inputRef.current?.focus(), 0);
+    if (open) inputRef.current?.focus();
   }, [open]);
 
   const staticCommands = useMemo(
@@ -158,9 +162,12 @@ export function CommandPalette({
     c.label.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
-  useEffect(() => {
+  const scopeKey = JSON.stringify([workspaceId, repoId]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setSelectedIndex(-1);
-  }, [workspaceId, repoId]);
+  }
 
   const locateCommit = (sha: string): void => {
     setOpen(false);

@@ -90,9 +90,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
 
   // Reopening always lands on the first section instead of resuming the
   // previous one.
-  useEffect(() => {
+  const scopeKey = JSON.stringify([open]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     if (open) setSection("general");
-  }, [open]);
+  }
 
   return (
     <Modal open={open} onOpenChange={onOpenChange} title={t("settings.title")} size="lg">

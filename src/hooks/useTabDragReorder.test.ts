@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { act, cleanup, renderHook } from "@testing-library/react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { applyOrder, arrayMove, computeTargetIndex } from "./useTabDragReorder";
+import { applyOrder, arrayMove, computeTargetIndex, useTabDragReorder } from "./useTabDragReorder";
+
+afterEach(cleanup);
 
 describe("arrayMove", () => {
   it("moves an item forward", () => {
@@ -58,5 +63,42 @@ describe("applyOrder", () => {
 
   it("falls back to input order for an empty order", () => {
     expect(applyOrder(repos, []).map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("useTabDragReorder live order", () => {
+  it("uses the committed tab order and preserves previews between pointer events", () => {
+    const container = document.createElement("div");
+    for (let index = 0; index < 3; index += 1) {
+      const tab = document.createElement("div");
+      tab.setAttribute("role", "tab");
+      tab.getBoundingClientRect = () => new DOMRect(index * 100, 0, 100, 20);
+      container.appendChild(tab);
+    }
+    const onPreview = vi.fn();
+    const onCommit = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ ids }) =>
+        useTabDragReorder({ containerRef: { current: container }, ids, onPreview, onCommit }),
+      { initialProps: { ids: ["a", "b", "c"] } },
+    );
+    rerender({ ids: ["c", "a", "b"] });
+    act(() => {
+      result.current.handlePointerDown(
+        { button: 0, pointerId: 1, clientX: 20, clientY: 0 } as ReactPointerEvent<HTMLElement>,
+        "c",
+      );
+    });
+    const dispatch = (type: string, clientX: number) => {
+      const event = new MouseEvent(type, { clientX, clientY: 0 });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      window.dispatchEvent(event);
+    };
+    act(() => dispatch("pointermove", 160));
+    expect(onPreview).toHaveBeenLastCalledWith(["a", "b", "c"]);
+    act(() => dispatch("pointermove", 70));
+    expect(onPreview).toHaveBeenLastCalledWith(["a", "c", "b"]);
+    act(() => dispatch("pointerup", 70));
+    expect(onCommit).toHaveBeenCalledWith(["a", "c", "b"]);
   });
 });

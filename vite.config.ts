@@ -1,9 +1,39 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { execSync } from "node:child_process";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
+
+// Shiki grammars are large immutable JSON datasets. Emit them as lazy data
+// assets in production; dev serves the same data through the virtual module.
+function syntaxGrammarAssets(): Plugin {
+  const prefix = "virtual:syntax-grammar/";
+  let production = false;
+  return {
+    name: "gitwave-syntax-grammar-assets",
+    configResolved(config) {
+      production = config.command === "build";
+    },
+    resolveId(id) {
+      if (id.startsWith(prefix)) return `\0${id}`;
+    },
+    async load(id) {
+      if (!id.startsWith(`\0${prefix}`)) return;
+      const language = id.slice(prefix.length + 1);
+      if (!/^[a-z]+$/.test(language)) throw new Error("Invalid syntax grammar name");
+      const grammar = await import(`shiki/langs/${language}.mjs`);
+      const source = JSON.stringify(grammar.default);
+      if (!production) return `export default async () => (${source});`;
+      const asset = this.emitFile({ type: "asset", name: `${language}.grammar.json`, source });
+      return `export default async () => {
+        const response = await fetch(import.meta.ROLLUP_FILE_URL_${asset});
+        if (!response.ok) throw new Error("Could not load syntax grammar: ${language}");
+        return response.json();
+      };`;
+    },
+  };
+}
 
 const host = process.env["TAURI_DEV_HOST"];
 
@@ -25,7 +55,7 @@ export default defineConfig(async () => ({
   // window.localStorage themselves (see autoRefreshStore.test.ts).
   test: { environment: "node" },
 
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), syntaxGrammarAssets()],
 
   define: {
     __GIT_SHA__: JSON.stringify(gitShortSha()),
@@ -33,7 +63,28 @@ export default defineConfig(async () => ({
 
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
+    },
+  },
+
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          includeDependenciesRecursively: false,
+          groups: [
+            { name: "runtime", test: /(?:\0vite|vite\/preload-helper)/, priority: 20 },
+            {
+              test: /node_modules/,
+              name: (id) => {
+                const parts = id.split("/node_modules/").at(-1)!.split("/");
+                const name = parts[0]!.startsWith("@") ? parts.slice(0, 2).join("-") : parts[0]!;
+                return `vendor-${name.replace("@", "")}`;
+              },
+            },
+          ],
+        },
+      },
     },
   },
 

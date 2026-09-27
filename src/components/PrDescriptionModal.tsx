@@ -1,3 +1,4 @@
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 // AI PR description modal — generates a copy-ready title + markdown body
 // for the active branch vs the default base branch. Nothing is pushed or
 // created remotely (P1): the user copies the text into their PR tool.
@@ -13,7 +14,19 @@ import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 
-export function PrDescriptionModal({
+export function PrDescriptionModal(
+  props: React.ComponentProps<typeof PrDescriptionModalContent>,
+): React.JSX.Element {
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
+  return (
+    <PrDescriptionModalContent
+      key={JSON.stringify([props.open, props.workspaceId, repoId])}
+      {...props}
+    />
+  );
+}
+
+function PrDescriptionModalContent({
   workspaceId,
   open,
   onClose,
@@ -56,11 +69,10 @@ export function PrDescriptionModal({
   useEffect(() => {
     if (!open) return;
     sessionRef.current += 1;
-    setTitle("");
-    setBody("");
-    setError(null);
-    setProvider(null);
     genMut.mutate();
+    return () => {
+      sessionRef.current += 1;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per open
   }, [open, workspaceId]);
 

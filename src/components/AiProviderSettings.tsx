@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
@@ -95,8 +95,9 @@ export function AiProviderSettings({
     enabled: Boolean(workspaceId && open),
   });
 
-  useEffect(() => {
-    if (!workspace) return;
+  const [formWorkspace, setFormWorkspace] = useState<typeof workspace>(undefined);
+  if (workspace && workspace !== formWorkspace) {
+    setFormWorkspace(workspace);
     const s = workspace.settings;
     const p = (s.ai_provider as ProviderId | null) ?? "openai";
     const resolved = PROVIDERS.some((x) => x.id === p) ? p : "openai";
@@ -110,7 +111,7 @@ export function AiProviderSettings({
     setTplPr(s.prompt_templates.pr ?? "");
     setTplReflog(s.prompt_templates.reflog ?? "");
     setTplHealth(s.prompt_templates.health ?? "");
-  }, [workspace]);
+  }
 
   const updateFallback = (index: number, patch: Partial<AiProviderConfig>) => {
     setFailover((list) => list.map((fb, i) => (i === index ? { ...fb, ...patch } : fb)));

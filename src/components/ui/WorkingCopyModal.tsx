@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/Button";
@@ -48,21 +48,22 @@ export function WorkingCopyModal({
   };
 
   // Repo switches reset the in-modal selection.
-  useEffect(() => {
+  const scopeKey = JSON.stringify([wc.workspaceId, wc.repoId]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     setSelected(null);
     setExpanded(false);
-  }, [wc.workspaceId, wc.repoId]);
+  }
 
   // Keep the selection from pointing at a file that just got committed away.
-  useEffect(() => {
-    if (
-      selected &&
-      wc.data &&
-      !wc.data.files.some((f) => f.path === selected.path && f.staged === selected.staged)
-    ) {
-      setSelected(null);
-    }
-  }, [wc.data, selected]);
+  if (
+    selected &&
+    wc.data &&
+    !wc.data.files.some((f) => f.path === selected.path && f.staged === selected.staged)
+  ) {
+    setSelected(null);
+  }
 
   if (!open || !wc.repoId) return null;
 

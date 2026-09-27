@@ -35,6 +35,9 @@ export function useMergeConflicts(): MergeConflictsState {
     mergeInProgress: boolean;
     files: ConflictFile[];
   }>({ repoKey: "", mergeInProgress: false, files: [] });
+  if (snapshot.repoKey !== repoKey) {
+    setSnapshot({ repoKey, mergeInProgress: false, files: [] });
+  }
   // Never expose another repository's conflicts during a tab switch.
   const current = snapshot.repoKey === repoKey ? snapshot : null;
   const files = current?.files ?? [];
@@ -43,10 +46,9 @@ export function useMergeConflicts(): MergeConflictsState {
 
   const refresh = useCallback(async () => {
     const seq = ++requestSeq.current;
-    if (!workspaceId || !repoId) {
-      setSnapshot({ repoKey, mergeInProgress: false, files: [] });
-      return;
-    }
+    // The returned view already hides a snapshot outside its repository.
+    // With no active repository there is nothing to fetch or synchronize.
+    if (!workspaceId || !repoId) return;
     const [inProgress, conflicts] = await Promise.all([
       mergeInProgress(workspaceId),
       listConflicts(workspaceId),

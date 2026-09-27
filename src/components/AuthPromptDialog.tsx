@@ -25,13 +25,16 @@ export function AuthPromptDialog(): React.JSX.Element | null {
 
   // Fresh fields on every open (the component stays mounted): stale input
   // from a previous attempt must not survive, least of all the password.
-  useEffect(() => {
+  const scopeKey = JSON.stringify([remoteName]);
+  const [previousScope, setPreviousScope] = useState(scopeKey);
+  if (previousScope !== scopeKey) {
+    setPreviousScope(scopeKey);
     if (remoteName) {
       setUsername("");
       setPassword("");
       setRemember(true);
     }
-  }, [remoteName]);
+  }
 
   // Unmount (HMR / teardown) with a prompt showing must settle the waiter
   // as cancelled — otherwise its promise hangs forever with no dialog to

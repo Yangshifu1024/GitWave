@@ -1,7 +1,8 @@
 // Sidebar section listing `.gitmodules` entries with init / update
 // (recursive) / deinit actions and an inline "add submodule" form.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -12,7 +13,6 @@ import {
   isCancelledSyncError,
   listSubmodules,
   updateSubmodule,
-  type SubmoduleInfo,
 } from "@/lib/api";
 import { remoteHost, withAuthRetry } from "@/lib/authRetry";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -30,9 +30,8 @@ export function SubmodulesPanel(): React.JSX.Element {
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
-  const [items, setItems] = useState<SubmoduleInfo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [url, setUrl] = useState("");
   const [path, setPath] = useState("");
@@ -42,18 +41,28 @@ export function SubmodulesPanel(): React.JSX.Element {
   // epoch in deps: auto-refresh bumps it to re-run this manual effect.
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
 
+  const query = useQuery({
+    queryKey: ["submodules", workspaceId, repoId, historyEpoch],
+    queryFn: () => listSubmodules(workspaceId!),
+    enabled: Boolean(workspaceId && repoId),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === workspaceId && previousQuery.queryKey[2] === repoId
+        ? previous
+        : undefined,
+  });
+  const refreshScope = JSON.stringify([workspaceId, repoId, historyEpoch]);
+  const [previousScope, setPreviousScope] = useState(refreshScope);
+  if (previousScope !== refreshScope) {
+    setPreviousScope(refreshScope);
+    setError(null);
+  }
+  const items = query.data ?? [];
+  const error = actionError ?? (query.error ? formatAppError(query.error) : null);
+  const { refetch } = query;
   const refresh = useCallback(async () => {
-    void historyEpoch; // re-run trigger: auto-refresh bumps the epoch.
-    if (!workspaceId || !repoId) {
-      setItems([]);
-      return;
-    }
-    setItems(await listSubmodules(workspaceId));
-  }, [workspaceId, repoId, historyEpoch]);
-
-  useEffect(() => {
-    refresh().catch((e) => setError(formatAppError(e)));
-  }, [refresh]);
+    await refetch({ throwOnError: true });
+    setError(null);
+  }, [refetch]);
 
   const run = async (name: string, op: "init" | "update"): Promise<void> => {
     if (!workspaceId || busy) return;

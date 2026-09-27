@@ -2,6 +2,7 @@ import {
   type ReactNode,
   createContext,
   useCallback,
+  useId,
   useContext,
   useEffect,
   useRef,
@@ -10,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface SplitContextValue {
+  direction: "horizontal" | "vertical";
   isDragging: boolean;
   dragHandleId: string | null;
   registerHandle: (id: string) => void;
@@ -42,10 +44,6 @@ interface SplitProps {
 
 interface ResizeHandleProps {
   className?: string;
-}
-
-function generateId(): string {
-  return `pane-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function applyGrowPaneLayout(growPane: HTMLDivElement): void {
@@ -114,6 +112,7 @@ export function Split({ direction = "horizontal", children }: SplitProps): React
   return (
     <SplitContext.Provider
       value={{
+        direction,
         isDragging,
         dragHandleId: activeHandleId,
         registerHandle,
@@ -146,7 +145,7 @@ export function Pane({
   children,
   className,
 }: PaneProps): React.JSX.Element {
-  const paneId = useRef(generateId()).current;
+  const paneId = useId();
   const ref = useRef<HTMLDivElement>(null);
   const flexBasis = typeof initialSize === "number" ? `${initialSize}px` : initialSize;
 
@@ -183,7 +182,7 @@ export function Pane({
  */
 export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Element {
   const ctx = useContext(SplitContext);
-  const handleId = useRef(generateId()).current;
+  const handleId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const handleMouseDown = useCallback(
@@ -283,9 +282,7 @@ export function ResizeHandle({ className }: ResizeHandleProps): React.JSX.Elemen
   }, []);
 
   // Determine direction from closest Split context
-  const splitEl = containerRef.current?.closest("[data-split-direction]");
-  const direction =
-    (splitEl?.getAttribute("data-split-direction") as "horizontal" | "vertical") ?? "horizontal";
+  const direction = ctx?.direction ?? "horizontal";
 
   return (
     <div

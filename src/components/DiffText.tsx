@@ -1,12 +1,11 @@
-import type { BundledLanguage } from "shiki";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useEffect, useMemo, useState } from "react";
+import { useFixedVirtualizer } from "@/hooks/useFixedVirtualizer";
 import type { DiffLine, FileDiff } from "@/lib/api";
 import { changedSpan, diffRows } from "@/lib/diffRows";
 import { cn } from "@/lib/utils";
 
 type Token = { content: string; color?: string };
-const languages: Record<string, BundledLanguage> = {
+const languages: Record<string, string> = {
   ts: "typescript",
   tsx: "tsx",
   js: "javascript",
@@ -26,11 +25,13 @@ const languages: Record<string, BundledLanguage> = {
 };
 
 function useSyntax(file: FileDiff): Map<DiffLine, Token[]> {
-  const [tokens, setTokens] = useState(new Map<DiffLine, Token[]>());
+  const [highlightedFile, setHighlightedFile] = useState<{
+    file: FileDiff;
+    tokens: Map<DiffLine, Token[]>;
+  } | null>(null);
   useEffect(() => {
     let cancelled = false;
     const lines = file.hunks.flatMap((h) => h.lines);
-    setTokens(new Map());
     // Large previews remain plain text: tokenization must not monopolize the UI.
     if (
       lines.length > 2000 ||
@@ -39,20 +40,23 @@ function useSyntax(file: FileDiff): Map<DiffLine, Token[]> {
       return;
     const lang = languages[file.path.split(".").pop() ?? ""];
     if (!lang) return;
+    let generation = 0;
     const highlight = async () => {
-      const { codeToTokens } = await import("shiki");
+      const mine = ++generation;
+      const { highlightLines } = await import("@/lib/syntaxHighlighter");
       const theme =
         document.documentElement.dataset.theme === "dark" ? "github-dark" : "github-light";
       const result = new Map<DiffLine, Token[]>();
       for (const side of ["removed", "added"] as const) {
         const source = lines.filter((l) => l.kind === "context" || l.kind === side);
-        const highlighted = await codeToTokens(source.map((l) => l.content).join("\n"), {
+        const highlighted = await highlightLines(
+          source.map((l) => l.content).join("\n"),
           lang,
           theme,
-        });
+        );
         source.forEach((line, i) => result.set(line, highlighted.tokens[i] ?? []));
       }
-      if (!cancelled) setTokens(result);
+      if (!cancelled && mine === generation) setHighlightedFile({ file, tokens: result });
     };
     void highlight().catch(() => {
       /* Unknown grammar falls back to readable text. */
@@ -69,7 +73,7 @@ function useSyntax(file: FileDiff): Map<DiffLine, Token[]> {
       observer.disconnect();
     };
   }, [file]);
-  return tokens;
+  return highlightedFile?.file === file ? highlightedFile.tokens : new Map<DiffLine, Token[]>();
 }
 
 function Text({
@@ -92,13 +96,17 @@ function Text({
         )
       : null;
   let offset = 0;
+  const segments = [];
+  for (const token of tokens ?? [{ content: line.content }]) {
+    const start = offset;
+    offset += token.content.length;
+    segments.push({ token, start, end: offset });
+  }
   return (
     <>
-      {(tokens ?? [{ content: line.content }]).map((token, i) => {
-        const start = offset;
-        offset += token.content.length;
+      {segments.map(({ token, start, end }, i) => {
         const a = span ? Math.max(start, span[0]) - start : 0;
-        const b = span ? Math.min(offset, span[1]) - start : 0;
+        const b = span ? Math.min(end, span[1]) - start : 0;
         return (
           <span key={i} style={{ color: token.color }}>
             {b > a ? (
@@ -132,13 +140,13 @@ export function DiffText({
   file: FileDiff;
   mode: "split" | "unified";
 }): React.JSX.Element {
-  const parent = useRef<HTMLDivElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const rows = useMemo(() => diffRows(file.hunks, mode === "split"), [file.hunks, mode]);
   const tokens = useSyntax(file);
-  const virtual = useVirtualizer({
+  const virtual = useFixedVirtualizer({
     count: rows.length,
-    getScrollElement: () => parent.current,
-    estimateSize: () => 20,
+    element: scrollElement,
+    rowHeight: 20,
     overscan: 12,
   });
   const width = useMemo(
@@ -174,19 +182,19 @@ export function DiffText({
   );
   return (
     <div
-      ref={parent}
+      ref={setScrollElement}
       className="overflow-auto font-mono text-xs leading-5"
       style={{ height: Math.min(560, Math.max(40, rows.length * 20)) }}
     >
       <div
         style={{
-          height: virtual.getTotalSize(),
+          height: virtual.totalSize,
           minWidth: "100%",
           width: mode === "split" ? width * 2 : width,
           position: "relative",
         }}
       >
-        {virtual.getVirtualItems().map((item) => {
+        {virtual.items.map((item) => {
           const row = rows[item.index]!;
           return (
             <div
