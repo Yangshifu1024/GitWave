@@ -61,6 +61,7 @@ import { useAuthPromptStore } from "@/stores/authPromptStore";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { stashesQueryKey } from "@/hooks/useStashes";
+import { useSeedRepos } from "@/hooks/useSeedRepos";
 import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
 import { cn } from "@/lib/utils";
 import { Separator } from "@heroui/react";
@@ -187,6 +188,7 @@ export function ActionBar({
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const wc = useWorkingCopy();
+  const seedRepos = useSeedRepos();
 
   // ── Workspace state ────────────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false);
@@ -372,6 +374,7 @@ export function ActionBar({
   const initMut = useMutation({
     mutationFn: ({ path }: { path: string }) => initRepo(activeWorkspaceId!, path),
     onSuccess: (repo) => {
+      seedRepos(activeWorkspaceId!, [repo]);
       refreshRepos();
       setInitPath("");
       endAdd();
@@ -398,6 +401,7 @@ export function ActionBar({
       setActionError(null);
     },
     onSuccess: (repo) => {
+      seedRepos(activeWorkspaceId!, [repo]);
       refreshRepos();
       setCloneUrl("");
       setCloneDest("");
@@ -447,6 +451,7 @@ export function ActionBar({
         );
         return;
       }
+      seedRepos(activeWorkspaceId!, summary.added);
       refreshRepos();
       endAdd();
       void activateRepo(lastAdded.id);
