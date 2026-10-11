@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { RepoRef } from "./api";
-import { pickRestoredRepo } from "./repoSelection";
+import { pickRestoredRepo, upsertRepos } from "./repoSelection";
 
 function repo(id: string, status: RepoRef["status"]): RepoRef {
   return {
@@ -46,5 +46,41 @@ describe("pickRestoredRepo", () => {
   it("returns null for an empty repo list", () => {
     expect(pickRestoredRepo([], null)).toBeNull();
     expect(pickRestoredRepo([], "a")).toBeNull();
+  });
+});
+
+describe("upsertRepos", () => {
+  it("appends a new repo at the end", () => {
+    const repos = [repo("a", "active"), repo("b", "active")];
+    expect(upsertRepos(repos, [repo("c", "active")]).map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("appends every repo of a batch add", () => {
+    const repos = [repo("a", "active")];
+    expect(upsertRepos(repos, [repo("b", "active"), repo("c", "active")]).map((r) => r.id)).toEqual(
+      ["a", "b", "c"],
+    );
+  });
+
+  it("replaces an existing repo in place so its tab does not move", () => {
+    const repos = [repo("a", "active"), repo("b", "missing"), repo("c", "active")];
+    const revived = { ...repo("b", "active"), nickname: "relinked" };
+    const merged = upsertRepos(repos, [revived]);
+    expect(merged.map((r) => r.id)).toEqual(["a", "b", "c"]);
+    expect(merged.find((r) => r.id === "b")).toEqual(revived);
+  });
+
+  it("returns the same array when nothing was added", () => {
+    const repos = [repo("a", "active")];
+    expect(upsertRepos(repos, [])).toBe(repos);
+  });
+
+  it("keeps the selection resolvable right after an add", () => {
+    // The regression this guards: the tab strip's liveness guard falls back to
+    // the first repo whenever the active id is absent from the rendered list.
+    const before = [repo("a", "active"), repo("b", "active")];
+    const added = repo("c", "active");
+    expect(pickRestoredRepo(upsertRepos(before, [added]), added.id)).toBe(added.id);
+    expect(pickRestoredRepo(upsertRepos(before, [added]), "b")).toBe("b");
   });
 });

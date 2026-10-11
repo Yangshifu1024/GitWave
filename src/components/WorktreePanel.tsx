@@ -10,6 +10,7 @@ import {
   setActiveRepo,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { useSeedRepos } from "@/hooks/useSeedRepos";
 import { Button } from "@/components/ui/Button";
 import { ListItem } from "@/components/ui/ListItem";
 import { SidebarSection } from "@/components/ui/SidebarSection";
@@ -23,6 +24,7 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
   const queryClient = useQueryClient();
+  const seedRepos = useSeedRepos();
 
   const [busy, setBusy] = useState(false);
   const [actionError, setError] = useState<string | null>(null);
@@ -73,6 +75,9 @@ export function WorktreePanel({ compact = false }: { compact?: boolean }): React
     void run(async () => {
       const repo = await addLocalRepo(workspaceId!, wt.path);
       await setActiveRepo(workspaceId!, repo.id);
+      // Seed before the selection: this path moves the selection before
+      // invalidating, so the list is guaranteed to still lack the new repo.
+      seedRepos(workspaceId!, [repo]);
       setActiveRepoId(repo.id);
       void queryClient.invalidateQueries({ queryKey: ["repos", workspaceId] });
     });
