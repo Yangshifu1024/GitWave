@@ -28,8 +28,8 @@ pre-commit run --all-files
 ```bash
 make check      # CI-equivalent: format gates + lint + all tests, changes nothing
 make fmt-check  # pnpm exec prettier --check . + cargo fmt -- --check
-make lint       # pnpm lint + cargo clippy + pnpm typecheck + cargo check
-make test       # pnpm test + cargo test --all-targets
+make lint       # Tauri npm/Rust version compatibility + pnpm lint + cargo clippy + pnpm typecheck + cargo check
+make test       # pnpm test (Node regression tests + Vitest) + cargo test --all-targets
 ```
 
 `make format` is the only target that rewrites files. Or run the commands individually:
@@ -44,6 +44,7 @@ cargo test --all-targets
 pnpm lint
 pnpm format:check
 pnpm typecheck
+pnpm check:tauri-versions
 pnpm test
 ```
 

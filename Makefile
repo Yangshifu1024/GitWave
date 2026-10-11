@@ -16,7 +16,8 @@ test: ## 前端 + Rust 全部测试
 	pnpm test
 	$(CARGO) test $(CARGO_MANIFEST) --all-targets
 
-lint: ## eslint + clippy + typecheck + cargo check
+lint: ## Tauri version compatibility + eslint + clippy + typecheck + cargo check
+	pnpm check:tauri-versions
 	pnpm lint
 	$(CARGO) clippy $(CARGO_MANIFEST) --all-targets -- -D warnings
 	pnpm typecheck

@@ -20,7 +20,7 @@
 - `style-`：纯格式 / 命名等外观调整（如 `style-sidebar-tag-sha-parentheses`）
 - `<任务名>`：小写字母与连字符；与 `docs/pm/features/` 中对应条目编号对齐
 
-截至当前，本目录共 137 个任务目录：`feat-` 66 个、`fix-` 65 个、`chore-` 4 个、`refactor-` 1 个、`style-` 1 个。
+截至当前，本目录共 138 个任务目录：`feat-` 66 个、`fix-` 66 个、`chore-` 4 个、`refactor-` 1 个、`style-` 1 个。
 
 例：
 

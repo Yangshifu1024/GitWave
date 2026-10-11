@@ -67,7 +67,8 @@ pnpm tauri dev
 | `pnpm format:check` | Prettier check (no write) |
 | `pnpm format` | Prettier write |
 | `pnpm typecheck` | TypeScript check |
-| `pnpm test` | Vitest unit tests (`test:watch` for watch mode) |
+| `pnpm check:tauri-versions` | Check resolved npm/Rust Tauri major/minor compatibility |
+| `pnpm test` | Node Tauri compatibility regression tests + Vitest unit tests (`test:watch` for Vitest watch mode) |
 | `pnpm test:e2e` | Playwright end-to-end tests (no suite yet) |
 | `pnpm bump <x.y.z>` | Bump the version in the four version files |
 
@@ -92,8 +93,8 @@ make check   # fmt-check + lint + test, writes nothing — the pre-delivery gate
 |---|---|
 | `make check` | `fmt-check` + `lint` + `test` (the CI-equivalent gate) |
 | `make fmt-check` | Prettier check + `cargo fmt --check` |
-| `make lint` | ESLint + clippy + typecheck + `cargo check` |
-| `make test` | Vitest + `cargo test --all-targets` |
+| `make lint` | Tauri npm/Rust version compatibility + ESLint + clippy + typecheck + `cargo check` |
+| `make test` | Node compatibility tests + Vitest + `cargo test --all-targets` |
 | `make format` | Prettier write + `cargo fmt` (rewrites files) |
 | `make build` | format + lint + test, then `pnpm tauri build` |
 | `make dev` | `pnpm tauri dev` (no pre-checks) |

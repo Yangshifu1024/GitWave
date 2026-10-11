@@ -77,6 +77,8 @@ jobs:
           cache: pnpm
       - name: pnpm install
         run: pnpm install --frozen-lockfile
+      - name: Tauri version compatibility
+        run: pnpm check:tauri-versions
       - name: prettier check
         run: pnpm exec prettier --check .
       - name: eslint
