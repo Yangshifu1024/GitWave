@@ -122,8 +122,9 @@ export function buildNativeAppMenuOptions(
   handler: AppMenuItemHandler,
 ): MenuOptions {
   const t = i18next.t.bind(i18next);
-  return {
-    id: "gitwave-app-menu",
+  const instanceId = crypto.randomUUID();
+  const options: MenuOptions = {
+    id: `gitwave-app-menu-${instanceId}`,
     items: [
       { id: "app", text: "GitWave", items: appMenuEntries(handler) },
       { id: "edit", text: t("menu.menus.edit"), items: editMenuEntries() },
@@ -132,4 +133,17 @@ export function buildNativeAppMenuOptions(
       { id: "window", text: t("menu.menus.window"), items: windowMenuEntries() },
     ],
   };
+  // Tauri stores action channels by menu ID, and dropping an old menu
+  // removes those IDs. Reusing IDs across rebuilds lets old-menu cleanup
+  // delete the replacement's callbacks. Keep dispatch IDs in the closures
+  // above, but give every native instance its own resource IDs.
+  function namespaceItems(items: NonNullable<MenuOptions["items"]>): void {
+    for (const item of items) {
+      if ("rid" in item) continue;
+      if ("id" in item && item.id) item.id = `${instanceId}:${item.id}`;
+      if ("items" in item && item.items) namespaceItems(item.items);
+    }
+  }
+  namespaceItems(options.items ?? []);
+  return options;
 }
