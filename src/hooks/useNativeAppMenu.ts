@@ -10,7 +10,13 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { Menu } from "@tauri-apps/api/menu";
+import {
+  Menu,
+  MenuItem,
+  PredefinedMenuItem,
+  Submenu,
+  type MenuOptions,
+} from "@tauri-apps/api/menu";
 
 import { buildAppMenuSpec, type AppMenuItemHandler, type MenuGating } from "@/lib/appMenuSpec";
 import { buildNativeAppMenuOptions } from "@/lib/nativeMenuBuild";
@@ -44,12 +50,58 @@ function handlerFrom(callbacks: RefObject<LatestCallbacks>): AppMenuItemHandler 
   };
 }
 
+let installedResources: (MenuItem | PredefinedMenuItem | Submenu)[] = [];
+let installedMenu: Menu | null = null;
+
 async function installMenu(gating: MenuGating, handler: AppMenuItemHandler): Promise<Menu> {
-  const menu = await Menu.new(buildNativeAppMenuOptions(buildAppMenuSpec(gating), handler));
-  const previous = await menu.setAsAppMenu();
+  const resources: (MenuItem | PredefinedMenuItem | Submenu)[] = [];
+  // Inline options create temporary Rust wrappers whose Drop removes action
+  // channels. Explicit resources live in the webview resource table until
+  // close(), keeping callbacks registered for the installed menu's lifetime.
+  async function materialize(items: NonNullable<MenuOptions["items"]>): Promise<void> {
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index]!;
+      if ("rid" in item) continue;
+      let resource: MenuItem | PredefinedMenuItem | Submenu;
+      if ("items" in item) {
+        await materialize(item.items ?? []);
+        resource = await Submenu.new(item);
+      } else if ("item" in item) {
+        resource = await PredefinedMenuItem.new(item);
+      } else {
+        resource = await MenuItem.new(item);
+      }
+      resources.push(resource);
+      items[index] = resource;
+    }
+  }
+  const options = buildNativeAppMenuOptions(buildAppMenuSpec(gating), handler);
+  let menu: Menu;
+  try {
+    await materialize(options.items ?? []);
+    menu = await Menu.new(options);
+  } catch (error) {
+    await Promise.allSettled(resources.map((resource) => resource.close()));
+    throw error;
+  }
+  let previous: Menu | null;
+  try {
+    previous = await menu.setAsAppMenu();
+  } catch (error) {
+    await Promise.allSettled([menu.close(), ...resources.map((resource) => resource.close())]);
+    throw error;
+  }
   // Free the replaced menu (ours from a previous install, or Tauri's
   // default on first install).
-  if (previous) await previous.close();
+  const oldMenu = installedMenu;
+  const oldResources = installedResources;
+  installedMenu = menu;
+  installedResources = resources;
+  await Promise.allSettled([
+    ...(previous ? [previous.close()] : []),
+    ...(oldMenu ? [oldMenu.close()] : []),
+    ...oldResources.map((resource) => resource.close()),
+  ]);
   return menu;
 }
 
@@ -123,17 +175,11 @@ export function useNativeAppMenu(options: { onAbout: () => void }): void {
   useEffect(() => {
     if (!isMacOS()) return undefined;
 
-    const run = { stale: false, installed: null as Menu | null };
     const handler = handlerFrom(callbacks);
 
     enqueueInstall(async () => {
       try {
-        const menu = await installMenu(gating, handler);
-        // Post-install stale recheck: cleanup may have run during the awaits.
-        // Ours stays the live menu either way — a stale run implies a newer
-        // enqueued install exists and will replace (and close) it; on final
-        // unmount the app is quitting.
-        if (!run.stale) run.installed = menu;
+        await installMenu(gating, handler);
       } catch (error) {
         // E.g. missing core:menu capability or an unsupported webview —
         // the app keeps working, only the system menu stays at the default.
@@ -141,13 +187,9 @@ export function useNativeAppMenu(options: { onAbout: () => void }): void {
       }
     });
 
-    return () => {
-      run.stale = true;
-      if (run.installed) {
-        void run.installed.close().catch(() => undefined);
-        run.installed = null;
-      }
-    };
+    // The install queue owns disposal after replacement. On final unmount
+    // the native menu remains usable until the app/webview shuts down.
+    return undefined;
     // Menu labels translate at spec-build time (module-level i18next.t,
     // invisible to the lint rule) — i18n.language forces a rebuild on
     // language switch.

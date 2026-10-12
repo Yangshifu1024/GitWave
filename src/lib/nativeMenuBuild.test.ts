@@ -131,4 +131,41 @@ describe("buildNativeAppMenuOptions", () => {
       ?.action?.("import");
     expect(routed).toEqual(["workspace:import"]);
   });
+
+  it("keeps replacement callbacks alive when Tauri drops the previous menu IDs", () => {
+    const routed: string[] = [];
+    const handler = {
+      ...NOOP_HANDLER,
+      openSettings: () => void routed.push("settings"),
+      requestMenuAction: (action: Parameters<AppMenuItemHandler["requestMenuAction"]>[0]) =>
+        void routed.push(action),
+    };
+    const old = buildNativeAppMenuOptions(buildAppMenuSpec(ACTIVE), handler);
+    const next = buildNativeAppMenuOptions(buildAppMenuSpec(ACTIVE), handler);
+    expect(old.id).not.toBe(next.id);
+    const channels = new Map<string, MenuItemOptions["action"]>();
+    const ids = (menu: typeof old): string[] => {
+      const result = [menu.id!];
+      const visit = (items: NonNullable<typeof menu.items>): void => {
+        for (const item of items) {
+          if ("rid" in item) continue;
+          if ("id" in item && item.id) result.push(item.id);
+          if ("items" in item) visit(item.items ?? []);
+          else if ("action" in item && item.id) channels.set(item.id, item.action);
+        }
+      };
+      visit(menu.items ?? []);
+      return result;
+    };
+    const oldIds = ids(old);
+    const newIds = ids(next);
+    expect(newIds.filter((id) => oldIds.includes(id))).toEqual([]);
+    oldIds.forEach((id) => channels.delete(id));
+    const settings = itemsByLabel(submenuAt(next.items ?? [], 0))["Settings…"]!;
+    channels.get(settings.id!)?.(settings.id!);
+    // Exercise a workspace action as well as the app-menu settings route.
+    const imported = itemsByLabel(submenuAt(next.items ?? [], 2)).Import!;
+    channels.get(imported.id!)?.(imported.id!);
+    expect(routed).toEqual(["settings", "workspace:import"]);
+  });
 });
