@@ -29,6 +29,7 @@ export interface UpdaterState {
   downloadedBytes: number;
   totalBytes: number | null;
   error: string | null;
+  restarting: boolean;
   /** Monotonic id of the latest check; late results from an older check are dropped. */
   checkEpoch: number;
   /** Bump the epoch without touching the phase (silent startup checks stay invisible). */
@@ -44,6 +45,8 @@ export interface UpdaterState {
   beginDownload: () => void;
   setProgress: (downloadedBytes: number, totalBytes: number | null) => void;
   markReady: () => void;
+  beginRestart: () => boolean;
+  finishRestart: (error: string | null) => void;
   fail: (error: string) => void;
   setModalOpen: (open: boolean) => void;
 }
@@ -57,6 +60,7 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
   downloadedBytes: 0,
   totalBytes: null,
   error: null,
+  restarting: false,
   checkEpoch: 0,
   startCheckEpoch: () => {
     const checkEpoch = get().checkEpoch + 1;
@@ -84,7 +88,16 @@ export const useUpdaterStore = create<UpdaterState>()((set, get) => ({
   setProgress: (downloadedBytes, totalBytes) => set({ downloadedBytes, totalBytes }),
   // Re-open the modal: the user may have closed it mid-download, and the
   // relaunch affordance must not go unnoticed.
-  markReady: () => set({ phase: "ready", modalOpen: true }),
+  markReady: () => set({ phase: "ready", modalOpen: true, error: null, restarting: false }),
+  beginRestart: () => {
+    if (get().phase !== "ready" || get().restarting) return false;
+    set({ restarting: true, error: null });
+    return true;
+  },
+  // A restart failure does not undo the installation. Keep its version,
+  // notes and restart action so retry never downloads the update again.
+  finishRestart: (error) =>
+    set({ restarting: false, error, ...(error ? { modalOpen: true } : {}) }),
   fail: (error) =>
     set({
       phase: "error",

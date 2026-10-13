@@ -12,12 +12,14 @@
     "manualDownloadNote": "This copy was installed from a .deb/.rpm package, which cannot replace itself. Please grab the new package from the releases page — the AppImage build updates in-app.",
     "downloadingAria": "Downloading update",
     "restartToApply": "Restart GitWave to finish applying the update.",
+    "restartFailed": "Could not restart GitWave: {{error}}. Try Restart Now again, or quit and reopen the app.",
     "actions": {
       "later": "Later",
       "downloadInstall": "Download & Install",
       "openReleases": "Open Releases Page",
       "hide": "Hide",
       "restartNow": "Restart Now",
+      "restarting": "Restarting…",
       "close": "Close",
       "tryAgain": "Try Again"
     }

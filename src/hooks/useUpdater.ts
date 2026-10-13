@@ -165,7 +165,11 @@ export function useInstallUpdate(): () => void {
 
 export function useRestartApp(): () => void {
   return useCallback(() => {
-    void relaunch();
+    if (!useUpdaterStore.getState().beginRestart()) return;
+    void relaunch().then(
+      () => useUpdaterStore.getState().finishRestart(null),
+      (e) => useUpdaterStore.getState().finishRestart(formatAppError(e)),
+    );
   }, []);
 }
 
