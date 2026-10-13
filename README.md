@@ -2,14 +2,14 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.10.1 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
+**Status:** v0.10.2 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
 ### What's new in v0.10.x
 
+- **v0.10.2** — fixed macOS relaunch after installing updates, with visible restart failures and retry; updated Tauri, React libraries and development tooling
 - **v0.10.1** — restored macOS native menu actions so Settings, Add Repository and other dialogs open reliably after startup and menu rebuilds
 - **v0.10.0** — newly added, initialized or cloned repositories stay active instead of jumping to the first tab; worktree switching preserves the selected repository, and batch additions activate the last added repository; updated Tauri plugins and development dependencies
 - **v0.9.6** — refreshed application icons across the desktop app and website; smaller frontend bundles with on-demand syntax resources; more reliable dialog resets and repository switching, with warning-free frontend and Rust quality gates
-- **v0.9.5** — offline AI requests now enforce loopback-only connectivity, bypass system proxies, disable redirects, and screen complete blob versions for private-key material before any diff fragment is sent; commit drafts and conflict buffers survive navigation; clean working copies support message-only amend; the diff viewer ships selected-file previews with truncation, virtualised text rows, paired split replacements and syntax highlighting; history pages with bounded search and visible scan scope; hooks resolve against linked-worktree common directories and core.hooksPath
 
 Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWave/releases).
 
@@ -28,7 +28,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **Diff viewer** — side-by-side and unified views, character-level highlighting inside changed lines, and side-by-side image diffs (old / new versions rendered for png / jpg / gif / webp / bmp / ico / svg — for unstaged changes the new side reflects the live worktree)
 - **Advanced Git** — stash (scoped to the active repo; each entry opens a detail window with its file list and diff, its actions are labelled buttons with tooltips, apply pre-checks a working copy that has uncommitted changes and drop confirms before running, and files saved as untracked are listed), interactive rebase, worktrees, submodules, LFS, remotes, .gitignore editor, Git hooks panel, repo health checks
 - **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider. AI replies in Chinese / Japanese / Korean / English per your preference
-- **Automatic updates** — in-app check for updates with signed downloads and one-click install (macOS / Windows / AppImage); deb / rpm installs get update prompts pointing at the releases page
+- **Automatic updates** — in-app check for updates with signed downloads and one-click install (macOS / Windows / AppImage); Restart Now reopens the app after installing a macOS update, with visible restart request failures and retry; deb / rpm installs get update prompts pointing at the releases page
 - **Background refresh** — auto refresh keeps every repository in the workspace current on a configurable interval (default 5 minutes), fetching each repo best-effort; ⌘R / Ctrl+R refreshes the active repo on demand
 - **Proxy-aware networking** — AI requests, sync, LFS and update checks follow the OS system proxy (Windows / macOS) or a manual proxy URL you set in Settings → Network, effective immediately; loopback addresses (local Ollama etc.) always bypass it
 - **SSH key management** — generate / import keys, per-repo SSH configuration
