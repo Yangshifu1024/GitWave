@@ -12,6 +12,7 @@ function reset(): void {
     downloadedBytes: 0,
     totalBytes: null,
     error: null,
+    restarting: false,
     checkEpoch: 0,
   });
 }

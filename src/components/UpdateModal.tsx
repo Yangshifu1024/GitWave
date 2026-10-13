@@ -39,6 +39,7 @@ export function UpdateModal(): React.JSX.Element {
   const downloadedBytes = useUpdaterStore((s) => s.downloadedBytes);
   const totalBytes = useUpdaterStore((s) => s.totalBytes);
   const error = useUpdaterStore((s) => s.error);
+  const restarting = useUpdaterStore((s) => s.restarting);
   const install = useInstallUpdate();
   const restart = useRestartApp();
   const openReleases = useOpenReleases();
@@ -90,8 +91,8 @@ export function UpdateModal(): React.JSX.Element {
             <Button variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
               {t("updater.actions.later")}
             </Button>
-            <Button variant="primary" size="sm" onClick={restart}>
-              {t("updater.actions.restartNow")}
+            <Button variant="primary" size="sm" disabled={restarting} onClick={restart}>
+              {t(restarting ? "updater.actions.restarting" : "updater.actions.restartNow")}
             </Button>
           </>
         );
@@ -181,8 +182,10 @@ export function UpdateModal(): React.JSX.Element {
           <p className="text-xs text-text-secondary">{t("updater.restartToApply")}</p>
         ) : null}
 
-        {phase === "error" && error ? (
-          <p className="text-xs text-danger break-words">{error}</p>
+        {(phase === "error" || phase === "ready") && error ? (
+          <p role="alert" className="text-xs text-danger break-words">
+            {phase === "ready" ? t("updater.restartFailed", { error }) : error}
+          </p>
         ) : null}
       </div>
     </Modal>
