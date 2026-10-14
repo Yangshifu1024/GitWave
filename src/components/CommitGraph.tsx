@@ -339,48 +339,54 @@ const CommitRow = React.memo(function CommitRow({
               {commit.message_summary}
             </p>
 
-            {primaryRef ? (
-              <span className="flex min-w-0 max-w-[20%] basis-[20%] items-center justify-end gap-1 overflow-hidden">
-                {[primaryRef].map((r) => (
-                  <RefBadgeContextMenu
-                    key={`${r.kind}:${r.name}`}
-                    r={r}
-                    onSelect={() => onSelect(commit.sha)}
-                  >
-                    <RefBadge
+            <span className="flex min-w-0 w-[20%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+              {primaryRef ? (
+                <>
+                  {[primaryRef].map((r) => (
+                    <RefBadgeContextMenu
+                      key={`${r.kind}:${r.name}`}
                       r={r}
-                      lane={commit.lane}
-                      emphasize={isHead && r.kind !== "remote_branch"}
-                      synced={r.synced}
-                    />
-                  </RefBadgeContextMenu>
-                ))}
-                {refs.length > 1 ? (
-                  <button
-                    type="button"
-                    className="shrink-0 rounded px-1 text-[11px] text-text-secondary hover:bg-bg-elevated"
-                    aria-label={t("branches.graph.allRefs", { count: refs.length })}
-                    title={refs.map((r) => r.name).join("\n")}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setRefsOpen(true);
-                    }}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
-                    +{refs.length - 1}
-                  </button>
-                ) : null}
-              </span>
-            ) : null}
+                      onSelect={() => onSelect(commit.sha)}
+                    >
+                      <RefBadge
+                        r={r}
+                        lane={commit.lane}
+                        emphasize={isHead && r.kind !== "remote_branch"}
+                        synced={r.synced}
+                      />
+                    </RefBadgeContextMenu>
+                  ))}
+                  {refs.length > 1 ? (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded px-1 text-[11px] text-text-secondary hover:bg-bg-elevated"
+                      aria-label={t("branches.graph.allRefs", { count: refs.length })}
+                      title={refs.map((r) => r.name).join("\n")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setRefsOpen(true);
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      +{refs.length - 1}
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+            </span>
 
             <span className="hidden font-mono text-[11px] text-text-muted w-14 shrink-0 tabular-nums @lg/history:block">
               {shortSha(commit.sha)}
             </span>
 
-            {/* Shrinks first and collapses to nothing before the message gives
-              up its room: tight rows hide author/time instead of the refs. */}
-            <span className="hidden min-w-0 max-w-36 shrink-[999] overflow-hidden whitespace-nowrap text-[11px] text-text-muted tabular-nums @2xl/history:block">
-              {commit.author} &middot; {formatCommitTime(commit.time, t)}
+            <span
+              className="hidden w-24 shrink-0 truncate text-[11px] text-text-muted @2xl/history:block"
+              title={commit.author}
+            >
+              {commit.author}
+            </span>
+            <span className="hidden w-16 shrink-0 truncate text-right text-[11px] text-text-muted tabular-nums @2xl/history:block">
+              {formatCommitTime(commit.time, t)}
             </span>
           </div>
         </Surface>
