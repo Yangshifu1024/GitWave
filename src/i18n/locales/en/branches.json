@@ -151,8 +151,8 @@
       "endOfSnapshot": "End of loaded range · {{total}} commits",
       "title": "Commit history",
       "fullGraph": "Full branch graph",
-      "compactGraph": "Compact graph",
-      "compressedHint": "The preview compresses all lanes. Expand to inspect the full topology.",
+      "compactGraph": "Compact view",
+      "compressedHint": "Compact view preserves node shapes. Scroll horizontally to browse the graph; commit messages stay in place.",
       "allRefs": "All refs ({{count}})"
     }
   }
