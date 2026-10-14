@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { CommitGraph } from "./CommitGraph";
@@ -73,6 +73,21 @@ beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", vi.fn());
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
   vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(280);
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(640);
+  HTMLElement.prototype.scrollTo = vi.fn(function (
+    this: HTMLElement,
+    optionsOrX?: ScrollToOptions | number,
+    y?: number,
+  ) {
+    if (typeof optionsOrX === "number") {
+      this.scrollLeft = optionsOrX;
+      this.scrollTop = y ?? 0;
+    } else {
+      this.scrollLeft = optionsOrX?.left ?? this.scrollLeft;
+      this.scrollTop = optionsOrX?.top ?? this.scrollTop;
+    }
+    this.dispatchEvent(new Event("scroll"));
+  });
   commits = Array.from({ length: 300 }, (_, index) => ({
     sha: `sha-${index}`,
     author: "Author",
@@ -100,6 +115,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollTo;
 });
 
 function commitRow(index: number) {
@@ -109,28 +125,37 @@ function scrollContainer(row: Element): HTMLDivElement {
   return row.parentElement!.parentElement!.parentElement as HTMLDivElement;
 }
 
+function expectUndistortedGraph(svg: SVGSVGElement) {
+  // Each SVG unit must occupy one CSS pixel on both axes. A bounded outer
+  // graph viewport may scroll, but it must never squeeze the SVG itself.
+  expect(svg.hasAttribute("viewBox")).toBe(false);
+  expect(svg.hasAttribute("preserveAspectRatio")).toBe(false);
+  expect(svg.querySelector("circle")).toBeTruthy();
+}
+
+function nodeX(row: Element) {
+  return Number(row.querySelector("circle")!.getAttribute("cx"));
+}
+
+function expectCompactNodeVisible(row: Element, viewport: HTMLElement) {
+  expect(nodeX(row) - viewport.scrollLeft).toBeGreaterThanOrEqual(0);
+  expect(nodeX(row) - viewport.scrollLeft).toBeLessThanOrEqual(112);
+}
+
 it("switches to full topology without losing the scroll node or selected commit", () => {
   const select = vi.fn();
   render(<CommitGraph onCommitSelect={select} />);
   const viewport = scrollContainer(commitRow(0));
-  viewport.scrollTo = vi.fn((optionsOrX?: ScrollToOptions | number, y?: number) => {
-    if (typeof optionsOrX === "number") {
-      viewport.scrollLeft = optionsOrX;
-      viewport.scrollTop = y ?? 0;
-    } else {
-      viewport.scrollLeft = optionsOrX?.left ?? viewport.scrollLeft;
-      viewport.scrollTop = optionsOrX?.top ?? viewport.scrollTop;
-    }
-  });
   fireEvent.scroll(viewport, { target: { scrollTop: 1680 } });
   const selectedRow = commitRow(60);
   fireEvent.click(selectedRow);
   expect(select).toHaveBeenCalledExactlyOnceWith("sha-60");
   expect(selectedRow.getAttribute("aria-pressed")).toBe("true");
   const compactSvg = selectedRow.querySelector("svg")!;
-  expect(Number(compactSvg.getAttribute("width"))).toBeLessThanOrEqual(112);
-  // All original topology coordinates remain represented in the compact graph.
-  expect(Number(compactSvg.getAttribute("viewBox")!.split(" ")[2])).toBeGreaterThan(112);
+  expectUndistortedGraph(compactSvg);
+  expect(nodeX(commitRow(61)) - nodeX(selectedRow)).toBe(12);
+  expect(viewport.scrollLeft).toBeGreaterThan(0);
+  expectCompactNodeVisible(selectedRow, viewport);
   fireEvent.click(screen.getByRole("button", { name: "branches.graph.fullGraph" }));
   expect(
     screen
@@ -141,12 +166,111 @@ it("switches to full topology without losing the scroll node or selected commit"
   expect(viewport.scrollTop).toBe(1680);
   expect(commitRow(60)).toBe(selectedRow);
   expect(selectedRow.getAttribute("aria-pressed")).toBe("true");
-  expect(Number(selectedRow.querySelector("svg")!.getAttribute("width"))).toBeGreaterThan(112);
+  const fullSvg = selectedRow.querySelector("svg")!;
+  expectUndistortedGraph(fullSvg);
+  expect(nodeX(commitRow(61)) - nodeX(selectedRow)).toBe(18);
+  expect(nodeX(selectedRow) - viewport.scrollLeft).toBeGreaterThanOrEqual(0);
+  expect(nodeX(selectedRow) - viewport.scrollLeft).toBeLessThanOrEqual(viewport.clientWidth);
   expect(select).toHaveBeenCalledTimes(1);
   viewport.scrollLeft = 120;
   fireEvent.click(screen.getByRole("button", { name: "branches.graph.compactGraph" }));
   expect(viewport.scrollTop).toBe(1680);
-  expect(viewport.scrollLeft).toBe(0);
+  expectUndistortedGraph(selectedRow.querySelector("svg")!);
+  expectCompactNodeVisible(selectedRow, viewport);
+});
+
+it("does not pull a manually browsed graph back to the selection when history pages append or reload", () => {
+  const view = render(<CommitGraph selectedSha="sha-20" />);
+  const viewport = scrollContainer(commitRow(0));
+  expect(viewport.scrollLeft).toBeGreaterThan(0);
+  fireEvent.scroll(viewport, { target: { scrollLeft: 45, scrollTop: 280 } });
+  commits = [...commits, { ...commits[299]!, sha: "older", lane: 50 }];
+  view.rerender(<CommitGraph selectedSha="sha-20" />);
+  expect(viewport.scrollLeft).toBe(45);
+  expect(viewport.scrollTop).toBe(280);
+  commits = commits.map((commit) => ({ ...commit }));
+  view.rerender(<CommitGraph selectedSha="sha-20" />);
+  expect(viewport.scrollLeft).toBe(45);
+  expect(viewport.scrollTop).toBe(280);
+  act(() => useWorkspaceUiStore.getState().bumpHistoryEpoch());
+  expect(viewport.scrollLeft).toBe(45);
+});
+
+it("reveals the same selected commit again after the user pans away and selects it again", () => {
+  const select = vi.fn();
+  render(<CommitGraph onCommitSelect={select} />);
+  const viewport = scrollContainer(commitRow(0));
+  fireEvent.scroll(viewport, { target: { scrollTop: 1680 } });
+  const row = commitRow(60);
+  fireEvent.click(row);
+  expectCompactNodeVisible(row, viewport);
+  expect(row.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.scroll(viewport, { target: { scrollLeft: 0 } });
+  expect(nodeX(row) - viewport.scrollLeft).toBeGreaterThan(112);
+  fireEvent.click(row);
+  expectCompactNodeVisible(row, viewport);
+  expect(viewport.scrollTop).toBe(1680);
+  expect(row.getAttribute("aria-pressed")).toBe("true");
+  expect(select).toHaveBeenNthCalledWith(1, "sha-60");
+  expect(select).toHaveBeenNthCalledWith(2, "sha-60");
+});
+
+it("routes a merge curve to its parent lane at the actual compact and full spacing", () => {
+  commits[0]!.parents = ["sha-1", "sha-2"];
+  render(<CommitGraph />);
+  const mergeRow = commitRow(0);
+  const readCurve = () =>
+    mergeRow
+      .querySelector("path")!
+      .getAttribute("d")!
+      .match(/\d+(?:\.\d+)?/g)!
+      .map(Number);
+  const compactCurve = readCurve();
+  expect(compactCurve[0]).toBe(nodeX(mergeRow));
+  expect(compactCurve[6]).toBe(nodeX(commitRow(2)));
+  expect(compactCurve[6]! - compactCurve[0]!).toBe(24);
+  const compactRadius = mergeRow.querySelector("circle")!.getAttribute("r");
+  fireEvent.click(screen.getByRole("button", { name: "branches.graph.fullGraph" }));
+  const fullCurve = readCurve();
+  expect(fullCurve[0]).toBe(nodeX(mergeRow));
+  expect(fullCurve[6]).toBe(nodeX(commitRow(2)));
+  expect(fullCurve[6]! - fullCurve[0]!).toBe(36);
+  expect(fullCurve[7]).toBe(compactCurve[7]);
+  expect(mergeRow.querySelector("circle")!.getAttribute("r")).toBe(compactRadius);
+  expectUndistortedGraph(mergeRow.querySelector("svg")!);
+});
+
+it("reveals a located high-lane node and handles each locate request once", () => {
+  const view = render(<CommitGraph />);
+  const viewport = scrollContainer(commitRow(0));
+  view.rerender(
+    <CommitGraph
+      selectedSha="sha-239"
+      locateRequest={{ repoId: "repo", sha: "sha-239", seq: 1 }}
+    />,
+  );
+  expectCompactNodeVisible(commitRow(239), viewport);
+  expect(viewport.scrollLeft).toBeGreaterThan(0);
+  expect(viewport.scrollTop).toBeGreaterThan(0);
+  const locatedTop = viewport.scrollTop;
+  fireEvent.scroll(viewport, { target: { scrollLeft: 40 } });
+  commits = commits.map((commit) => ({ ...commit }));
+  view.rerender(
+    <CommitGraph
+      selectedSha="sha-239"
+      locateRequest={{ repoId: "repo", sha: "sha-239", seq: 1 }}
+    />,
+  );
+  expect(viewport.scrollLeft).toBe(40);
+  expect(viewport.scrollTop).toBe(locatedTop);
+  view.rerender(
+    <CommitGraph
+      selectedSha="sha-239"
+      locateRequest={{ repoId: "repo", sha: "sha-239", seq: 2 }}
+    />,
+  );
+  expectCompactNodeVisible(commitRow(239), viewport);
+  expect(viewport.scrollTop).toBe(locatedTop);
 });
 
 it("folds tracked refs before counting and opens all remaining refs without selecting the row", () => {

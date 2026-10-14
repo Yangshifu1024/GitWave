@@ -4,6 +4,10 @@
 
 **Status:** v0.10.3 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
+### Unreleased
+
+- Preserve circular commit nodes and stroke widths in the compact history graph with real lane spacing and horizontal graph browsing; keep messages pinned and reveal selected nodes. See the [fix task](./docs/tasks/fix-history-graph-geometry/plan.md).
+
 ### What's new in v0.10.x
 
 - **v0.10.3** — history-first interface with compact sidebar and health summary, a bounded graph preview and full topology view, quieter refs, compact changed-file rows, keyboard-resizable columns and a bottom operation-status bar

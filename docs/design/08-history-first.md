@@ -1,6 +1,6 @@
 # History-first interface
 
-Status: included in v0.10.3. Accepted on 2026-10-14. Task: [implementation and verification](../tasks/feat-history-first-ui/plan.md).
+Status: history-first shell included in v0.10.3; the geometry correction described below is unreleased. Accepted on 2026-10-14. Task: [implementation and verification](../tasks/feat-history-first-ui/plan.md).
 
 This specification supersedes older card-based sidebar, full-width graph and centered titlebar-status guidance where they conflict. Workspace remains the primary entry; one repository is active. Git operations still require explicit user actions.
 
@@ -22,7 +22,7 @@ Health uses one native disclosure row. Clean/dirty counts are neutral; Git opera
 
 ## History
 
-Keep fixed 28px rows, the virtualizer, 14-row overscan, memoized SVG/commit rows, cursor paging and cached dates. Default graph width is at most 112px: an SVG viewBox compresses horizontal geometry without removing nodes or edges. Full graph restores original spacing and horizontal scrolling while preserving the scroll element, vertical position and selection.
+Keep fixed 28px rows, the virtualizer, 14-row overscan, memoized SVG/commit rows, cursor paging and cached dates. The compact graph viewport is at most 112px wide. Graphs use real 12px lane spacing (18px in full mode), 8px side padding and unscaled SVG pixels; circle radii, stroke widths and vertical curve coordinates stay constant. Native horizontal scrolling moves the graph under an opaque pinned message group, exposing all lanes without deforming nodes. Full mode removes the overlay. Selected nodes are revealed horizontally while retaining the vertical position; routine paging preserves manual panning. This corrects the nonuniform SVG scaling in v0.10.3; see [the fix task](../tasks/fix-history-graph-geometry/plan.md).
 
 Messages precede refs/SHA, use regular weight and receive remaining space. Selected/HEAD messages use medium weight. Author/time disappear in narrow panes; SHA also hides below its breakpoint and remains available in details/menus.
 
