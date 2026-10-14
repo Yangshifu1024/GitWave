@@ -44,12 +44,12 @@ export function ListItem({
           : undefined
       }
       className={cn(
-        "group flex items-center gap-2 px-3 py-1.5 select-none",
+        "group flex min-h-8 items-center gap-2 px-3 py-1 select-none",
         "transition-colors duration-fast",
         "text-[13px] text-text-primary",
         "border-l-[3px] rounded-none shadow-none",
-        selected && "bg-accent/10 border-l-accent hover:bg-accent/15 font-semibold",
-        !selected && "border-l-transparent hover:bg-bg-primary/70 cursor-pointer",
+        selected && "bg-accent/10 border-l-accent hover:bg-accent/15 font-medium",
+        !selected && "border-l-transparent hover:bg-bg-elevated cursor-pointer",
         onClick && "cursor-pointer",
         onDoubleClick && "cursor-pointer",
         className,

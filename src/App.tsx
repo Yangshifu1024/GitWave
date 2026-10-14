@@ -6,6 +6,7 @@ import { ThreePaneLayout } from "@/components/ui/ThreePaneLayout";
 import { AuthPromptDialog } from "@/components/AuthPromptDialog";
 import { ActionBar } from "@/components/ActionBar";
 import { WorkspaceRepoTabs } from "@/components/WorkspaceRepoTabs";
+import { SyncStatusArea } from "@/components/SyncStatusArea";
 import { useWorkspaceUiStore, readLastActive } from "@/stores/workspaceStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -166,12 +167,10 @@ function App(): React.JSX.Element {
               "relative z-20 shadow-[inset_1px_0_0_var(--color-border-subtle),-12px_0_32px_color-mix(in_srgb,var(--color-text-primary)_12%,transparent)]",
           )}
           sidebar={
-            <aside className="flex flex-col h-full gap-1.5 px-2 py-2 bg-bg-panel overflow-hidden select-none pane-edge-right">
+            <aside className="flex flex-col h-full gap-2 py-2 bg-bg-primary overflow-hidden select-none pane-edge-right">
               {activeWorkspaceId ? (
                 <>
-                  <SidebarSection title={t("app.sidebar.health")} defaultOpen={false}>
-                    <HealthPanel />
-                  </SidebarSection>
+                  <HealthPanel key={`${activeWorkspaceId}:${activeRepoId}`} />
                   <BranchList onBranchSelect={handleBranchSelect} />
                   <StashPanel />
                   <TagsPanel onSelect={handleTagSelect} selectedSha={selectedCommitOid} />
@@ -204,6 +203,10 @@ function App(): React.JSX.Element {
           inspector={<MainContent selectedCommitOid={selectedCommitOid} />}
         />
       </div>
+
+      <footer className="flex h-8 shrink-0 min-w-0 items-center border-t border-border-subtle bg-bg-primary px-2">
+        <SyncStatusArea />
+      </footer>
 
       <ConflictPanel
         open={conflictPanelOpen}
@@ -261,7 +264,7 @@ function MainContent({
   }
 
   return (
-    <main className="flex flex-col h-full min-h-0 bg-bg-panel pane-edge-left overflow-hidden">
+    <main className="flex flex-col h-full min-h-0 bg-bg-elevated pane-edge-left overflow-hidden">
       {selectedCommitOid ? (
         <div key={activeRepoId} className="flex h-full min-h-0 flex-col">
           <CommitInfoHeader workspaceId={activeWorkspaceId} sha={selectedCommitOid} />

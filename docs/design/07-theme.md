@@ -1,5 +1,7 @@
 # GitWave · 主题设计（颜色 · 字体 · 动效）
 
+> 2026-10-14 未发布修订：history 使用九个低饱和度 lane；普通 refs 使用中性样式，当前分支使用 accent，dirty 不再使用 warning。见 [08-history-first.md](./08-history-first.md)。
+
 > 状态：**已实施**（2026-08-28，分支 `feature/theme-design`）  
 > 范围：**仅**颜色 / 字体 / 动画（含阴影材质 token）。**不涉及布局**——布局与组件形态见 [`05-visual-redesign.md`](./05-visual-redesign.md)。  
 > Palette 体系（native-blue 默认 / tide 可选）沿用 2026-08-27 拍板结论。**2026-08-30 追记**：语义色与 native-blue accent 改为对齐 HeroUI v3 默认主题（本文 §3.1「不动」结论对该维度失效），见 §3.4 与 [`01-tokens.md`](./01-tokens.md) §1.6。

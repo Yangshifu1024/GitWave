@@ -21,8 +21,14 @@ vi.mock("@/components/DiffText", () => ({
   ),
 }));
 vi.mock("@/components/ui/Button", () => ({
-  Button: ({ children, onClick, disabled, "aria-label": label }: ComponentProps<"button">) => (
-    <button onClick={onClick} disabled={disabled} aria-label={label}>
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    "aria-label": label,
+    "aria-expanded": expanded,
+  }: ComponentProps<"button">) => (
+    <button onClick={onClick} disabled={disabled} aria-label={label} aria-expanded={expanded}>
       {children}
     </button>
   ),
@@ -88,9 +94,35 @@ it("loads commit metadata first and only reads an expanded file", async () => {
   expect(screen.queryByText("-0")).toBeNull();
   expect(getDiffPreview).toHaveBeenCalledTimes(1);
   expect(vi.mocked(getDiffPreview).mock.calls[0]?.[2].path).toBeUndefined();
-  fireEvent.click(screen.getByLabelText("diff.file.expand"));
+  fireEvent.click(screen.getByRole("button", { name: "diff.file.expand: a.txt" }));
   await screen.findByText("expanded content");
   expect(vi.mocked(getDiffPreview).mock.calls[1]?.[2].path).toBe("a.txt");
+});
+
+it("uses the full path to identify compact file rows and fetches only the expanded file", async () => {
+  const filePath = "docs/deep/nested/directory/a-very-long-file-name.md";
+  const metadata = preview("");
+  metadata.diff.files[0]!.path = filePath;
+  const content = preview("long path content");
+  content.diff.files[0]!.path = filePath;
+  vi.mocked(getDiffPreview).mockResolvedValueOnce(metadata).mockResolvedValue(content);
+  render(wrap(<DiffViewer commitOid="sha" />));
+  const row = await screen.findByRole("button", { name: `diff.file.expand: ${filePath}` });
+  expect(row.getAttribute("aria-expanded")).toBe("false");
+  expect(screen.queryByText("diff.file.blame")).toBeNull();
+  expect(getDiffPreview).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByText("a-very-long-file-name.md"));
+  await screen.findByText("long path content");
+  expect(
+    screen
+      .getByRole("button", { name: `diff.file.collapse: ${filePath}` })
+      .getAttribute("aria-expanded"),
+  ).toBe("true");
+  expect(screen.getByText(filePath)).toBeTruthy();
+  expect(vi.mocked(getDiffPreview).mock.calls[1]?.[2].path).toBe(filePath);
+  fireEvent.click(screen.getByRole("button", { name: `diff.file.collapse: ${filePath}` }));
+  expect(screen.queryByText("long path content")).toBeNull();
+  expect(screen.queryByText("diff.file.blame")).toBeNull();
 });
 
 it("explains oversized content without claiming there are no changes", async () => {

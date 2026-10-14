@@ -1,5 +1,7 @@
 # GitWave · Component Inventory
 
+> 2026-10-14 未发布修订：侧栏使用无卡片 source-list 分组；refs 使用中性标签；折叠文件为整行展开按钮，Blame 位于展开上下文；操作状态移至底栏。当前组件规则见 [08-history-first.md](./08-history-first.md)。
+
 > Primitive + composite 组件清单。实现位于 `src/components/` 与 `src/components/ui/`。
 > 下文「底层：Radix …」是 2026-08 设计稿。截至 v0.9.3，通用 primitive 的实现是 **HeroUI v3 wrapper**（见 ADR 0005 修订）；API 意图（variant / size / 几何）仍以本文件为准。
 
@@ -111,7 +113,7 @@ ghost     bg-transparent hover:bg-bg-secondary text-text-primary
 
 **目的**：异步操作结果反馈（"已推送"、"克隆失败"）。
 
-**状态**：未落地——仓库里没有 Toast 组件，反馈走 `ErrorAlert` 与标题栏状态区。
+**状态**：未落地——仓库里没有 Toast 组件，反馈走 `ErrorAlert` 与底栏状态区。
 
 **底层**：**Radix Toast** + 自建 hook `useToast()`。
 
@@ -475,12 +477,12 @@ status 字符：M（modified） / A（added） / D（deleted） / ?（untracked�
 
 ### 3.6 SyncProgressBar
 
-**目的**：Fetch / Pull / Push 期间在标题栏状态区（`src/components/SyncStatusArea.tsx`）底边显示全局进度反馈。
+**目的**：Fetch / Pull / Push 期间在底栏状态区（`src/components/SyncStatusArea.tsx`）底边显示全局进度反馈。
 
 **API**：
 
 ```tsx
-// 挂入标题栏状态区，读 Zustand syncStore
+// 挂入底栏状态区，读 Zustand syncStore
 <SyncProgressBar />
 ```
 

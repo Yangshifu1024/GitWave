@@ -86,7 +86,7 @@ function BranchIcon({ kind }: { kind: "local" | "remote" }): React.JSX.Element {
   return (
     <GitBranch
       size={14}
-      className={cn("shrink-0", kind === "local" ? "text-accent" : "text-text-muted")}
+      className={cn("shrink-0", kind === "local" ? "text-text-secondary" : "text-text-muted")}
     />
   );
 }
@@ -156,7 +156,9 @@ function BranchRow({
           {branch.ahead > 0 && <StatusBadge variant="ahead" suffix={`\u2191${branch.ahead}`} />}
           {branch.behind > 0 && <StatusBadge variant="behind" suffix={`\u2193${branch.behind}`} />}
           {branch.is_current && (
-            <span className="text-xs text-accent font-medium">{t("branches.row.current")}</span>
+            <span className="text-[10px] text-accent font-medium" title={t("branches.row.current")}>
+              HEAD
+            </span>
           )}
         </div>
       }
@@ -166,39 +168,41 @@ function BranchRow({
           className={cn(
             "truncate text-[13px]",
             selected
-              ? "font-semibold text-text-primary"
+              ? "font-medium text-text-primary"
               : branch.is_current
                 ? "font-medium text-text-primary"
                 : "text-text-secondary",
           )}
-          title={branch.name}
+          title={[branch.name, branch.upstream, branch.last_commit_sha].filter(Boolean).join("\n")}
         >
           {displayName ?? branch.name}
         </span>
-        <span
-          className="flex items-center gap-1 min-w-0 h-4 text-[11px] text-text-muted"
-          title={
-            branch.upstream
-              ? branch.upstream
-              : branch.last_commit_sha
-                ? `${branch.last_commit_sha}${branch.last_commit_time > 0 ? ` · ${formatAbsoluteTime(branch.last_commit_time, "date-time")}` : ""}`
-                : undefined
-          }
-        >
-          {branch.upstream ? (
-            <>
-              <ArrowRight size={10} className="shrink-0" />
-              <span className="truncate">{branch.upstream}</span>
-            </>
-          ) : branch.last_commit_sha ? (
-            <span className="truncate">
-              <span className="font-mono">{shortSha(branch.last_commit_sha)}</span>
-              {branch.last_commit_time > 0
-                ? ` · ${formatCommitTime(branch.last_commit_time, t)}`
-                : ""}
-            </span>
-          ) : null}
-        </span>
+        {selected && (
+          <span
+            className="flex items-center gap-1 min-w-0 h-4 text-[11px] text-text-muted"
+            title={
+              branch.upstream
+                ? branch.upstream
+                : branch.last_commit_sha
+                  ? `${branch.last_commit_sha}${branch.last_commit_time > 0 ? ` · ${formatAbsoluteTime(branch.last_commit_time, "date-time")}` : ""}`
+                  : undefined
+            }
+          >
+            {branch.upstream ? (
+              <>
+                <ArrowRight size={10} className="shrink-0" />
+                <span className="truncate">{branch.upstream}</span>
+              </>
+            ) : branch.last_commit_sha ? (
+              <span className="truncate">
+                <span className="font-mono">{shortSha(branch.last_commit_sha)}</span>
+                {branch.last_commit_time > 0
+                  ? ` · ${formatCommitTime(branch.last_commit_time, t)}`
+                  : ""}
+              </span>
+            ) : null}
+          </span>
+        )}
       </div>
     </ListItem>
   );

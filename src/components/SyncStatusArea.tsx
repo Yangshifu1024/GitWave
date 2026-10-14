@@ -1,14 +1,15 @@
-// Titlebar center status area — the single sync/operation status surface.
+// Bottom status area — the single sync/operation status surface.
 // Priority: in-flight op (label + indeterminate progress bar + cancel
 // button for backend-cancellable ops) > last operation result (auto-clears
 // to the idle state after 15s, see statusAreaStore STATUS_TTL_MS) >
 // current branch name. It is deliberately chrome-less — transparent, no
-// border — so it reads as plain centered text blended into the titlebar;
+// border — so it reads as plain centered text blended into the bottom bar;
 // the 2px underline carries the state color and only appears when there is
 // something to report (accent while syncing, success/danger/info for the
 // last result; idle shows nothing).
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ProgressBar } from "@heroui/react";
 import { Card as HeroCard } from "@heroui/react";
 import { X } from "lucide-react";
@@ -49,6 +50,7 @@ const BAR_COLOR: Record<AreaState, string> = {
 };
 
 export function SyncStatusArea(): React.JSX.Element {
+  const { t } = useTranslation();
   const activeOp = useSyncStore((s) => s.activeOp);
   const activeRemote = useSyncStore((s) => s.activeRemote);
   const fading = useSyncStore((s) => s.fading);
@@ -81,7 +83,9 @@ export function SyncStatusArea(): React.JSX.Element {
   const cancellable = syncing && !fading && isCancellableOp(activeOp) && !cancelRequested;
   const state: AreaState = syncing ? "sync" : status ? status.variant : "idle";
   const label = syncing ? operationLabel(activeOp, activeRemote) : null;
-  const text = syncing ? label : (status?.text ?? wc.data?.branch ?? "No repository selected");
+  const text = syncing
+    ? label
+    : (status?.text ?? wc.data?.branch ?? t("app.emptyState.noRepoTitle"));
   const fadeClass = fading ? "opacity-0" : "opacity-100";
 
   return (
@@ -89,8 +93,8 @@ export function SyncStatusArea(): React.JSX.Element {
       aria-live="polite"
       className={cn(
         // Chrome-less: hugs its text, no card surface — blends into the
-        // titlebar background behind it.
-        "relative h-9 w-auto max-w-[60vw] rounded-none border-0 bg-transparent",
+        // status-bar background behind it.
+        "relative h-7 w-auto max-w-full rounded-none border-0 bg-transparent",
         "shadow-none p-0 gap-0 overflow-hidden",
       )}
     >
@@ -106,7 +110,7 @@ export function SyncStatusArea(): React.JSX.Element {
         )}
       >
         {/* Long labels (interpolated remote names) ellipsize on one line —
-            the 36px card keeps a single text line. min-w-0 lets the flex item
+            the status bar keeps a single text line. min-w-0 lets the flex item
             shrink — without it the raw overflow is clipped, not ellipsized. */}
         <span className="min-w-0 truncate">{text}</span>
       </div>
@@ -116,9 +120,7 @@ export function SyncStatusArea(): React.JSX.Element {
           aria-label={label ? `${label} — cancel` : "Cancel operation"}
           onClick={handleCancel}
           className={cn(
-            // pointer-events-auto opts the button back into hit-testing: the
-            // ActionBar wrapper is pointer-events-none (so the idle card
-            // never blocks the buttons it overlaps) and the property inherits.
+            // Keep cancellation pointer-accessible while status text is updating.
             "pointer-events-auto absolute right-1 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded",
             "text-text-muted transition-colors hover:bg-danger/10 hover:text-danger",
           )}

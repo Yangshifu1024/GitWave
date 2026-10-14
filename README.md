@@ -4,6 +4,10 @@
 
 **Status:** v0.10.2 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
+### Unreleased
+
+- **History-first interface** — compact source-list navigation and health summary, a bounded graph preview with full topology access, quieter refs, compact changed-file rows, keyboard-resizable columns and a bottom operation-status bar. See the [task](./docs/tasks/feat-history-first-ui/plan.md) and [design](./docs/design/08-history-first.md).
+
 ### What's new in v0.10.x
 
 - **v0.10.2** — fixed macOS relaunch after installing updates, with visible restart failures and retry; updated Tauri, React libraries and development tooling

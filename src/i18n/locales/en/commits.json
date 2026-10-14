@@ -48,7 +48,8 @@
       "cherryPickTitle": "Cherry-pick onto current branch",
       "cherryPickAria": "Cherry-pick this commit onto the current branch",
       "revertTitle": "Revert this commit",
-      "revertAria": "Revert this commit"
+      "revertAria": "Revert this commit",
+      "moreActions": "More actions"
     },
     "revert": {
       "confirmTitle": "Revert {{sha}}?",

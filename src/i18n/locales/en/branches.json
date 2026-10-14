@@ -148,7 +148,12 @@
       "loadingOlder": "Loading older commits…",
       "endOfHistory": "End of history · {{total}} commits",
       "snapshotLimited": "History is limited to the newest {{total}} commits. Older commits are outside this search.",
-      "endOfSnapshot": "End of loaded range · {{total}} commits"
+      "endOfSnapshot": "End of loaded range · {{total}} commits",
+      "title": "Commit history",
+      "fullGraph": "Full branch graph",
+      "compactGraph": "Compact graph",
+      "compressedHint": "The preview compresses all lanes. Expand to inspect the full topology.",
+      "allRefs": "All refs ({{count}})"
     }
   }
 }

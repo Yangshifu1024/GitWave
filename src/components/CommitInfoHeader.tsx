@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Chip } from "@heroui/react";
 import { ChevronDown, ChevronRight, Cherry, Sparkles, Tag as TagIcon, Undo2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +20,7 @@ import { Modal } from "@/components/ui/Modal";
 import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { TagManagerModal } from "@/components/TagManagerModal";
 import { RefBadge } from "@/components/RefBadge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/DropdownMenu";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 
 type CommitAction = "revert" | "cherry-pick";
@@ -125,7 +125,7 @@ export function CommitInfoHeader({
   };
 
   return (
-    <div className="shrink-0 select-text border-b border-border-subtle bg-bg-elevated px-4 py-2.5">
+    <div className="max-h-[45%] min-h-0 shrink-0 overflow-y-auto select-text border-b border-border-subtle bg-bg-elevated px-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <Button
           type="button"
@@ -145,40 +145,37 @@ export function CommitInfoHeader({
           <Chevron size={14} className="mt-0.5 shrink-0" />
           <span
             className={cn(
-              "min-w-0 text-sm font-semibold text-text-primary",
-              messageExpanded ? "break-words" : "truncate",
+              "min-w-0 text-sm font-medium leading-5 text-text-primary",
+              messageExpanded ? "whitespace-normal [overflow-wrap:anywhere]" : "truncate",
             )}
           >
             {subject}
           </span>
         </Button>
-        <Chip
-          size="sm"
-          className="shrink-0 rounded-sm bg-bg-primary px-1.5 py-0.5 font-mono text-xs text-text-muted tabular-nums shadow-none"
-          title={data.sha}
-        >
-          <Chip.Label>{shortSha}</Chip.Label>
-        </Chip>
       </div>
       {messageExpanded && body ? (
         <p className="mt-1 text-xs leading-5 whitespace-pre-wrap break-words text-text-secondary">
           {body}
         </p>
       ) : null}
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-text-muted">
-        <span className="font-medium text-text-secondary">{data.author}</span>
-        <span className="truncate">{data.author_email}</span>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
+        <span className="font-mono" title={data.sha}>
+          {shortSha}
+        </span>
+        <span title={data.author_email} className="min-w-0 truncate text-text-secondary">
+          {data.author}
+        </span>
         <span aria-hidden="true">·</span>
         <span>{formatAbsoluteTime(data.time, "ymd-hm", i18n.language)}</span>
       </div>
       {commitRefs.length > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
+        <div className="mt-2 flex max-h-16 flex-wrap items-center gap-1 overflow-y-auto">
           {commitRefs.map((r) => (
             <RefBadge key={`${r.kind}:${r.name}`} r={r} truncate={false} emphasize={r.emphasize} />
           ))}
         </div>
       ) : null}
-      <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border-subtle pt-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1">
         <Button
           variant="ghost"
           size="sm"
@@ -189,38 +186,28 @@ export function CommitInfoHeader({
           <Sparkles size={13} />
           {t("commits.header.explain")}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t("commits.header.tagAria")}
-          title={t("commits.header.tagTitle")}
-          onClick={() => setTagOpen(true)}
-        >
-          <TagIcon size={13} />
-          {t("commits.header.tag")}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          aria-label={t("commits.header.cherryPickAria")}
-          title={t("commits.header.cherryPickTitle")}
-          onClick={() => setPending("cherry-pick")}
-        >
-          <Cherry size={13} />
-          {t("commits.action.cherryPick")}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          aria-label={t("commits.header.revertAria")}
-          title={t("commits.header.revertTitle")}
-          onClick={() => setPending("revert")}
-        >
-          <Undo2 size={13} />
-          {t("commits.action.revert")}
-        </Button>
+        <DropdownMenu>
+          <Button variant="ghost" size="sm" disabled={busy}>
+            {t("commits.header.moreActions")} <ChevronDown size={12} />
+          </Button>
+          <DropdownMenuContent placement="bottom end">
+            <DropdownMenuItem textValue={t("commits.header.tag")} onSelect={() => setTagOpen(true)}>
+              <TagIcon size={13} /> {t("commits.header.tag")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              textValue={t("commits.action.cherryPick")}
+              onSelect={() => setPending("cherry-pick")}
+            >
+              <Cherry size={13} /> {t("commits.action.cherryPick")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              textValue={t("commits.action.revert")}
+              onSelect={() => setPending("revert")}
+            >
+              <Undo2 size={13} /> {t("commits.action.revert")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {explainOpen ? (

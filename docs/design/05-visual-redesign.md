@@ -1,5 +1,7 @@
 # GitWave · 主界面视觉重设计（v2）
 
+> 历史提案；当前已确认并实施的方案见 [08-history-first.md](./08-history-first.md)。本文的 Workspace 列表、固定 56px 图宽与旧底栏不再作为当前实现依据。
+
 > 状态：提案 · 2026-08-27  
 > 校对稿：[`mockups/v2/index.html`](./mockups/v2/index.html)
 

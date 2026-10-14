@@ -198,9 +198,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
   const closeMenu = (): void => setMenu(null);
 
   return (
-    // No container border-b here: each tab carries its own bottom hairline,
-    // and the selected tab's segment disappears so it merges with the panes.
-    <div className="shrink-0 bg-bg-primary select-none">
+    <div className="shrink-0 border-b border-border-subtle bg-bg-primary select-none">
       {/* Repositories of the active workspace; workspace switching lives in
           the ActionBar's workspace dropdown. The ref scopes drag-reorder's
           [role=tab] lookups to this strip. */}
@@ -218,7 +216,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
           }}
           className="min-w-0 flex-1"
         >
-          <TabsList className="h-6 flex-1 rounded-none bg-bg-primary items-end [&>div]:w-full [&_[role=tablist]]:items-end [&_[role=tablist]]:p-0">
+          <TabsList className="h-8 flex-1 rounded-none bg-bg-primary items-end [&>div]:w-full [&_[role=tablist]]:items-end [&_[role=tablist]]:p-0">
             {renderedRepos.map((r) => {
               const label = r.nickname ?? basename(r.path);
               return (
@@ -228,7 +226,8 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                   className={cn(
                     // Default cursor on hover (tabs are click-to-switch);
                     // grabbing only while a drag is actually in flight.
-                    "h-6 px-3 py-0 text-xs cursor-default",
+                    "h-8 grow-0 shrink-0 px-4 py-0 text-xs cursor-default rounded-none border-b-2 border-b-transparent",
+                    "data-[selected=true]:border-accent data-[selected=true]:bg-transparent data-[selected=true]:font-medium data-[selected=true]:shadow-none",
                     drag.draggingId === r.id && "cursor-grabbing opacity-50",
                     // Visual-only de-emphasis — deliberately NOT the
                     // `disabled` prop: HeroUI's disabled tab applies
@@ -247,7 +246,7 @@ export function WorkspaceRepoTabs(): React.JSX.Element | null {
                     setMenu({ repo: r, x: e.clientX, y: e.clientY });
                   }}
                 >
-                  {label}
+                  <span className="max-w-48 truncate">{label}</span>
                   {r.status === "missing" ? (
                     <>
                       {/* sr-only text instead of aria-disabled: HeroUI's
