@@ -226,26 +226,33 @@ function FileDiffView({
   const { dir, name } = splitPath(fileDiff.path);
 
   return (
-    <div className="mb-3 min-w-0">
-      <div className="min-w-0 px-3 py-2 bg-bg-elevated border-b border-border-subtle">
-        <div className="flex min-w-0 items-center gap-2" title={fileDiff.path}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-expanded={!collapsed}
-            aria-label={t(collapsed ? "diff.file.expand" : "diff.file.collapse")}
-            onClick={onToggleCollapsed}
-            className="h-auto shrink-0 p-0 text-text-muted hover:text-text-secondary border-0 shadow-none bg-transparent"
-          >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          </Button>
-          <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
+    <div className="min-w-0 border-b border-border-subtle">
+      <div className="min-w-0 bg-bg-elevated">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={!collapsed}
+          aria-label={`${t(collapsed ? "diff.file.expand" : "diff.file.collapse")}: ${fileDiff.path}`}
+          title={fileDiff.path}
+          onClick={onToggleCollapsed}
+          className="flex h-9 w-full min-w-0 justify-start gap-2 rounded-none px-3 py-1.5 text-text-secondary hover:bg-bg-panel border-0 shadow-none bg-transparent"
+        >
+          {collapsed ? (
+            <ChevronRight size={12} className="shrink-0" />
+          ) : (
+            <ChevronDown size={12} className="shrink-0" />
+          )}
+          <span className="shrink-0 text-[10px] text-text-muted" aria-hidden>
+            {!fileDiff.old_sha && fileDiff.new_sha
+              ? "A"
+              : fileDiff.old_sha && !fileDiff.new_sha
+                ? "D"
+                : "M"}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-left text-xs font-normal text-text-primary">
             {name}
           </span>
-          {dir ? (
-            <span className="min-w-0 truncate text-xs font-mono text-text-muted">{dir}</span>
-          ) : null}
           {fileDiff.staged === true ? (
             <Chip
               size="sm"
@@ -262,32 +269,41 @@ function FileDiffView({
               <Chip.Label>{t("diff.chip.unstaged")}</Chip.Label>
             </Chip>
           ) : null}
-        </div>
-        <div className="mt-1 flex items-center gap-2 text-xs">
-          <span className="min-w-0 truncate font-mono text-text-muted">
-            {fileDiff.old_sha?.slice(0, 7) ?? "0000000"}
-            {fileDiff.old_sha && fileDiff.new_sha ? " → " : ""}
-            {fileDiff.new_sha?.slice(0, 7) ?? "0000000"}
-          </span>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {fileDiff.hunks.length > 0 ? (
-              <>
-                <span className="text-success">+{fileDiff.additions}</span>
-                <span className="text-danger">-{fileDiff.deletions}</span>
-              </>
+        </Button>
+        {!collapsed ? (
+          <div className="px-3 pb-2">
+            {dir ? (
+              <p className="mb-1 text-[11px] text-text-muted [overflow-wrap:anywhere]">
+                {fileDiff.path}
+              </p>
             ) : null}
-            {onBlame ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onBlame(fileDiff.path)}
-              >
-                {t("diff.file.blame")}
-              </Button>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="min-w-0 truncate font-mono text-text-muted">
+                {fileDiff.old_sha?.slice(0, 7) ?? "0000000"}
+                {fileDiff.old_sha && fileDiff.new_sha ? " → " : ""}
+                {fileDiff.new_sha?.slice(0, 7) ?? "0000000"}
+              </span>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {fileDiff.hunks.length > 0 ? (
+                  <>
+                    <span className="text-success">+{fileDiff.additions}</span>
+                    <span className="text-danger">-{fileDiff.deletions}</span>
+                  </>
+                ) : null}
+                {onBlame ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onBlame(fileDiff.path)}
+                  >
+                    {t("diff.file.blame")}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       {/* Hunks — image files render a side-by-side compare instead (F016). */}
@@ -295,7 +311,7 @@ function FileDiffView({
         isImagePath(fileDiff.path) ? (
           <ImageDiffView fileDiff={fileDiff} workdir={workdir} workdirKind={workdirKind} />
         ) : (
-          <div className="isolate overflow-x-auto border-x border-b border-border-subtle px-0 pt-0">
+          <div className="isolate overflow-x-auto px-0 pt-0">
             {/* w-max wrapper: every hunk stretches to the widest hunk's width so
                 borders stay continuous while scrolling horizontally. */}
             <div className="w-max min-w-full">
@@ -456,11 +472,8 @@ export function DiffViewer({
     <div className="h-full min-h-0 overflow-auto flex flex-col">
       {path && visible.files.length === 1 ? (
         <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-bg-elevated border-b border-border-subtle">
-          <span className="shrink-0 rounded-sm bg-bg-elevated px-2 py-0.5 text-xs font-mono font-medium text-text-primary">
+          <span className="min-w-0 flex-1 truncate text-xs text-text-primary" title={path}>
             {splitPath(path).name}
-          </span>
-          <span className="min-w-0 truncate text-xs font-mono text-text-muted">
-            {splitPath(path).dir}
           </span>
           {!query.data?.too_large ? (
             <span className="ml-auto text-xs text-text-muted tabular-nums">
@@ -470,8 +483,8 @@ export function DiffViewer({
         </div>
       ) : null}
       {/* Toolbar */}
-      <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-bg-elevated border-b border-border-subtle">
-        <span className="text-sm text-text-secondary">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 px-3 py-1.5 bg-bg-elevated border-b border-border-subtle">
+        <span className="min-w-0 text-xs text-text-secondary">
           {t("diff.toolbar.filesChanged", { count: visible.files.length })}
         </span>
         {workdir && staged === true ? (

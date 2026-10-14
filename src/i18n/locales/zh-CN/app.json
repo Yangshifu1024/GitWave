@@ -13,6 +13,10 @@
       "noRepoDescription": "从侧边栏选择一个仓库，以查看历史和 diff。",
       "noCommitTitle": "未选择提交",
       "noCommitDescription": "点击历史图中的提交即可查看其 diff。"
+    },
+    "layout": {
+      "resizeSidebar": "调整侧栏宽度",
+      "resizeInspector": "调整详情栏宽度"
     }
   }
 }

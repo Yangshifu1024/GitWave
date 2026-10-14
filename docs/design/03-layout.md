@@ -1,5 +1,7 @@
 # GitWave · Layout Spec
 
+> 2026-10-14 未发布修订：当前布局以 [08-history-first.md](./08-history-first.md) 为准；保留历史方案作决策记录。
+
 > 3-pane 布局详细规格：toolbar + sidebar + history graph + inspector。
 
 ## 1. 全局 shell
@@ -7,11 +9,11 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ TitleBar (h: 40px)                                                      │
-│  File Workspace Repository Branch │ …操作按钮… │ 状态区（窗口居中）      │
+│  File Workspace Repository Branch │ …操作按钮…      │
 ├────────────┬──────────────────────────────────┬─────────────────────────┤
 │            │                                  │                         │
 │ Sidebar    │  History graph (flex)            │  Inspector (~360px)     │
-│ (w: 320px) │                                  │                         │
+│ (w: 240px) │                                  │                         │
 │            │                                  │                         │
 │            │                                  │                         │
 │            │                                  │                         │
@@ -31,12 +33,12 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ File Workspace Repository Branch  [Workspace▾][📁][⌨][</>]  …  [Changes] [Stash] [Fetch] │ [Pull] [Push] │ 状态区 │
+│ File Workspace Repository Branch  [Workspace▾][📁][⌨][</>]  …  [Changes] [Stash] [Fetch] │ [Pull] [Push] │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 高度：40px。背景：`bg-bg-primary`。底边：1px `border-subtle`。
-菜单靠左；操作按钮靠右；同步状态区绝对居中于**整个窗口**（不受两侧留白影响）。
+菜单靠左；操作按钮靠右；同步状态区位于 32px 底栏，避免覆盖标题栏操作。
 
 **平台约定（关键）**：标题栏内容必须避开系统窗口控件——
 
@@ -61,7 +63,7 @@
 | 外部工具（文件管理器 / 终端 / 编辑器） | 左 | macOS 无菜单，空间充足；窄栏时文字折叠为图标 |
 | Local Changes / Stash / Fetch | 右 | 见 §6.1 |
 | Pull / Push | 右 | 带 ahead/behind 计数 |
-| 同步状态区 | 窗口居中 | Fetch / Pull / Push 进度与最近一次操作结果 |
+| 同步状态区 | 底栏 | Fetch / Pull / Push 进度与最近一次操作结果 |
 
 **Sync 不在侧栏标题栏**（与旧稿相反）：Fetch / Pull / Push 已收进标题栏右侧，
 ahead/behind 数字显示在 Pull / Push 按钮上。
@@ -91,8 +93,8 @@ ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上，形如 `
 
 ### 2.5 Sync 全局进度条
 
-窗口居中状态区（`SyncStatusArea`）无卡片容器（透明、无边框、宽度贴合文字），
-纯文字融入标题栏背景；仅在有内容时底部显示 2px 状态线：
+底栏状态区（`SyncStatusArea`）无卡片容器（透明、无边框、宽度贴合文字），
+纯文字融入底栏背景；仅在有内容时底部显示 2px 状态线：
 
 - 有传输量时 determinate（`receivedObjects / totalObjects`）
 - 否则 indeterminate shimmer
@@ -118,7 +120,7 @@ ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上，形如 `
 └──────────────────────────┘
 ```
 
-宽度：320px（可拖拽 320-480）。背景 Mist，与 Foam 画布区分。**同步按钮不在侧栏**：Fetch / Pull / Push 位于标题栏右侧（§2.2 / §3.4）。
+宽度：240px（可拖拽 200-480，受窗口剩余宽度约束）。背景 Mist，与 Foam 画布区分。**同步按钮不在侧栏**：Fetch / Pull / Push 位于标题栏右侧（§2.2 / §3.4）。
 
 **工作区与仓库的切换同样不在侧栏**（2026-09 起）：工作区在标题栏的工作区下拉里切换（`components/WorkspaceDropdown.tsx`），仓库在标题栏下方的仓库标签栏里切换（`components/WorkspaceRepoTabs.tsx`）。
 
@@ -142,7 +144,7 @@ ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上，形如 `
 | Pull | 当前 HEAD branch | behind = 0 或 detached |
 | Push | 当前 HEAD branch | ahead = 0 或 detached |
 
-同步进行中按钮 disabled，进度与取消入口在标题栏状态区（§2.5）。
+同步进行中按钮 disabled，进度与取消入口在底栏状态区（§2.5）。
 
 ### 3.3 状态标记
 
@@ -215,7 +217,7 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 - 右端：Local Changes（打开 WorkingCopyModal）——干净时绿色 `Changes`，有变更时黄色 `Changes(n)`（n 为变更文件数）；无活动仓库时禁用
 - Stash（保存贮藏）/ Fetch / Pull（Fork 式对话框：Remote / Branch / Into + rebase + stash）/ Push
 - Workspace 新建 / 重命名 / AI Provider / 删除、Repository Init / Clone / Add Local 等低频操作在 App 菜单（F 组）
-- 窄栏时外部工具文字折叠为图标（`@6xl` 容器查询）；同步状态区绝对居中于窗口
+- 窄栏时外部工具文字折叠为图标（`@6xl` 容器查询）；同步状态区位于底栏
 - 背景：`bg-bg-primary`。fetch / pull / push 错误经标题栏下方 ErrorAlert 呈现
 
 ### 6.2 WorkingCopyModal

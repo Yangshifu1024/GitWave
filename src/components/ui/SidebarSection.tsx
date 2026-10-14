@@ -1,4 +1,4 @@
-import { Card as HeroCard, Disclosure } from "@heroui/react";
+import { Disclosure } from "@heroui/react";
 import { cn } from "@/lib/utils";
 
 export interface SidebarSectionProps {
@@ -14,12 +14,10 @@ export interface SidebarSectionProps {
 }
 
 /**
- * Collapsible sidebar card: a HeroUI Card wrapping a HeroUI Disclosure.
- * The sidebar is a fixed-height flex column, so each card's height is capped
+ * Source-list section backed by a keyboard-accessible disclosure.
+ * The sidebar is a fixed-height flex column, so each section's height is capped
  * at the space flex assigns it — long content scrolls inside the card
- * (header stays pinned) instead of pushing sibling cards out of view.
- * `bg-bg-elevated` is explicit because the theme bridge does not alias
- * HeroUI's `--surface`, so the Card default would not follow the theme.
+ * (header stays pinned) instead of pushing sibling sections out of view.
  */
 export function SidebarSection({
   title,
@@ -30,39 +28,33 @@ export function SidebarSection({
   onHeaderContextMenu,
   className,
 }: SidebarSectionProps): React.JSX.Element {
-  const cardClass = cn(
-    "min-h-0 shrink overflow-hidden rounded-lg p-0 gap-0",
-    "border border-border-subtle bg-bg-elevated shadow-none",
-    className,
-  );
+  const sectionClass = cn("flex min-h-7 shrink flex-col overflow-hidden", className);
 
   if (!collapsible) {
     // Static header card: an empty dataset has nothing to expand, so no
     // Disclosure is mounted at all.
     return (
-      <HeroCard className={cardClass}>
+      <section className={sectionClass}>
         <div className="flex items-center px-3 py-1.5" onContextMenu={onHeaderContextMenu}>
-          <span className="truncate text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-            {title}
-          </span>
+          <span className="truncate text-[11px] font-medium text-text-secondary">{title}</span>
           {actions ? (
             <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">{actions}</div>
           ) : null}
         </div>
-      </HeroCard>
+      </section>
     );
   }
 
   return (
-    <HeroCard className={cardClass}>
-      <Disclosure defaultExpanded={defaultOpen} className="flex min-h-0 flex-col">
+    <section className={sectionClass}>
+      <Disclosure defaultExpanded={defaultOpen} className="flex min-h-0 flex-1 flex-col">
         <div className="shrink-0 flex items-center gap-1" onContextMenu={onHeaderContextMenu}>
           <Disclosure.Heading className="m-0 flex-1 min-w-0 text-inherit font-inherit leading-inherit">
             <Disclosure.Trigger
               className={cn(
                 "flex-1 min-w-0 w-full flex items-center gap-1.5 px-3 py-1.5 text-left",
-                "text-[11px] font-semibold text-text-muted uppercase tracking-wider",
-                "hover:bg-bg-primary/60 hover:text-text-secondary",
+                "text-[11px] font-medium text-text-secondary",
+                "hover:bg-bg-elevated hover:text-text-primary",
                 "bg-transparent border-0 shadow-none rounded-none",
               )}
             >
@@ -79,6 +71,6 @@ export function SidebarSection({
           {children}
         </Disclosure.Content>
       </Disclosure>
-    </HeroCard>
+    </section>
   );
 }

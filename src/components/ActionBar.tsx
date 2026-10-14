@@ -81,7 +81,6 @@ import { LfsPanel } from "@/components/LfsPanel";
 import { HooksPanel } from "@/components/HooksPanel";
 import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 import { WorkspaceDropdown } from "@/components/WorkspaceDropdown";
-import { SyncStatusArea } from "@/components/SyncStatusArea";
 import { TitleBar } from "@/components/TitleBar";
 
 interface PullDialogState {
@@ -121,14 +120,14 @@ function ActionBarButton({
   disabled?: boolean;
   danger?: boolean;
   /** Text color override for stateful actions (e.g. clean vs dirty). */
-  tone?: "success" | "warning";
+  tone?: "accent" | "danger";
 }): React.JSX.Element {
   const hint = title ?? label;
   const toneClass =
-    tone === "success"
-      ? "text-success hover:bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)]"
-      : tone === "warning"
-        ? "text-warning hover:bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)]"
+    tone === "accent"
+      ? "text-accent hover:bg-accent/10"
+      : tone === "danger"
+        ? "text-danger hover:bg-danger/10"
         : danger
           ? "hover:text-danger"
           : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary";
@@ -756,17 +755,7 @@ export function ActionBar({
 
   return (
     <>
-      <TitleBar
-        overlay={
-          /* Status area: absolutely centered on the window's center axis so
-             the selector / buttons widths never shift it; pointer-events-none
-             keeps the buttons clickable even if a narrow window overlaps it
-             (the cancel button opts back in inside SyncStatusArea). */
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <SyncStatusArea />
-          </div>
-        }
-      >
+      <TitleBar>
         <div className="pointer-events-auto flex min-w-0 items-center">
           <WorkspaceDropdown />
         </div>
@@ -838,7 +827,7 @@ export function ActionBar({
             label={t("changes.actionBar.changes")}
             count={changeCount}
             title={t("changes.actionBar.localChangesTitle")}
-            tone={changeCount > 0 ? "warning" : "success"}
+            tone={conflictCount > 0 ? "danger" : changeCount > 0 ? "accent" : undefined}
             disabled={localChangesDisabled}
             onClick={() => (conflictCount > 0 ? onResolveConflicts() : setWcModalOpen(true))}
           />

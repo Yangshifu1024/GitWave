@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Activity, Loader2, Sparkles } from "lucide-react";
+import { Activity, ChevronDown, Loader2, Sparkles } from "lucide-react";
 
 import { explainHealth, formatAppError, getHealth, type HealthReport } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -67,11 +67,7 @@ function renderReport(report: HealthReport, t: TFunction): React.JSX.Element {
         warn={report.conflict_residue.length > 0}
         detail={t("health.details.conflictResidue")}
       />
-      <MetricRow
-        label={t("health.metrics.dirtyFiles")}
-        value={String(report.dirty_files)}
-        warn={report.dirty_files > 0}
-      />
+      <MetricRow label={t("health.metrics.dirtyFiles")} value={String(report.dirty_files)} />
       <MetricRow
         label={t("health.metrics.staleBranches")}
         value={
@@ -132,31 +128,49 @@ export function HealthPanel(): React.JSX.Element {
   };
 
   return (
-    <div className="flex flex-col gap-1 px-1 pb-1">
-      {isLoading ? (
-        <p className="px-2 py-1 text-xs text-text-muted italic">{t("health.measuring")}</p>
-      ) : report ? (
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 px-2 pt-1">
-            <Activity size={12} className="text-text-muted" />
-            <span className="text-[11px] font-medium text-text-secondary">{t("health.title")}</span>
-          </div>
-          {renderReport(report, t)}
-        </div>
-      ) : null}
+    <div className="shrink-0 px-3 pb-1">
+      <details className="group">
+        <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 text-xs [&::-webkit-details-marker]:hidden">
+          <Activity size={14} className="shrink-0 text-text-secondary" />
+          <span className="shrink-0 text-text-secondary">{t("health.title")}</span>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-right text-[11px]",
+              report?.conflict_residue.length ? "text-danger" : "text-text-muted",
+            )}
+            title={report?.conflict_residue.join(", ")}
+          >
+            {isLoading
+              ? t("health.measuring")
+              : report
+                ? report.conflict_residue.length
+                  ? t("health.summary.residue")
+                  : report.dirty_files > 0
+                    ? t("health.summary.changes", { count: report.dirty_files })
+                    : t("health.summary.clean")
+                : null}
+          </span>
+          <ChevronDown size={12} className="shrink-0 text-text-muted group-open:rotate-180" />
+        </summary>
+        {isLoading ? (
+          <p className="px-2 py-1 text-xs text-text-muted italic">{t("health.measuring")}</p>
+        ) : report ? (
+          <div className="flex flex-col">{renderReport(report, t)}</div>
+        ) : null}
 
-      <div className="flex flex-col gap-1">
-        <Button
-          variant="secondary"
-          size="sm"
-          className="self-start px-2 text-[11px]"
-          disabled={aiBusy || !report}
-          onClick={runSummary}
-        >
-          {aiBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-          {aiBusy ? t("health.summarizing") : t("health.aiSummary")}
-        </Button>
-      </div>
+        <div className="flex flex-col gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="self-start px-2 text-[11px]"
+            disabled={aiBusy || !report}
+            onClick={runSummary}
+          >
+            {aiBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            {aiBusy ? t("health.summarizing") : t("health.aiSummary")}
+          </Button>
+        </div>
+      </details>
 
       {/* The AI summary lands in a dialog — the sidebar card stays compact. */}
       <Modal

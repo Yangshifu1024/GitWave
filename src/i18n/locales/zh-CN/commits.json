@@ -48,7 +48,8 @@
       "cherryPickTitle": "拣选到当前分支",
       "cherryPickAria": "将此提交拣选到当前分支",
       "revertTitle": "撤销此提交",
-      "revertAria": "撤销此提交"
+      "revertAria": "撤销此提交",
+      "moreActions": "更多操作"
     },
     "revert": {
       "confirmTitle": "撤销 {{sha}}？",

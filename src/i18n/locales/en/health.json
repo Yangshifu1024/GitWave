@@ -21,6 +21,11 @@
     },
     "details": {
       "conflictResidue": "Leftover MERGE_HEAD / REVERT_HEAD / CHERRY_PICK_HEAD state files"
+    },
+    "summary": {
+      "clean": "Clean",
+      "changes": "{{count}} changed",
+      "residue": "Operation residue"
     }
   }
 }

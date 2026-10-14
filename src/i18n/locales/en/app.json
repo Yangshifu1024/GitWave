@@ -13,6 +13,10 @@
       "noRepoDescription": "Select a repository from the sidebar to view history and diffs.",
       "noCommitTitle": "No commit selected",
       "noCommitDescription": "Click a commit in the history graph to see its diff."
+    },
+    "layout": {
+      "resizeSidebar": "Resize sidebar",
+      "resizeInspector": "Resize inspector"
     }
   }
 }

@@ -1,5 +1,7 @@
 # GitWave · UI/UX 设计总览
 
+> 2026-10-14 未发布修订：历史优先界面已在功能分支实施，当前规格以 [08-history-first.md](./08-history-first.md) 为准。侧栏默认 240px、健康摘要默认收起、图宽有界压缩、操作状态移至底栏。下方历史排期与已发布版本说明保留。
+
 > 完整界面设计文档。配合 `01-tokens.md` / `02-components.md` / `03-layout.md` 一起阅读。
 > 状态：已落地（对照 v0.9.3）。IA 与 3-pane 仍有效；组件栈见下方「库选择」修订。
 
@@ -62,10 +64,10 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  TitleBar  菜单 · 工作区 · 外部工具 · 操作按钮 · 状态区（窗口居中）        │
+│  TitleBar  菜单 · 工作区 · 外部工具 · 操作按钮        │
 ├────────────┬───────────────────────────────┬────────────────────┤
 │ Sidebar    │  History graph（主角）         │  Inspector         │
-│ (320px)    │  flex                         │  (~360px)          │
+│ (240px)    │  flex                         │  (~360px)          │
 │ workspaces │  Tide Lanes + commit 行       │  详情 / diff       │
 │ repos      │                               │                    │
 │ branches   │                               │                    │
@@ -73,15 +75,15 @@
 │ remotes /  │                               │                    │
 │ worktrees  │                               │                    │
 ├────────────┴───────────────────────────────┴────────────────────┤
-│ Working Copy Bar  clean 32px / dirty 展开文件列表 + commit     │
+│ Status Bar  32px · 当前分支 / 操作进度 / 取消 / 最近结果       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **TitleBar**：自绘标题栏（40px，唯一顶栏）。左侧应用菜单 + 工作区选择器 + 外部工具快捷入口；右侧 Local Changes / Stash / Fetch / Pull / Push；同步状态区绝对居中于窗口。详见 `03-layout.md` §2。
+- **TitleBar**：自绘标题栏（40px，唯一顶栏）。左侧应用菜单 + 工作区选择器 + 外部工具快捷入口；右侧 Local Changes / Stash / Fetch / Pull / Push；同步状态区位于底栏。详见 `03-layout.md` §2。
 - **Sidebar（Source List）**：branches + stash / tags / remotes / worktrees / submodules 等 sections（同步按钮不在侧栏）。Mist 底，与 Foam 画布有材质差。
 - **History graph**：永远是中栏主角，不是 Tab。
 - **Inspector**：选中 commit 或 working-copy 文件的详情 / diff。
-- **Working Copy Bar**：clean 32px / dirty 展开至 ~220px（文件列表从 Changes Tab 收回）。详见 `04-working-copy.md`。
+- **Status Bar / Working Copy**：底栏 32px 显示当前分支与操作状态；Working Copy 从标题栏 Local Changes 打开独立 modal。
 
 详见 `03-layout.md` / `04-working-copy.md`。
 
@@ -97,7 +99,7 @@
 | `Input` | text / search | 已落地 |
 | `Modal` | 居中模态 | 已落地（HeroUI Dialog，取代 HTMLDialogElement） |
 | `Tooltip` | hover/focus 提示 | 已落地 |
-| `Toast` | 非阻塞反馈 | 未落地（无 Toast 组件；反馈走 `ErrorAlert` 与标题栏状态区） |
+| `Toast` | 非阻塞反馈 | 未落地（无 Toast 组件；反馈走 `ErrorAlert` 与底栏状态区） |
 | `Tabs` | 二级导航 | 已落地 |
 | `Split` / `Pane` | 3-pane 布局 + 可拖拽 handle | 已落地（`Split` + `ThreePaneLayout`，自研） |
 | `ListItem` | hover / selected / actions slot / status badge slot | 已落地 |
@@ -150,6 +152,7 @@
 - `05-visual-redesign.md`：主界面视觉重设计（v2，chrome 层叠与组件形态）
 - `06-color-palettes.md`：配色方案（native-blue 默认 / tide 可选）
 - `07-theme.md`：主题设计（颜色 / 字体 / 动效，已实施）
+- `08-history-first.md`：当前历史优先界面（功能分支已实施，未发版）
 - `docs/tech/decisions/00-overview.md` ADR 0005：库选择（含 HeroUI 修订）
 - `docs/pm/core/01-features.md` §1.10：平台与 UX 约束
 - `docs/tech/architecture/00-overview.md`：前端架构

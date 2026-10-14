@@ -21,6 +21,11 @@
     },
     "details": {
       "conflictResidue": "遗留的 MERGE_HEAD / REVERT_HEAD / CHERRY_PICK_HEAD 状态文件"
+    },
+    "summary": {
+      "clean": "无变更",
+      "changes": "{{count}} 项变更",
+      "residue": "操作残留"
     }
   }
 }

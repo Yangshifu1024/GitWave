@@ -41,7 +41,7 @@ export function TitleBar({
 }: {
   /** Operation controls (ActionBar) laid out after the menu. */
   children: React.ReactNode;
-  /** Absolutely positioned layer centered on the window (sync status area). */
+  /** Optional overlay above the presentational window chrome. */
   overlay?: React.ReactNode;
 }): React.JSX.Element {
   // Settings state lives in the ui store so global shortcuts (Cmd+,) and

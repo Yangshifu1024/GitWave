@@ -18,6 +18,8 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Surface } from "@heroui/react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { FolderOpen } from "lucide-react";
 import { laneColor, RefBadge } from "@/components/RefBadge";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/ContextMenu";
@@ -37,6 +39,7 @@ const PAGE_SIZE = 300;
 const LOAD_MORE_MARGIN = 1200;
 const LANE_GAP = 14;
 const NODE_R = 3.2;
+const COMPACT_GRAPH_MAX = 112;
 
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
@@ -108,6 +111,7 @@ interface GraphRowProps {
   art: RowArt;
   maxLane: number;
   isHead: boolean;
+  graphWidth: number;
 }
 
 /** Per-row SVG: through-lines, incoming/outgoing curves, commit node (newest-first). */
@@ -116,6 +120,7 @@ const GraphRow = React.memo(function GraphRow({
   art,
   maxLane,
   isHead,
+  graphWidth,
 }: GraphRowProps): React.JSX.Element {
   const width = laneX(maxLane) + LANE_GAP / 2;
   const cy = ROW_H / 2;
@@ -123,7 +128,14 @@ const GraphRow = React.memo(function GraphRow({
   const color = isHead ? "var(--color-branch-current)" : laneColor(commit.lane);
 
   return (
-    <svg width={width} height={ROW_H} className="shrink-0 overflow-visible" aria-hidden>
+    <svg
+      width={graphWidth}
+      height={ROW_H}
+      viewBox={`0 0 ${width} ${ROW_H}`}
+      preserveAspectRatio="none"
+      className="shrink-0 overflow-visible"
+      aria-hidden
+    >
       {art.verticals.map((lane) => (
         <line
           key={`thru-${lane}`}
@@ -236,6 +248,7 @@ interface CommitRowProps {
   onSelect: (sha: string) => void;
   isSelected: boolean;
   isHead: boolean;
+  graphWidth: number;
 }
 
 type DisplayRef = CommitRef & { synced?: boolean };
@@ -264,9 +277,12 @@ const CommitRow = React.memo(function CommitRow({
   onSelect,
   isSelected,
   isHead,
+  graphWidth,
 }: CommitRowProps): React.JSX.Element {
   const { t } = useTranslation();
   const refs = useMemo(() => mergeTrackedRefs(commit.refs ?? []), [commit.refs]);
+  const [refsOpen, setRefsOpen] = useState(false);
+  const primaryRef = refs.find((r) => r.kind === "local_branch") ?? refs[0];
 
   return (
     <ContextMenu>
@@ -279,24 +295,37 @@ const CommitRow = React.memo(function CommitRow({
           onKeyDown={(e) => e.key === "Enter" && onSelect(commit.sha)}
           onContextMenu={() => onSelect(commit.sha)}
           aria-current={isHead ? "true" : undefined}
+          aria-pressed={isSelected}
           className={cn(
             "flex items-center gap-2 px-2 py-0 cursor-pointer rounded-none shadow-none",
             "transition-colors duration-fast border-l-2 border-l-transparent",
             !isSelected && !isHead && "hover:bg-bg-elevated",
-            isHead && !isSelected && "bg-accent/10 border-l-accent hover:bg-accent/20",
-            isSelected && "bg-accent/20 border-l-accent hover:bg-accent/30",
+            isHead && !isSelected && "border-l-accent hover:bg-bg-elevated",
+            isSelected && "bg-accent/10 border-l-accent hover:bg-accent/15",
           )}
           style={{ height: `${ROW_H}px` }}
         >
-          <GraphRow commit={commit} art={art} maxLane={maxLane} isHead={isHead} />
+          <GraphRow
+            commit={commit}
+            art={art}
+            maxLane={maxLane}
+            isHead={isHead}
+            graphWidth={graphWidth}
+          />
 
-          <span className="font-mono text-[10px] text-text-muted w-14 shrink-0 tabular-nums">
-            {shortSha(commit.sha)}
-          </span>
+          <p
+            className={cn(
+              "flex-1 min-w-0 text-xs font-normal leading-none truncate text-text-primary",
+              (isHead || isSelected) && "font-medium",
+            )}
+            title={commit.message_summary}
+          >
+            {commit.message_summary}
+          </p>
 
-          {refs.length > 0 ? (
-            <span className="flex min-w-0 items-center gap-1 max-w-[55%] overflow-hidden">
-              {refs.slice(0, 3).map((r) => (
+          {primaryRef ? (
+            <span className="flex min-w-0 max-w-[20%] basis-[20%] items-center justify-end gap-1 overflow-hidden">
+              {[primaryRef].map((r) => (
                 <RefBadgeContextMenu
                   key={`${r.kind}:${r.name}`}
                   r={r}
@@ -310,25 +339,31 @@ const CommitRow = React.memo(function CommitRow({
                   />
                 </RefBadgeContextMenu>
               ))}
-              {refs.length > 3 ? (
-                <span className="text-xs text-text-muted shrink-0">+{refs.length - 3}</span>
+              {refs.length > 1 ? (
+                <button
+                  type="button"
+                  className="shrink-0 rounded px-1 text-[11px] text-text-secondary hover:bg-bg-elevated"
+                  aria-label={t("branches.graph.allRefs", { count: refs.length })}
+                  title={refs.map((r) => r.name).join("\n")}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setRefsOpen(true);
+                  }}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  +{refs.length - 1}
+                </button>
               ) : null}
             </span>
           ) : null}
 
-          <p
-            className={cn(
-              "flex-auto min-w-0 text-xs leading-none truncate text-text-primary",
-              isHead ? "font-semibold" : "font-medium",
-            )}
-            title={commit.message_summary}
-          >
-            {commit.message_summary}
-          </p>
+          <span className="hidden font-mono text-[11px] text-text-muted w-14 shrink-0 tabular-nums @lg/history:block">
+            {shortSha(commit.sha)}
+          </span>
 
           {/* Shrinks first and collapses to nothing before the message gives
               up its room: tight rows hide author/time instead of the refs. */}
-          <span className="min-w-0 shrink-[999] overflow-hidden whitespace-nowrap text-[10px] text-text-muted tabular-nums">
+          <span className="hidden min-w-0 max-w-36 shrink-[999] overflow-hidden whitespace-nowrap text-[11px] text-text-muted tabular-nums @2xl/history:block">
             {commit.author} &middot; {formatCommitTime(commit.time, t)}
           </span>
         </Surface>
@@ -336,6 +371,31 @@ const CommitRow = React.memo(function CommitRow({
       <ContextMenuContent className="max-w-[260px]">
         <CommitMenuBody commit={commit} />
       </ContextMenuContent>
+      {refsOpen ? (
+        <Modal
+          open
+          onOpenChange={setRefsOpen}
+          title={t("branches.graph.allRefs", { count: refs.length })}
+          size="sm"
+        >
+          <div className="flex flex-col items-start gap-2">
+            {refs.map((r) => (
+              <RefBadgeContextMenu
+                key={`${r.kind}:${r.name}`}
+                r={r}
+                onSelect={() => onSelect(commit.sha)}
+              >
+                <RefBadge
+                  r={r}
+                  truncate={false}
+                  synced={r.synced}
+                  emphasize={isHead && r.kind === "local_branch"}
+                />
+              </RefBadgeContextMenu>
+            ))}
+          </div>
+        </Modal>
+      ) : null}
     </ContextMenu>
   );
 });
@@ -365,6 +425,11 @@ export function CommitGraph({
     });
   const [localSelected, setLocalSelected] = useState<string | null>(null);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const [graphMode, setGraphMode] = useState<{ repoId: string | null; full: boolean }>({
+    repoId: null,
+    full: false,
+  });
+  const fullGraph = graphMode.repoId === activeRepoId && graphMode.full;
   // F011: one shared row-menu controller; its modals render once below.
   const menu = useCommitMenuActions(activeWorkspaceId);
 
@@ -378,6 +443,8 @@ export function CommitGraph({
   }, [commits]);
 
   const maxLane = useMemo(() => commits.reduce((m, c) => Math.max(m, c.lane), 0), [commits]);
+  const naturalGraphWidth = laneX(maxLane) + LANE_GAP / 2;
+  const graphWidth = fullGraph ? naturalGraphWidth : Math.min(naturalGraphWidth, COMPACT_GRAPH_MAX);
 
   const rowArtByIndex = useMemo(() => computeRowArt(commits, shaToIndex), [commits, shaToIndex]);
 
@@ -518,7 +585,26 @@ export function CommitGraph({
 
   return (
     <CommitMenuContext.Provider value={menu}>
-      <div className="h-full flex flex-col min-h-0">
+      <div className="@container/history h-full flex flex-col min-h-0">
+        <div className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3 py-1.5">
+          <span className="text-xs font-medium text-text-primary">{t("branches.graph.title")}</span>
+          {naturalGraphWidth > COMPACT_GRAPH_MAX ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={fullGraph}
+              onClick={() => {
+                if (fullGraph && scrollElement)
+                  scrollElement.scrollTo({ left: 0, top: scrollElement.scrollTop });
+                setGraphMode({ repoId: activeRepoId, full: !fullGraph });
+              }}
+              className="min-w-0 text-[11px] text-text-secondary"
+              title={t("branches.graph.compressedHint")}
+            >
+              {t(fullGraph ? "branches.graph.compactGraph" : "branches.graph.fullGraph")}
+            </Button>
+          ) : null}
+        </div>
         {snapshotTruncated ? (
           <p className="px-3 py-1 text-xs text-warning">
             {t("branches.graph.snapshotLimited", { total: snapshotSize })}
@@ -542,6 +628,7 @@ export function CommitGraph({
               style={{
                 height: `${virtualizer.totalSize}px`,
                 width: "100%",
+                minWidth: fullGraph ? `${naturalGraphWidth + 420}px` : undefined,
                 position: "relative",
                 // No will-change here on purpose: promoting a many-thousand-px sizer
                 // is an unverifiable memory risk on WKWebView; A/B it on a real Mac
@@ -576,6 +663,7 @@ export function CommitGraph({
                       onSelect={handleSelect}
                       isSelected={selectedSha === commit.sha}
                       isHead={menu.headSha === commit.sha}
+                      graphWidth={graphWidth}
                     />
                   </div>
                 );

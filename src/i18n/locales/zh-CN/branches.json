@@ -148,7 +148,12 @@
       "loadingOlder": "正在加载更早的提交…",
       "endOfHistory": "已到历史末尾 · 共 {{total}} 个提交",
       "snapshotLimited": "历史范围限于最近 {{total}} 个提交，更早的提交不在此次搜索范围内。",
-      "endOfSnapshot": "已到加载范围末尾 · 共 {{total}} 个提交"
+      "endOfSnapshot": "已到加载范围末尾 · 共 {{total}} 个提交",
+      "title": "提交历史",
+      "fullGraph": "完整分支图",
+      "compactGraph": "压缩分支图",
+      "compressedHint": "预览压缩所有 lane；展开后可横向查看完整分支关系。",
+      "allRefs": "全部 refs（{{count}}）"
     }
   }
 }

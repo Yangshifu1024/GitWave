@@ -1,5 +1,7 @@
 # GitWave · 功能列表
 
+> 未发布改动：历史优先界面重整侧栏、健康摘要、提交图与文件详情的信息层级，完整 Git 能力和显式操作不变。见 [任务](../../tasks/feat-history-first-ui/plan.md) 与 [设计](../../design/08-history-first.md)。
+
 > 本文仅列出 GitWave 应具备的功能与明确不做的事。产品原则与 Workspace 概念作为内联说明融入对应功能小节。
 > 当前发布版本 **v0.10.2**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
 
