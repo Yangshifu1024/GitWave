@@ -2,22 +2,20 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.10.2 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
-
-### Unreleased
-
-- **History-first interface** — compact source-list navigation and health summary, a bounded graph preview with full topology access, quieter refs, compact changed-file rows, keyboard-resizable columns and a bottom operation-status bar. See the [task](./docs/tasks/feat-history-first-ui/plan.md) and [design](./docs/design/08-history-first.md).
+**Status:** v0.10.3 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
 ### What's new in v0.10.x
 
+- **v0.10.3** — history-first interface with compact sidebar and health summary, a bounded graph preview and full topology view, quieter refs, compact changed-file rows, keyboard-resizable columns and a bottom operation-status bar
 - **v0.10.2** — fixed macOS relaunch after installing updates, with visible restart failures and retry; updated Tauri, React libraries and development tooling
 - **v0.10.1** — restored macOS native menu actions so Settings, Add Repository and other dialogs open reliably after startup and menu rebuilds
 - **v0.10.0** — newly added, initialized or cloned repositories stay active instead of jumping to the first tab; worktree switching preserves the selected repository, and batch additions activate the last added repository; updated Tauri plugins and development dependencies
-- **v0.9.6** — refreshed application icons across the desktop app and website; smaller frontend bundles with on-demand syntax resources; more reliable dialog resets and repository switching, with warning-free frontend and Rust quality gates
 
 Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWave/releases).
 
-![GitWave's window: a self-drawn title bar carrying the app menu, workspace selector and sync actions, a commit graph with ref badges in the centre, the selected commit's details in the right pane, and a working copy bar along the bottom.](./assets/gitwave-screenshot.png)
+![Earlier-release GitWave window: a self-drawn title bar carrying the app menu, workspace selector and sync actions, a commit graph with ref badges in the centre, the selected commit's details in the right pane, and a working copy bar along the bottom.](./assets/gitwave-screenshot.png)
+
+The screenshot shows an earlier release. The current history-first layout is documented in the [design specification](./docs/design/08-history-first.md).
 
 ## Download
 
@@ -28,15 +26,15 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **Workspace management** — multiple workspaces, drag-reorderable repo tabs that scroll horizontally with the mouse wheel once they overflow the window (the active tab stays in view), adding several local repositories at once (already-added paths and repeats inside the batch are skipped, unusable paths are reported without failing the batch), per-workspace AI context; a workspace is an abstraction, not a directory
 - **Working copy** — stage / unstage, discard, ignore, commit with conventional-commit type chips (amend the last commit included), commit message AI assist
 - **Branches & sync** — create / switch / delete / rename / set upstream tracking (the picker lists every remote-tracking branch, `origin/main` included), double-click a remote branch to create its tracked local branch and switch to it (DWIM), push / pull with a target-remote picker, tag pushes that send only the tags on the pushed commit (conflicting tags are skipped and named instead of failing the batch), fetch across all remotes with stale tracking-ref pruning, time-boxed network syncs with an in-flight cancel button, an in-app auth prompt that collects a username / token and retries in place when a remote challenges for credentials (optionally saved to your system keychain), merge (ff & no-ff) with a conflict panel that also exposes unresolved index entries outside an active merge, and a collapsible sidebar that groups prefixed branches into folders and auto-expands to the branch you check out
-- **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info) that reveal the checked-out branch in the sidebar; ref badges merge tracked remotes into a single synced badge on a nine-colour lane palette
-- **Diff viewer** — side-by-side and unified views, character-level highlighting inside changed lines, and side-by-side image diffs (old / new versions rendered for png / jpg / gif / webp / bmp / ico / svg — for unstaged changes the new side reflects the live worktree)
+- **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info) that reveal the checked-out branch in the sidebar; a bounded preview and full topology view preserve reading space, while subdued refs merge matching tracked remotes and expand to show all names
+- **Diff viewer** — compact file rows with full-row expansion and lazy content loading, side-by-side and unified views, character-level highlighting inside changed lines, and side-by-side image diffs (old / new versions rendered for png / jpg / gif / webp / bmp / ico / svg — for unstaged changes the new side reflects the live worktree)
 - **Advanced Git** — stash (scoped to the active repo; each entry opens a detail window with its file list and diff, its actions are labelled buttons with tooltips, apply pre-checks a working copy that has uncommitted changes and drop confirms before running, and files saved as untracked are listed), interactive rebase, worktrees, submodules, LFS, remotes, .gitignore editor, Git hooks panel, repo health checks
 - **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider. AI replies in Chinese / Japanese / Korean / English per your preference
 - **Automatic updates** — in-app check for updates with signed downloads and one-click install (macOS / Windows / AppImage); Restart Now reopens the app after installing a macOS update, with visible restart request failures and retry; deb / rpm installs get update prompts pointing at the releases page
 - **Background refresh** — auto refresh keeps every repository in the workspace current on a configurable interval (default 5 minutes), fetching each repo best-effort; ⌘R / Ctrl+R refreshes the active repo on demand
 - **Proxy-aware networking** — AI requests, sync, LFS and update checks follow the OS system proxy (Windows / macOS) or a manual proxy URL you set in Settings → Network, effective immediately; loopback addresses (local Ollama etc.) always bypass it
 - **SSH key management** — generate / import keys, per-repo SSH configuration
-- **Platform UX** — command palette, menu bar app mode, themes plus UI / monospace font family and size settings, one-click open of the active repo in the system file manager, a detected terminal, or a detected code editor (VS Code / Zed / VSCodium), Chinese / English interface with instant switching, and a self-drawn title bar that merges the app menu and the operation bar into a single row (traffic lights / window controls kept clear)
+- **Platform UX** — a compact source-list sidebar with expandable health metrics, keyboard-resizable panes, a bottom operation-status bar, command palette, menu bar app mode, themes plus UI / monospace font family and size settings, one-click open of the active repo in the system file manager, a detected terminal, or a detected code editor (VS Code / Zed / VSCodium), Chinese / English interface with instant switching, and a self-drawn title bar that merges the app menu and the operation bar into a single row (traffic lights / window controls kept clear)
 
 ## Tech stack
 

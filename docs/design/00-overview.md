@@ -1,6 +1,6 @@
 # GitWave · UI/UX 设计总览
 
-> 2026-10-14 未发布修订：历史优先界面已在功能分支实施，当前规格以 [08-history-first.md](./08-history-first.md) 为准。侧栏默认 240px、健康摘要默认收起、图宽有界压缩、操作状态移至底栏。下方历史排期与已发布版本说明保留。
+> v0.10.3（2026-10-14）修订：历史优先界面已随 v0.10.3 交付，当前规格以 [08-history-first.md](./08-history-first.md) 为准。侧栏默认 240px、健康摘要默认收起、图宽有界压缩、操作状态移至底栏。下方历史排期与已发布版本说明保留。
 
 > 完整界面设计文档。配合 `01-tokens.md` / `02-components.md` / `03-layout.md` 一起阅读。
 > 状态：已落地（对照 v0.9.3）。IA 与 3-pane 仍有效；组件栈见下方「库选择」修订。
@@ -152,7 +152,7 @@
 - `05-visual-redesign.md`：主界面视觉重设计（v2，chrome 层叠与组件形态）
 - `06-color-palettes.md`：配色方案（native-blue 默认 / tide 可选）
 - `07-theme.md`：主题设计（颜色 / 字体 / 动效，已实施）
-- `08-history-first.md`：当前历史优先界面（功能分支已实施，未发版）
+- `08-history-first.md`：当前历史优先界面（v0.10.3 已交付）
 - `docs/tech/decisions/00-overview.md` ADR 0005：库选择（含 HeroUI 修订）
 - `docs/pm/core/01-features.md` §1.10：平台与 UX 约束
 - `docs/tech/architecture/00-overview.md`：前端架构

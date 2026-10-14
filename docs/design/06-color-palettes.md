@@ -1,6 +1,6 @@
 # GitWave · 配色方案（Palette Options）
 
-> 2026-10-14 未发布修订：两套 palette 共用九个低饱和度 lane token，随 active text token 调整明暗；历史候选色表保留。当前图色见 [08-history-first.md](./08-history-first.md#theme)。
+> v0.10.3（2026-10-14）修订：两套 palette 共用九个低饱和度 lane token，随 active text token 调整明暗；历史候选色表保留。当前图色见 [08-history-first.md](./08-history-first.md#theme)。
 
 > 状态：**K · Native Blue（默认）与 A · Tide Studio 已实现**（2026-08-27），Settings → Appearance → Color palette 内切换；其余候选待评估。  
 > 布局与组件形态见 [`05-visual-redesign.md`](./05-visual-redesign.md)；**仅颜色可变**。  

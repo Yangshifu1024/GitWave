@@ -1,6 +1,6 @@
 # GitWave · Component Inventory
 
-> 2026-10-14 未发布修订：侧栏使用无卡片 source-list 分组；refs 使用中性标签；折叠文件为整行展开按钮，Blame 位于展开上下文；操作状态移至底栏。当前组件规则见 [08-history-first.md](./08-history-first.md)。
+> v0.10.3（2026-10-14）修订：侧栏使用无卡片 source-list 分组；refs 使用中性标签；折叠文件为整行展开按钮，Blame 位于展开上下文；操作状态移至底栏。当前组件规则见 [08-history-first.md](./08-history-first.md)。
 
 > Primitive + composite 组件清单。实现位于 `src/components/` 与 `src/components/ui/`。
 > 下文「底层：Radix …」是 2026-08 设计稿。截至 v0.9.3，通用 primitive 的实现是 **HeroUI v3 wrapper**（见 ADR 0005 修订）；API 意图（variant / size / 几何）仍以本文件为准。

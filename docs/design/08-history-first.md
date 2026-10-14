@@ -1,6 +1,6 @@
 # History-first interface
 
-Status: implemented on the feature branch, unreleased. Accepted on 2026-10-14. Task: [implementation and verification](../tasks/feat-history-first-ui/plan.md).
+Status: included in v0.10.3. Accepted on 2026-10-14. Task: [implementation and verification](../tasks/feat-history-first-ui/plan.md).
 
 This specification supersedes older card-based sidebar, full-width graph and centered titlebar-status guidance where they conflict. Workspace remains the primary entry; one repository is active. Git operations still require explicit user actions.
 

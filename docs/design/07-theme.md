@@ -1,6 +1,6 @@
 # GitWave · 主题设计（颜色 · 字体 · 动效）
 
-> 2026-10-14 未发布修订：history 使用九个低饱和度 lane；普通 refs 使用中性样式，当前分支使用 accent，dirty 不再使用 warning。见 [08-history-first.md](./08-history-first.md)。
+> v0.10.3（2026-10-14）修订：history 使用九个低饱和度 lane；普通 refs 使用中性样式，当前分支使用 accent，dirty 不再使用 warning。见 [08-history-first.md](./08-history-first.md)。
 
 > 状态：**已实施**（2026-08-28，分支 `feature/theme-design`）  
 > 范围：**仅**颜色 / 字体 / 动画（含阴影材质 token）。**不涉及布局**——布局与组件形态见 [`05-visual-redesign.md`](./05-visual-redesign.md)。  

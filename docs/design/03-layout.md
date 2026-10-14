@@ -1,6 +1,6 @@
 # GitWave · Layout Spec
 
-> 2026-10-14 未发布修订：当前布局以 [08-history-first.md](./08-history-first.md) 为准；保留历史方案作决策记录。
+> v0.10.3（2026-10-14）修订：当前布局以 [08-history-first.md](./08-history-first.md) 为准；保留历史方案作决策记录。
 
 > 3-pane 布局详细规格：toolbar + sidebar + history graph + inspector。
 

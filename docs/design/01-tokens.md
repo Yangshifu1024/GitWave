@@ -1,6 +1,6 @@
 # GitWave · Design Tokens
 
-> 2026-10-14 未发布修订：九个 lane token 使用 `color-mix(in srgb, base 80%, var(--color-text-primary))`，替代本文历史五色色表。当前 base 值及规则见 [08-history-first.md](./08-history-first.md#theme)，其余 token 不变。
+> v0.10.3（2026-10-14）修订：九个 lane token 使用 `color-mix(in srgb, base 80%, var(--color-text-primary))`，替代本文历史五色色表。当前 base 值及规则见 [08-history-first.md](./08-history-first.md#theme)，其余 token 不变。
 
 > 设计 token 定义：颜色 / 间距 / 字体 / 圆角 / 阴影 / 动效。
 > 这些 token 由 Tailwind theme 扩展 + CSS 自定义属性双重承载；前端代码统一通过 Tailwind 类名访问。
