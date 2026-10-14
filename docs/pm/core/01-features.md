@@ -1,9 +1,11 @@
 # GitWave · 功能列表
 
+> v0.10.4 交付：修复历史图节点与 merge 曲线几何、对齐 refs / SHA / 作者 / 时间列，隐藏横向滚动条并保留平移；同步依赖更新。见 [发布任务](../../tasks/chore-release-v0.10.4/plan.md)。
+
 > v0.10.3 交付：历史优先界面重整侧栏、健康摘要、提交图与文件详情的信息层级，完整 Git 能力和显式操作不变。见 [任务](../../tasks/feat-history-first-ui/plan.md) 与 [设计](../../design/08-history-first.md)。
 
 > 本文仅列出 GitWave 应具备的功能与明确不做的事。产品原则与 Workspace 概念作为内联说明融入对应功能小节。
-> 当前发布版本 **v0.10.3**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
+> 当前发布版本 **v0.10.4**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
 
 ## 1. 功能范围
 
@@ -21,7 +23,7 @@ stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应�
 
 性能为入场券级要求（基线对标 Fork / Sublime Merge）：打开应用到首个可交互界面不可有可感知等待；仓库 history 图（含数万 commit）渲染必须流畅；提交列表在大仓库中滚动同样不得卡顿；大文件 diff 不卡 UI；后台 git 操作不阻塞用户主操作；视觉化渲染具备 lazy 策略。
 
-History graph（commit DAG，筛选 / 搜索）· 文件 diff（split / unified，character-level 高亮；Shiki 按需加载语言资源并高亮，小文件支持语法着色）· blame / annotate · file tree（**未交付**）· branch tree
+History graph（commit DAG，筛选 / 搜索；紧凑模式保持圆形节点与 merge 曲线几何，支持横向平移并对齐 refs / SHA / 作者 / 时间列）· 文件 diff（split / unified，character-level 高亮；Shiki 按需加载语言资源并高亮，小文件支持语法着色）· blame / annotate · file tree（**未交付**）· branch tree
 
 ### 1.3 Advanced Git
 

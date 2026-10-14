@@ -2,18 +2,14 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.10.3 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
-
-### Unreleased
-
-- Preserve circular commit nodes and stroke widths in the compact history graph with real lane spacing and horizontal graph browsing; keep messages pinned and reveal selected nodes. See the [fix task](./docs/tasks/fix-history-graph-geometry/plan.md).
+**Status:** v0.10.4 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
 ### What's new in v0.10.x
 
+- **v0.10.4** — restored circular history nodes and merge geometry, aligned refs / SHA / author / time columns, and hidden the horizontal scrollbar while preserving graph panning; updated Tauri, React Aria, Shiki, Lucide and development dependencies
 - **v0.10.3** — history-first interface with compact sidebar and health summary, a bounded graph preview and full topology view, quieter refs, compact changed-file rows, keyboard-resizable columns and a bottom operation-status bar
 - **v0.10.2** — fixed macOS relaunch after installing updates, with visible restart failures and retry; updated Tauri, React libraries and development tooling
 - **v0.10.1** — restored macOS native menu actions so Settings, Add Repository and other dialogs open reliably after startup and menu rebuilds
-- **v0.10.0** — newly added, initialized or cloned repositories stay active instead of jumping to the first tab; worktree switching preserves the selected repository, and batch additions activate the last added repository; updated Tauri plugins and development dependencies
 
 Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWave/releases).
 
@@ -30,7 +26,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **Workspace management** — multiple workspaces, drag-reorderable repo tabs that scroll horizontally with the mouse wheel once they overflow the window (the active tab stays in view), adding several local repositories at once (already-added paths and repeats inside the batch are skipped, unusable paths are reported without failing the batch), per-workspace AI context; a workspace is an abstraction, not a directory
 - **Working copy** — stage / unstage, discard, ignore, commit with conventional-commit type chips (amend the last commit included), commit message AI assist
 - **Branches & sync** — create / switch / delete / rename / set upstream tracking (the picker lists every remote-tracking branch, `origin/main` included), double-click a remote branch to create its tracked local branch and switch to it (DWIM), push / pull with a target-remote picker, tag pushes that send only the tags on the pushed commit (conflicting tags are skipped and named instead of failing the batch), fetch across all remotes with stale tracking-ref pruning, time-boxed network syncs with an in-flight cancel button, an in-app auth prompt that collects a username / token and retries in place when a remote challenges for credentials (optionally saved to your system keychain), merge (ff & no-ff) with a conflict panel that also exposes unresolved index entries outside an active merge, and a collapsible sidebar that groups prefixed branches into folders and auto-expands to the branch you check out
-- **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info) that reveal the checked-out branch in the sidebar; a bounded preview and full topology view preserve reading space, while subdued refs merge matching tracked remotes and expand to show all names
+- **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info) that reveal the checked-out branch in the sidebar; a bounded preview preserves circular nodes and merge geometry with horizontal panning, aligned metadata columns and full topology access; subdued refs merge matching tracked remotes and expand to show all names
 - **Diff viewer** — compact file rows with full-row expansion and lazy content loading, side-by-side and unified views, character-level highlighting inside changed lines, and side-by-side image diffs (old / new versions rendered for png / jpg / gif / webp / bmp / ico / svg — for unstaged changes the new side reflects the live worktree)
 - **Advanced Git** — stash (scoped to the active repo; each entry opens a detail window with its file list and diff, its actions are labelled buttons with tooltips, apply pre-checks a working copy that has uncommitted changes and drop confirms before running, and files saved as untracked are listed), interactive rebase, worktrees, submodules, LFS, remotes, .gitignore editor, Git hooks panel, repo health checks
 - **AI collaboration** — BYOK provider setup, commit explain, AI-drafted PR descriptions; diffs stay local unless you send them to your chosen provider. AI replies in Chinese / Japanese / Korean / English per your preference
