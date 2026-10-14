@@ -685,7 +685,7 @@ export function CommitGraph({
         {showGraph ? (
           <div
             ref={setScrollElement}
-            className="flex-1 min-h-0 overflow-auto"
+            className="history-scroll flex-1 min-h-0 overflow-auto"
             role="region"
             aria-label={t("branches.graph.title")}
             tabIndex={0}

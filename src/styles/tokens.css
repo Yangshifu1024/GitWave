@@ -419,6 +419,18 @@
     --color-scrollbar-track: var(--color-bg-panel);
   }
 
+  /* History keeps vertical scrolling visible and horizontal panning available.
+   * Use pseudo-element styling instead of the global standard width so that
+   * WebKit and Chromium can hide just the horizontal scrollbar. */
+  .history-scroll {
+    scrollbar-width: auto;
+  }
+
+  .history-scroll::-webkit-scrollbar:horizontal {
+    display: none;
+    height: 0;
+  }
+
   /* Hide scrollbars while keeping the area scrollable (wheel / trackpad). */
   .no-scrollbar {
     scrollbar-width: none;
