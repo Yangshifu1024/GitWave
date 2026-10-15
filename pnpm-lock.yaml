@@ -146,8 +146,8 @@ importers:
         specifier: ^2
         version: 2.1.1
       i18next:
-        specifier: ^26.4.2
-        version: 26.4.2(typescript@6.0.3)
+        specifier: ^26.4.3
+        version: 26.4.3(typescript@6.0.3)
       lucide-react:
         specifier: ^1.55
         version: 1.55.0(@types/react@19.3.0)(react@19.3.0)
@@ -162,7 +162,7 @@ importers:
         version: 19.3.0(react@19.3.0)
       react-i18next:
         specifier: ^17.0.16
-        version: 17.0.16(i18next@26.4.2(typescript@6.0.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@6.0.3)
+        version: 17.0.16(i18next@26.4.3(typescript@6.0.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@6.0.3)
       react-router-dom:
         specifier: ^7
         version: 7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1797,8 +1797,8 @@ packages:
   html-void-elements@3.0.0:
     resolution: {integrity: sha512-bEqo66MRXsUGxWHV5IP0PUiAWwoEjba4VCzg0LjFJBpchPaTfyfCKTG6bc5F8ucKec3q5y6qOdGyYTSBEvhCrg==}
 
-  i18next@26.4.2:
-    resolution: {integrity: sha512-RX+R0VLg13IbvRuJSxnqykUFS9vQZTl8wYpWPCIUDWVrSGjsQywB5Y+pjzrkboxGAuYfJZVH1InFTdgBdxq6ug==}
+  i18next@26.4.3:
+    resolution: {integrity: sha512-QIIueUYS2giFVIY3hu/X5Dz7/qTzwcXE06H29m1DKVhUGVPCyT0wnsh14wEn/cTy9nZ/B6VhbDItdXotOKSO8A==}
     peerDependencies:
       typescript: ^5 || ^6 || ^7
     peerDependenciesMeta:
@@ -2243,12 +2243,6 @@ packages:
 
   react-aria@3.52.1:
     resolution: {integrity: sha512-fdZZruC9/x/joCg0mhKGs5aHpwrXLCSZ4GOJmhhYyiE0ffyEsk9MLFt9LCOCF9tn8ErTD+UDQP4oDUSlZkmpCg==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-      react-dom: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  react-aria@3.53.0:
-    resolution: {integrity: sha512-xnr61tc2ZZ0MBPn52AiUSnO89Q2zwvBFFghipxuRM5H5n4cfPt3D0rB6OQoKCwNyD/ozm9BTFoNainzafd/RkQ==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
       react-dom: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
@@ -3307,14 +3301,14 @@ snapshots:
     dependencies:
       '@swc/helpers': 0.5.23
       react: 19.3.0
-      react-aria: 3.53.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      react-aria: 3.53.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom: 19.3.0(react@19.3.0)
 
   '@react-aria/utils@3.34.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@swc/helpers': 0.5.23
       react: 19.3.0
-      react-aria: 3.53.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      react-aria: 3.53.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom: 19.3.0(react@19.3.0)
       react-stately: 3.51.0(react@19.3.0)
 
@@ -4198,7 +4192,7 @@ snapshots:
 
   html-void-elements@3.0.0: {}
 
-  i18next@26.4.2(typescript@6.0.3):
+  i18next@26.4.3(typescript@6.0.3):
     optionalDependencies:
       typescript: 6.0.3
 
@@ -4604,20 +4598,6 @@ snapshots:
       react-stately: 3.50.0(react@19.3.0)
       use-sync-external-store: 1.6.0(react@19.3.0)
 
-  react-aria@3.53.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
-    dependencies:
-      '@internationalized/date': 3.12.4
-      '@internationalized/number': 3.6.9
-      '@internationalized/string': 3.2.10
-      '@react-types/shared': 3.37.0(react@19.3.0)
-      '@swc/helpers': 0.5.23
-      aria-hidden: 1.2.6
-      clsx: 2.1.1
-      react: 19.3.0
-      react-dom: 19.3.0(react@19.3.0)
-      react-stately: 3.51.0(react@19.3.0)
-      use-sync-external-store: 1.6.0(react@19.3.0)
-
   react-aria@3.53.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@internationalized/date': 3.12.4
@@ -4637,11 +4617,11 @@ snapshots:
       react: 19.3.0
       scheduler: 0.28.0
 
-  react-i18next@17.0.16(i18next@26.4.2(typescript@6.0.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@6.0.3):
+  react-i18next@17.0.16(i18next@26.4.3(typescript@6.0.3))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@6.0.3):
     dependencies:
       '@babel/runtime': 7.29.7
       html-parse-stringify: 4.0.1
-      i18next: 26.4.2(typescript@6.0.3)
+      i18next: 26.4.3(typescript@6.0.3)
       react: 19.3.0
       use-sync-external-store: 1.6.0(react@19.3.0)
     optionalDependencies:
