@@ -3,7 +3,7 @@
 > 历史规范（v0.10.3）：当前分支已按 [Tide Workbench 第一阶段](./09-workbench-redesign.md) 替换主布局与 History / Changes 容器。Git 行为与未迁移模块继续沿用本规范。
 
 
-Status: history-first shell included in v0.10.3; the geometry correction shipped in v0.10.4; the workbench changes below are unreleased. Accepted on 2026-10-14. Task: [implementation and verification](../tasks/feat-history-first-ui/plan.md).
+Status: history-first shell included in v0.10.3; the geometry correction shipped in v0.10.4; the Tide Workbench replacement shipped in v0.11.0. Accepted on 2026-10-14. Task: [implementation and verification](../tasks/feat-history-first-ui/plan.md).
 
 This specification supersedes older card-based sidebar, full-width graph and centered titlebar-status guidance where they conflict. Workspace remains the primary entry; one repository is active. Git operations still require explicit user actions.
 
@@ -25,7 +25,7 @@ Health uses one native disclosure row. Clean/dirty counts are neutral; Git opera
 
 ## History
 
-Keep fixed 28px rows, virtualization, 14-row overscan, memoized SVG/commit rows, cursor paging and cached dates. The current unreleased workbench always shows the full branch graph with 18px lane spacing, 8px padding and unscaled SVG pixels. The compact mask and its toggle/subheader have been removed at the user's request. The horizontal scrollbar stays hidden while vertical scrolling and horizontal panning remain available. Native horizontal scrolling reveals wide topology. Selection reveal retains vertical position and routine paging preserves manual panning. See [current follow-ups](../tasks/fix-workbench-interactions/plan.md).
+Keep fixed 28px rows, virtualization, 14-row overscan, memoized SVG/commit rows, cursor paging and cached dates. The current workbench always shows the full branch graph with 18px lane spacing, 8px padding and unscaled SVG pixels. The compact mask and its toggle/subheader have been removed at the user's request. The horizontal scrollbar stays hidden while vertical scrolling and horizontal panning remain available. Native horizontal scrolling reveals wide topology. Selection reveal retains vertical position and routine paging preserves manual panning. See [current follow-ups](../tasks/fix-workbench-interactions/plan.md).
 
 Messages precede fixed, aligned refs/SHA/author/time columns, use regular weight and receive remaining space. Selected/HEAD messages use medium weight. Author/time disappear in narrow panes; SHA also hides below its breakpoint and remains available in details/menus.
 

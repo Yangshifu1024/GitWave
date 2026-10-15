@@ -1,6 +1,6 @@
 # GitWave 工作台 · 全界面与交互重设计草案
 
-状态：**第一阶段 accepted，当前分支已实施、未发布**。日期：2026-10-15。
+状态：**第一阶段 accepted，已随 v0.11.0 发布**。日期：2026-10-15。
 
 已实施范围：双工作区导航、主布局/分隔条、History 文件列表与 compact diff、Changes 主区、compact commit type/dialog、repo-scoped 会话和写操作、跨切换失败反馈。保留 Native Blue/Tide 和现有字体偏好，未强制迁移配色。用户明确批准第一阶段后，此范围替代旧 History-only 三纵栏规范。
 

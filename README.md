@@ -2,14 +2,11 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.10.4 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
+**Status:** v0.11.0 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
-### Unreleased
+### What's new in v0.11.x
 
-- **Workbench interaction fixes** — reliable modal dismissal, full-height selected diffs, a full branch graph with aligned metadata, single-row Changes controls, and readable Blame columns.
-
-- **Tide Workbench, phase 1** — peer History / Changes workspaces, resizable history above a wide file/diff inspector, a full-size working-copy editor, compact commit-type picker and dialogs, and repository-pinned writes with retained error feedback. Existing Git actions and confirmation gates remain available. See the [implementation scope](./docs/tasks/feat-workbench-redesign/plan.md).
-
+- **v0.11.0** — Tide Workbench phase 1: peer History / Changes workspaces, a resizable history pane above a wide file/diff inspector, repository-scoped selections and drafts, a full-size working-copy editor with a compact commit composer, virtualized diff content, reliable dialog dismissal, readable Blame columns at narrow widths, and working-copy writes pinned to their originating repository with errors retained across navigation; updated @tanstack/react-query, i18next, @tauri-apps/cli, serde_json and development dependencies
 
 ### What's new in v0.10.x
 
@@ -22,7 +19,7 @@ Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWa
 
 ![Earlier-release GitWave window: a self-drawn title bar carrying the app menu, workspace selector and sync actions, a commit graph with ref badges in the centre, the selected commit's details in the right pane, and a working copy bar along the bottom.](./assets/gitwave-screenshot.png)
 
-The screenshot shows an earlier release. The released history-first layout is documented in the [v0.10.3 specification](./docs/design/08-history-first.md); the unreleased workbench is documented in [Tide Workbench](./docs/design/09-workbench-redesign.md).
+The screenshot shows an earlier release. The history-first layout is documented in the [v0.10.3 specification](./docs/design/08-history-first.md); the Tide Workbench is documented in [Tide Workbench](./docs/design/09-workbench-redesign.md).
 
 ## Download
 
@@ -31,6 +28,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 ## Features
 
 - **Workspace management** — multiple workspaces, drag-reorderable repo tabs that scroll horizontally with the mouse wheel once they overflow the window (the active tab stays in view), adding several local repositories at once (already-added paths and repeats inside the batch are skipped, unusable paths are reported without failing the batch), per-workspace AI context; a workspace is an abstraction, not a directory
+- **Tide Workbench** — the main area is split into peer History and Changes workspaces with a resizable history pane above a wide file/diff inspector; selections, drafts and the commit composer are scoped per repository, so switching repositories never mixes state. Diff content is virtualized to fill the pane, and working-copy writes stay pinned to the repository they started from even if you switch focus mid-operation
 - **Working copy** — stage / unstage, discard, ignore, commit with an optional conventional-commit type selector (amend the last commit included), commit message AI assist
 - **Branches & sync** — create / switch / delete / rename / set upstream tracking (the picker lists every remote-tracking branch, `origin/main` included), double-click a remote branch to create its tracked local branch and switch to it (DWIM), push / pull with a target-remote picker, tag pushes that send only the tags on the pushed commit (conflicting tags are skipped and named instead of failing the batch), fetch across all remotes with stale tracking-ref pruning, time-boxed network syncs with an in-flight cancel button, an in-app auth prompt that collects a username / token and retries in place when a remote challenges for credentials (optionally saved to your system keychain), merge (ff & no-ff) with a conflict panel that also exposes unresolved index entries outside an active merge, and a collapsible sidebar that groups prefixed branches into folders and auto-expands to the branch you check out
 - **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info) that reveal the checked-out branch in the sidebar; a bounded preview preserves circular nodes and merge geometry with horizontal panning, aligned metadata columns and full topology access; subdued refs merge matching tracked remotes and expand to show all names
