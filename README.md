@@ -17,9 +17,9 @@
 
 Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWave/releases).
 
-![Earlier-release GitWave window: a self-drawn title bar carrying the app menu, workspace selector and sync actions, a commit graph with ref badges in the centre, the selected commit's details in the right pane, and a working copy bar along the bottom.](./assets/gitwave-screenshot.png)
+![GitWave v0.11.0 window: the History workspace shows a full branch graph with ref badges, aligned SHA / author / time columns and commit search on the left, the selected commit's details and changed files on the right, and its diff below. A sidebar switches between History and Changes, lists branches, tags, stashes, worktrees, submodules and remotes, while the self-drawn title bar carries the app menu, workspace selector and sync actions.](./assets/gitwave-screenshot.png)
 
-The screenshot shows an earlier release. The history-first layout is documented in the [v0.10.3 specification](./docs/design/08-history-first.md); the Tide Workbench is documented in [Tide Workbench](./docs/design/09-workbench-redesign.md).
+The screenshot shows v0.11.0 with the Tide Workbench. Its design is documented in [Tide Workbench](./docs/design/09-workbench-redesign.md); the earlier history-first layout it replaces is documented in the [v0.10.3 specification](./docs/design/08-history-first.md).
 
 ## Download
 
