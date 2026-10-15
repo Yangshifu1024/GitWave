@@ -955,6 +955,7 @@ async fn generate_with_failover(
 pub async fn generate_commit_message(
     ctx: &AppContext,
     workspace_id: String,
+    repo_id: Option<String>,
     language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.clone())?;
@@ -963,7 +964,10 @@ pub async fn generate_commit_message(
         |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
     let chain = resolve_ai_chain(&settings, &key_lookup)?;
 
-    let repo_path = active_repo_path(ctx, &workspace_id)?;
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, &workspace_id, &id)?,
+        None => active_repo_path(ctx, &workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     let staged = infra_diff_index_to_head(&repo)?;
     if staged.files.is_empty() {
@@ -1164,9 +1168,13 @@ pub fn get_commit_diff(
 pub fn get_commit_details(
     ctx: &AppContext,
     workspace_id: &str,
+    repo_id: Option<&str>,
     commit_oid: &str,
 ) -> Result<CommitDetails> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, workspace_id, id)?,
+        None => active_repo_path(ctx, workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     infra_commit_details(&repo, commit_oid)
 }
@@ -2574,14 +2582,30 @@ pub fn get_dirty_repos(ctx: &AppContext, workspace_id: &str) -> Result<Vec<Dirty
     Ok(dirty)
 }
 
-pub fn stage_files(ctx: &AppContext, workspace_id: &str, paths: Vec<String>) -> Result<()> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
+pub fn stage_files(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: Option<&str>,
+    paths: Vec<String>,
+) -> Result<()> {
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, workspace_id, id)?,
+        None => active_repo_path(ctx, workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     infra_stage_paths(&repo, &paths)
 }
 
-pub fn unstage_files(ctx: &AppContext, workspace_id: &str, paths: Vec<String>) -> Result<()> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
+pub fn unstage_files(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: Option<&str>,
+    paths: Vec<String>,
+) -> Result<()> {
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, workspace_id, id)?,
+        None => active_repo_path(ctx, workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     infra_unstage_paths(&repo, &paths)
 }
@@ -2592,30 +2616,62 @@ pub fn stage_all(ctx: &AppContext, workspace_id: &str) -> Result<()> {
     infra_stage_all(&repo)
 }
 
-pub fn commit(ctx: &AppContext, workspace_id: &str, message: String) -> Result<String> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
+pub fn commit(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: Option<&str>,
+    message: String,
+) -> Result<String> {
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, workspace_id, id)?,
+        None => active_repo_path(ctx, workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     infra_commit(&repo, &message)
 }
 
 /// Amend HEAD for the active repo (user-initiated; rewrites history — the
 /// UI must confirm first, P1: never auto-runs).
-pub fn amend_commit(ctx: &AppContext, workspace_id: &str, message: String) -> Result<String> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
+pub fn amend_commit(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: Option<&str>,
+    message: String,
+) -> Result<String> {
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, workspace_id, id)?,
+        None => active_repo_path(ctx, workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     infra_amend_commit(&repo, &message)
 }
 
 /// Discard unstaged worktree changes for the given paths (destructive).
-pub fn discard_changes(ctx: &AppContext, workspace_id: &str, paths: Vec<String>) -> Result<()> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
+pub fn discard_changes(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: Option<&str>,
+    paths: Vec<String>,
+) -> Result<()> {
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, workspace_id, id)?,
+        None => active_repo_path(ctx, workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     infra_discard_worktree_changes(&repo, &paths)
 }
 
 /// Append a pattern to the repo-root `.gitignore` (idempotent).
-pub fn ignore_path(ctx: &AppContext, workspace_id: &str, pattern: String) -> Result<()> {
-    let repo_path = active_repo_path(ctx, workspace_id)?;
+pub fn ignore_path(
+    ctx: &AppContext,
+    workspace_id: &str,
+    repo_id: Option<&str>,
+    pattern: String,
+) -> Result<()> {
+    let repo_path = match repo_id {
+        Some(id) => selected_repo_path(ctx, workspace_id, id)?,
+        None => active_repo_path(ctx, workspace_id)?,
+    };
     let repo = ctx.open_repo(&repo_path)?;
     infra_ignore_path(&repo, &pattern)
 }
@@ -3490,6 +3546,52 @@ mod tests {
             Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
             Arc::new(Mutex::new(app_settings)),
         )
+    }
+
+    #[test]
+    fn working_writes_keep_explicit_repo_after_active_selection_changes() {
+        let (a_path, _a) = build_linear_repo(1);
+        let (b_path, _b) = build_linear_repo(1);
+        let ctx = fresh_ctx();
+        let ws = create_workspace(&ctx, "Workbench".into()).unwrap();
+        let ar = add_local_repo(&ctx, ws.id.clone(), a_path.to_string_lossy().into()).unwrap();
+        let br = add_local_repo(&ctx, ws.id.clone(), b_path.to_string_lossy().into()).unwrap();
+        fs::write(a_path.join("pending.txt"), "repo A").unwrap();
+        fs::write(b_path.join("pending.txt"), "repo B").unwrap();
+        set_active_repo(&ctx, ws.id.clone(), Some(br.id)).unwrap();
+        stage_files(&ctx, &ws.id, Some(&ar.id), vec!["pending.txt".into()]).unwrap();
+        assert!(git2::Repository::open(&a_path)
+            .unwrap()
+            .index()
+            .unwrap()
+            .get_path(std::path::Path::new("pending.txt"), 0)
+            .is_some());
+        assert!(git2::Repository::open(&b_path)
+            .unwrap()
+            .index()
+            .unwrap()
+            .get_path(std::path::Path::new("pending.txt"), 0)
+            .is_none());
+        unstage_files(&ctx, &ws.id, Some(&ar.id), vec!["pending.txt".into()]).unwrap();
+        assert!(git2::Repository::open(&a_path)
+            .unwrap()
+            .index()
+            .unwrap()
+            .get_path(std::path::Path::new("pending.txt"), 0)
+            .is_none());
+        ignore_path(&ctx, &ws.id, Some(&ar.id), "*.cache".into()).unwrap();
+        assert!(a_path.join(".gitignore").exists());
+        assert!(!b_path.join(".gitignore").exists());
+        discard_changes(&ctx, &ws.id, Some(&ar.id), vec!["pending.txt".into()]).unwrap();
+        assert!(!a_path.join("pending.txt").exists());
+        assert_eq!(
+            fs::read_to_string(b_path.join("pending.txt")).unwrap(),
+            "repo B"
+        );
+        let other_ws = create_workspace(&ctx, "Other".into()).unwrap();
+        assert!(stage_files(&ctx, &other_ws.id, Some(&ar.id), vec!["pending.txt".into()]).is_err());
+        cleanup(&a_path);
+        cleanup(&b_path);
     }
 
     fn cleanup(path: &std::path::Path) {

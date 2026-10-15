@@ -173,3 +173,20 @@ it("does not render a previous repository's delayed response", async () => {
   });
   expect(screen.queryByText("repository A")).toBeNull();
 });
+
+it("keeps fold, split and blame controls in the compact workbench preview", async () => {
+  vi.mocked(getDiffPreview).mockResolvedValue(preview("compact content"));
+  render(wrap(<DiffViewer compact hideMaximize workdir path="a.txt" staged={false} />));
+  await screen.findByText("compact content");
+  expect(screen.queryByRole("button", { name: "diff.file.collapse: a.txt" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "diff.toolbar.collapseAll" }));
+  expect(screen.queryByText("compact content")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "diff.toolbar.expandAll" }));
+  expect(screen.getByText("compact content")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "diff.toolbar.splitView" }));
+  expect(screen.getByRole("button", { name: "diff.toolbar.unifiedView" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "diff.file.blame" }));
+  expect(screen.getByRole("button", { name: "diff.preview.back" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "diff.preview.back" }));
+  expect(screen.getByText("compact content")).toBeTruthy();
+});

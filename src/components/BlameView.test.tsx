@@ -14,6 +14,25 @@ afterEach(() => {
   vi.mocked(getBlame).mockReset();
 });
 
+it("keeps full attribution available and omits the duplicate path in a diff inspector", async () => {
+  useWorkspaceUiStore.setState({ activeWorkspaceId: "ws", activeRepoId: "repo" });
+  vi.mocked(getBlame).mockResolvedValue([
+    {
+      line_no: 1,
+      sha: "abcdef0123456789",
+      author: "A very long author name",
+      author_email: "author@example.test",
+      time: 0,
+      content: "const value = 1;",
+    },
+  ]);
+  render(<BlameView path="file.ts" hideHeader />);
+  expect(await screen.findByText("const value = 1;")).toBeTruthy();
+  const details = screen.getByTitle(/abcdef0123456789/);
+  expect(details.title).toContain("A very long author name <author@example.test>");
+  expect(screen.queryByText("file.ts")).toBeNull();
+});
+
 it("keeps the current file when an earlier blame finishes late", async () => {
   let resolveOld!: (lines: BlameLine[]) => void;
   let resolveNew!: (lines: BlameLine[]) => void;

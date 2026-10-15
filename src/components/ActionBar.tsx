@@ -79,7 +79,6 @@ import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { PrDescriptionModal } from "@/components/PrDescriptionModal";
 import { LfsPanel } from "@/components/LfsPanel";
 import { HooksPanel } from "@/components/HooksPanel";
-import { WorkingCopyModal } from "@/components/ui/WorkingCopyModal";
 import { WorkspaceDropdown } from "@/components/WorkspaceDropdown";
 import { TitleBar } from "@/components/TitleBar";
 
@@ -170,10 +169,10 @@ function deriveDestName(url: string): string {
 
 export function ActionBar({
   conflictCount,
-  onResolveConflicts,
+  onOpenChanges,
 }: {
+  onOpenChanges: () => void;
   conflictCount: number;
-  onResolveConflicts: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -186,7 +185,7 @@ export function ActionBar({
   const switchWorkspace = useValidatedWorkspaceSwitch();
   const setActiveRepoId = useWorkspaceUiStore((s) => s.setActiveRepoId);
   const bumpHistoryEpoch = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
-  const wc = useWorkingCopy();
+  const wc = useWorkingCopy({ writeErrors: false });
   const seedRepos = useSeedRepos();
 
   // ── Workspace state ────────────────────────────────────────────────────
@@ -649,7 +648,6 @@ export function ActionBar({
   })();
 
   // ── Local Changes ──────────────────────────────────────────────────────
-  const [wcModalOpen, setWcModalOpen] = useState(false);
   const changeCount = (wc.data?.files.length ?? 0) + conflictCount;
   const localChangesDisabled = !activeRepoId;
 
@@ -829,7 +827,7 @@ export function ActionBar({
             title={t("changes.actionBar.localChangesTitle")}
             tone={conflictCount > 0 ? "danger" : changeCount > 0 ? "accent" : undefined}
             disabled={localChangesDisabled}
-            onClick={() => (conflictCount > 0 ? onResolveConflicts() : setWcModalOpen(true))}
+            onClick={onOpenChanges}
           />
           <ActionBarButton
             icon={<Archive size={14} />}
@@ -1688,8 +1686,6 @@ export function ActionBar({
           </div>
         </Modal>
       ) : null}
-
-      <WorkingCopyModal open={wcModalOpen} onOpenChange={setWcModalOpen} />
     </>
   );
 }

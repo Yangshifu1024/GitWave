@@ -17,6 +17,24 @@
     "layout": {
       "resizeSidebar": "Resize sidebar",
       "resizeInspector": "Resize inspector"
+    },
+    "workbench": {
+      "history": "History",
+      "changes": "Changes",
+      "navigation": "Repository navigation",
+      "files": "Changed files",
+      "noFiles": "No file changes in this commit",
+      "resizeFiles": "Resize file list",
+      "resizeHistory": "Resize history and details",
+      "toggleSidebar": "Toggle navigator",
+      "focus": "Focus diff",
+      "restore": "Restore layout",
+      "search": "Search commits",
+      "conflicts": "Conflicts: {{count}}",
+      "resolve": "Resolve conflicts",
+      "commitType": "Commit type (optional)",
+      "more": "More",
+      "fileActions": "File actions"
     }
   }
 }

@@ -88,26 +88,22 @@ export function CommitMessageBox({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="flex flex-wrap gap-1">
+      <select
+        aria-label={t("app.workbench.commitType")}
+        value=""
+        disabled={disabled}
+        className="h-7 w-fit max-w-full rounded-md border border-border-subtle bg-bg-panel px-2 text-xs text-text-secondary"
+        onChange={(event) => {
+          if (event.target.value) applyType(event.target.value);
+        }}
+      >
+        <option value="">{t("app.workbench.commitType")}</option>
         {COMMIT_TYPES.map((type) => (
-          <Button
-            key={type}
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={() => applyType(type)}
-            className={cn(
-              "h-auto rounded-sm border border-border-subtle px-1.5 py-0.5",
-              "font-mono text-[10px] text-text-secondary",
-              "hover:border-accent hover:text-accent",
-              "disabled:opacity-40 disabled:pointer-events-none",
-            )}
-          >
+          <option key={type} value={type}>
             {type}
-          </Button>
+          </option>
         ))}
-      </div>
+      </select>
       <TextField
         value={value}
         onChange={onChange}
@@ -123,7 +119,7 @@ export function CommitMessageBox({
             ref={textareaRef}
             onKeyDown={handleKeyDown}
             placeholder={t("changes.messageBox.placeholder")}
-            rows={6}
+            rows={4}
             className="w-full resize-none px-3 py-2 text-sm"
           />
         </InputGroup>

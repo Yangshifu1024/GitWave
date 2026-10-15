@@ -14,6 +14,7 @@ import {
 import { FileListItem } from "@/components/ui/FileListItem";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/DropdownMenu";
 import { Modal } from "@/components/ui/Modal";
 import { CommitMessageBox } from "@/components/ui/CommitMessageBox";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
@@ -122,13 +123,6 @@ function FileSection({
     setSelected(new Set());
   };
 
-  const handleDangerBulk = (event: React.MouseEvent) => {
-    event.stopPropagation();
-    if (selectedInSection.length === 0 || !onDangerAction) return;
-    onDangerAction(selectedInSection);
-    setSelected(new Set());
-  };
-
   return (
     <div
       className={cn(
@@ -147,9 +141,14 @@ function FileSection({
         setSelected(new Set(files.map((file) => file.path)));
       }}
     >
-      <div className={cn("shrink-0 flex items-center gap-1", fixed ? "px-2 py-1" : "pr-1")}>
+      <div
+        className={cn(
+          "shrink-0 flex items-center gap-1 overflow-x-auto",
+          fixed ? "px-2 py-1" : "pr-1",
+        )}
+      >
         {fixed ? (
-          <h3 className="flex-1 min-w-0 truncate px-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+          <h3 className="mr-auto shrink-0 whitespace-nowrap px-1 text-xs font-semibold text-text-secondary">
             {t("changes.fileSection.titleWithCount", { title, total: files.length })}
           </h3>
         ) : (
@@ -186,45 +185,52 @@ function FileSection({
             {allActionLabel}
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant={actionVariant}
-          size="sm"
-          className={cn("shrink-0 min-w-[4.5rem]", bar ? "" : "mx-1.5")}
-          disabled={selectedInSection.length === 0}
-          onClick={handleBulk}
-          title={t("changes.fileSection.selectedFilesTooltip", { action: actionLabel })}
-        >
-          {actionLabel}
-        </Button>
-        {allDangerActionLabel && onAllDangerAction ? (
+        {selectedInSection.length > 0 && (
           <Button
             type="button"
-            variant="danger"
-            size="sm"
-            className="shrink-0"
-            disabled={files.length === 0}
-            onClick={(event) => {
-              event.stopPropagation();
-              onAllDangerAction();
-            }}
-            title={t("changes.fileSection.allFilesTooltip", { action: allDangerActionLabel })}
-          >
-            {allDangerActionLabel}
-          </Button>
-        ) : null}
-        {dangerActionLabel && onDangerAction ? (
-          <Button
-            type="button"
-            variant="danger-soft"
+            variant={actionVariant}
             size="sm"
             className="shrink-0"
             disabled={selectedInSection.length === 0}
-            onClick={handleDangerBulk}
-            title={t("changes.fileSection.selectedFilesTooltip", { action: dangerActionLabel })}
+            onClick={handleBulk}
+            title={t("changes.fileSection.selectedFilesTooltip", { action: actionLabel })}
           >
-            {dangerActionLabel}
+            {actionLabel}
           </Button>
+        )}
+        {files.length > 0 && allDangerActionLabel && onAllDangerAction ? (
+          <DropdownMenu>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0"
+              aria-label={t("app.workbench.fileActions")}
+            >
+              {t("app.workbench.more")} <ChevronDown size={12} />
+            </Button>
+            <DropdownMenuContent placement="bottom end">
+              <DropdownMenuItem
+                destructive
+                textValue={allDangerActionLabel}
+                onSelect={onAllDangerAction}
+              >
+                {allDangerActionLabel}
+              </DropdownMenuItem>
+              {dangerActionLabel && onDangerAction ? (
+                <DropdownMenuItem
+                  destructive
+                  textValue={dangerActionLabel}
+                  disabled={selectedInSection.length === 0}
+                  onSelect={() => {
+                    onDangerAction(selectedInSection);
+                    setSelected(new Set());
+                  }}
+                >
+                  {dangerActionLabel}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
       </div>
       {sectionOpen ? (
@@ -232,10 +238,7 @@ function FileSection({
           role="listbox"
           aria-label={title}
           aria-multiselectable="true"
-          className={cn(
-            "flex-1 min-h-0 overflow-auto select-none",
-            fixed ? "px-1 pb-1" : "px-1 pb-2",
-          )}
+          className={cn("flex-1 min-h-0 overflow-auto select-none", fixed ? "pb-1" : "pb-2")}
         >
           {files.length === 0 ? (
             <p className="px-2 py-1 text-xs text-text-muted italic">{emptyLabel}</p>
@@ -431,7 +434,7 @@ export function ChangesPanel({
           setAiPromptOpen(true);
           return;
         }
-        const res = await generateCommitMessage(workspaceId);
+        const res = await generateCommitMessage(workspaceId, repoId ?? undefined);
         if (!isCurrent()) return;
         updateDraft(draftKey, { message: res.text, previousMessage: message });
         if (res.used_fallback) {
@@ -522,7 +525,7 @@ export function ChangesPanel({
         bar
           ? "flex flex-col min-h-0 p-2"
           : modal
-            ? "border-t border-border-subtle p-2"
+            ? "max-h-[52%] overflow-y-auto border-t border-border-subtle p-2"
             : "border-t border-border-subtle p-3",
       )}
     >

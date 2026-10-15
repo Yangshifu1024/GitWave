@@ -150,9 +150,6 @@
       "snapshotLimited": "History is limited to the newest {{total}} commits. Older commits are outside this search.",
       "endOfSnapshot": "End of loaded range · {{total}} commits",
       "title": "Commit history",
-      "fullGraph": "Full branch graph",
-      "compactGraph": "Compact view",
-      "compressedHint": "Compact view preserves node shapes. Scroll horizontally to browse the graph; commit messages stay in place.",
       "allRefs": "All refs ({{count}})"
     }
   }

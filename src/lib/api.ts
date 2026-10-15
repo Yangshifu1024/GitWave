@@ -312,9 +312,13 @@ export function probeOllama(baseUrl?: string): Promise<string[]> {
   return invoke<string[]>("cmd_probe_ollama", { baseUrl: baseUrl ?? null });
 }
 
-export function generateCommitMessage(workspaceId: string): Promise<AiGenerateOutcome> {
+export function generateCommitMessage(
+  workspaceId: string,
+  repoId?: string,
+): Promise<AiGenerateOutcome> {
   return invoke<AiGenerateOutcome>("cmd_generate_commit_message", {
     workspaceId,
+    repoId: repoId ?? null,
     language: aiLanguage(),
   });
 }
@@ -646,8 +650,16 @@ export function getCommitDiff(workspaceId: string, commitOid: string): Promise<D
   return invoke<DiffSummary>("cmd_get_commit_diff", { workspaceId, commitOid });
 }
 
-export function getCommitDetails(workspaceId: string, commitOid: string): Promise<CommitDetails> {
-  return invoke<CommitDetails>("cmd_get_commit_details", { workspaceId, commitOid });
+export function getCommitDetails(
+  workspaceId: string,
+  commitOid: string,
+  repoId?: string,
+): Promise<CommitDetails> {
+  return invoke<CommitDetails>("cmd_get_commit_details", {
+    workspaceId,
+    commitOid,
+    repoId: repoId ?? null,
+  });
 }
 
 export function getFileDiff(
@@ -1118,33 +1130,41 @@ export function getDirtyRepos(workspaceId: string): Promise<DirtyRepoSummary[]> 
   return invoke<DirtyRepoSummary[]>("cmd_get_dirty_repos", { workspaceId });
 }
 
-export function stageFiles(workspaceId: string, paths: string[]): Promise<void> {
-  return invoke<void>("cmd_stage_files", { workspaceId, paths });
+export function stageFiles(workspaceId: string, paths: string[], repoId?: string): Promise<void> {
+  return invoke<void>("cmd_stage_files", { workspaceId, paths, repoId: repoId ?? null });
 }
 
-export function unstageFiles(workspaceId: string, paths: string[]): Promise<void> {
-  return invoke<void>("cmd_unstage_files", { workspaceId, paths });
+export function unstageFiles(workspaceId: string, paths: string[], repoId?: string): Promise<void> {
+  return invoke<void>("cmd_unstage_files", { workspaceId, paths, repoId: repoId ?? null });
 }
 
 export function stageAll(workspaceId: string): Promise<void> {
   return invoke<void>("cmd_stage_all", { workspaceId });
 }
 
-export function commit(workspaceId: string, message: string): Promise<string> {
-  return invoke<string>("cmd_commit", { workspaceId, message });
+export function commit(workspaceId: string, message: string, repoId?: string): Promise<string> {
+  return invoke<string>("cmd_commit", { workspaceId, message, repoId: repoId ?? null });
 }
 
 /** Amend HEAD (rewrites history — caller must have confirmed upstream). */
-export function amendCommit(workspaceId: string, message: string): Promise<string> {
-  return invoke<string>("cmd_amend_commit", { workspaceId, message });
+export function amendCommit(
+  workspaceId: string,
+  message: string,
+  repoId?: string,
+): Promise<string> {
+  return invoke<string>("cmd_amend_commit", { workspaceId, message, repoId: repoId ?? null });
 }
 
-export function discardChanges(workspaceId: string, paths: string[]): Promise<void> {
-  return invoke<void>("cmd_discard_changes", { workspaceId, paths });
+export function discardChanges(
+  workspaceId: string,
+  paths: string[],
+  repoId?: string,
+): Promise<void> {
+  return invoke<void>("cmd_discard_changes", { workspaceId, paths, repoId: repoId ?? null });
 }
 
-export function ignorePath(workspaceId: string, pattern: string): Promise<void> {
-  return invoke<void>("cmd_ignore_path", { workspaceId, pattern });
+export function ignorePath(workspaceId: string, pattern: string, repoId?: string): Promise<void> {
+  return invoke<void>("cmd_ignore_path", { workspaceId, pattern, repoId: repoId ?? null });
 }
 
 export interface PushOptions {

@@ -194,3 +194,21 @@ async function flushAct(action: () => void) {
     await Promise.resolve();
   });
 }
+
+vi.mock("@/components/ui/DropdownMenu", () => ({
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    disabled,
+  }: {
+    children: ReactNode;
+    onSelect?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button onClick={onSelect} disabled={disabled}>
+      {children}
+    </button>
+  ),
+}));
