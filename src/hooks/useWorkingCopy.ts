@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useWorkingCopyErrorStore } from "@/stores/workingCopyErrorStore";
 import {
   amendCommit,
   commit,
@@ -46,12 +47,25 @@ export interface UseWorkingCopyResult {
   isSyncBusy: boolean;
 }
 
-export function useWorkingCopy(): UseWorkingCopyResult {
+export function useWorkingCopy({
+  writeErrors = true,
+}: { writeErrors?: boolean } = {}): UseWorkingCopyResult {
   const workspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const queryClient = useQueryClient();
-  const [actionError, setActionError] = useState<string | null>(null);
+  const scope = JSON.stringify([workspaceId, repoId]);
+  const [failure, setFailure] = useState<{ scope: string; message: string | null } | null>(null);
+  const writeError = useWorkingCopyErrorStore((state) => state.errors[scope]);
+  const setWriteError = useWorkingCopyErrorStore((state) => state.setError);
+  const actionError =
+    (writeErrors ? writeError : null) ?? (failure?.scope === scope ? failure.message : null);
+  const setActionError = (message: string | null) => {
+    setFailure({ scope, message });
+    if (message === null) setWriteError(scope, null);
+  };
+  const commitPending =
+    useIsMutating({ mutationKey: ["working-copy-write", workspaceId, repoId] }) > 0;
 
   const remoteSync = useRemoteSync((message) => setActionError(message));
 
@@ -62,57 +76,50 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     refetchInterval: 2000,
   });
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["working-copy", workspaceId, repoId] });
-    // Health metrics (dirty/unpushed/stale) change with every mutation.
-    void queryClient.invalidateQueries({ queryKey: ["health", workspaceId] });
-  };
-
-  const stageMut = useMutation({
-    mutationFn: (paths: string[]) => stageFiles(workspaceId!, paths),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
+  type Write = { workspaceId: string; repoId: string; onSuccess?: () => void } & (
+    | { op: "stage" | "unstage" | "discard"; paths: string[] }
+    | { op: "ignore"; pattern: string }
+    | { op: "commit"; message: string; amend?: boolean }
+  );
+  const write = useMutation({
+    mutationKey: ["working-copy-write", workspaceId, repoId],
+    mutationFn: (request: Write) => {
+      const { workspaceId: ws, repoId: repo } = request;
+      switch (request.op) {
+        case "stage":
+          return stageFiles(ws, request.paths, repo);
+        case "unstage":
+          return unstageFiles(ws, request.paths, repo);
+        case "discard":
+          return discardChanges(ws, request.paths, repo);
+        case "ignore":
+          return ignorePath(ws, request.pattern, repo);
+        case "commit":
+          return (request.amend ? amendCommit : commit)(ws, request.message, repo).then(
+            () => undefined,
+          );
+      }
     },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const unstageMut = useMutation({
-    mutationFn: (paths: string[]) => unstageFiles(workspaceId!, paths),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
+    onSuccess: (_result, request) => {
+      setWriteError(JSON.stringify([request.workspaceId, request.repoId]), null);
+      void queryClient.invalidateQueries({
+        queryKey: ["working-copy", request.workspaceId, request.repoId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["diff-preview", request.workspaceId, request.repoId],
+        predicate: (query) => {
+          const source = query.queryKey[3] as
+            { commit_oid?: string; stash_oid?: string } | undefined;
+          return !source?.commit_oid && !source?.stash_oid;
+        },
+      });
+      void queryClient.invalidateQueries({ queryKey: ["health", request.workspaceId] });
+      if (request.op === "commit") bumpHistory();
+      // Mutation-level callback survives observer unmounts/repository switches.
+      request.onSuccess?.();
     },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const discardMut = useMutation({
-    mutationFn: (paths: string[]) => discardChanges(workspaceId!, paths),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const ignoreMut = useMutation({
-    mutationFn: (pattern: string) => ignorePath(workspaceId!, pattern),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
-  });
-
-  const commitMut = useMutation({
-    mutationFn: ({ msg, amend }: { msg: string; amend?: boolean }) =>
-      amend ? amendCommit(workspaceId!, msg) : commit(workspaceId!, msg),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-      bumpHistory();
-    },
-    onError: (e) => setActionError(formatAppError(e)),
+    onError: (error, request) =>
+      setWriteError(JSON.stringify([request.workspaceId, request.repoId]), formatAppError(error)),
   });
 
   const { unstaged, staged } = partitionFileChanges(data?.files ?? []);
@@ -129,16 +136,33 @@ export function useWorkingCopy(): UseWorkingCopyResult {
     unstagedFiles: unstaged,
     stagedFiles: staged,
     isDirty: unstaged.length > 0 || staged.length > 0,
-    stage: (paths) => stageMut.mutate(paths),
-    unstage: (paths) => unstageMut.mutate(paths),
-    discard: (paths) => discardMut.mutate(paths),
-    ignore: (pattern) => ignoreMut.mutate(pattern),
-    commitMessage: (message, options) =>
-      commitMut.mutate({ msg: message, amend: options?.amend }, { onSuccess: options?.onSuccess }),
+    stage: (paths) => {
+      if (workspaceId && repoId) write.mutate({ op: "stage", workspaceId, repoId, paths });
+    },
+    unstage: (paths) => {
+      if (workspaceId && repoId) write.mutate({ op: "unstage", workspaceId, repoId, paths });
+    },
+    discard: (paths) => {
+      if (workspaceId && repoId) write.mutate({ op: "discard", workspaceId, repoId, paths });
+    },
+    ignore: (pattern) => {
+      if (workspaceId && repoId) write.mutate({ op: "ignore", workspaceId, repoId, pattern });
+    },
+    commitMessage: (message, options) => {
+      if (workspaceId && repoId)
+        write.mutate({
+          op: "commit",
+          workspaceId,
+          repoId,
+          message,
+          amend: options?.amend,
+          onSuccess: options?.onSuccess,
+        });
+    },
     fetch: remoteSync.fetch,
     pull: remoteSync.pull,
     push: remoteSync.push,
-    commitPending: commitMut.isPending,
+    commitPending,
     syncPending: remoteSync.syncPending,
     isSyncBusy: remoteSync.isSyncBusy,
   };

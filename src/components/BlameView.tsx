@@ -1,84 +1,28 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BlameLine } from "@/lib/api";
 import { formatAppError, getBlame } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-import { cn } from "@/lib/utils";
 import { formatAbsoluteTime } from "@/lib/commitTime";
 
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
 }
 
-interface HoverInfo {
-  sha: string;
-  author: string;
-  author_email: string;
-  time: number;
-  x: number;
-  y: number;
-}
-
 function BlameGutter({ line }: { line: BlameLine }): React.JSX.Element {
   const { i18n } = useTranslation();
-  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const handleMouseEnter = () => {
-    if (ref.current) {
-      const rect = ref.current.getBoundingClientRect();
-      setHoverInfo({
-        sha: line.sha,
-        author: line.author,
-        author_email: line.author_email,
-        time: line.time,
-        x: rect.right + 8,
-        y: rect.top,
-      });
-    }
-  };
-
+  const date = formatAbsoluteTime(line.time, "ymd", i18n.language);
   return (
-    <>
-      <div
-        ref={ref}
-        className={cn(
-          "flex items-center gap-2 text-xs font-mono leading-5 px-2 cursor-pointer shrink-0",
-          "border-r border-border-subtle hover:bg-accent/5 transition-colors",
-        )}
-        style={{ width: "200px" }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={() => setHoverInfo(null)}
-      >
-        <span className="text-accent font-mono text-xs shrink-0">{shortSha(line.sha)}</span>
-        <span className="text-text-muted text-xs truncate shrink-0">{line.author}</span>
-        <span className="text-text-muted text-xs ml-auto shrink-0">
-          {formatAbsoluteTime(line.time, "ymd", i18n.language)}
-        </span>
-      </div>
-
-      {hoverInfo && (
-        <div
-          className={cn(
-            "fixed z-popover rounded-lg shadow-modal",
-            "bg-bg-elevated border border-border-default",
-            "px-3 py-2 min-w-48 max-w-64",
-          )}
-          style={{ left: `${hoverInfo.x}px`, top: `${hoverInfo.y}px` }}
-          onMouseEnter={() => setHoverInfo(hoverInfo)}
-          onMouseLeave={() => setHoverInfo(null)}
-        >
-          <div className="space-y-1">
-            <p className="font-mono text-xs text-accent">{shortSha(hoverInfo.sha)}</p>
-            <p className="text-sm font-medium text-text-primary">{hoverInfo.author}</p>
-            <p className="text-xs text-text-muted">{hoverInfo.author_email}</p>
-            <p className="text-xs text-text-muted">
-              {formatAbsoluteTime(hoverInfo.time, "ymd", i18n.language)}
-            </p>
-          </div>
-        </div>
-      )}
-    </>
+    <div
+      className="grid min-w-0 grid-cols-[7ch_minmax(0,1fr)] @lg/blame:sticky @lg/blame:left-0 @lg/blame:z-10 @lg/blame:grid-cols-[7ch_minmax(0,1fr)_auto] items-center gap-2 overflow-hidden border-r border-border-subtle bg-bg-panel px-2 text-xs"
+      title={`${line.sha}\n${line.author} <${line.author_email}>\n${date}`}
+    >
+      <span className="font-mono text-accent">{shortSha(line.sha)}</span>
+      <span className="min-w-0 truncate font-sans text-text-secondary">{line.author}</span>
+      <span className="hidden whitespace-nowrap font-sans text-[10px] tabular-nums text-text-muted @lg/blame:block">
+        {date}
+      </span>
+    </div>
   );
 }
 
@@ -89,23 +33,22 @@ interface BlameLineRowProps {
 
 function BlameLineRow({ line, lineNo }: BlameLineRowProps): React.JSX.Element {
   return (
-    <div className="flex text-xs font-mono leading-5 hover:bg-accent/5 transition-colors">
+    <div className="grid min-w-full grid-cols-[12rem_3rem_minmax(0,1fr)] @lg/blame:grid-cols-[20rem_3rem_minmax(0,1fr)] text-xs font-mono leading-5 hover:bg-accent/5 transition-colors">
       <BlameGutter line={line} />
-      <span className="text-text-muted w-8 text-right pr-2 shrink-0 select-none border-r border-border-subtle">
+      <span className="@lg/blame:sticky @lg/blame:left-[20rem] @lg/blame:z-10 border-r border-border-subtle bg-bg-elevated pr-2 text-right text-text-muted select-none">
         {lineNo}
       </span>
-      <span className="pl-3 text-text-primary flex-1 break-all whitespace-pre-wrap select-text">
-        {line.content}
-      </span>
+      <span className="whitespace-pre px-3 text-text-primary select-text">{line.content}</span>
     </div>
   );
 }
 
 interface BlameViewProps {
   path: string;
+  hideHeader?: boolean;
 }
 
-export function BlameView({ path }: BlameViewProps): React.JSX.Element {
+export function BlameView({ path, hideHeader = false }: BlameViewProps): React.JSX.Element {
   const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -188,14 +131,16 @@ export function BlameView({ path }: BlameViewProps): React.JSX.Element {
   }
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="@container/blame h-full min-h-0 overflow-auto">
       {/* File header */}
-      <div className="sticky top-0 z-10 px-4 py-2 bg-bg-elevated border-b border-border-subtle">
-        <span className="text-sm font-medium text-text-primary">{path}</span>
-      </div>
+      {!hideHeader && (
+        <div className="sticky top-0 z-20 px-4 py-2 bg-bg-elevated border-b border-border-subtle">
+          <span className="text-sm font-medium text-text-primary">{path}</span>
+        </div>
+      )}
 
       {/* Lines */}
-      <div className="font-mono">
+      <div className="w-max min-w-full font-mono">
         {lines.map((line) => (
           <BlameLineRow key={line.line_no} line={line} lineNo={line.line_no} />
         ))}

@@ -472,9 +472,10 @@ async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppEr
 async fn cmd_generate_commit_message(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     language: Option<String>,
 ) -> Result<AiGenerateOutcome, AppError> {
-    generate_commit_message(&ctx, workspace_id, language).await
+    generate_commit_message(&ctx, workspace_id, repo_id, language).await
 }
 
 #[tauri::command]
@@ -751,10 +752,12 @@ async fn cmd_get_workdir_diff(
 async fn cmd_get_commit_details(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     commit_oid: String,
 ) -> Result<CommitDetails, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || get_commit_details(&ctx, &workspace_id, &commit_oid)).await
+    local_git_task(move || get_commit_details(&ctx, &workspace_id, repo_id.as_deref(), &commit_oid))
+        .await
 }
 
 #[tauri::command]
@@ -1439,18 +1442,20 @@ async fn cmd_get_dirty_repos(
 async fn cmd_stage_files(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     paths: Vec<String>,
 ) -> Result<(), AppError> {
-    stage_files(&ctx, &workspace_id, paths)
+    stage_files(&ctx, &workspace_id, repo_id.as_deref(), paths)
 }
 
 #[tauri::command]
 async fn cmd_unstage_files(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     paths: Vec<String>,
 ) -> Result<(), AppError> {
-    unstage_files(&ctx, &workspace_id, paths)
+    unstage_files(&ctx, &workspace_id, repo_id.as_deref(), paths)
 }
 
 #[tauri::command]
@@ -1465,36 +1470,40 @@ async fn cmd_stage_all(
 async fn cmd_commit(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     message: String,
 ) -> Result<String, AppError> {
-    commit(&ctx, &workspace_id, message)
+    commit(&ctx, &workspace_id, repo_id.as_deref(), message)
 }
 
 #[tauri::command]
 async fn cmd_amend_commit(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     message: String,
 ) -> Result<String, AppError> {
-    amend_commit(&ctx, &workspace_id, message)
+    amend_commit(&ctx, &workspace_id, repo_id.as_deref(), message)
 }
 
 #[tauri::command]
 async fn cmd_discard_changes(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     paths: Vec<String>,
 ) -> Result<(), AppError> {
-    discard_changes(&ctx, &workspace_id, paths)
+    discard_changes(&ctx, &workspace_id, repo_id.as_deref(), paths)
 }
 
 #[tauri::command]
 async fn cmd_ignore_path(
     ctx: tauri::State<'_, AppContext>,
     workspace_id: String,
+    repo_id: Option<String>,
     pattern: String,
 ) -> Result<(), AppError> {
-    ignore_path(&ctx, &workspace_id, pattern)
+    ignore_path(&ctx, &workspace_id, repo_id.as_deref(), pattern)
 }
 
 /// Run a network sync operation (fetch / pull / push / clone /

@@ -136,9 +136,12 @@ function Text({
 export function DiffText({
   file,
   mode,
+  fillViewport = false,
 }: {
   file: FileDiff;
   mode: "split" | "unified";
+  /** Selected-file workspaces supply the viewport height; multi-file lists stay bounded. */
+  fillViewport?: boolean;
 }): React.JSX.Element {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const rows = useMemo(() => diffRows(file.hunks, mode === "split"), [file.hunks, mode]);
@@ -183,8 +186,11 @@ export function DiffText({
   return (
     <div
       ref={setScrollElement}
-      className="overflow-auto font-mono text-xs leading-5"
-      style={{ height: Math.min(560, Math.max(40, rows.length * 20)) }}
+      role="region"
+      aria-label={file.path}
+      tabIndex={0}
+      className={cn("min-h-0 overflow-auto font-mono text-xs leading-5", fillViewport && "h-full")}
+      style={fillViewport ? undefined : { height: Math.min(560, Math.max(40, rows.length * 20)) }}
     >
       <div
         style={{

@@ -150,9 +150,6 @@
       "snapshotLimited": "历史范围限于最近 {{total}} 个提交，更早的提交不在此次搜索范围内。",
       "endOfSnapshot": "已到加载范围末尾 · 共 {{total}} 个提交",
       "title": "提交历史",
-      "fullGraph": "完整分支图",
-      "compactGraph": "紧凑视图",
-      "compressedHint": "紧凑视图保持节点形状；横向滚动可浏览分支图，提交说明保持固定。",
       "allRefs": "全部 refs（{{count}}）"
     }
   }

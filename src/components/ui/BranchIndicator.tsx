@@ -26,7 +26,7 @@ export function BranchIndicator({
   const isDetached = branch === "(detached)";
 
   return (
-    <div className={cn("flex items-center gap-2 text-sm", className)}>
+    <div className={cn("flex min-w-0 items-center gap-2 text-sm", className)}>
       {isDetached ? (
         <>
           <GitCommit size={14} className="text-text-muted shrink-0" />
@@ -37,9 +37,13 @@ export function BranchIndicator({
       ) : (
         <>
           <GitBranch size={14} className="text-branch-current shrink-0" />
-          <span className="font-medium text-text-primary truncate max-w-[200px]">{branch}</span>
+          <span className="min-w-0 font-medium text-text-primary truncate" title={branch}>
+            {branch}
+          </span>
           {upstream && (
-            <span className="text-text-muted text-xs truncate max-w-[120px]">→ {upstream}</span>
+            <span className="min-w-0 text-text-muted text-xs truncate" title={upstream}>
+              → {upstream}
+            </span>
           )}
         </>
       )}
@@ -48,7 +52,7 @@ export function BranchIndicator({
         <Chip
           size="sm"
           className={cn(
-            "inline-flex items-center gap-0.5",
+            "inline-flex shrink-0 items-center gap-0.5",
             "rounded-sm px-1.5 py-0.5",
             "text-xs font-medium",
             "bg-branch-ahead/15 text-branch-ahead",
@@ -64,7 +68,7 @@ export function BranchIndicator({
         <Chip
           size="sm"
           className={cn(
-            "inline-flex items-center gap-0.5",
+            "inline-flex shrink-0 items-center gap-0.5",
             "rounded-sm px-1.5 py-0.5",
             "text-xs font-medium",
             "bg-branch-behind/15 text-branch-behind",

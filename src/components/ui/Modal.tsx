@@ -33,7 +33,11 @@ export function Modal({
   size = "md",
   footer,
   children,
-}: ModalProps): React.JSX.Element {
+}: ModalProps): React.JSX.Element | null {
+  // A canceled CSS exit animation can leave React Aria's overlay mounted
+  // indefinitely. Controlled close must also release its focus/scroll locks.
+  if (!open) return null;
+
   return (
     <HeroModal.Backdrop
       isDismissable
@@ -42,10 +46,9 @@ export function Modal({
       className="z-modal bg-bg-overlay backdrop-blur-sm"
     >
       <HeroModal.Container placement="center" className="z-modal">
-        {/* No chrome overrides: HeroUI's .modal__dialog already ships the
-            official surface — bg-overlay, shadow-overlay, p-6 and radius
-            min(32px, --radius-3xl). These classes only constrain the width. */}
-        <HeroModal.Dialog className={sizeClasses[size]}>
+        <HeroModal.Dialog
+          className={`${sizeClasses[size]} !rounded-xl !p-4 border border-border-subtle`}
+        >
           {({ close }) => (
             <>
               {/* Official anatomy: the close button floats at end-4 top-4

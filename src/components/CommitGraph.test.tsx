@@ -137,59 +137,40 @@ function nodeX(row: Element) {
   return Number(row.querySelector("circle")!.getAttribute("cx"));
 }
 
-function expectCompactNodeVisible(row: Element, viewport: HTMLElement) {
+function expectNodeVisible(row: Element, viewport: HTMLElement) {
   expect(nodeX(row) - viewport.scrollLeft).toBeGreaterThanOrEqual(0);
-  expect(nodeX(row) - viewport.scrollLeft).toBeLessThanOrEqual(112);
+  expect(nodeX(row) - viewport.scrollLeft).toBeLessThanOrEqual(viewport.clientWidth);
 }
 
-it("switches to full topology without losing the scroll node or selected commit", () => {
+it("always renders full topology without the redundant heading or mode switch", () => {
   const select = vi.fn();
   render(<CommitGraph onCommitSelect={select} />);
+  expect(screen.queryByText("branches.graph.title")).toBeNull();
+  expect(screen.queryByRole("button", { name: "branches.graph.fullGraph" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "branches.graph.compactGraph" })).toBeNull();
   const viewport = scrollContainer(commitRow(0));
   fireEvent.scroll(viewport, { target: { scrollTop: 1680 } });
   const selectedRow = commitRow(60);
   fireEvent.click(selectedRow);
   expect(select).toHaveBeenCalledExactlyOnceWith("sha-60");
   expect(selectedRow.getAttribute("aria-pressed")).toBe("true");
-  const compactSvg = selectedRow.querySelector("svg")!;
-  expectUndistortedGraph(compactSvg);
-  expect(nodeX(commitRow(61)) - nodeX(selectedRow)).toBe(12);
-  expect(viewport.scrollLeft).toBeGreaterThan(0);
-  expectCompactNodeVisible(selectedRow, viewport);
-  fireEvent.click(screen.getByRole("button", { name: "branches.graph.fullGraph" }));
-  expect(
-    screen
-      .getByRole("button", { name: "branches.graph.compactGraph" })
-      .getAttribute("aria-pressed"),
-  ).toBe("true");
-  expect(scrollContainer(commitRow(60))).toBe(viewport);
-  expect(viewport.scrollTop).toBe(1680);
-  expect(commitRow(60)).toBe(selectedRow);
-  expect(selectedRow.getAttribute("aria-pressed")).toBe("true");
-  const fullSvg = selectedRow.querySelector("svg")!;
-  expectUndistortedGraph(fullSvg);
-  expect(nodeX(commitRow(61)) - nodeX(selectedRow)).toBe(18);
-  expect(nodeX(selectedRow) - viewport.scrollLeft).toBeGreaterThanOrEqual(0);
-  expect(nodeX(selectedRow) - viewport.scrollLeft).toBeLessThanOrEqual(viewport.clientWidth);
-  expect(select).toHaveBeenCalledTimes(1);
-  viewport.scrollLeft = 120;
-  fireEvent.click(screen.getByRole("button", { name: "branches.graph.compactGraph" }));
-  expect(viewport.scrollTop).toBe(1680);
   expectUndistortedGraph(selectedRow.querySelector("svg")!);
-  expectCompactNodeVisible(selectedRow, viewport);
+  expect(nodeX(commitRow(61)) - nodeX(selectedRow)).toBe(18);
+  expectNodeVisible(selectedRow, viewport);
+  expect(viewport.scrollTop).toBe(1680);
 });
 
 it("does not pull a manually browsed graph back to the selection when history pages append or reload", () => {
-  const view = render(<CommitGraph selectedSha="sha-20" />);
+  const view = render(<CommitGraph selectedSha="sha-39" />);
   const viewport = scrollContainer(commitRow(0));
   expect(viewport.scrollLeft).toBeGreaterThan(0);
   fireEvent.scroll(viewport, { target: { scrollLeft: 45, scrollTop: 280 } });
   commits = [...commits, { ...commits[299]!, sha: "older", lane: 50 }];
-  view.rerender(<CommitGraph selectedSha="sha-20" />);
+  view.rerender(<CommitGraph selectedSha="sha-39" />);
   expect(viewport.scrollLeft).toBe(45);
   expect(viewport.scrollTop).toBe(280);
   commits = commits.map((commit) => ({ ...commit }));
-  view.rerender(<CommitGraph selectedSha="sha-20" />);
+  view.rerender(<CommitGraph selectedSha="sha-39" />);
   expect(viewport.scrollLeft).toBe(45);
   expect(viewport.scrollTop).toBe(280);
   act(() => useWorkspaceUiStore.getState().bumpHistoryEpoch());
@@ -200,43 +181,33 @@ it("reveals the same selected commit again after the user pans away and selects 
   const select = vi.fn();
   render(<CommitGraph onCommitSelect={select} />);
   const viewport = scrollContainer(commitRow(0));
-  fireEvent.scroll(viewport, { target: { scrollTop: 1680 } });
-  const row = commitRow(60);
+  fireEvent.scroll(viewport, { target: { scrollTop: 2184 } });
+  const row = commitRow(79);
   fireEvent.click(row);
-  expectCompactNodeVisible(row, viewport);
+  expectNodeVisible(row, viewport);
   expect(row.getAttribute("aria-pressed")).toBe("true");
   fireEvent.scroll(viewport, { target: { scrollLeft: 0 } });
-  expect(nodeX(row) - viewport.scrollLeft).toBeGreaterThan(112);
+  expect(nodeX(row) - viewport.scrollLeft).toBeGreaterThan(viewport.clientWidth);
   fireEvent.click(row);
-  expectCompactNodeVisible(row, viewport);
-  expect(viewport.scrollTop).toBe(1680);
+  expectNodeVisible(row, viewport);
+  expect(viewport.scrollTop).toBe(2184);
   expect(row.getAttribute("aria-pressed")).toBe("true");
-  expect(select).toHaveBeenNthCalledWith(1, "sha-60");
-  expect(select).toHaveBeenNthCalledWith(2, "sha-60");
+  expect(select).toHaveBeenNthCalledWith(1, "sha-79");
+  expect(select).toHaveBeenNthCalledWith(2, "sha-79");
 });
 
-it("routes a merge curve to its parent lane at the actual compact and full spacing", () => {
+it("routes a merge curve to its parent lane at full spacing", () => {
   commits[0]!.parents = ["sha-1", "sha-2"];
   render(<CommitGraph />);
   const mergeRow = commitRow(0);
-  const readCurve = () =>
-    mergeRow
-      .querySelector("path")!
-      .getAttribute("d")!
-      .match(/\d+(?:\.\d+)?/g)!
-      .map(Number);
-  const compactCurve = readCurve();
-  expect(compactCurve[0]).toBe(nodeX(mergeRow));
-  expect(compactCurve[6]).toBe(nodeX(commitRow(2)));
-  expect(compactCurve[6]! - compactCurve[0]!).toBe(24);
-  const compactRadius = mergeRow.querySelector("circle")!.getAttribute("r");
-  fireEvent.click(screen.getByRole("button", { name: "branches.graph.fullGraph" }));
-  const fullCurve = readCurve();
-  expect(fullCurve[0]).toBe(nodeX(mergeRow));
-  expect(fullCurve[6]).toBe(nodeX(commitRow(2)));
-  expect(fullCurve[6]! - fullCurve[0]!).toBe(36);
-  expect(fullCurve[7]).toBe(compactCurve[7]);
-  expect(mergeRow.querySelector("circle")!.getAttribute("r")).toBe(compactRadius);
+  const curve = mergeRow
+    .querySelector("path")!
+    .getAttribute("d")!
+    .match(/\d+(?:\.\d+)?/g)!
+    .map(Number);
+  expect(curve[0]).toBe(nodeX(mergeRow));
+  expect(curve[6]).toBe(nodeX(commitRow(2)));
+  expect(curve[6]! - curve[0]!).toBe(36);
   expectUndistortedGraph(mergeRow.querySelector("svg")!);
 });
 
@@ -249,7 +220,7 @@ it("reveals a located high-lane node and handles each locate request once", () =
       locateRequest={{ repoId: "repo", sha: "sha-239", seq: 1 }}
     />,
   );
-  expectCompactNodeVisible(commitRow(239), viewport);
+  expectNodeVisible(commitRow(239), viewport);
   expect(viewport.scrollLeft).toBeGreaterThan(0);
   expect(viewport.scrollTop).toBeGreaterThan(0);
   const locatedTop = viewport.scrollTop;
@@ -269,7 +240,7 @@ it("reveals a located high-lane node and handles each locate request once", () =
       locateRequest={{ repoId: "repo", sha: "sha-239", seq: 2 }}
     />,
   );
-  expectCompactNodeVisible(commitRow(239), viewport);
+  expectNodeVisible(commitRow(239), viewport);
   expect(viewport.scrollTop).toBe(locatedTop);
 });
 
@@ -283,7 +254,8 @@ it("folds tracked refs before counting and opens all remaining refs without sele
   const select = vi.fn();
   render(<CommitGraph onCommitSelect={select} />);
   const row = commitRow(0);
-  expect(within(row as HTMLElement).getByLabelText("synced main")).toBeTruthy();
+  expect(within(row as HTMLElement).getByText("v0.10.2")).toBeTruthy();
+  expect(within(row as HTMLElement).queryByText("main")).toBeNull();
   expect(within(row as HTMLElement).queryByText("origin/main")).toBeNull();
   const more = within(row as HTMLElement).getByRole("button", { name: "branches.graph.allRefs 3" });
   expect(more.textContent).toBe("+2");
@@ -291,8 +263,26 @@ it("folds tracked refs before counting and opens all remaining refs without sele
   expect(select).not.toHaveBeenCalled();
   const dialog = screen.getByRole("dialog", { name: "branches.graph.allRefs 3" });
   expect(within(dialog).getByText("main")).toBeTruthy();
+  expect(within(dialog).getByLabelText("synced main")).toBeTruthy();
   expect(within(dialog).getByText("v0.10.2")).toBeTruthy();
   expect(within(dialog).getByText("feature/a-very-long-branch-name")).toBeTruthy();
+  expect(Array.from(dialog.querySelectorAll("span[aria-label]")).map((e) => e.textContent)).toEqual(
+    ["v0.10.2", "main", "feature/a-very-long-branch-name"],
+  );
+});
+
+it("prefers a tag over a remote branch on the same commit", () => {
+  commits[0]!.refs = [
+    { name: "origin/main", kind: "remote_branch" },
+    { name: "v0.10.4", kind: "tag" },
+  ];
+  render(<CommitGraph />);
+  const row = commitRow(0) as HTMLElement;
+  expect(within(row).getByText("v0.10.4")).toBeTruthy();
+  expect(within(row).queryByText("origin/main")).toBeNull();
+  expect(within(row).getByRole("button", { name: "branches.graph.allRefs 2" }).textContent).toBe(
+    "+1",
+  );
 });
 
 it("keeps rendered history bounded while scrolling a large list", () => {

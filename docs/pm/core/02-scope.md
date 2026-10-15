@@ -1,5 +1,7 @@
 # GitWave · 范围与优先级
 
+> 未发布工作（2026-10-15）：[F018](../features/F018-workbench-redesign.md) Tide 工作台第一阶段已在当前分支实现基础组件、主布局、History / Changes。保留现有 Git 能力与确认保护；冲突、stash、工具、AI/设置的整体容器迁移属于后续阶段。当前发布版本为 v0.10.4；此工作台改造尚未发布。
+
 > v0.10.4 交付：修复历史图节点与 merge 曲线几何、对齐 refs / SHA / 作者 / 时间列，隐藏横向滚动条并保留 graph panning；更新 Tauri、React Aria、Shiki、Lucide 与开发依赖。见 [发布任务](../../tasks/chore-release-v0.10.4/plan.md)。
 
 > v0.10.3 交付：历史优先 UI（[任务](../../tasks/feat-history-first-ui/plan.md)），范围为阅读空间、导航密度、视觉层级与键盘调宽；保留完整 Git 能力与显式操作。

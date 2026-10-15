@@ -17,6 +17,24 @@
     "layout": {
       "resizeSidebar": "调整侧栏宽度",
       "resizeInspector": "调整详情栏宽度"
+    },
+    "workbench": {
+      "history": "History",
+      "changes": "Changes",
+      "navigation": "仓库导航",
+      "files": "变更文件",
+      "noFiles": "此 commit 没有文件变更",
+      "resizeFiles": "调整文件列表宽度",
+      "resizeHistory": "调整历史与详情高度",
+      "toggleSidebar": "显示或隐藏导航",
+      "focus": "专注 diff",
+      "restore": "恢复布局",
+      "search": "搜索 commit",
+      "conflicts": "冲突：{{count}}",
+      "resolve": "解决冲突",
+      "commitType": "Commit 类型（可选）",
+      "more": "更多",
+      "fileActions": "文件操作"
     }
   }
 }

@@ -37,9 +37,10 @@ export function CommitInfoHeader({
   sha: string;
 }): React.JSX.Element | null {
   const { t, i18n } = useTranslation();
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["commit-details", workspaceId, sha],
-    queryFn: () => getCommitDetails(workspaceId, sha),
+    queryKey: ["commit-details", workspaceId, repoId, sha],
+    queryFn: () => getCommitDetails(workspaceId, sha, repoId ?? undefined),
   });
   const queryClient = useQueryClient();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
@@ -51,7 +52,7 @@ export function CommitInfoHeader({
   // Collapsed state survives commit switches (no remount on sha change) but
   // resets when the repo tab changes (wrapper key); session-scoped, not
   // persisted across restarts.
-  const [messageExpanded, setMessageExpanded] = useState(true);
+  const [messageExpanded, setMessageExpanded] = useState(false);
 
   // Tags on this commit (listed inside the tag manager modal).
   const { data: tags = [], invalidate: invalidateTags } = useTags();
@@ -113,7 +114,9 @@ export function CommitInfoHeader({
             : t("commits.cherryPick.done", { sha: shortSha }),
         );
         void queryClient.invalidateQueries({ queryKey: ["working-copy"] });
-        void queryClient.invalidateQueries({ queryKey: ["commit-details", workspaceId, sha] });
+        void queryClient.invalidateQueries({
+          queryKey: ["commit-details", workspaceId, repoId, sha],
+        });
         void queryClient.invalidateQueries({ queryKey: ["branches", workspaceId] });
         bumpHistory();
       })
@@ -125,7 +128,7 @@ export function CommitInfoHeader({
   };
 
   return (
-    <div className="max-h-[45%] min-h-0 shrink-0 overflow-y-auto select-text border-b border-border-subtle bg-bg-elevated px-3 py-3">
+    <div className="max-h-[45%] min-h-0 shrink-0 overflow-y-auto select-text border-b border-border-subtle bg-bg-elevated px-3 py-1.5">
       <div className="flex items-start justify-between gap-3">
         <Button
           type="button"
@@ -152,13 +155,50 @@ export function CommitInfoHeader({
             {subject}
           </span>
         </Button>
+        <div className="shrink-0 flex flex-wrap items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("commits.header.explainAria")}
+            title={t("commits.header.explainTitle")}
+            onClick={() => setExplainOpen(true)}
+          >
+            <Sparkles size={13} />
+            {t("commits.header.explain")}
+          </Button>
+          <DropdownMenu>
+            <Button variant="ghost" size="sm" disabled={busy}>
+              {t("commits.header.moreActions")} <ChevronDown size={12} />
+            </Button>
+            <DropdownMenuContent placement="bottom end">
+              <DropdownMenuItem
+                textValue={t("commits.header.tag")}
+                onSelect={() => setTagOpen(true)}
+              >
+                <TagIcon size={13} /> {t("commits.header.tag")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                textValue={t("commits.action.cherryPick")}
+                onSelect={() => setPending("cherry-pick")}
+              >
+                <Cherry size={13} /> {t("commits.action.cherryPick")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                textValue={t("commits.action.revert")}
+                onSelect={() => setPending("revert")}
+              >
+                <Undo2 size={13} /> {t("commits.action.revert")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       {messageExpanded && body ? (
         <p className="mt-1 text-xs leading-5 whitespace-pre-wrap break-words text-text-secondary">
           {body}
         </p>
       ) : null}
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
         <span className="font-mono" title={data.sha}>
           {shortSha}
         </span>
@@ -167,47 +207,18 @@ export function CommitInfoHeader({
         </span>
         <span aria-hidden="true">·</span>
         <span>{formatAbsoluteTime(data.time, "ymd-hm", i18n.language)}</span>
-      </div>
-      {commitRefs.length > 0 ? (
-        <div className="mt-2 flex max-h-16 flex-wrap items-center gap-1 overflow-y-auto">
-          {commitRefs.map((r) => (
-            <RefBadge key={`${r.kind}:${r.name}`} r={r} truncate={false} emphasize={r.emphasize} />
-          ))}
-        </div>
-      ) : null}
-      <div className="mt-2 flex flex-wrap items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t("commits.header.explainAria")}
-          title={t("commits.header.explainTitle")}
-          onClick={() => setExplainOpen(true)}
-        >
-          <Sparkles size={13} />
-          {t("commits.header.explain")}
-        </Button>
-        <DropdownMenu>
-          <Button variant="ghost" size="sm" disabled={busy}>
-            {t("commits.header.moreActions")} <ChevronDown size={12} />
-          </Button>
-          <DropdownMenuContent placement="bottom end">
-            <DropdownMenuItem textValue={t("commits.header.tag")} onSelect={() => setTagOpen(true)}>
-              <TagIcon size={13} /> {t("commits.header.tag")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              textValue={t("commits.action.cherryPick")}
-              onSelect={() => setPending("cherry-pick")}
-            >
-              <Cherry size={13} /> {t("commits.action.cherryPick")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              textValue={t("commits.action.revert")}
-              onSelect={() => setPending("revert")}
-            >
-              <Undo2 size={13} /> {t("commits.action.revert")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {commitRefs.length > 0 ? (
+          <div className="flex max-h-12 flex-wrap items-center gap-1 overflow-y-auto">
+            {commitRefs.map((r) => (
+              <RefBadge
+                key={`${r.kind}:${r.name}`}
+                r={r}
+                truncate={false}
+                emphasize={r.emphasize}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {explainOpen ? (
