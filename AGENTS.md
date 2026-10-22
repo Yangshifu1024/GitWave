@@ -150,3 +150,5 @@ Trigger: development done, new code awaiting merge
 ## Documentation languages
 
 Docs may be written in Chinese or English; agent-facing guides (like this file) are kept in English. Historical Chinese docs are not batch-translated. The app UI itself remains bilingual (Chinese / English).
+
+**Reply in the user's language.** Answer in whichever language the user writes in — Chinese in, Chinese out; English in, English out — and switch when they switch. Code, commit messages, and PR titles / descriptions stay English regardless of the conversation language.
