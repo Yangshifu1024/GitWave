@@ -531,9 +531,17 @@ pub fn set_remote_url(repo: &Repository, name: &str, url: &str) -> Result<()> {
 /// The push URL defaults to the fetch URL when unset.
 pub fn set_remote_push_url(repo: &Repository, name: &str, url: Option<&str>) -> Result<()> {
     validate_remote_name(name)?;
-    repo.remote_set_pushurl(name.trim(), url)
-        .map_err(remote_op_err)?;
-    Ok(())
+    if let Some(u) = url {
+        validate_remote_url(u)?;
+    }
+    // libgit2 clears the key by deleting it and reports NotFound when it is
+    // already absent, so check the remote separately to keep "clear" idempotent.
+    repo.find_remote(name.trim()).map_err(remote_op_err)?;
+    match repo.remote_set_pushurl(name.trim(), url) {
+        Ok(()) => Ok(()),
+        Err(e) if url.is_none() && e.code() == git2::ErrorCode::NotFound => Ok(()),
+        Err(e) => Err(remote_op_err(e)),
+    }
 }
 
 /// Rename a remote (`git remote rename`).
@@ -877,6 +885,29 @@ mod tests {
 
         remove_remote(&repo, "origin2").unwrap();
         assert!(list_remote_details(&repo).unwrap().is_empty());
+        cleanup(&path);
+    }
+
+    #[test]
+    fn clearing_push_url_is_idempotent() {
+        let (path, repo) = crate::infrastructure::git::test_helpers::build_linear_repo(1);
+        add_remote(&repo, "origin", "https://example.com/r.git").unwrap();
+
+        // No push URL configured: clearing is a no-op, not an error.
+        set_remote_push_url(&repo, "origin", None).unwrap();
+        assert!(list_remote_details(&repo).unwrap()[0].push_url.is_none());
+
+        set_remote_push_url(&repo, "origin", Some("git@example.com/push.git")).unwrap();
+        set_remote_push_url(&repo, "origin", None).unwrap();
+        assert!(list_remote_details(&repo).unwrap()[0].push_url.is_none());
+
+        // A missing remote must still fail.
+        assert_eq!(
+            set_remote_push_url(&repo, "nope", None)
+                .unwrap_err()
+                .category(),
+            "Protocol"
+        );
         cleanup(&path);
     }
 
