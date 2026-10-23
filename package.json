@@ -34,7 +34,7 @@
     "@tauri-apps/plugin-updater": "^2.14.0",
     "class-variance-authority": "^0.7",
     "clsx": "^2",
-    "i18next": "^26.5.2",
+    "i18next": "^26.5.3",
     "lucide-react": "^1.55",
     "react": "^19.3.0",
     "react-aria-components": "1.22.1",
