@@ -39,7 +39,7 @@
     "react": "^19.3.0",
     "react-aria-components": "1.22.1",
     "react-dom": "^19.3.0",
-    "react-i18next": "^17.0.18",
+    "react-i18next": "^17.1.0",
     "react-router-dom": "^7",
     "shiki": "^4.5.0",
     "tailwind-merge": "^3.7.0",
