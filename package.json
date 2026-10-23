@@ -35,7 +35,7 @@
     "class-variance-authority": "^0.7",
     "clsx": "^2",
     "i18next": "^26.5.2",
-    "lucide-react": "^1.55",
+    "lucide-react": "^1.59",
     "react": "^19.3.0",
     "react-aria-components": "1.22.1",
     "react-dom": "^19.3.0",
