@@ -1230,6 +1230,14 @@ pub fn get_image_content_at(
     oid: Option<&str>,
 ) -> Result<ImageContent> {
     let repo = ctx.open_repo(repo_path)?;
+    read_image_content(&repo, path, oid)
+}
+
+pub fn read_image_content(
+    repo: &git2::Repository,
+    path: &str,
+    oid: Option<&str>,
+) -> Result<ImageContent> {
     let oid = oid.map(git2::Oid::from_str).transpose().map_err(|e| {
         AppError::protocol_with(
             codes::usecases::IMAGE_OID_INVALID,
@@ -1237,7 +1245,7 @@ pub fn get_image_content_at(
             &[("error", e.to_string())],
         )
     })?;
-    let bytes = infra_read_file_content(&repo, path, oid)?;
+    let bytes = infra_read_file_content(repo, path, oid)?;
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(AppError::protocol_with(
             codes::usecases::IMAGE_TOO_LARGE,

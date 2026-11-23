@@ -40,6 +40,7 @@ vite.config.js
 
 # Tauri build artifacts (src-tauri/target is gitignored in src-tauri/.gitignore)
 src-tauri/gen/
+/native/.nsgo/
 
 # Generated typed bindings (added by Sprint 2 tauri-specta)
 src/bindings/

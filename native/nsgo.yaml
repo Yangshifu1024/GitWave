@@ -1,0 +1,7 @@
+name: GitWave
+id: desktop.gitwave.work.native-preview
+version: 0.11.0
+build:
+  output: dist
+  installers: false
+targets: [macos_arm64, windows_x64, linux_x64]
