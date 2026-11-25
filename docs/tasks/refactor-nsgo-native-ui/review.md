@@ -38,7 +38,7 @@ Go 组装阶段为安装包、签名、源码归档和更新清单生成 SHA-256
 
 ## 2026-11-25 · 偏好导出版清单验签
 
-三端构建分别上传安装包和 Minisign 签名。汇总 job 按固定 Release ID 下载工件，用 v0.11.0 客户端内置的公钥验证五个包、签名版本和文件名，再生成八条旧更新器路由。清单按同一个 Release ID 上传，按 Asset ID 下载核对。重复运行时已有清单必须与生成内容一致。Go 联合发布重新验签导出版及过渡版，并在组装前比对已公开导出版的版本、下载地址和签名。 [导出版发布流程](../../../.github/workflows/build.yml) [清单生成器](../../../cmd/prepare-legacy-feeds/main.go) [Go 联合发布](../../../.github/workflows/go-release.yml)
+三端构建分别上传安装包和 Minisign 签名。汇总 job 按固定 Release ID 下载工件，用 v0.11.0 客户端内置的公钥验证五个包、签名版本和文件名，再生成八条旧更新器路由。清单按同一个 Release ID 上传，按 Asset ID 下载核对。重复运行时已有清单必须与生成内容一致。Go 联合发布重新验签导出版及过渡版，并在组装前比对已公开导出版的版本、下载地址和签名。 [导出版发布流程](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/.github/workflows/build.yml) [清单生成器](../../../cmd/prepare-legacy-feeds/main.go) [Go 联合发布](../../../.github/workflows/go-release.yml)
 
 使用 v0.11.0 的五份官方签名资产复验，八条路由与公开清单一致。GitHub 公开 API 的 Release ID 枚举和 Asset ID 签名下载也通过。使用临时 Minisign 密钥和本地 GitHub 接口替身运行两个工作流的 shell 步骤，覆盖重复运行、草稿状态或标签变化、缺少签名、篡改安装包、草稿清单冲突和已发布路由不一致。独立审查发现的按可变标签覆盖清单问题已修复。Apple CI 引用继续使用原有六项 secrets。正式导出版的托管构建、Developer ID 签名、公证和公开更新升级仍待发行验收。
 
@@ -446,7 +446,7 @@ NSGo 模型竞态、macOS 原生窗口和 Ubuntu 24.04 GTK/Xvfb 原生窗口通�
 
 Clone、Fetch、Pull、Push、远端分支删除与子模块操作优先使用配置好的系统 Git helper。隔离的传输仓库继承实际仓库针对所选 URL 解析出的用户名和 `useHttpPath`。手动操作收到 HTTPS 认证挑战后，可用系统密钥库中的凭证重试同一端点。定时刷新走非交互式 helper 路径。认证框显示脱敏后的仓库或 LFS 地址，同一主机的不同仓库可分别确认。
 
-勾选「记住凭证」后，仅保存服务器接受过的凭证。新条目按 HTTPS 地址、仓库路径与账号区分，多个账号保持独立。如果该路径已选择账号，旧格式的回退也只接受同一账号。旧 `gitwave.remote` 的 `https/<host>` 和 `https/<host>\x1f<username>` 条目可通过指定用户名读取，在成功认证后保存为当前路径的新条目。对于旧格式中 IPv6 地址与端口可能重合的记录，仍需在认证框重新输入令牌。 [旧版远端凭证实现](../../../src-tauri/src/infrastructure/git/credentials.rs) [Git credential 协议](https://git-scm.com/docs/git-credential)
+勾选「记住凭证」后，仅保存服务器接受过的凭证。新条目按 HTTPS 地址、仓库路径与账号区分，多个账号保持独立。如果该路径已选择账号，旧格式的回退也只接受同一账号。旧 `gitwave.remote` 的 `https/<host>` 和 `https/<host>\x1f<username>` 条目可通过指定用户名读取，在成功认证后保存为当前路径的新条目。对于旧格式中 IPv6 地址与端口可能重合的记录，仍需在认证框重新输入令牌。 [旧版远端凭证实现](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/src-tauri/src/infrastructure/git/credentials.rs) [Git credential 协议](https://git-scm.com/docs/git-credential)
 
 默认从 Git 地址推导的 LFS 地址可复用 Git 凭证。显式配置的 LFS 地址使用独立挑战与凭证。Clone 保留 Git 与 LFS 各自的确认绑定，媒体地址在确认后变更时中止。Push 和远端分支删除的认证重试沿用已确认计划和已经报告成功的目的地。
 
@@ -724,7 +724,7 @@ macOS 原生用例覆盖冲突块导航、选边、标记确认、关闭时的�
 
 ## 2026-11-24 · Workspace 远端刷新审查
 
-快捷键刷新绑定发起时的 Workspace、仓库和路径。仓库失效并自动切到备用仓库时，原请求停止远端获取。定时刷新默认关闭，在设置中启用后把开关和分钟数写入 SQLite。修改间隔会废弃旧计时排队的请求。定时任务跳过缺失仓库，按成功和失败仓库数给出状态。同一 Workspace 内切换仓库时继续定时任务，切到其他 Workspace 时取消。HTTPS 认证失败计入部分失败，可用显式 Fetch 处理认证。旧 WebView 的自动刷新偏好仍待导入。 [旧版刷新流程](../../../src/hooks/useAutoRefresh.ts)。
+快捷键刷新绑定发起时的 Workspace、仓库和路径。仓库失效并自动切到备用仓库时，原请求停止远端获取。定时刷新默认关闭，在设置中启用后把开关和分钟数写入 SQLite。修改间隔会废弃旧计时排队的请求。定时任务跳过缺失仓库，按成功和失败仓库数给出状态。同一 Workspace 内切换仓库时继续定时任务，切到其他 Workspace 时取消。HTTPS 认证失败计入部分失败，可用显式 Fetch 处理认证。旧 WebView 的自动刷新偏好仍待导入。 [旧版刷新流程](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/src/hooks/useAutoRefresh.ts)。
 
 独立复审使用临时仓库和回环 HTTP 验证备用仓库、过期定时请求与切换标签页。macOS 窗口回归覆盖快捷键、设置开关、间隔变更和部分失败提示，并检查获取远端更新后本地 HEAD 保持原位。Go 全量竞态测试、`go vet`、旧版对照与 `make check` 门禁均通过。Windows/Linux x64 已交叉编译，原生交互仍待实机验收。
 
