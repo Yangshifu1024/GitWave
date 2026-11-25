@@ -60,6 +60,11 @@ jobs:
       - name: cargo clippy
         working-directory: src-tauri
         run: cargo clippy --all-targets -- -D warnings
+      # Lint the business layers under this application's lockfile too; the
+      # workspace workflow lints them against the root Cargo.lock.
+      - name: cargo clippy (gitwave-core)
+        working-directory: src-tauri
+        run: cargo clippy -p gitwave-core --all-targets -- -D warnings
 
   frontend-lint:
     name: Frontend lint (${{ matrix.os }})

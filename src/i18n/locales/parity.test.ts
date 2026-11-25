@@ -1,8 +1,8 @@
 // Locale parity guard (docs/tasks/feat-i18n/plan.md):
 //  1. en and zh-CN expose the same domain files and the same leaf keys.
-//  2. Every error code constant in src-tauri/src/domain/error_codes/ has a
-//     matching leaf under the merged "errors" subtree in both locales, and
-//     every errors leaf maps back to a declared code (drift guard both ways).
+//  2. Every error code constant in crates/gitwave-core/src/domain/error_codes/
+//     has a matching leaf under the merged "errors" subtree in both locales,
+//     and every errors leaf maps back to a declared code (drift guard both ways).
 // Runs in plain vitest (node fs), no i18next instance needed.
 
 import { readFileSync, readdirSync } from "node:fs";
@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 const localesDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(localesDir, "../../..");
-const errorCodesDir = path.join(repoRoot, "src-tauri/src/domain/error_codes");
+const errorCodesDir = path.join(repoRoot, "crates/gitwave-core/src/domain/error_codes");
 
 function domainFiles(locale: string): string[] {
   return readdirSync(path.join(localesDir, locale)).filter((f) => f.endsWith(".json"));

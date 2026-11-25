@@ -55,6 +55,13 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test --all-targets
+      # The business layers live in gitwave-core, which this application
+      # builds from its own lockfile. Running that package's tests here keeps
+      # them covered under the versions the release actually ships; the
+      # workspace workflow resolves the same code against a different lockfile.
+      - name: cargo test (gitwave-core)
+        working-directory: src-tauri
+        run: cargo test -p gitwave-core --all-targets
       # Guards against silently losing TLS in vendored libgit2 (git2 0.21
       # dropped `https` from default features; the app then fails every
       # HTTPS fetch with "there is no TLS stream available; class=Ssl (16)").

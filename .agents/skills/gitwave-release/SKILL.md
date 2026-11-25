@@ -35,9 +35,9 @@ On failure: stop, show the failing output, and let the user decide what to fix. 
 pnpm bump <version>
 ```
 
-The script (`scripts/bump-version.mjs`) strips a leading `v` itself. It rewrites `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`, then refreshes the `gitwave` entry in `src-tauri/Cargo.lock` via `cargo update -p gitwave`. `pnpm-lock.yaml` is deliberately untouched — it does not record the root package's own version, and CI installs with `--frozen-lockfile`. Never edit versions by hand.
+The script (`scripts/bump-version.mjs`) strips a leading `v` itself. It rewrites `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and the root `Cargo.toml` (the workspace version that `gitwave-core` and the GPUI Kit application inherit), then refreshes the `gitwave` and `gitwave-core` entries in `src-tauri/Cargo.lock` via `cargo update -p gitwave` and in the root `Cargo.lock` via `cargo metadata`. `pnpm-lock.yaml` is deliberately untouched — it does not record the root package's own version, and CI installs with `--frozen-lockfile`. Never edit versions by hand.
 
-Verify with `git status --porcelain`: expect exactly those 4 files. Anything else in the diff — investigate before committing.
+Verify with `git status --porcelain`: expect exactly those 4 files plus the 2 lockfiles. Anything else in the diff — investigate before committing.
 
 ## 4. Sync user-facing surfaces
 
@@ -52,7 +52,7 @@ Verify with `git status --porcelain`: expect exactly those 4 files. Anything els
   - Feature cards: fold small features into an existing card (e.g. the "Diff viewer" or "Batteries included" cards) rather than adding a new one and breaking the grid rhythm.
 - **PM docs** — sync the current-version references in `docs/pm/core/README.md`, `01-features.md`, `02-scope.md`, and `03-roadmap.md`; add the release's representative changes to the scope table. Preserve historical version rows and release notes.
 - **Branding assets** — when application icons changed since the previous tag, copy `src-tauri/icons/icon.png` to `site/icon.png`, `32x32.png` to `site/favicon-32.png`, and `128x128.png` to `public/app-icon.png`. Keep the frontend favicon in `index.html` pointed at the app icon. Verify these are byte-identical copies; do not regenerate artwork during release sync.
-- Residue check: `grep -rn "<old-version>" README.md site/ package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml` — GitWave's own version should only appear at the new value (matches inside unrelated dependencies don't count).
+- Residue check: `grep -rn "<old-version>" README.md site/ package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml Cargo.toml crates/` — GitWave's own version should only appear at the new value (matches inside unrelated dependencies don't count).
 
 ## 5. Commit
 

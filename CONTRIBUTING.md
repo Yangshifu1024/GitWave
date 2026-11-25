@@ -27,18 +27,23 @@ pre-commit run --all-files
 
 ```bash
 make check      # CI-equivalent: format gates + lint + all tests, changes nothing
-make fmt-check  # pnpm exec prettier --check . + cargo fmt -- --check
+make fmt-check  # pnpm exec prettier --check . + cargo fmt -- --check, in both workspaces
 make lint       # Tauri npm/Rust version compatibility + pnpm lint + cargo clippy + pnpm typecheck + cargo check
-make test       # pnpm test (Node regression tests + Vitest) + cargo test --all-targets
+make test       # pnpm test (Node regression tests + Vitest) + cargo test --all-targets, in both workspaces
 ```
 
 `make format` is the only target that rewrites files. Or run the commands individually:
 
 ```bash
-# Rust (from src-tauri/)
+# Rust — the Tauri application (from src-tauri/)
 cargo fmt -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
+
+# Rust — the root workspace: gitwave-core and the GPUI Kit application (from the repository root)
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --all-targets
 
 # Frontend
 pnpm lint
@@ -47,6 +52,8 @@ pnpm typecheck
 pnpm check:tauri-versions
 pnpm test
 ```
+
+Rust code lives in two Cargo workspaces. `src-tauri/` is the Tauri application, with its own lockfile and build cache. The repository root holds `crates/gitwave-core` (the domain, application and infrastructure layers) and `crates/gitwave` (the GPUI Kit application). `src-tauri` is excluded from the root workspace and depends on `gitwave-core` by path, so a change to the core is checked by both sets of commands. See `docs/tech/decisions/00-overview.md` (ADR 0007).
 
 Markdown is not covered by Prettier — `.prettierignore` excludes `*.md` — so neither `pnpm format:check` nor `make fmt-check` ever inspects documentation. Doc changes are verified by hand; don't expect an automated check to stop a stale or badly formatted doc.
 

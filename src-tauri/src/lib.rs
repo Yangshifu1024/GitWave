@@ -3,19 +3,17 @@
 //! Architecture follows `docs/tech/architecture/00-overview.md`:
 //! presentation (WebView) → IPC command → application → domain ← infrastructure.
 //!
-//! Concrete use cases live in `application::use_cases`. The Tauri commands
-//! below are thin wrappers that resolve state and forward to use cases.
+//! The application, domain and infrastructure layers live in `gitwave-core`;
+//! this crate is the Tauri shell around them. Concrete use cases are in
+//! `application::use_cases`, and the Tauri commands below are thin wrappers
+//! that resolve state and forward to use cases.
 
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-pub mod application;
-pub mod domain;
-pub mod infrastructure;
+pub use gitwave_core::{application, domain, infrastructure};
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::Arc;
 
 use crate::domain::error_codes as codes;
 use application::sync_ops;
@@ -57,15 +55,14 @@ use domain::stash::StashEntry;
 use domain::working_copy::WorkingCopy;
 use domain::workspace::{RepoRef, Workspace, WorkspaceSettings, WorkspaceSummary};
 use domain::worktree::WorktreeInfo;
+use gitwave_core::host;
 use infrastructure::git::conflict::{ConflictFile, ConflictSides};
 use infrastructure::git::diff::DiffSummary;
 use infrastructure::git::interactive_rebase::{InteractiveRebaseResult, InteractiveRebaseTodo};
 use infrastructure::git::merge::{MergePreview, MergeResult};
 use infrastructure::git::rebase::RebaseResult;
 use infrastructure::observability::tracing::init as init_tracing;
-use infrastructure::persistence::{
-    migrations, open as open_state, state_dir, SqliteAppSettingsRepo, SqliteWorkspaceRepo,
-};
+use infrastructure::persistence::state_dir;
 use infrastructure::ssh::keys::{SshKey, SshKeyList, SshTestResult};
 use std::fmt::Display;
 use tauri::WebviewWindow;
@@ -116,259 +113,19 @@ fn open_in_file_manager(app: tauri::AppHandle, path: String) -> Result<(), Strin
         .map_err(|e| e.to_string())
 }
 
-/// Absolute path of `prog` if it sits in a PATH directory (std-only `which`).
-fn find_in_path(prog: &str) -> Option<std::path::PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|dir| dir.join(prog))
-        .find(|candidate| candidate.is_file())
-}
-
-/// Full terminal launch argv per platform; the repo is also set as the
-/// child's cwd, so entries that take no dir flag (cmd.exe, `$TERMINAL`,
-/// kitty / alacritty / foot) still start in the repo.
-fn detect_terminal_command() -> Option<(String, Vec<String>)> {
-    let dir_arg = |flags: &[&str]| -> Vec<String> { flags.iter().map(|f| f.to_string()).collect() };
-    if cfg!(target_os = "windows") {
-        if find_in_path("wt.exe").is_some() {
-            Some(("wt.exe".into(), vec!["-d".into()]))
-        } else {
-            // Pre-Windows-Terminal boxes: a plain console on the repo dir.
-            Some(("cmd.exe".into(), vec![]))
-        }
-    } else if cfg!(target_os = "macos") {
-        let iterm = ["/Applications/iTerm.app", "~/Applications/iTerm.app"]
-            .iter()
-            .any(|p| {
-                let p = std::path::Path::new(p);
-                let p = p
-                    .strip_prefix("~")
-                    .map(|rest| {
-                        std::env::var("HOME").map(|h| std::path::PathBuf::from(h).join(rest))
-                    })
-                    .unwrap_or_else(|_| Ok(p.to_path_buf()));
-                p.map(|p| p.exists()).unwrap_or(false)
-            });
-        let prog = if iterm { "iTerm" } else { "Terminal" };
-        Some(("open".into(), vec!["-a".into(), prog.into()]))
-    } else {
-        // Linux/BSD: $TERMINAL first, then common emulators. Flag-less
-        // entries rely on the cwd set by the caller.
-        if let Ok(t) = std::env::var("TERMINAL") {
-            if !t.is_empty() {
-                return Some((t, vec![]));
-            }
-        }
-        let candidates: [(&str, &[&str]); 8] = [
-            ("gnome-terminal", &["--working-directory"]),
-            ("konsole", &["--workdir"]),
-            ("xfce4-terminal", &["--working-directory"]),
-            ("kgx", &["--working-directory"]),
-            ("kitty", &[]),
-            ("alacritty", &[]),
-            ("foot", &[]),
-            ("wezterm", &["start", "--cwd"]),
-        ];
-        candidates
-            .iter()
-            .find(|(prog, _)| find_in_path(prog).is_some())
-            .map(|(prog, flags)| ((*prog).to_string(), dir_arg(flags)))
-    }
-}
-
-/// Opens a repo working tree in a detected terminal emulator with the repo
-/// as the working directory. Detached from the app: windows gets a new
-/// console, unix a new process group.
 #[tauri::command]
 fn open_in_terminal(path: String) -> Result<(), String> {
-    use std::process::Command;
-
-    let dir = std::path::PathBuf::from(&path);
-    if !dir.is_dir() {
-        return Err(format!("not a directory: {path}"));
-    }
-    let (prog, mut args) =
-        detect_terminal_command().ok_or_else(|| "no terminal emulator found".to_string())?;
-    // cmd.exe / `$TERMINAL` pass no dir flag — their argv stays empty so the
-    // cwd (set below) is the only directory source; everything else takes the
-    // repo as its final argument.
-    if !args.is_empty() {
-        args.push(dir.display().to_string());
-    }
-    let mut cmd = Command::new(&prog);
-    cmd.args(&args).current_dir(&dir);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        // wt.exe relays to WindowsTerminal.exe and exits; a hidden relay avoids
-        // a console flash. cmd.exe needs a real new console of its own.
-        cmd.creation_flags(if prog == "wt.exe" {
-            CREATE_NO_WINDOW
-        } else {
-            CREATE_NEW_CONSOLE
-        });
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
-    cmd.spawn()
-        .map_err(|e| format!("failed to launch {prog}: {e}"))?;
-    Ok(())
-}
-
-// ─── External editors (F015) ─────────────────────────────────────────────
-
-/// Supported editors in default order; the first detected one leads the
-/// ActionBar dropdown.
-const SUPPORTED_EDITORS: [(&str, &str); 3] = [
-    ("vscode", "Visual Studio Code"),
-    ("zed", "Zed"),
-    ("vscodium", "VSCodium"),
-];
-
-/// A locally installed editor offered in the ActionBar dropdown.
-#[derive(serde::Serialize)]
-struct DetectedEditor {
-    id: String,
-    name: String,
-}
-
-/// Well-known Windows install roots for `id`, in lookup order (pure — roots
-/// are passed in so tests can pin the order without touching the environment).
-#[cfg(windows)]
-fn windows_exe_candidates(
-    id: &str,
-    local_app_data: &str,
-    program_files: &str,
-    program_files_x86: &str,
-) -> Vec<String> {
-    match id {
-        "vscode" => vec![
-            format!(r"{local_app_data}\Programs\Microsoft VS Code\Code.exe"),
-            format!(r"{program_files}\Microsoft VS Code\Code.exe"),
-            format!(r"{program_files_x86}\Microsoft VS Code\Code.exe"),
-        ],
-        "zed" => vec![format!(r"{local_app_data}\Programs\Zed\Zed.exe")],
-        "vscodium" => vec![
-            format!(r"{local_app_data}\Programs\VSCodium\VSCodium.exe"),
-            format!(r"{program_files}\VSCodium\VSCodium.exe"),
-        ],
-        _ => Vec::new(),
-    }
-}
-
-/// Where `id` is installed and the argv that opens a directory in it; `None`
-/// when the editor is not installed (or the id is unknown). The repo dir is
-/// appended as the final argument by the caller, which also sets it as cwd —
-/// all three editors accept a folder path that way.
-#[cfg(windows)]
-fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
-    let env = |k: &str| std::env::var(k).unwrap_or_default();
-    windows_exe_candidates(
-        id,
-        &env("LOCALAPPDATA"),
-        &env("ProgramFiles"),
-        &env("ProgramFiles(x86)"),
-    )
-    .into_iter()
-    .find(|p| std::path::Path::new(p).is_file())
-    .map(|exe| (exe, Vec::new()))
-    .or_else(|| match id {
-        // Scoop / portable installs only expose the PATH shim; `.cmd` must
-        // relay through cmd.exe (spawned windowless by `open_in_editor`).
-        "vscode" => {
-            find_in_path("code.cmd").map(|_| ("cmd".into(), vec!["/c".into(), "code.cmd".into()]))
-        }
-        "zed" => find_in_path("zed.exe").map(|_| ("zed.exe".into(), Vec::new())),
-        "vscodium" => find_in_path("codium.cmd")
-            .map(|_| ("cmd".into(), vec!["/c".into(), "codium.cmd".into()])),
-        _ => None,
-    })
-}
-
-#[cfg(target_os = "macos")]
-fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
-    let app = match id {
-        "vscode" => "Visual Studio Code",
-        "zed" => "Zed",
-        "vscodium" => "VSCodium",
-        _ => return None,
-    };
-    let home = std::env::var("HOME").unwrap_or_default();
-    let installed = [
-        format!("/Applications/{app}.app"),
-        format!("{home}/Applications/{app}.app"),
-    ]
-    .iter()
-    .any(|p| std::path::Path::new(p).exists());
-    installed.then(|| ("open".to_string(), vec!["-a".to_string(), app.to_string()]))
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
-    let bin = match id {
-        "vscode" => "code",
-        "zed" => "zed",
-        "vscodium" => "codium",
-        _ => return None,
-    };
-    find_in_path(bin).map(|_| (bin.to_string(), Vec::new()))
-}
-
-/// Editors installed on this machine, in default order (first = default).
-fn detect_editors() -> Vec<DetectedEditor> {
-    SUPPORTED_EDITORS
-        .iter()
-        .filter(|(id, _)| editor_launch(id).is_some())
-        .map(|(id, name)| DetectedEditor {
-            id: (*id).to_string(),
-            name: (*name).to_string(),
-        })
-        .collect()
+    host::open_in_terminal(&path)
 }
 
 #[tauri::command]
-fn list_editors() -> Vec<DetectedEditor> {
-    detect_editors()
+fn list_editors() -> Vec<host::DetectedEditor> {
+    host::detect_editors()
 }
 
-/// Opens a repo working tree in the chosen editor. Detached like the terminal
-/// opener; the dir is both the child's cwd and its final argument.
 #[tauri::command]
 fn open_in_editor(path: String, editor_id: String) -> Result<(), String> {
-    use std::process::Command;
-
-    let dir = std::path::PathBuf::from(&path);
-    if !dir.is_dir() {
-        return Err(format!("not a directory: {path}"));
-    }
-    let (prog, mut args) =
-        editor_launch(&editor_id).ok_or_else(|| format!("editor not found: {editor_id}"))?;
-    args.push(dir.display().to_string());
-    let mut cmd = Command::new(&prog);
-    cmd.args(&args).current_dir(&dir);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        // The `cmd /c code.cmd` shim would flash a console window; editor
-        // exes spawned directly open windowless.
-        if prog == "cmd" {
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
-    cmd.spawn()
-        .map_err(|e| format!("failed to launch {prog}: {e}"))?;
-    Ok(())
+    host::open_in_editor(&path, &editor_id)
 }
 
 // ─── Workspace commands (Sprint 1) ───────────────────────────────────────
@@ -549,7 +306,7 @@ async fn cmd_clone_repo(
     // Same network-op contract as fetch/pull/push: 180s budget, cancellable,
     // credential-storage outcome surfaced (F012 retry needs all three).
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "clone",
         codes::cmds::CLONE_TASK_JOIN,
@@ -677,20 +434,6 @@ fn cmd_start_ssh_agent_service() -> Result<(), AppError> {
 
 // ─── History / Diff / Blame commands (Sprint 3) ───────────────────────────
 
-async fn local_git_task<T: Send + 'static>(
-    job: impl FnOnce() -> Result<T, AppError> + Send + 'static,
-) -> Result<T, AppError> {
-    tauri::async_runtime::spawn_blocking(job)
-        .await
-        .map_err(|e| {
-            AppError::unknown_with(
-                codes::git::GIT_ERROR,
-                "local Git task failed",
-                &[("error", e.to_string())],
-            )
-        })?
-}
-
 #[tauri::command]
 async fn cmd_get_diff_preview(
     ctx: tauri::State<'_, AppContext>,
@@ -699,7 +442,7 @@ async fn cmd_get_diff_preview(
     request: application::use_cases::DiffPreviewRequest,
 ) -> Result<infrastructure::git::diff_preview::DiffPreview, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || {
+    sync_ops::local_git_task(move || {
         application::use_cases::get_diff_preview(&ctx, &workspace_id, &repo_id, &request)
     })
     .await
@@ -715,7 +458,7 @@ async fn cmd_get_commit_page(
     cursor: Option<String>,
 ) -> Result<domain::history::CommitPage, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || {
+    sync_ops::local_git_task(move || {
         application::use_cases::get_commit_page(
             &ctx,
             &workspace_id,
@@ -736,7 +479,7 @@ async fn cmd_get_commit_log(
     filter: Option<String>,
 ) -> Result<Vec<CommitSummary>, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || get_commit_log(&ctx, &workspace_id, max, filter)).await
+    sync_ops::local_git_task(move || get_commit_log(&ctx, &workspace_id, max, filter)).await
 }
 
 #[tauri::command]
@@ -745,7 +488,7 @@ async fn cmd_get_workdir_diff(
     workspace_id: String,
 ) -> Result<DiffSummary, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || get_workdir_diff(&ctx, &workspace_id)).await
+    sync_ops::local_git_task(move || get_workdir_diff(&ctx, &workspace_id)).await
 }
 
 #[tauri::command]
@@ -756,8 +499,10 @@ async fn cmd_get_commit_details(
     commit_oid: String,
 ) -> Result<CommitDetails, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || get_commit_details(&ctx, &workspace_id, repo_id.as_deref(), &commit_oid))
-        .await
+    sync_ops::local_git_task(move || {
+        get_commit_details(&ctx, &workspace_id, repo_id.as_deref(), &commit_oid)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -767,7 +512,7 @@ async fn cmd_get_commit_diff(
     commit_oid: String,
 ) -> Result<DiffSummary, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || get_commit_diff(&ctx, &workspace_id, &commit_oid)).await
+    sync_ops::local_git_task(move || get_commit_diff(&ctx, &workspace_id, &commit_oid)).await
 }
 
 #[tauri::command]
@@ -778,7 +523,7 @@ async fn cmd_get_file_diff(
     to_oid: String,
 ) -> Result<Vec<FileDiff>, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || get_file_diff(&ctx, &workspace_id, &from_oid, &to_oid)).await
+    sync_ops::local_git_task(move || get_file_diff(&ctx, &workspace_id, &from_oid, &to_oid)).await
 }
 
 /// Raw bytes of one file version for the image diff view (F016), base64.
@@ -791,7 +536,7 @@ async fn cmd_get_image_content(
     repo_id: Option<String>,
 ) -> Result<ImageContent, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || {
+    sync_ops::local_git_task(move || {
         if let Some(repo_id) = repo_id {
             let selected =
                 application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
@@ -811,7 +556,7 @@ async fn cmd_get_blame(
     repo_id: Option<String>,
 ) -> Result<Vec<BlameLine>, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || {
+    sync_ops::local_git_task(move || {
         if let Some(repo_id) = repo_id {
             let selected =
                 application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
@@ -863,7 +608,7 @@ async fn cmd_delete_remote_branch(
     auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "delete remote branch",
         codes::cmds::DELETE_REMOTE_BRANCH_TASK_JOIN,
@@ -1102,7 +847,7 @@ async fn cmd_update_submodule(
     // Network operation (authenticated submodule remotes): same 180s
     // budget + credential-storage surfacing as the other sync ops.
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "update submodule",
         codes::cmds::UPDATE_SUBMODULE_TASK_JOIN,
@@ -1134,7 +879,7 @@ async fn cmd_add_submodule(
     auth: Option<infrastructure::git::credentials::InlineAuth>,
 ) -> Result<(), AppError> {
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "add submodule",
         codes::cmds::ADD_SUBMODULE_TASK_JOIN,
@@ -1416,7 +1161,7 @@ async fn cmd_get_working_copy(
     repo_id: Option<String>,
 ) -> Result<WorkingCopy, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || {
+    sync_ops::local_git_task(move || {
         if let Some(repo_id) = repo_id {
             let selected =
                 application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
@@ -1435,7 +1180,7 @@ async fn cmd_get_dirty_repos(
     workspace_id: String,
 ) -> Result<Vec<DirtyRepoSummary>, AppError> {
     let ctx = ctx.inner().clone();
-    local_git_task(move || get_dirty_repos(&ctx, &workspace_id)).await
+    sync_ops::local_git_task(move || get_dirty_repos(&ctx, &workspace_id)).await
 }
 
 #[tauri::command]
@@ -1506,59 +1251,6 @@ async fn cmd_ignore_path(
     ignore_path(&ctx, &workspace_id, repo_id.as_deref(), pattern)
 }
 
-/// Run a network sync operation (fetch / pull / push / clone /
-/// delete-remote-branch / submodule update / submodule add)
-/// on the blocking pool behind its workspace's cancel flag and a total
-/// timeout, so a hung libgit2 transport can never pin the UI at "Fetching…"
-/// forever. On timeout the flag is set — the blocking task aborts at its
-/// next libgit2 checkpoint (transfer-progress callback or credential fill
-/// wait) and thereby releases the workspace fetch lock — while the command
-/// reports `git.sync_timeout` immediately. The same flag backs
-/// `cmd_cancel_sync`.
-async fn run_sync_op<T, F>(
-    workspace_id: &str,
-    operation: &'static str,
-    join_error_code: &'static str,
-    timeout: Duration,
-    ctx: &tauri::State<'_, AppContext>,
-    op: F,
-) -> Result<T, AppError>
-where
-    T: Send + 'static,
-    F: FnOnce(&AppContext, Arc<AtomicBool>) -> Result<T, AppError> + Send + 'static,
-{
-    let workspaces = Arc::clone(&ctx.workspaces);
-    let app_settings = Arc::clone(&ctx.app_settings);
-    let flag = Arc::new(AtomicBool::new(false));
-    let inner = Arc::clone(&flag);
-    // The guard lives inside the closure so the registry entry matches the
-    // operation's real lifetime — a timed-out command returns early while
-    // its closure may still be winding down.
-    let guard = sync_ops::register(workspace_id, &flag);
-    let handle = tauri::async_runtime::spawn_blocking(move || {
-        let _guard = guard;
-        let local_ctx = AppContext::new(workspaces, app_settings);
-        op(&local_ctx, inner)
-    });
-    match tokio::time::timeout(timeout, handle).await {
-        // JoinHandle settles to Result<Result<T, AppError>, JoinError>:
-        // map the join failure, then flatten the operation's own result.
-        Ok(result) => result
-            .map_err(|e| {
-                AppError::unknown_with(
-                    join_error_code,
-                    format!("{operation} task join: {e}"),
-                    &[("error", e.to_string())],
-                )
-            })
-            .and_then(std::convert::identity),
-        Err(_) => {
-            flag.store(true, Ordering::Relaxed);
-            Err(sync_ops::timeout_error(operation))
-        }
-    }
-}
-
 /// Tag sync-progress events with the command invocation that produced them
 /// so the frontend can tell overlapping operations apart (the store matches
 /// by instance id, not by operation name).
@@ -1591,7 +1283,7 @@ async fn cmd_fetch(
         }));
 
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "fetch",
         codes::cmds::FETCH_TASK_JOIN,
@@ -1636,7 +1328,7 @@ async fn cmd_fetch_workspace_repos(
         }));
 
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "fetch",
         codes::cmds::FETCH_WORKSPACE_TASK_JOIN,
@@ -1698,7 +1390,7 @@ async fn cmd_pull(
         }));
 
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "pull",
         codes::cmds::PULL_TASK_JOIN,
@@ -1773,7 +1465,7 @@ async fn cmd_push(
         }));
 
     let ws_id = workspace_id.clone();
-    let result = run_sync_op(
+    let result = sync_ops::run_sync_op(
         &workspace_id,
         "push",
         codes::cmds::PUSH_TASK_JOIN,
@@ -1975,50 +1667,15 @@ pub fn run() {
     let _guard = init_tracing();
     info!("GitWave starting (version {})", env!("CARGO_PKG_VERSION"));
 
-    // libgit2's owner check (the safe.directory equivalent) rejects repos
-    // owned by another local account — e.g. an elevated clone leaves the dir
-    // owned by BUILTIN\Administrators. Root repo paths always come from the
-    // user's explicit folder pick; derived paths (submodules, worktrees)
-    // share the parent repo's trust decision. libgit2 doesn't auto-run hooks,
-    // so disable the check process-wide. The check is cross-platform (uid on
-    // POSIX, SID on Windows); the git2 wrapper always returns Ok, so failure
-    // is not observable.
-    let _ = unsafe { git2::opts::set_verify_owner_validation(false) };
-    info!("libgit2 owner validation disabled");
+    gitwave_core::bootstrap::disable_git_owner_validation();
 
-    let app_settings = match SqliteAppSettingsRepo::open() {
-        Ok(repo) => Arc::new(Mutex::new(repo)),
-        Err(e) => {
-            tracing::error!("failed to open app settings store, falling back to in-memory: {e}");
-            Arc::new(Mutex::new(
-                SqliteAppSettingsRepo::open_in_memory().expect("in-memory app settings store"),
-            ))
-        }
-    };
-
-    let ctx = match open_state() {
-        Ok(conn) => AppContext::new(
-            Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
-            Arc::clone(&app_settings),
-        ),
-        Err(e) => {
-            tracing::error!("failed to open SQLite state, falling back to in-memory: {e}");
-            let conn = rusqlite::Connection::open_in_memory().expect("in-memory fallback");
-            migrations::apply(&conn).expect("fallback migrations");
-            AppContext::new(
-                Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
-                app_settings,
-            )
-        }
-    };
+    let ctx = gitwave_core::bootstrap::open_app_context();
 
     // F013: bridge the configured proxy into the process environment before
     // anything can construct a network client (AI singletons are lazy, the
     // updater plugin checks on a timer, libgit2 reads env per operation).
     // UI stays fully functional if this fails — only the proxy defaults off.
-    if let Err(e) = get_proxy_settings(&ctx).map(|s| infrastructure::proxy::apply_to_env(&s)) {
-        tracing::warn!("failed to read proxy settings, env bridge skipped: {e}");
-    }
+    gitwave_core::bootstrap::bridge_proxy_to_env(&ctx);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -2162,64 +1819,4 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-#[cfg(test)]
-mod editor_tests {
-    use super::{detect_editors, editor_launch, SUPPORTED_EDITORS};
-
-    #[test]
-    fn supported_editors_have_stable_default_order() {
-        let ids: Vec<_> = SUPPORTED_EDITORS.iter().map(|(id, _)| *id).collect();
-        assert_eq!(ids, ["vscode", "zed", "vscodium"]);
-        assert!(SUPPORTED_EDITORS.iter().all(|(_, name)| !name.is_empty()));
-    }
-
-    #[test]
-    fn unknown_editor_id_is_not_launchable() {
-        assert!(editor_launch("notepad").is_none());
-        assert!(editor_launch("").is_none());
-    }
-
-    #[test]
-    fn detected_editors_are_a_subset_in_supported_order() {
-        let detected = detect_editors();
-        let order: Vec<_> = SUPPORTED_EDITORS.iter().map(|(id, _)| *id).collect();
-        assert!(detected.iter().all(|e| order.contains(&e.id.as_str())));
-        let detected_ids: Vec<_> = detected.iter().map(|e| e.id.as_str()).collect();
-        let mut sorted = detected_ids.clone();
-        sorted.sort_by_key(|id| order.iter().position(|o| o == id).unwrap());
-        assert_eq!(detected_ids, sorted);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn windows_exe_candidates_cover_well_known_install_roots() {
-        use super::windows_exe_candidates;
-        let (lad, pf, pfx86) = (
-            r"C:\Users\u\AppData\Local",
-            r"C:\Program Files",
-            r"C:\Program Files (x86)",
-        );
-        assert_eq!(
-            windows_exe_candidates("vscode", lad, pf, pfx86),
-            vec![
-                format!(r"{lad}\Programs\Microsoft VS Code\Code.exe"),
-                format!(r"{pf}\Microsoft VS Code\Code.exe"),
-                format!(r"{pfx86}\Microsoft VS Code\Code.exe"),
-            ]
-        );
-        assert_eq!(
-            windows_exe_candidates("zed", lad, pf, pfx86),
-            vec![format!(r"{lad}\Programs\Zed\Zed.exe")]
-        );
-        assert_eq!(
-            windows_exe_candidates("vscodium", lad, pf, pfx86),
-            vec![
-                format!(r"{lad}\Programs\VSCodium\VSCodium.exe"),
-                format!(r"{pf}\VSCodium\VSCodium.exe"),
-            ]
-        );
-        assert!(windows_exe_candidates("notepad", lad, pf, pfx86).is_empty());
-    }
 }
