@@ -1,6 +1,6 @@
 # GitWave 桌面界面迁移到 GPUI Kit
 
-状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`，进行中：切片一、切片二均已提交。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
+状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`，进行中：切片一、切片二均已提交，PR #246 已开、三端 CI 通过；合并前还有需要实机验证的项。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
 
 ## 目标与验收基线
 
@@ -147,3 +147,7 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
   - 自己另外发现并更正的：日志文件名里的日期按 UTC 算；实现方一度把一次没真正执行的反向验证当成通过（变异脚本没匹配到被折行的代码），重做后才成立。
   - 修复后的验证：`make check` 通过，零警告，`gitwave` 19 个测试、`gitwave-core` 400 个通过、2 个忽略；应用的测试二进制连跑 60 次全部通过；应用在 macOS 上启动并运行 7 秒，无输出，日志正常写出。
   - 仍然没有验证、需要实机看的：macOS 系统菜单栏在切换后是否换成中文；⌘Q 在对话框打开时是否生效；退出时缓冲的日志是否落盘；设置对话框里单选的外观；中文输入法；Windows 与 Linux。审查者的一次探针里，标题栏的菜单在切换后读到过一次英文，之后 286 次没有再现，原因不明，实机验证时留意。
+- 2026-11-26 · 切片二提交并开 PR（#246）：四个提交——`d24482c` core 的语言设置、`db44073` 语言切换的界面、`50c2142` 日志、`31e81f4` 文档。推送前在临时克隆里把四个提交逐个检出，各自通过格式检查、clippy 和测试（410、418、419、419 个）。
+  - 首轮 CI：Ubuntu 5 分 35 秒、Windows 9 分 58 秒通过。macOS 的任务排队 15 分钟后被 GitHub 取消，注解是「The job was not acquired by Runner of type hosted even after multiple attempts」，并提示 macOS arm64 runner 容量紧张。它一步都没执行，与代码无关。只重跑这一个任务后通过，用时 5 分 12 秒。三端的测试数都与本地一致：`gitwave` 19 个，`gitwave-core` 400 个通过、2 个忽略。这次 `Cargo.lock` 变了，缓存对不上，三个平台都是从头编译。
+  - 同时做的收尾：关闭 Dependabot 的 #238–#241 并删除它们的分支（它们改的是已删除的 `package.json` 与 `pnpm-lock.yaml`）；删除已合并的 `chore/remove-tauri-app` 与 `feature/gpui-kit-desktop`，本地和远端都删了。#244（rusqlite 0.40 → 0.43）仍然开着，留给用户。
+  - 没有合并：M2 的退出标准里还有要实机验证的项。
