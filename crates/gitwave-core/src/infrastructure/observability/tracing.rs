@@ -1,26 +1,43 @@
 //! Tracing initialization — JSON output to a rolling file in the platform
-//! log directory.
+//! log directory. One file per day, named `app.log.YYYY-MM-DD`.
 //!
-//! macOS: `~/Library/Application Support/GitWave/logs/app.YYYY-MM-DD.log`
-//! Linux: `$XDG_DATA_HOME/GitWave/logs/app.YYYY-MM-DD.log`
-//! Windows: `%APPDATA%/GitWave/logs/app.YYYY-MM-DD.log`
+//! macOS: `~/Library/Application Support/GitWave/logs/`
+//! Linux: `$XDG_DATA_HOME/GitWave/logs/`
+//! Windows: `%APPDATA%/GitWave/logs/`
 //!
 //! Falls back to stderr when the log directory cannot be created.
+//!
+//! The presentation layer calls [`init`] once, when the application starts,
+//! and keeps the guard it returns until the application quits: dropping the
+//! guard is what flushes the last lines. [`init_in`] is the same with a
+//! directory of the caller's choosing, for tests, which must not write into
+//! the directory of the user's real logs.
 
 use std::path::PathBuf;
 
-use tracing_appender::non_blocking::WorkerGuard;
+pub use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-/// Initialize the tracing subscriber with JSON output to a rolling file.
+/// Starts the tracing subscriber with JSON output to a rolling file in the
+/// platform's log directory.
 ///
-/// Returns a `WorkerGuard` that must be held for the lifetime of the
-/// application to ensure buffered writes are flushed. Returns `None` if
-/// the log directory cannot be created (fallback to stderr-only).
+/// Returns a `WorkerGuard` that has to be held for the lifetime of the
+/// application: dropping it flushes what is buffered and stops logging.
+/// Returns `None` when the log directory cannot be created, in which case the
+/// subscriber logs to stderr instead.
 pub fn init() -> Option<WorkerGuard> {
+    init_with(log_target())
+}
+
+/// Starts the subscriber the way [`init`] does, with the log files under `dir`.
+pub fn init_in(dir: &std::path::Path) -> Option<WorkerGuard> {
+    init_with(Some((dir.to_path_buf(), "app.log".to_string())))
+}
+
+fn init_with(target: Option<(PathBuf, String)>) -> Option<WorkerGuard> {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
-    match log_target() {
+    match target {
         Some((dir, file_name)) => {
             if let Err(e) = std::fs::create_dir_all(&dir) {
                 eprintln!("gitwave: failed to create log dir {}: {e}", dir.display());
@@ -140,11 +157,31 @@ fn lock_down_log_files(_dir: &std::path::Path) {}
 mod tests {
     use super::*;
 
+    /// A directory of this test's own under the system's temporary directory.
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "gitwave-{name}-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
     #[test]
     fn init_is_idempotent() {
+        // The directory is the test's own: this test used to start logging
+        // into the directory of the user's real logs.
+        let dir = temp_dir("init");
         // First call initializes; second call must not panic.
-        init();
-        init();
+        let first = init_in(&dir);
+        let second = init_in(&dir);
+        drop((first, second));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     fn set_file_mtime(path: &std::path::Path, mtime: std::time::SystemTime) {
@@ -158,18 +195,19 @@ mod tests {
         use std::time::Duration;
         let now = std::time::SystemTime::now();
         let month = 24 * 60 * 60;
+        // The files are named the way `tracing_appender` names them.
         assert!(should_prune(
-            "app.2020-01-01.log",
+            "app.log.2020-01-01",
             now - Duration::from_secs(31 * month),
             now
         ));
         assert!(
-            !should_prune("app.log", now - Duration::from_secs(60), now),
+            !should_prune("app.log.2026-11-25", now - Duration::from_secs(60), now),
             "fresh log stays"
         );
         assert!(
             !should_prune(
-                "app.2024-06-01.log",
+                "app.log.2024-06-01",
                 now - Duration::from_secs(29 * month),
                 now
             ),
@@ -183,19 +221,10 @@ mod tests {
 
     #[test]
     fn prune_keeps_fresh_logs_and_foreign_files() {
-        let dir = std::env::temp_dir().join(format!(
-            "gitwave-prune-test-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-        ));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = temp_dir("prune");
 
-        let old_path = dir.join("app.2020-01-01.log");
-        let fresh_path = dir.join("app.log");
+        let old_path = dir.join("app.log.2020-01-01");
+        let fresh_path = dir.join("app.log.2026-11-25");
         let foreign_path = dir.join("other.log");
         for p in [&old_path, &fresh_path, &foreign_path] {
             std::fs::write(p, b"log").unwrap();

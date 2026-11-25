@@ -3,6 +3,7 @@
 
 mod app_state;
 mod locales;
+mod logging;
 mod menus;
 mod runtime;
 mod workbench;
@@ -22,6 +23,7 @@ fn main() {
         .run(|cx| {
             // This must be called before using any GPUI Component features.
             gpui_kit::init(cx);
+            logging::init(cx);
             runtime::init(cx);
             app_state::init(cx);
             // Before the first window opens, so that no window shows in the wrong language first.
