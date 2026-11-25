@@ -300,7 +300,7 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
     fn reorder_repos(&self, workspace_id: &str, repo_ids: &[String]) -> Result<()> {
         let current = self.list_repos(workspace_id)?;
         // The order payload must be a permutation of the workspace's repos —
-        // anything else (stale frontend list, cross-workspace id) would
+        // anything else (a stale list, cross-workspace id) would
         // silently drop or shift rows.
         if current.len() != repo_ids.len()
             || !current

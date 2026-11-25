@@ -1,0 +1,42 @@
+{
+  "status": {
+    "fetchComplete": "Fetch complete",
+    "createdBranch": "Created branch %{name}",
+    "checkedOut": "Checked out %{name}",
+    "createdTag": "Created tag %{name}",
+    "changesStashed": "Changes stashed",
+    "repoAddedPartial": "Added %{added} repositories · skipped %{skipped} · failed %{failed}",
+    "sync": {
+      "fetch": "Fetch",
+      "pull": "Pull",
+      "push": "Push",
+      "fetchTooltip": "Fetch updates from the remote without merging",
+      "pullTooltip": "Pull and fast-forward the current branch",
+      "pushTooltip": "Push local commits to the remote",
+      "fetching": "Fetching…",
+      "pulling": "Pulling changes…",
+      "pushing": "Pushing to %{remote}…",
+      "checkingOut": "Checking out branch…",
+      "deletingBranch": "Deleting branch…",
+      "merging": "Merging branch…",
+      "rebasing": "Rebasing…",
+      "savingStash": "Saving stash…",
+      "creatingWorktree": "Creating worktree…",
+      "remoteOp": "Running remote operation…",
+      "fetched": "Fetched",
+      "pulled": "Pulled from %{remote}",
+      "pushed": "Pushed to %{remote}",
+      "pushedSkipped": "Pushed to %{remote}; skipped tags diverged from remote: %{tags} (enable Force push to overwrite)",
+      "fetchFailed": "Fetch failed",
+      "pullFailed": "Pull failed",
+      "pushFailed": "Push failed",
+      "cancelled": "Cancelled",
+      "refreshing": "Refreshing…",
+      "refreshed": "Refreshed",
+      "refreshedAll": "Refreshed %{count} repositories",
+      "refreshedAllPartial": "Refreshed %{ok}/%{total} repositories (%{failed} failed)",
+      "credentialFallback": "Credentials saved to the app keychain (the system credential helper did not confirm); GitWave will reuse them automatically",
+      "credentialSaveFailed": "Credentials could not be saved — you may be asked to sign in again on the next operation"
+    }
+  }
+}

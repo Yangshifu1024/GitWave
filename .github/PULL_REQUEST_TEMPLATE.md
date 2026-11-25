@@ -29,7 +29,7 @@
 ## Verification done
 
 <!-- [ [ ] `pre-commit run --all-files` passes
-     [ ] CI green (lint / test / build)
+     [ ] CI green
      [ ] Manually exercised the user scenario ] -->
 
 - [ ] `pre-commit run --all-files` passes locally

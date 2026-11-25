@@ -36,9 +36,9 @@ pub struct SyncProgress {
     pub received_objects: u64,
     pub total_objects: u64,
     pub received_bytes: u64,
-    /// Command-invocation id stamped at the IPC boundary (`lib.rs`), so the
-    /// frontend can attribute events to one operation instance. Empty when
-    /// constructed; always stamped before emit.
+    /// Id of the one operation instance this progress belongs to, supplied
+    /// by the caller and stamped on every report so the UI can attribute
+    /// them to one operation.
     #[serde(default)]
     pub request_id: String,
 }
@@ -146,7 +146,7 @@ fn attach_transfer_progress<'cb>(
                     received_objects: stats.received_objects() as u64,
                     total_objects: stats.total_objects() as u64,
                     received_bytes: stats.received_bytes() as u64,
-                    // One operation instance; the frontend matches by it.
+                    // One operation instance; the UI matches by it.
                     request_id: request_id.to_string(),
                 });
             }
@@ -162,8 +162,8 @@ fn attach_transfer_progress<'cb>(
 /// tells libgit2 to *never* use a proxy: the git-config → environment
 /// fallback never runs, so the `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` env
 /// vars injected by `infrastructure::proxy` (F013) were silently ignored
-/// by every git network operation — only the AI/updater reqwest paths
-/// honored them. `GIT_PROXY_AUTO` restores git CLI semantics: `http.proxy`
+/// by every git network operation — only the reqwest clients honored them.
+/// `GIT_PROXY_AUTO` restores git CLI semantics: `http.proxy`
 /// / `remote.<name>.proxy` config first, then the injected environment
 /// (keeping per-host `NO_PROXY` exemptions; loopback always excluded).
 pub(super) trait ProxyOptionsCarrier<'cb> {

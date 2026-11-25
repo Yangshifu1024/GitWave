@@ -23,7 +23,7 @@ thiserror = "2"
 # persistence + git backend
 dirs = "7"
 rusqlite = { version = "0.40", features = ["bundled"] }
-# Image diff previews (F016): blob bytes ride the IPC as base64.
+# Image diff previews (F016): blob bytes are encoded as base64.
 base64 = "0.23"
 # `ssh` compiles the libssh2 transport into vendored libgit2 — without it
 # SSH remotes fail on every platform. libssh2 speaks to ssh-agent via
@@ -48,9 +48,9 @@ keyring = { version = "3", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "system-proxy"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-# System proxy probe (F013). Version range matches hyper-util's optional dep
-# so the graph resolves a single shared build.
-windows-registry = "0.100"
+# System proxy probe (F013). The range is the one hyper-util and GPUI's
+# Windows layer use, so the graph resolves a single shared build.
+windows-registry = "0.6"
 # Native credential store (Credential Manager) for this target only.
 keyring = { version = "3", default-features = false, features = ["windows-native"] }
 

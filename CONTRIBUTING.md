@@ -11,57 +11,45 @@
 ## Branch + commit conventions
 
 - Branch from `main`: `feature/<name>` or `fix/<name>`
-- Commit messages: [Conventional Commits](https://www.conventionalcommits.org/) — enforced by `commitlint` via `pre-commit` hook
+- Commit messages: [Conventional Commits](https://www.conventionalcommits.org/). Nothing enforces them automatically any more — `commitlint` left with the Node.js toolchain — so follow them by hand
 - Merge into `main` with a merge commit (no squash); branch commits follow Conventional Commits
 - AI agents must not commit / push / merge without explicit user instruction
 
 ## Local quality gates
 
-All run automatically via `pre-commit` hook on `git commit`. To run manually:
+`make check` is the pre-delivery gate and the equivalent of what CI runs (`make check` = `fmt-check` + `lint` + `test`):
 
 ```bash
-pre-commit run --all-files
+make check      # CI-equivalent: format check + clippy + all tests, changes nothing
+make fmt-check  # cargo fmt --all -- --check
+make lint       # cargo clippy --workspace --all-targets -- -D warnings
+make test       # cargo test --workspace --all-targets
 ```
 
-`make check` is the same set of checks in one command, and is the equivalent entry point for the individual commands below (`make check` = `fmt-check` + `lint` + `test`):
+`make format` is the only target that rewrites files. Or run the commands individually, from the repository root:
 
 ```bash
-make check      # CI-equivalent: format gates + lint + all tests, changes nothing
-make fmt-check  # pnpm exec prettier --check . + cargo fmt -- --check, in both workspaces
-make lint       # Tauri npm/Rust version compatibility + pnpm lint + cargo clippy + pnpm typecheck + cargo check
-make test       # pnpm test (Node regression tests + Vitest) + cargo test --all-targets, in both workspaces
-```
-
-`make format` is the only target that rewrites files. Or run the commands individually:
-
-```bash
-# Rust — the Tauri application (from src-tauri/)
-cargo fmt -- --check
-cargo clippy --all-targets -- -D warnings
-cargo test --all-targets
-
-# Rust — the root workspace: gitwave-core and the GPUI Kit application (from the repository root)
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
-
-# Frontend
-pnpm lint
-pnpm format:check
-pnpm typecheck
-pnpm check:tauri-versions
-pnpm test
 ```
 
-Rust code lives in two Cargo workspaces. `src-tauri/` is the Tauri application, with its own lockfile and build cache. The repository root holds `crates/gitwave-core` (the domain, application and infrastructure layers) and `crates/gitwave` (the GPUI Kit application). `src-tauri` is excluded from the root workspace and depends on `gitwave-core` by path, so a change to the core is checked by both sets of commands. See `docs/tech/decisions/00-overview.md` (ADR 0007).
+A `pre-commit` hook runs rustfmt and clippy on `git commit` whenever Rust files are staged:
 
-Markdown is not covered by Prettier — `.prettierignore` excludes `*.md` — so neither `pnpm format:check` nor `make fmt-check` ever inspects documentation. Doc changes are verified by hand; don't expect an automated check to stop a stale or badly formatted doc.
+```bash
+pre-commit install --install-hooks   # once
+pre-commit run --all-files           # manually
+```
+
+The repository is one Cargo workspace with two crates: `crates/gitwave-core` (the domain, application and infrastructure layers) and `crates/gitwave` (the GPUI Kit application). The workspace commands cover both.
+
+No formatter or linter covers Markdown, YAML or JSON, so documentation, workflows and the interface catalogues under `crates/gitwave/locales/` are verified by hand; don't expect an automated check to stop a stale or badly formatted doc. The tests in `crates/gitwave/src/locales.rs` do check that both languages carry the same keys and placeholders.
 
 ## PR checklist
 
 - [ ] Branch is `feature/<name>` or `fix/<name>` (not `main`)
 - [ ] Commit messages follow Conventional Commits
-- [ ] All pre-commit hooks pass locally
+- [ ] `make check` passes locally
 - [ ] All CI jobs pass on the PR
 - [ ] PR description references the proposal (`docs/pm/features/F<编号>.md`) or task (`docs/tasks/<任务名>/plan.md`)
 - [ ] At least one code-reviewer has approved

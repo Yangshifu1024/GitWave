@@ -1,0 +1,16 @@
+{
+  "errors": {
+    "cmds": {
+      "clone_task_join": "Clone task failed: %{error}",
+      "fetch_task_join": "Fetch task failed: %{error}",
+      "fetch_workspace_task_join": "Workspace fetch task failed: %{error}",
+      "pull_task_join": "Pull task failed: %{error}",
+      "list_remotes_task_join": "Failed to list remotes: %{error}",
+      "list_repos_task_join": "Failed to list repos: %{error}",
+      "push_task_join": "Push task failed: %{error}",
+      "delete_remote_branch_task_join": "Delete remote branch task failed: %{error}",
+      "update_submodule_task_join": "Submodule update task failed: %{error}",
+      "add_submodule_task_join": "Submodule add task failed: %{error}"
+    }
+  }
+}

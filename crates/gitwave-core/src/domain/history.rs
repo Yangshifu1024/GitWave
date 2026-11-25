@@ -46,8 +46,8 @@ pub struct CommitRef {
 }
 
 /// Lightweight commit summary used to render the commit graph. Lane is
-/// assigned by `infrastructure::git::history::commit_log` so the
-/// frontend can position this commit in a vertical column.
+/// assigned by `infrastructure::git::history::commit_log` so the UI can
+/// position this commit in a vertical column.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommitSummary {
     pub sha: String,

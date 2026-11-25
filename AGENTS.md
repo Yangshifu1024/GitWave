@@ -80,10 +80,10 @@ All PRs merge into `main` with a merge commit — branch history is preserved, n
 Before delivering a task (commit / push / PR), run the CI-equivalent checks and make them pass:
 
 ```bash
-make check   # fmt-check (prettier + cargo fmt) + lint (eslint + clippy + typecheck) + all tests, in both Cargo workspaces
+make check   # fmt-check (cargo fmt) + lint (clippy) + all tests, in the Cargo workspace
 ```
 
-Or individually — frontend: `pnpm format:check` · `pnpm lint` · `pnpm typecheck` · `pnpm test`; backend: `cargo fmt -- --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --all-targets`, run in `src-tauri/` for the Tauri application. From the repository root the same three commands cover `gitwave-core` and the GPUI Kit application: `cargo fmt` takes `--all`, `cargo clippy` and `cargo test` take `--workspace`. CI runs the same gates on all three platforms — a red formatting/lint check on the PR means this step was skipped.
+Or individually, from the repository root: `cargo fmt --all -- --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace --all-targets`. They cover both crates, `gitwave-core` and the GPUI Kit application. CI runs the same gates on all three platforms — a red formatting/lint check on the PR means this step was skipped.
 
 ## Documentation maintenance
 
@@ -94,7 +94,7 @@ A user-visible change is not done while its docs still describe the old behaviou
 - **`site/index.html`** — the hero version badge and the feature cards
 - **`.agents/skills/gitwave-release/SKILL.md`** — the sync points registered for the release skill
 
-Nothing automated will catch a stale doc: Markdown is outside Prettier (`.prettierignore` excludes `*.md`) and the lint / test workflows skip `site/**`, `docs/**` and `**.md` changes. Verify by hand.
+Nothing automated will catch a stale doc: no formatter or linter covers Markdown, YAML or JSON, and the CI workflow skips `site/**`, `docs/**` and `**.md` changes. Verify by hand.
 
 ## Specialized agents
 
@@ -140,7 +140,7 @@ Trigger: development done, new code awaiting merge
 
 ## Specialized skills
 
-- **gitwave-release** (`/gitwave-release`): version bump and release synchronization (the four version files and both lockfiles, README status, the site pages) — use it whenever bumping a version, cutting a release, or syncing README / site content
+- **gitwave-release** (`/gitwave-release`): currently dormant — `main` builds the GPUI Kit rewrite, which has no release pipeline until milestone M7 of `docs/tasks/refactor-gpui-kit-desktop/plan.md`. The skill records what still applies (the single version in `Cargo.toml`, `scripts/bump-version.sh`) and why nothing should be tagged from `main` yet
 
 ## Terminology
 

@@ -1,7 +1,7 @@
 //! Domain layer — pure business models and invariants.
 //!
 //! Zero external dependencies (no DB, no network, no IPC). Everything here
-//! is `Serialize`/`Deserialize` so it can cross the Tauri IPC boundary.
+//! is `Serialize`/`Deserialize` so it can cross a serialization boundary.
 
 pub mod app_settings;
 pub mod blame;

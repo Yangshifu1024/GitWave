@@ -1,13 +1,13 @@
 //! System proxy detection and the process env bridge (F013).
 //!
-//! One mechanism covers all four outbound paths — AI requests (reqwest
+//! One mechanism covers every outbound path — AI requests (reqwest
 //! singleton), git fetch/push/clone (libgit2), LFS + credential helper
-//! subprocesses, and update checks (updater plugin's reqwest): resolve the
-//! configured proxy (manual URL or OS system proxy) into `HTTP_PROXY` /
-//! `HTTPS_PROXY` / `NO_PROXY` and set them on the process environment.
-//! reqwest reads env at client build time, libgit2 reads env per operation
-//! (keeping per-host `no_proxy` granularity, which `ProxyOptions::url()`
-//! would lose), and spawned git subprocesses inherit the environment.
+//! subprocesses: resolve the configured proxy (manual URL or OS system
+//! proxy) into `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` and set them on
+//! the process environment. reqwest reads env at client build time, libgit2
+//! reads env per operation (keeping per-host `no_proxy` granularity, which
+//! `ProxyOptions::url()` would lose), and spawned git subprocesses inherit
+//! the environment.
 //!
 //! Precedence: manual in-app setting > pre-existing env vars (user intent
 //! from the launch environment — only filled in, never overwritten in
@@ -246,9 +246,9 @@ pub fn resolve(settings: &ProxySettings) -> Option<ResolvedProxy> {
 /// immediately: libgit2 reads env per operation and the AI client is
 /// rebuilt; reqwest reads env when a client is constructed).
 ///
-/// Startup runs single-threaded before the Tauri builder. Runtime saves
-/// mutate the environment from a command thread — the same pattern dotenv
-/// loaders use; libgit2/reqwest read the env from other unsynchronized
+/// Startup applies it while the process is still single-threaded. Runtime
+/// saves mutate the environment from a worker thread — the same pattern
+/// dotenv loaders use; libgit2/reqwest read the env from other unsynchronized
 /// threads, a theoretical POSIX race accepted here because saves are rare
 /// user actions.
 pub fn apply_to_env(settings: &ProxySettings) {

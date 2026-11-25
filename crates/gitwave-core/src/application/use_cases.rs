@@ -128,7 +128,8 @@ use crate::infrastructure::ssh::keys::{expand_tilde, SshKey, SshKeyList, SshTest
 // ─── AppContext ──────────────────────────────────────────────────────────────
 
 /// Application context — bundles infrastructure adapters and exposes use
-/// cases. Held by Tauri as managed state.
+/// cases. The presentation layer is meant to hold it as long-lived
+/// application state and call the use cases in process.
 #[derive(Clone)]
 pub struct AppContext {
     pub workspaces: Arc<Mutex<SqliteWorkspaceRepo>>,
@@ -731,8 +732,8 @@ fn ollama_probe_allowed(base_url: Option<&str>) -> bool {
 /// first, then its configured failover entries in order.
 ///
 /// `Debug` is hand-rolled so `api_key` never reaches logs. Deliberately
-/// NOT `Serialize`: this struct must never cross the IPC boundary — only
-/// `AiGenerateOutcome` (key-free) is returned to the frontend.
+/// NOT `Serialize`: this struct must never be handed to the presentation
+/// layer — only `AiGenerateOutcome` (key-free) is.
 #[derive(Clone)]
 pub struct ResolvedAiProvider {
     pub offline: bool,
@@ -1206,7 +1207,7 @@ pub fn get_file_diff(
 }
 
 /// Upper bound for image diff previews (F016): larger versions surface a
-/// "too large" placeholder instead of streaming tens of MB through IPC.
+/// "too large" error instead of being encoded and handed to the UI.
 pub const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
 /// Raw bytes of one file version for the image diff view, base64-encoded:
@@ -1873,7 +1874,7 @@ struct PaletteCommit {
 
 /// Interpret a natural-language request as a whitelisted palette action.
 /// The AI only *proposes* — execution (with confirmation for mutating
-/// actions) stays in the frontend.
+/// actions) stays with the caller.
 pub async fn ai_palette_intent(
     ctx: &AppContext,
     workspace_id: String,

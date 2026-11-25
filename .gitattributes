@@ -27,8 +27,6 @@
 # Lock files must NOT be normalized (changing EOL can break tooling)
 *.lock            -text
 package-lock.json -text
-pnpm-lock.yaml    -text
-pnpm-lock.yml     -text
 yarn.lock         -text
 Cargo.lock        -text
 composer.lock     -text

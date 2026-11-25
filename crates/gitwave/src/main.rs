@@ -1,7 +1,13 @@
 // Prevents an additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod locales;
 mod workbench;
+
+// rust-i18n reads `locales/<domain>.<locale>.json` at compile time. `t!` forwards
+// to a macro that this call defines at the crate root, so the registration has
+// to live here.
+rust_i18n::i18n!("locales", fallback = "en");
 
 use gpui_kit::component::TitleBar;
 use gpui_kit::{AppContext as _, WindowBounds, WindowOptions, px, size};

@@ -30,7 +30,7 @@ fn map_git_err_ref(e: &git2::Error) -> AppError {
 /// options (F012 in-app credentials win, SSH keeps ssh-agent, HTTPS falls
 /// through helper-without-interaction → app keyring) and the outcome drives
 /// helper approve/reject. `Auth` maps to the dedicated credential code the
-/// frontend's F012 prompt keys on; without all this an authenticated
+/// UI's F012 prompt keys on; without all this an authenticated
 /// submodule remote failed with a bare libgit2 error and no recovery path.
 /// `cancel` is observed both at the credential-fill wait and at transfer
 /// progress — the run_sync_op timeout flips it, and an in-flight transfer

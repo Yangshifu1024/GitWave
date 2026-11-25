@@ -1,25 +1,7 @@
 version: 2
 
 updates:
-  # 前端 / JS 工具链（package.json + pnpm-lock.yaml）
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-    commit-message:
-      prefix: "chore(deps)"
-
-  # Rust 后端（src-tauri/Cargo.toml + Cargo.lock）
-  - package-ecosystem: cargo
-    directory: /src-tauri
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-    commit-message:
-      prefix: "chore(deps)"
-
-  # 根 Cargo workspace（Cargo.toml + Cargo.lock）：gitwave-core 与 GPUI Kit 应用
+  # Rust workspace（Cargo.toml + Cargo.lock）：gitwave-core 与 GPUI Kit 应用
   - package-ecosystem: cargo
     directory: /
     schedule:
@@ -31,3 +13,7 @@ updates:
       # GPUI Kit is pinned exactly because every minor release ships breaking
       # changes; upgrading it is a deliberate task (ADR 0007).
       - dependency-name: "gpui-kit"
+      # keyring 4 renamed the features the credential stores are enabled with.
+      # Moving to it is a deliberate change; 3.x updates still come through.
+      - dependency-name: "keyring"
+        update-types: ["version-update:semver-major"]
