@@ -47,16 +47,16 @@ What v0.11.0 does. The rewrite on `main` brings the same scope to the new applic
 
 `main` no longer contains the Tauri application or the React frontend. Both were removed on 2026-11-25 and their source stays readable at commit `8466d55`. What remains is a Rust-only Cargo workspace:
 
-- **`crates/gitwave-core`** — the domain, use-case and infrastructure layers v0.11.0 ran on: libgit2, SQLite, credential and proxy handling, the AI providers. It is meant to be called in process, with no IPC; the new application does not link it yet.
-- **`crates/gitwave`** — the new desktop application, built on [GPUI Kit](https://github.com/longbridge/gpui-kit). Today it is a window shell (title bar, resizable panes, status bar); it grows one milestone at a time.
+- **`crates/gitwave-core`** — the domain, use-case and infrastructure layers v0.11.0 ran on: libgit2, SQLite, credential and proxy handling, the AI providers. The new application calls it in process, with no IPC.
+- **`crates/gitwave`** — the new desktop application, built on [GPUI Kit](https://github.com/longbridge/gpui-kit). Today it is an application shell — a window with a self-drawn title bar, the application menus, English / Chinese switching and a light / dark appearance — that already runs gitwave-core's use cases against an in-memory state. It grows one milestone at a time.
 
 Until the rewrite reaches parity there is nothing to download from `main`: no installer is built and no release is cut. The decision is recorded in [ADR 0007](./docs/tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit); milestones and the execution log are in the [migration plan](./docs/tasks/refactor-gpui-kit-desktop/plan.md).
 
 ## Tech stack
 
-- **Application:** Rust with [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.11, pinned to the exact version; the interface text has been moved into `rust-i18n` catalogues under `crates/gitwave/locales/` (Chinese and English), which the window shell does not read yet
+- **Application:** Rust with [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.11, pinned to the exact version; the interface text has been moved into `rust-i18n` catalogues under `crates/gitwave/locales/` (Chinese and English), which the menus and the dialogs read
 - **Core:** `gitwave-core`, layered as `domain` / `application` / `infrastructure`, on `git2` (vendored libgit2 + libssh2 + OpenSSL), `rusqlite` (bundled SQLite) and `reqwest`
-- **Testing:** `cargo test` — unit and integration tests against real Git fixtures in the core, and consistency checks on the interface catalogues; headless-window tests for the interface arrive with milestone M2. There is no end-to-end suite yet
+- **Testing:** `cargo test` — unit and integration tests against real Git fixtures in the core, consistency checks on the interface catalogues, and headless-window tests that render the real shell and drive it. There is no end-to-end suite yet
 
 ## Quick start
 
@@ -71,6 +71,8 @@ Prerequisites:
 ```bash
 make dev      # cargo run -p gitwave
 ```
+
+The application writes a JSON log, one file per day, under `GitWave/logs/` in the platform's application-data directory (`~/Library/Application Support/GitWave/logs/` on macOS). `RUST_LOG` sets the level; the default is `info`.
 
 ## Make targets
 

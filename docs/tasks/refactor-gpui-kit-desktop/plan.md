@@ -1,6 +1,6 @@
 # GitWave 桌面界面迁移到 GPUI Kit
 
-状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 起在 `feature/gpui-kit-app-shell`。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
+状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`，进行中：切片一、切片二均已提交。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
 
 ## 目标与验收基线
 
@@ -68,7 +68,9 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
 - 旧版 README 所写的「menu bar app mode」指窗口内的菜单栏，还是常驻系统菜单栏的托盘模式。旧实现只有前者，gpui-kit 没有后者的现成实现；新应用是否需要托盘模式待定。
 - `gitwave-core` 根上的 `#![allow(dead_code)]` 与 `#![allow(unused_imports)]`：旧实现删除后，core 的大量用例暂时没有调用方，这两条豁免要等新界面接上各功能后再逐模块收回。
 - `cmds.*` 的 10 个错误码（等待后台任务结束失败）目前没有任何代码引用。提出它们的 Tauri 命令层已删除，新应用的处理器随功能迁移时再决定是否沿用；它们与语言文件里的文案互相绑定，要删就一起删。
-- 新应用启动时还没有调用 core 的日志初始化（`infrastructure::observability::tracing::init`），目前不写日志。唯一的调用方是已删除的 Tauri 外壳；已列入 M2。
+- 外观是否提供「跟随系统」（旧实现有这一项）：gpui-kit 0.11.0 里没有找到它的接线方式，M2 只做了浅色 / 深色两项。
+- 旧实现的语言选择不迁移，已按此处理：它存在 WebView 的 localStorage 里（`gitwave.language`），新应用读不到，v0.11.0 的用户要重新选一次语言。2026-11-26 汇报时列为待决，用户回复「按推荐继续」，没有单独对这一条表态。
+- 「短小的本地写入在主线程同步做」换成磁盘数据库之后要实测一次写入耗时（`app_settings` 的连接是 WAL、5 秒 `busy_timeout`），再决定这条约定要不要加时长上限。
 - `keyring` 的 4.x 改了 feature 名，清单里的 `apple-native` 等写法在 4.x 下解析不了。dependabot 配置忽略它的大版本升级；当前清单要求的是 `3`，所以这条忽略只是声明意图。升到 4.x 时要一起改 feature 名。
 - dependabot 是否忽略 `gpui-kit` 的升级 PR。当前配置为忽略，理由与 ADR 0007 的「升级是独立任务」一致，代价是它的安全更新也不会自动提 PR。
 
@@ -78,13 +80,20 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
 
 - **菜单**：同一份 `Vec<Menu>` 定义同时交给 `cx.set_menus`（macOS 原生菜单栏）和 `GlobalState::global_mut(cx).set_app_menus(..)`（标题栏内的 `AppMenuBar`，Windows 与 Linux 使用），随后调用 `app_menu_bar.update(cx, |bar, cx| bar.reload(cx))`。`MenuItem::action` 可以链式 `.checked()`、`.disabled()`；编辑菜单直接复用 `gpui_kit::component::input` 的 `Undo`、`Redo`、`Cut`、`Copy`、`Paste`、`Delete`、`SelectAll` 等内置动作。切换语言或主题后重建菜单以刷新勾选项。参考上游 `crates/story/src/app_menus.rs`。
 - **主题**：`Theme::change(ThemeMode::Light | Dark, Some(window), cx)`，`cx.theme().mode.is_dark()`，`cx.observe_global::<Theme>` 监听变化。「跟随系统」的接线方式没有找到文档。
-- **国际化**：文案已转换到 `crates/gitwave/locales/<域名>.<语言>.json`，只在 Rust 侧维护。rust-i18n 取文件名最后一段作为语言代码，把每棵树展平成点号键，所以 `t!("app.sidebar.health")` 就是原来的 `t("app.sidebar.health")`；占位符是 `%{name}`；9 组 `_one` / `_other` 键（每种语言 18 个）由代码按数量选择。注册语句 `rust_i18n::i18n!("locales", fallback = "en")` 必须在 `main.rs`，因为 `t!` 转发到 crate 根的 `_rust_i18n_t!`。语言偏好还无处保存：core 的应用设置目前只有代理一项。旧实现的策略是「已保存的选择，否则系统语言，zh* 归 zh-CN，其余 en」；实现它时要把系统语言的来源定下来，辅助函数随语言切换一起加进 `locales.rs`。
+- **国际化**：文案已转换到 `crates/gitwave/locales/<域名>.<语言>.json`，只在 Rust 侧维护。rust-i18n 取文件名最后一段作为语言代码，把每棵树展平成点号键，所以 `t!("app.sidebar.health")` 就是原来的 `t("app.sidebar.health")`；占位符是 `%{name}`；9 组 `_one` / `_other` 键（每种语言 18 个）由代码按数量选择。注册语句 `rust_i18n::i18n!("locales", fallback = "en")` 必须在 `main.rs`，因为 `t!` 转发到 crate 根的 `_rust_i18n_t!`。语言切换在切片二实现：偏好存在 core 应用设置的 `language` 键（`LanguageSettings`），系统语言用 `sys-locale` 读（GPUI 已经依赖它）。策略沿用旧实现：已保存的选择，否则系统语言，中文变体归 `zh-CN`，英语归 `en`，其余落英文。
   - `branches.irebase.*` 这个键名带着旧实现的拼写错误，转换时原样保留；接线时不要只改一侧。
   - 文案在编译期内嵌，cargo 自己不追踪这些文件；`crates/gitwave/build.rs` 让改动语言文件触发重新编译。
 - **焦点**：GPUI 的按键与动作从聚焦元素向上派发。窗口里没有任何聚焦元素时，根上的监听器收不到。视图要用 `.track_focus(..)` 并在打开时 `window.focus(&handle, cx)`。
 - **tokio 桥接**：全局对象持有运行时，`spawn_blocking` 把任务交给 tokio，再用 `cx.background_spawn` 等待它的 JoinHandle。测试里等待真实线程上的任务前要先 `cx.executor().allow_parking()`。
 - **可调分栏**：面板尺寸按位置保存。面板要始终作为子节点存在，用 `resizable_panel().visible(bool)` 隐藏，不能增减子节点。
 - **窗口**：`WindowOptions { ..TitleBar::window_options() }` 给出自绘标题栏所需的窗口选项；标题用 `window.set_window_title(..)` 设置。
+- **切片二里学到的**：
+  - `t!` 是运行时查找，返回的 `Cow<str>` 可以直接当 `SharedString` 用；切换语言后重建菜单即可。
+  - rust-i18n 的语言是进程全局的。渲染窗口的测试调用 `locales::take_language_turn(cx)`，锁由测试的应用持有到销毁，因为框架在测试函数返回后还会再画一帧；不渲染窗口的测试持有 `locales::lock_language()` 返回的 guard。
+  - 应用级动作用 `App::on_action` 注册，在冒泡阶段运行。`Context` 自己有一个同名的窗口级方法，会把它遮住，要写成 `let app: &mut App = cx` 再调用。监听器里不能再次更新正在派发的窗口，要操作窗口就用 `cx.defer`。
+  - `window.open_dialog` 的构造闭包每帧重新调用，第三个参数是 `&mut App`；在里面读全局状态，打开着的对话框就会跟随切换。
+  - `RadioGroup` 渲染时把子项的 id 改成序号。测试用 `window.within("<组的 id>").find(序号)` 和 `.click(序号, cx)` 在组的作用域里查找和点击，不必为了可测而放弃 `RadioGroup` 给读屏软件的语义。
+  - `sys_locale::get_locales()` 返回迭代器；`MenuItem` 没有实现 `Debug`；`AsyncApp::update` 直接返回结果，不包 `Result`。
 
 ## 执行记录
 
@@ -113,9 +122,28 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
   - 验证：`make check` 通过（`gitwave` 5 个测试，`gitwave-core` 394 个通过、2 个忽略）；应用构建并启动 8 秒无崩溃；`bump-version.sh` 在 `/tmp` 的一次性仓库里跑了 26 次，含 3 条回滚路径。本机没有 `pre-commit`，钩子没有实际运行过。
 
 - 2026-11-25 · 首次托管 CI（PR #245，提交 `fa57247`）：`Rust (ubuntu-latest)`、`Rust (macos-latest)`、`Rust (windows-latest)` 全部通过，用时 Ubuntu 1 分 8 秒、macOS 2 分 20 秒、Windows 3 分 16 秒。三端的 clippy 都没有输出，`gitwave` 5 个测试、`gitwave-core` 394 个通过、2 个忽略。Windows 任务重新编译了 `gitwave-core`，Windows 上探测系统代理的代码在 `windows-registry` 0.6.1 下编译、链接通过。Ubuntu 任务只装了清单上的 14 个包，日志里没有 `libxcb-shape0-dev` 与 `libxcb-xfixes0-dev`，依赖和两个测试二进制都完成了链接。上面两处改动都不需要回退。三端都快，是因为 rust-cache 按 restore-key 命中了上一次的缓存，依赖的编译产物被复用。
-- 2026-11-25 · M2 切片一（分支 `feature/gpui-kit-app-shell`，基于合并了 M0 / M1 的 `main`）：
+- 2026-11-25 · M2 切片一（分支 `feature/gpui-kit-app-shell`，当时基于合并了 M0 / M1 的 `main`；M1b 合并后已变基）：
   - tokio 运行时桥接（`crates/gitwave/src/runtime.rs`）。应用状态默认放在内存里，不读写磁盘：core 新增 `AppContext::in_memory()`，等应用具备接管真实数据的能力再切换。
   - 应用菜单（GitWave、编辑、查看、窗口）用同一份定义同时接入 macOS 的系统菜单栏和标题栏内的 `AppMenuBar`；浅色 / 深色切换；一个带多行输入框的设置对话框，用来实测输入法。
   - 验证：五个无头测试通过，覆盖运行时桥接（任务在 tokio 线程上执行并返回结果、任务 panic 转为错误）、状态栏端到端读出 core 的工作区数量、`⌘,` 打开设置对话框、切换外观后「查看」菜单的勾选项更新。`cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings` 通过；应用在 macOS 上启动运行无崩溃；Tauri 一侧对 core 的测试和 clippy 通过。
   - 测试查出一个真实缺陷：窗口打开后没有任何元素获得焦点，而 GPUI 的按键和动作是从聚焦元素向上派发的，工作台上的监听器收不到。也就是说 M0 骨架里的 `⌘Q` 实际是失效的，当时只验证了启动不崩溃，没有验证交互。现已让工作台在窗口打开时获得焦点，并由上面的测试覆盖。
-  - 未完成：语言切换（等文案来源确定）；「进入全屏」菜单项（这个版本的 gpui 没有对应方法）；系统菜单栏和对话框的实际显示、中文输入法需要人工验证，本机终端没有录屏权限，无法截图。
+  - 当时的未完成项：语言切换（等文案来源确定，见切片二）；「进入全屏」菜单项（这个版本的 gpui 没有对应方法）；系统菜单栏和对话框的实际显示、中文输入法需要人工验证，本机终端没有录屏权限，无法截图。
+- 2026-11-25 · M2 切片二（同一分支，变基到合并了 M1b 的 `main` 之后）：
+  - 语言切换。core 的应用设置新增 `language` 键：`LanguageSettings` 只存用户选的语言标记，空白表示跟随系统；标记要是一到三段、每段一到八个 ASCII 字母或数字、首段以 ASCII 字母开头，否则拒绝。`gitwave` 的 `locales.rs` 列出提供的语言，启动时按「已保存的选择，否则系统语言」决定。入口在「显示 › 语言」子菜单和设置对话框，切换立即生效；保存是在主线程上同步做的，界面等它。
+  - 菜单和对话框改读语言文件，补了 19 条文案（每种语言 1127 条）：标准菜单项、语言选项的名称、语言设置的两条错误文案。三个窗格的标题和状态栏仍是开发用的占位文字，不在语言文件里。
+  - 日志：应用启动时调用 core 的 `infrastructure::observability::tracing::init`，写线程的 guard 存成全局状态（`crates/gitwave/src/logging.rs`）。core 那个模块的注释把文件名写成 `app.YYYY-MM-DD.log`，实际是 `app.log.YYYY-MM-DD`，注释和测试里的例子已改正。
+  - 依赖：`sys-locale` 与 `tracing` 成为 `gitwave` 的直接依赖。两者都已在依赖树里，锁文件只多两条依赖边。
+  - 验证：`make check` 通过，`gitwave` 19 个测试、`gitwave-core` 400 个通过、2 个忽略。新增的测试覆盖系统语言到语种的映射、已保存的选择优先、启动与切换（观察者被通知、保存到达 core）、切换后菜单的名称与勾选项、在设置对话框里点击单选、对话框打开时动作仍生效、两套菜单在切换后确实重建且文字与预期一致、日志的写线程活到应用退出。应用在 macOS 上启动后，当天的日志文件增长了 1628 字节，内容是迁移记录的 JSON 行。
+  - 实现中改正的一处：从旧实现照搬的映射把 `en` 与系统语言做完全相等比较，`en-GB` 这样的标签会漏掉，现在只看语言部分。
+  - 一个先做复杂、再改简单的地方：保存最初放在 tokio 后台，连着切换两次语言时两次保存并行执行，完成顺序没有保证，先选的可能后写入（用测试制造了出来）。我先加了「每次保存等上一次」的排队。用户看后指出，这类问题让界面冻结等它做完即可，不必考虑并发。于是保存改回主线程同步（`locales::switch_and_store`），后台任务和排队机制全部删除。约定记在架构总览的「界面与用例之间」：短小的本地写入同步做，只有耗时或时长不可预估的操作才放后台。
+  - 没有验证的：macOS 系统菜单栏在切换后是否真的换成中文（无头测试检查的是菜单的定义，不是原生菜单栏）、设置对话框里单选的实际外观、中文输入法。这些需要人工看。三端 CI 没有跑，这个切片还没有 PR。
+  - 仍未完成：「进入全屏」菜单项（这个版本的 gpui 没有对应方法）。
+- 2026-11-26 · M2 切片二的独立审查与处理（[报告](./review.md#代码审查m2-切片二语言切换文案日志)，[处理结果](./review.md#处理结果m2-切片二)）：code-reviewer 子代理只读审查，🔴 一条、🟡 十条、🟢 十三条；它做了 44 个变异实验和 100 次去掉语言锁的压测。除两条转为上面的待决事项、一条不处理外全部处理。要点：
+  - 🔴 对话框打开时，应用级动作到不了工作台。根子在切片一：动作挂在 `div#workbench` 上，而对话框拿走焦点、绘制在工作台之外，动作从焦点向上派发时经过不了工作台。后果是设置或关于对话框打开时，「显示 › 语言」和外观切换不生效，⌘Q 很可能也一样。现在十个应用级动作改用 `App::on_action` 注册。复现测试先失败、修复后通过。
+  - 文档里「组件库自带的文字只有英文」写反了，已更正：组件库的每条文案带 8 种语言，并且随 GitWave 的语言一起切换。
+  - 补了四类测试：两套菜单在切换后确实重建、且每一项文字与预期一致（之前测试直接调用菜单构造函数，绕开了观察者）；对话框打开时动作仍生效；语言标记的 ASCII 约束；日志的写线程活到应用退出。每一条都做了反向验证，确认去掉对应的代码后测试会失败。
+  - `cargo test` 不再写用户真实的日志目录：core 的 `init_is_idempotent` 原先会往里写，现在写到临时目录。应用在退出时主动停掉写线程，把缓冲里的日志写完。
+  - 测试之间的语言锁改由测试的应用持有。框架在测试函数返回后还会再画一帧，原先那一帧已经在锁外。
+  - 自己另外发现并更正的：日志文件名里的日期按 UTC 算；实现方一度把一次没真正执行的反向验证当成通过（变异脚本没匹配到被折行的代码），重做后才成立。
+  - 修复后的验证：`make check` 通过，零警告，`gitwave` 19 个测试、`gitwave-core` 400 个通过、2 个忽略；应用的测试二进制连跑 60 次全部通过；应用在 macOS 上启动并运行 7 秒，无输出，日志正常写出。
+  - 仍然没有验证、需要实机看的：macOS 系统菜单栏在切换后是否换成中文；⌘Q 在对话框打开时是否生效；退出时缓冲的日志是否落盘；设置对话框里单选的外观；中文输入法；Windows 与 Linux。审查者的一次探针里，标题栏的菜单在切换后读到过一次英文，之后 286 次没有再现，原因不明，实机验证时留意。

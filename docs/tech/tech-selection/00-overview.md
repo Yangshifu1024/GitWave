@@ -8,12 +8,13 @@
 | 维度 | 选择 | 关键原因 |
 |---|---|---|
 | 桌面 | **GPUI Kit**（GPUI 之上的应用与组件框架） | 纯 Rust、单一二进制、没有 WebView。见 [ADR 0007](../decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit) |
-| 界面文案 | **rust-i18n + JSON 语言文件** | 组件库自身用的库；1108 条中英文案从旧实现原样带过来。见「界面文案」 |
+| 界面文案 | **rust-i18n + JSON 语言文件** | 组件库自身用的库；1108 条中英文案从旧实现原样带过来，迁移时又加了 19 条。见「界面文案」 |
+| 系统语言 | **sys-locale** | 读用户在系统里偏好的语言。GPUI 自己就依赖它，加为直接依赖不引入新的包 |
 | Git 后端 | **libgit2（git2-rs，vendored + libssh2 + OpenSSL）** | 全量进程内运行，跨平台一致，无外部 CLI 依赖 |
 | 本地存储 | **SQLite（rusqlite，bundled）** | 结构化查询 + 嵌入迁移 + 跨平台 + WAL |
 | AI 集成 | **自研统一接口 + HTTP（reqwest）** | 控制最透，覆盖 BYOK + Ollama + 自定义 endpoint |
-| 异步运行时 | **tokio**（`gitwave-core` 内） | GPUI 自带执行器且不依赖 tokio；core 的网络操作跑在 tokio 上。`gitwave` 把任务交给 tokio 的桥接属于 M2 |
-| 进程间通信 | **无** | 设计上界面在进程内直接调用 `gitwave-core` 的用例，没有命令层；新应用尚未接入 |
+| 异步运行时 | **tokio**，桥接到 GPUI 的任务 | GPUI 自带执行器且不依赖 tokio；core 的网络操作跑在 tokio 上。`gitwave` 启动一个两线程的运行时，`runtime::blocking` 把用例交给它，结果作为 GPUI 任务回到主线程 |
+| 进程间通信 | **无** | 界面在进程内直接调用 `gitwave-core` 的用例，没有命令层 |
 
 ## 桌面：GPUI Kit
 
@@ -23,8 +24,11 @@
 
 ## 界面文案：rust-i18n
 
-- **文件**：`crates/gitwave/locales/<域名>.<语言>.json`，每种语言 25 个文件、1108 条。
-- **与旧实现的关系**：文案来自旧实现的 i18next 语言包。文件按 rust-i18n 的规则改名，占位符从 `{{name}}` 改成 `%{name}`（343 处），其余逐字保留。
+- **文件**：`crates/gitwave/locales/<域名>.<语言>.json`，每种语言 25 个文件、1127 条。其中 1108 条来自旧实现；19 条是迁移时加的：标准菜单项（撤销、粘贴、最小化等；旧实现用的是预定义菜单项，语言文件里没有这些文字）、语言选项的名称，以及语言设置的两条错误文案。
+- **语言切换**：`crates/gitwave/src/locales.rs` 列出提供的语言。「跟随系统」在启动时用 `sys-locale` 读一次系统偏好的语言，按偏好的顺序取第一个能对应的：中文变体对应到 `zh-CN`，英语对应到 `en`；一个也对应不上时用英文。用户的选择经 `get_language_settings` / `set_language_settings` 存进 `app_settings` 表的 `language` 键。入口在「显示 › 语言」菜单和设置对话框，切换立即生效：菜单重建，视图重新渲染。保存失败时界面已经是新语言，只记一条日志，下次启动回到原先存的选择。
+- **语言名各用自己的文字**：菜单和设置里写的是 English 和 简体中文，两种界面下都一样，看不懂当前语言的人也找得到自己的。
+- **组件库自带的文字随语言切换**：gpui-component 的 `locales/ui.yml` 里每条文案带 8 种语言（en、ja、pt-BR、ru、zh-CN、zh-HK、zh-TW、it，简体中文 122 条全覆盖）。它和 GitWave 共用 rust-i18n 的进程级语言，所以它的内置文字跟着一起切换。
+- **与旧实现的关系**：文案来自旧实现的 i18next 语言包。文件按 rust-i18n 的规则改名，占位符从 `{{name}}` 改成 `%{name}`（343 处；迁移时新增的文案里又有 2 处，现在共 345 处），其余逐字保留。
 - **约束**：rust-i18n 没有复数与上下文。9 组 `_one` / `_other` 键由界面代码按数量选择。
 - **守护**：`crates/gitwave/src/locales.rs` 的测试校验两种语言的键集合、占位符、每个错误码都有对应文案，并把每条文案经 `t!` 读回来与文件比对。
 - **编译期内嵌**：rust-i18n 在编译时读入文件，cargo 自己不会追踪这些文件；`crates/gitwave/build.rs` 让改动语言文件触发重新编译。
@@ -56,7 +60,7 @@
   - `schema_version`：已应用迁移号
 - **没有的表**：`ai_cache`、`sessions`（规划草案，未建）。per-repo AI rules 读仓库内 `.gitwave/AI.md`，不进 SQLite
 - **迁移**：`crates/gitwave-core/migrations/NNNN-name.sql`，启动时 `BEGIN IMMEDIATE` 一次应用
-- **新应用的现状**：GPUI Kit 应用还没有接入状态库，`gitwave` 目前不构造 `AppContext`，不读写磁盘上的数据库
+- **新应用的现状**：GPUI Kit 应用用 `AppContext::in_memory()`，两个存储都在内存里，不读写磁盘上的 `state.db`；在它具备接管真实数据的能力之前保持这样。因此用户在应用里改的设置（目前只有语言）只保留到应用退出
 
 ## AI 集成：自研统一接口
 

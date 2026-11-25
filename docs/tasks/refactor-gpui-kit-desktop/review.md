@@ -560,3 +560,239 @@
 ### 修复后的验证
 
 `make check` 通过：`cargo fmt --all -- --check` 无差异，clippy 没有输出，`gitwave` 5 个测试，`gitwave-core` 394 个通过、2 个忽略。改动过的 12 份 Markdown 里 61 处相对链接与锚点全部有效。`ci.yml`、`dependabot.yml`、`.pre-commit-config.yaml` 可解析。`bump-version.sh` 通过 `bash -n`。应用构建并启动 8 秒无崩溃。
+
+---
+
+# 代码审查：M2 切片二（语言切换、文案、日志）
+
+> **作者**：AI code-reviewer 子代理，未经人工复核
+> **状态**：草案
+> **最近更新**：2026-11-26
+
+| 项目 | 内容 |
+|---|---|
+| 分支 | `feature/gpui-kit-app-shell` |
+| 基线 | `37e9059`（改动全部未提交：27 个已跟踪文件修改，1 个新文件 `crates/gitwave/src/logging.rs`；`1017 insertions(+), 109 deletions(-)`） |
+| 环境 | rustc 1.100.0 (0ef1bc386 2026-11-09)、cargo 1.100.0 (3acc79c0c 2026-11-05)、macOS 27.2.1 (26B131)、arm64 |
+| 审查时间 | 2026-11-26 |
+| 审查方式 | 只读。仓库内只运行了 fmt、clippy 和测试编译。变异与探针实验都在 `/tmp` 的副本里做，副本已删除。下文路径相对仓库根；第三方源码路径相对 `~/.cargo/registry/src/rsproxy.cn-e3de039b2554c837/`。 |
+
+下面「验证记录」之前是审查者的报告原文，行号对应审查时的工作区；之后是实现方的处理结果。
+
+## ✅ 优点
+
+- **core 的语言设置与代理设置写法一致。** `get_language_settings` 与 `get_proxy_settings` 的回落逻辑相同，`set_language_settings` 沿用 `protocol_with` / `unknown_with` 的构造方式。16 个针对规则的变异里 15 个被测试发现（见验证记录）。
+- **同步保存的实现干净。** `locales.rs:199-211` 先改全局状态，再在同一帧的 effect flush 之前写库，没有后台任务或排队的残留。写库失败只记日志，界面保持新语言。
+- **语言锁解决的是真实问题。** 副本里去掉 7 处锁后，100 次运行失败 41 次；原样运行 60 次全部通过。
+- **文案改动面克制。** 脚本比对确认旧内容零改动，只有 `menu.*.json` 各一行加了行尾逗号。两种语言各新增 19 条，叶子键 1127 对 1127，占位符一致，无重复键。
+- **菜单重建链路实测可用。** 切换语言后不手工重建，`cx.get_menus()` 与 `GlobalState::app_menus()` 的菜单名都变成 `["GitWave", "编辑", "显示", "窗口"]`。
+- **文档里的数字大多能复现。** 测试数 16 / 400 / 2、文件 25 个、文案 1127 条、复数 9 组、文件名 `app.log.YYYY-MM-DD`、两线程运行时都与代码一致。没有把「后台保存」写成现状的地方；`plan.md:135` 是过程记录。
+- **没有为了测试进入正式代码的东西。** `lock_language` 与 `LANGUAGE_LOCK` 都在 `#[cfg(test)]` 下。
+
+## 🔴 严重问题（必须修复）
+
+- **位置**：`crates/gitwave/src/workbench.rs:177-179`（新增的 `SwitchLanguage` 监听器），以及同一元素上的 `164-185` 行；`crates/gitwave/src/menus.rs:112-121, 147`。
+- **描述**：所有应用级动作都挂在 `div#workbench` 上。设置对话框打开后焦点在对话框里（`gpui-component-0.11.0/src/root.rs:409`），对话框渲染在 Root 的 `dialog_layer`（`root.rs:245`），是工作台的兄弟分支。gpui 的 `Window::dispatch_action` 从当前焦点向上派发（`gpui-pre-0.3.14/src/window.rs:2915-2928`）。macOS 菜单动作走的是同一条路径（`gpui-pre-0.3.14/src/platform/app_menu.rs:351-357`，`app.rs:3049-3055`）。
+  后果是设置或关于对话框打开时，菜单栏的「显示 › 语言」不会生效。`Quit`、`Hide`、`Minimize` 等挂在同一元素上，按同样机制也到不了，所以 ⌘Q 很可能也失效；这一点是推断，没有逐个验证。
+  根因在切片一的挂载位置，本切片新增的动作沿用了它。文档写的「入口在「显示 › 语言」菜单」（`docs/tech/tech-selection/00-overview.md:28`）在这个状态下不成立，现有测试也测不到。
+- **建议**：用 `App::on_action`（`app.rs:2858`，不依赖焦点）注册应用级动作，并补一个「对话框打开时动作仍生效」的测试。合并前在实机上确认一次。
+- **核实**：副本里加了探针测试。没有对话框时 `SwitchLanguage` 与 `SwitchThemeMode` 都生效；设置对话框打开时两个都不改变状态。把 `SwitchLanguage` 改成 `App::on_action` 后，对话框打开时语言切换生效，原有 16 个测试仍通过。真实 macOS 菜单栏没有验证（受「不启动应用」约束）。
+
+## 🟡 一般问题（建议修复）
+
+**Y1 文档说组件库文字只有英文，与事实相反**
+- **位置**：`docs/tech/tech-selection/00-overview.md:30`。
+- **描述**：gpui-component 0.11.0 自带 8 种语言，zh-CN 的 122 条全覆盖。它与 `gitwave` 共用 rust-i18n 的进程级语言，查找宏读的是 `rust_i18n::locale()`（`rust-i18n-macro-4.2.4/src/tr.rs:415`），所以内置文字会跟着切换到简体中文。
+- **建议**：改成「组件库自带多语言，随 GitWave 的语言切换」，并在实机上抽查一个带内置文字的组件。
+- **核实**：副本里调用 `gpui_component::_rust_i18n_available_locales()` 得到 `["en", "it", "ja", "pt-BR", "ru", "zh-CN", "zh-HK", "zh-TW"]`；`Dialog.cancel` 在 zh-CN 下是「取消」。`locales/ui.yml` 逐语言计数：en / ja / pt-BR / ru / zh-CN / zh-HK 各 122，zh-TW 85，it 46。
+
+**Y2 「切换后菜单重建、视图重绘」没有测试**
+- **位置**：`crates/gitwave/src/workbench_tests.rs:139-187`；`menus.rs:50-61`、`workbench.rs:70-71`。
+- **描述**：菜单测试在切换后直接调用 `menus::build_menus(cx)`，绕开了观察者。副本里删掉菜单的语言观察者、工作台的语言观察者、`update()` 里的 `cx.set_menus` 与标题栏 `reload()`，16 个测试都照常通过。实现方也写明没有人工验证系统菜单栏，所以这条链路目前没有任何一层验证。
+- **建议**：切换后断言 `cx.get_menus()` 和 `GlobalState::global(cx).app_menus()`。测试平台会保存 `set_menus` 的内容（`gpui-pre-0.3.14/src/platform/test/platform.rs:754-760`）。
+- **核实**：变异实验与上面的探针。探针用的正是这两个读数。
+
+**Y3 大部分标签的翻译没有被测试钉住**
+- **位置**：`crates/gitwave/src/menus.rs:90-156`；`workbench.rs:96-136, 237-241`。
+- **描述**：把下列标签改回硬编码英文，测试全部通过：编辑与窗口两个菜单名、「设置…」、最小化与缩放、浅色与深色、设置对话框标题、关闭按钮、关于对话框标题。测试只断言了 View 菜单名、语言子菜单和单选项。
+- **建议**：加一个测试，在两种语言下遍历 `build_menus(cx)` 的全部菜单与菜单项，与预期文案比对。
+- **核实**：8 个变异全部存活（见验证记录）。
+
+**Y4 core 的 ASCII 约束没有被测试独立验证**
+- **位置**：`crates/gitwave-core/src/application/use_cases.rs:3321-3340`；规则在 `crates/gitwave-core/src/domain/app_settings.rs:67-78`。
+- **描述**：把 `is_ascii_alphanumeric()` 改成 `is_alphanumeric()` 后，core 的 400 个测试全部通过。拒绝列表里的 `"中文"` 是被「首段以 ASCII 字母开头」拒绝的，不是被 ASCII 约束拒绝的。
+- **建议**：在拒绝列表里加 `"en-中文"` 或 `"zh-é"`。
+- **核实**：变异实验。另加探针测试确认：原规则下这四个输入都被拒；变异规则下 `normalize_language_tag("en-中文")` 返回 `Ok(Some("en-中文"))`。
+
+**Y5 两个测试在锁外读界面文字**
+- **位置**：`crates/gitwave/src/workbench_tests.rs:90, 219`；`docs/tech/engineering/00-overview.md:31`。
+- **描述**：`#[gpui_kit::test]` 在测试体返回后会再 `run_until_parked()`（`gpui-pre-macros-0.3.14/src/test.rs:262-265`）。两个打开设置对话框的测试此时窗口仍是 dirty，会再画一帧，对话框构造闭包在锁释放后读 `t!`。目前无害，读到的值不参与断言；但文档的「整段都要持有」对这类测试无法字面成立。
+- **建议**：把 guard 存进 `TestAppContext` 的全局状态，让它在 `drop(cx)` 时才释放（未验证）。或在工程文档里写明这个边界。
+- **核实**：给每个读写入口加「必须持锁」断言，150 次运行每次触发 2 次。`RUST_BACKTRACE=1` 显示调用栈是 `run_test`、`run_until_parked`、`flush_effects`、`Window::draw`、`dialog_layer`、`open_settings::{closure#0}`。
+
+**Y6 占位符数量过时**
+- **位置**：`docs/tech/tech-selection/00-overview.md:31`，写的是「343 处」。
+- **描述**：新增的两条错误文案各带一个占位符，现在是 345。
+- **建议**：改成 345。
+- **核实**：脚本统计 en 与 zh-CN 各 345。
+
+**Y7 代码注释与新约定矛盾**
+- **位置**：`crates/gitwave/src/runtime.rs:23-26`。
+- **描述**：注释写「Use it for anything that touches a repository or the database, so the main thread never waits on it」。`docs/tech/architecture/00-overview.md:58` 的新约定是保存设置在主线程同步做。该文件不在本次改动里，约定变了但注释没同步。
+- **建议**：把注释改成「耗时的或时长不可预估的仓库、数据库操作」，并指向架构文档的约定。
+
+**Y8 设置对话框的语言单选组没有标题**
+- **位置**：`crates/gitwave/src/workbench.rs:117-120, 248-265`。
+- **描述**：对话框里只有三个单选项，没有说明它们是「界面语言」。`RadioGroup` 不支持 `aria_label`，读屏器也听不到组名。
+- **建议**：在组上方加可见标题，复用已有的 `settings.general.uiLanguage`（两种语言都已存在，目前没有代码引用）。
+- **核实**：`grep -rn "uiLanguage" crates/gitwave/src` 无结果；`gpui-component-0.11.0/src/radio.rs:290-371` 的 `RadioGroup` 没有实现 `InteractiveElement`。
+
+**Y9 正常退出时不保证刷新日志**
+- **位置**：`crates/gitwave/src/logging.rs:9-21`。
+- **描述**：guard 存成全局状态足以让它活到应用结束，但 macOS 上退出走 `[NSApp terminate:]`（`gpui-pre-macos-0.3.14/src/platform.rs:581-598`），不保证运行析构。`WorkerGuard::drop` 负责发关闭信号并等待写出（`tracing-appender-0.2.5/src/non_blocking.rs:282-301`），不运行的话退出瞬间缓冲里的日志可能丢失。这是源码推断。
+- **建议**：用 `cx.on_app_quit`（`app.rs:2949`）在退出前 flush，并在实机上确认退出时的日志能落盘。
+- **核实**：只读了源码，没有运行验证。
+
+**Y10 文档措辞**
+- **位置**：`docs/tasks/refactor-gpui-kit-desktop/plan.md:129`；`docs/tech/architecture/00-overview.md:58`；`docs/tech/tech-selection/00-overview.md:28`。
+- **描述**：
+  - `plan.md:129` 写「一到八个字母或数字」，漏了 ASCII。
+  - 架构文档把「只有耗时操作才放后台」这层边界一并归为「用户 2026-11-25 定下的」。用户原话定的是同步做、界面等待；判据是实现方补的。
+  - 两处都写「其余落到英文」，省略了「按偏好顺序取第一个支持的」。`["fr", "zh-Hans-CN"]` 的结果是 zh-CN。
+  - 约定没写保存失败时的行为：界面已切换，只记日志，下次启动回到旧值。
+- **建议**：逐处补全。
+
+## 🟢 优化建议（可选）
+
+- **O1 重复选择也会重写。** `locales.rs:199` 对「选择没变」没有短路。菜单点击已勾选项会重写设置并重建菜单、重绘窗口。对话框的单选不受影响，因为基座只给未选中项挂点击处理（`gpui-base-0.11.0/src/radio.rs:230`）。
+- **O2 注释的因果不成立。** `workbench.rs:246-247` 说 id 是序号「也是」辅助技术得知第几项的方式。实际上这来自 `position_in_set` 与 `size_of_set`（`gpui-component-0.11.0/src/radio.rs:419-420`），与 id 无关。无障碍语义本身是完整的。
+- **O3 冗余调用。** `workbench.rs:257` 的 `.accessibility_label(name.to_string())` 可删，组件默认用 label 文本（`radio.rs:188-191`）。
+- **O4 `set_language_settings` 的细节。** `use_cases.rs:435` 的变量名 `refused` 指的其实是待校验的输入。最终英文消息是「invalid language tag: not a language tag: …」，有重复。`LANGUAGE_SERIALIZE_FAILED` 的分支不可达，保留只是为了与代理设置对称。
+- **O5 `logging.rs` 与 `tracing.rs`。**
+  - `logging.rs:4` 导入的模块名 `tracing` 遮蔽了同名 crate，这个文件里写不了 `tracing::warn!`。
+  - `logging.rs` 没有测试，把 guard 改成函数返回即丢弃也不会被发现。
+  - `try_init()` 失败被忽略、重复调用仍返回新 guard，都是既有行为，非本次引入。
+  - `init_is_idempotent` 调用真实的 `init()`，本地或 CI 跑 `cargo test` 会写用户真实的日志目录。这也是既有行为，本次改了这个模块但没有处理。
+- **O6 回退语言有两处定义。** `locales.rs:53` 的 `FALLBACK` 与 `main.rs:17` 的 `fallback = "en"`。
+- **O7 `LanguageChoice::Fixed(&'static str)` 允许非法值。** 例如 `Fixed("ja")` 会让 `name_of` panic。改成携带 `Language` 更稳。
+- **O8 文档可补充的事实。**
+  - 「跟随系统」只在启动时读一次（`locales.rs:94-96, 127-129`）。
+  - 日志目录建不出来时回落到 stderr（`tracing.rs:28-31, 54-60`）。
+  - `docs/tech/architecture/00-overview.md:63` 的路径少了 `infrastructure::`。
+- **O9 旧语言偏好不会迁移。** 旧实现存在 `localStorage["gitwave.language"]`（`git show 870e6ff~1:src/i18n/index.ts`）。建议在迁移计划里写明迁移或不迁移。
+- **O10 英文大小写不一致。** `common.en.json:37` 是 "Follow System"，既有的 `settings.en.json:47` 是 "Follow system"。
+- **O11 约定在磁盘库下的前提。** `app_settings` 连接是 WAL、5 秒 `busy_timeout`（`crates/gitwave-core/src/infrastructure/persistence/sqlite.rs:48-55`）。切到磁盘库后建议实测一次写入耗时，再决定约定是否要加时长上限。
+- **O12 键盘可达性。** `RadioGroup` 里每个单选项都是 Tab 停靠点，这是上游设计。
+- **O13 `review.md` 已存在。** `docs/tasks/refactor-gpui-kit-desktop/review.md` 是 M1b 的已提交报告，放入本报告前要决定追加还是替换。
+
+## 📝 总体评价
+
+实现干净、与既有模式一致，门禁全过，文档数字基本可信。最需要优先处理的是 R1：对话框打开时应用级动作到不了工作台，修法已在副本里验证可行。其次是 Y2 与 Y3 暴露的测试缺口：这个切片最核心的可见行为（切换后菜单、视图、各处标签真的变了）大多没有测试守护。
+
+## 验证记录
+
+### 验证过的
+
+**门禁**
+1. 仓库内 `cargo fmt --all -- --check`：退出码 0。
+2. 仓库内 `cargo clippy --locked --workspace --all-targets -- -D warnings`：退出码 0。
+3. 仓库内 `cargo test --locked --workspace --all-targets --no-run`：退出码 0，`--locked` 未报错。
+4. 直接运行编译好的两个测试二进制，`HOME` 指向临时目录：
+   - `gitwave`：16 passed。
+   - `gitwave-core`：400 passed、2 ignored（`commit_log_empty_repo`、`merge_empty_repo_errors`），9.77 秒。
+5. 副本内 `HOME=<临时目录> make check CARGO="cargo --locked"`：退出码 0。fmt 无差异，clippy 0 条警告，测试 16 与 400+2，耗时 2 分 50 秒。
+6. 稳定性：未改动的 `gitwave` 测试二进制连跑 60 次，60 次通过（15 核并行）。
+
+**文案**
+7. Python 脚本比对 `git show HEAD:` 与工作区：
+   - 每个文件只有新增，无删除、无改动；行尾加逗号的只有 `menu.en.json` 与 `menu.zh-CN.json` 的 `"settings"` 行。
+   - 新增键：common 3、errors-usecases 2、menu 14，两种语言各 19。
+   - 叶子键 1127 / 1127，单边键 0，占位符不一致 0，重复键 0。
+   - 占位符出现次数 345 / 345；`_one` 与 `_other` 各 9；文件 25 / 25。
+8. 两个新错误码与文案双向对应，由既有测试 `every_error_code_has_a_message_and_every_error_message_matches_a_code` 覆盖，运行通过。
+
+**测试干扰**
+9. 副本里去掉 7 处锁后连跑 100 次：41 次失败。
+   - `switching_the_appearance_updates_the_view_menu` 26 次。
+   - `starting_and_switching_follow_the_stored_choice_and_the_system` 19 次。
+   - `switching_the_language_relabels_the_menus_and_stores_the_choice` 2 次。
+   - `every_message_loads_through_rust_i18n_as_written` 1 次。
+10. 其余 9 个测试不依赖当前语言：7 个只读文件或调用纯函数；`runtime.rs` 的 2 个只调用 `gpui_kit::init`，而 `gpui_component::init`（`gpui-component-0.11.0/src/lib.rs:131-151`）不调用 `set_locale`。core 的测试在另一个测试二进制进程里，不涉及 rust-i18n。
+
+**变异实验（副本，每次变异后跑全部测试）**
+11. core，16 个变异，15 个被发现：首段字母开头、段数上下限、长度上下限、trim、空白跟随系统、下划线、空段、保存原值、存错键、全部拒绝、读取恒空、大小写、空白被拒。存活 1 个：ASCII 改成 Unicode 字母数字（Y4）。
+12. `gitwave`，28 个变异，14 个被发现：完整标签比较、只看首选项、下划线、`showing` 大小写、忽略已存选择、不保存、跟随系统恒英文、顺序颠倒、恒选第 0 项、勾选恒假或恒真、不处理动作、不响应点击、启动不读已存选择。
+13. 存活 14 个：不转小写（影响很小，系统语言通常已是小写）、Y2 的 4 个、Y3 的 8 个、日志 guard 不进全局状态（O5）。
+
+**行为探针（副本）**
+14. 菜单重建链路见「优点」。有一次探针读到标题栏菜单栏仍是英文，之后同一二进制与重编后的二进制共 286 次都读到中文，未能复现，原因不明。
+15. 组件库翻译表见 Y1。
+16. 对话框打开时动作可达性见 R1。
+17. 点击单选后不手工绘制，标签已是 `["跟随系统", "English", "简体中文"]`，对话框会自行更新。
+18. `App::global_mut` 只推入一个 effect（`app.rs:2662-2669`），观察者在 `flush_effects` 里调用（`app.rs:2245`、`2399`）。`Workbench::new` 里的观察者只调用 `cx.notify()`，渲染不改语言状态，没有循环。
+19. `window.open_dialog` 的构造闭包签名第三个参数是 `&mut App`，每次渲染对话框层时调用（`root.rs:262`）。
+20. `ElementSnapshot::label()` 读的是无障碍标签（`gpui-base-0.11.0/src/test_support.rs:124-127`）。
+
+**依赖、日志、文档**
+21. `git diff Cargo.lock` 只有 `gitwave` 依赖列表新增 `"sys-locale"` 与 `"tracing"` 两行，没有新包。两个依赖都被用到（`locales.rs:128` 的 `sys_locale::get_locales`，`locales.rs:175, 209` 的 `tracing::warn!`）。锁文件里依赖 `sys-locale` 的包是 `cosmic-text`、`gpui-base`、`gitwave`。
+22. `sys-locale 0.3.2`：`get_locales()` 返回迭代器（`lib.rs:85`），macOS 读 `CFLocaleCopyPreferredLanguages`（`apple.rs:143`）。
+23. `dirs 7.0.0` 在 macOS 上用 `$HOME/Library/Application Support`，不认 `XDG_DATA_HOME`（`mac.rs:7, 12`）。
+24. `tracing::init` 的 `file_name` 是 `"app.log"`（`tracing.rs:65`），真实日志目录里的文件名也是 `app.log.YYYY-MM-DD`；`should_prune` 按 `app.` 前缀匹配，新文件名能被清理。
+25. 测试数：
+    - core 的 `#[test]` 属性：domain 29、application 61、infrastructure 306、`host.rs` 4、`lib.rs` 3；本次只新增 5 个。
+    - 基线 `37e9059` 是 398 个属性，`main`（`870e6ff`）是 397。
+    - `gitwave`：`locales.rs` 9、`workbench_tests.rs` 5、`runtime.rs` 2。
+26. 文档逐条核对相符：README 第 51、57、59、75 行；`docs/tech/architecture/00-overview.md` 第 11-13、50、54、57、59、61、62 行；`docs/tech/engineering/00-overview.md` 第 23-25、51、93-104、120 行；`docs/tech/tech-selection/00-overview.md` 第 11、12、16、27、29、33、63 行；`plan.md` 第 3、38、48、71、81、85-93、127-136 行。旧实现确实用 `PredefinedMenuItem`（`git show 870e6ff~1:src/hooks/useNativeAppMenu.ts`）。
+
+**收尾**
+27. 仓库状态未变：HEAD `37e9059`，`git status --short` 28 行，diff stat 相同，暂存区为空，无 stash。真实日志目录仍是 18 个文件，mtime 与大小哈希不变。`~/.cargo` 下只有 `.global-cache` 被更新，没有新增或修改任何 crate 缓存。实验脚本留在 `/tmp/gitwave-review-scripts/`。
+
+### 没有验证的
+
+- **真实应用行为**（受「不启动应用」约束）：
+  - macOS 系统菜单栏切换后是否换成中文。
+  - R1 在真实菜单栏与 ⌘Q 上的表现；除 `SwitchLanguage`、`SwitchThemeMode` 外的动作是按同一元素推断的。
+  - 退出时日志是否真的丢失（Y9 只读了源码）。
+  - `plan.md:133` 所说的日志增长 1628 字节、单选的外观、中文输入法。
+- **环境**：Windows 与 Linux（标题栏内菜单栏、`sys-locale` 的环境变量路径、非 mac 的退出路径）；三端 CI。
+- **`make check` 的运行方式**：没有在仓库里原样运行，因为 Makefile 的 cargo 不带 `--locked`，且 core 的 `init_is_idempotent` 会写真实日志目录。
+- **Y5 与 Y9 的修法**：只给了方向，没有在副本里验证。
+- **文档里无法核对的事实**：用户原话的日期 2026-11-25；切片二的记录日期（部分文件修改于 11-26 00:01–00:02）。
+- **审查依赖的假设**：测试平台上 `Window::dispatch_action` 的表现能代表 macOS 平台（R1 的关键假设，由 `app.rs:3049` 的调用链支撑，未实机确认）。
+
+---
+
+## 处理结果：M2 切片二
+
+记录人：主会话（实现方），2026-11-26。🔴 一条、🟡 十条全部处理；🟢 十三条里十一条处理、一条转为待用户决定、一条不处理。每条写明实现方自己是怎样核实的。
+
+| 项 | 处理 | 核实 |
+|---|---|---|
+| R1 对话框打开时动作到不了工作台 | 已修复。先写复现测试（失败），再把十个应用级动作从工作台元素移到 `App::on_action`。实现中踩到两处：`Context` 有一个同名的窗口级 `on_action`，把 `App` 的遮住了，要写成 `let app: &mut App = cx`；监听器是在「为派发动作而更新窗口」的过程中被调用的，不能再更新同一个窗口，所以窗口操作用 `cx.defer` 推迟到派发结束。测试因此按真实时序改写：按键的那次更新结束后才渲染 | 复现测试由失败转为通过，18 个测试全过。真实 macOS 菜单栏与 ⌘Q 仍未验证 |
+| Y1 组件库文字只有英文（写反了） | 已更正。实现方当初只看到 `locales/` 下只有一个 `ui.yml`，没打开看内容 | 自己核实：`ui.yml` 每条文案带 8 种语言，简体中文 122 条 |
+| Y2 菜单重建没有测试 | 已补 `both_sets_of_menus_follow_the_language_and_leave_nothing_in_english`：直接读 `cx.get_menus()` 与 `GlobalState::app_menus()`，不调用 `build_menus` | 反向验证：临时删掉菜单的语言观察者，只有这条新测试失败，其余照常通过 |
+| Y3 标签翻译没有被钉住 | 同一条测试把两套菜单的每一项文字与写死的英文表、中文表比对，包括子菜单 | 同上。**没有覆盖的**：设置对话框的标题、关闭按钮、关于对话框的标题。对话框标题没有可供测试查找的 id，测试读不到，这几处只有代码审查 |
+| Y4 ASCII 约束没有测试 | 拒绝列表里加了 `"en-中文"` 和 `"zh-é"` | 反向验证：把规则放宽成任意字母数字后测试失败，还原后通过 |
+| Y5 测试在锁外读界面文字 | 已修。渲染窗口的测试改调 `locales::take_language_turn(cx)`，锁存进测试的应用，应用销毁才释放 | 探针：在对话框读语言的地方加「必须持锁」断言。新做法 25 次运行 0 次命中；把两个对话框测试改回旧做法，25 次里 14 次命中 |
+| Y6 占位符数量 | 已改为 345，并写明其中 2 处来自新增文案 | — |
+| Y7 `runtime.rs` 注释与约定矛盾 | 已改：只说耗时或时长不可预估的操作才用它，并指向架构总览的约定 | — |
+| Y8 单选组没有标题 | 已加可见标题，用的是已有的 `settings.general.uiLanguage` | 测试仍通过。标题本身没有测试 |
+| Y9 退出时不保证刷新日志 | 已实现：`on_app_quit` 时把写线程的 guard 丢掉，它会在停止前把缓冲写完 | 测试 `the_writer_lives_until_the_application_quits`；反向验证：「不保存 guard」与「退出时不丢弃」两处变异都让它失败。实机退出时是否落盘仍未验证 |
+| Y10 文档措辞 | 四处逐条补全：ASCII；约定的归属（同步做是用户定的，「看耗时」是实现方补的）；按偏好顺序取第一个能对应的语言；保存失败时的行为 | — |
+| O1 重复选择也重写 | 已加短路：选的是当前语言时直接返回，不存、不重绘 | 测试里观察者的通知次数不增加 |
+| O2 注释的因果不成立 | 已改 | — |
+| O3 冗余的 `accessibility_label` | 已删 | 删后测试仍能读到标签 |
+| O4 命名与重复的消息 | 变量改名为 `requested`，消息不再重复。序列化失败的分支保留，与代理设置对称 | — |
+| O5 日志模块的几处 | 导入改名为 `subscriber`，不再遮蔽 `tracing` 这个 crate；core 新增 `tracing::init_in(dir)`，日志可以写到指定的目录；core 的 `init_is_idempotent` 改用临时目录；`logging.rs` 有了测试 | 整套 `make check` 前后，对真实日志目录逐文件比对大小、修改时间与内容哈希，完全一致 |
+| O6 回退语言定义了两处 | 加了一条测试：`main.rs` 里 `i18n!` 的回退语言必须与 `FALLBACK` 一致 | — |
+| O7 `Fixed` 允许非法值 | 已改：`Fixed(&'static Language)` 只能引用确实提供的语言，会崩溃的 `name_of` 删除 | — |
+| O8 可补充的事实 | 已补：启动时读一次系统语言；日志目录建不出来时回落到 stderr；路径补上 `infrastructure::`。另外自己发现并补上：日志文件名里的日期按 UTC 算（本地 11-26 凌晨 1 点的日志写进了 `app.log.2026-11-25`） | — |
+| O9 旧语言偏好不迁移 | **没有处理，列为待用户决定**：旧实现把语言选择存在 WebView 的 localStorage 里，新应用读不到，v0.11.0 的用户要重新选一次 | — |
+| O10 英文大小写 | 已改成 "Follow system"，与语言文件里已有的写法一致 | — |
+| O11 约定在磁盘库下的前提 | **没有处理，列为待办**：换成磁盘数据库后实测一次写入耗时，再决定约定要不要加时长上限 | — |
+| O12 单选项都是 Tab 停靠点 | 不处理，这是上游的设计 | — |
+| O13 `review.md` 已存在 | 追加，不替换 | — |
+
+审查者报告里有一处没有解释的观察（验证记录第 14 条）：一次探针里，切换后标题栏的菜单读到的是英文，之后 286 次都没有再现。实现方新增的菜单测试在 60 次运行里没有遇到。原因不明，已记入任务计划的实机验证项。
+
+修复后的验证：`make check` 通过，零警告，`gitwave` 19 个测试、`gitwave-core` 400 个通过、2 个忽略；应用的测试二进制连跑 60 次全部通过；应用在 macOS 上启动并运行 7 秒，无输出，日志正常写出。改动过的 12 份 Markdown 里 64 处相对链接与锚点全部有效。仍然没有验证的：macOS 系统菜单栏、⌘Q、退出时日志落盘、设置对话框里单选的外观、中文输入法，以及 Windows、Linux 和三端 CI。
