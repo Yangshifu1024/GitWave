@@ -68,6 +68,16 @@ src-tauri/                 # Tauri 应用，M8 之前继续发布；改为调用
 - README 所写的「menu bar app mode」指窗口内的菜单栏，还是常驻系统菜单栏的托盘模式。现有代码只有前者，gpui-kit 没有后者的现成实现。
 - dependabot 是否忽略 `gpui-kit` 的升级 PR。当前配置为忽略，理由与 ADR 0007 的「升级是独立任务」一致，代价是它的安全更新也不会自动提 PR。
 
+## M2 设计输入
+
+实现 M2 之前已经对照 gpui-kit 0.11.0 源码核实的接口与约束，避免下次重新查：
+
+- **菜单**：同一份 `Vec<Menu>` 定义同时交给 `cx.set_menus`（macOS 原生菜单栏）和 `GlobalState::global_mut(cx).set_app_menus(..)`（标题栏内的 `AppMenuBar`，Windows 与 Linux 使用），随后调用 `app_menu_bar.update(cx, |bar, cx| bar.reload(cx))`。`MenuItem::action` 可以链式 `.checked()`、`.disabled()`；编辑菜单直接复用 `gpui_kit::component::input` 的 `Undo`、`Redo`、`Cut`、`Copy`、`Paste`、`Delete`、`SelectAll` 等内置动作。切换语言或主题后重建菜单以刷新勾选项。参考上游 `crates/story/src/app_menus.rs`。
+- **主题**：`Theme::change(ThemeMode::Light | Dark, Some(window), cx)`，`cx.theme().mode.is_dark()`，`cx.observe_global::<Theme>` 监听变化。「跟随系统」的接线方式没有找到文档。
+- **国际化**：组件库用 `rust-i18n` 4.2，应用侧需要自带 `rust_i18n::i18n!("locales", fallback = "en")`。现有 `src/i18n/locales/{en,zh-CN}/*.json`（25 个文件、1108 条文案）可以复用，但不能原样使用。文件名要改成 `域名.语言.json`，因为 `rust-i18n` 取文件名最后一段作为语言代码；插值从 `{{name}}` 改成 `%{name}`，共 296 处；`rust-i18n` 没有内置复数，18 组 `_one` / `_other` 要在 Rust 侧按数量选 key。两套应用并存期间需要确定唯一的文案来源与同步方式。
+- **可调分栏**：面板尺寸按位置保存。面板要始终作为子节点存在，用 `resizable_panel().visible(bool)` 隐藏，不能增减子节点。
+- **窗口**：`WindowOptions { ..TitleBar::window_options() }` 给出自绘标题栏所需的窗口选项；标题用 `window.set_window_title(..)` 设置。
+
 ## 执行记录
 
 - 2026-11-25：完成调研（`docs/tech/tech-selection/gpui-kit-research.md`），用户决定不做前置原型、直接按里程碑重写。分支 `feature/gpui-kit-desktop` 自 `004c9f4` 创建，M0 开始。
@@ -81,3 +91,4 @@ src-tauri/                 # Tauri 应用，M8 之前继续发布；改为调用
   - 未完成：三端 CI 还没有在托管环境运行过（本机没有 actionlint）。`gitwave` 应用目前只有窗口壳：标题栏、三栏占位与状态栏。
 - 2026-11-25 · M1 代码审查：code-reviewer 子代理独立审查，🔴 零条，🟡 八条，未发现改变 Tauri 应用外部行为的问题；它另行核实了依赖逐项一致、69 个搬移文件逐字节一致、130 个命令注册逐字一致。八条全部处理，逐条结果见 [审查报告](./review.md#处理结果)。其中影响最大的一条是 Tauri 应用自己的 CI 不再运行业务层的测试和 lint，现已通过 `cargo test -p gitwave-core` 与对应的 clippy 在 Tauri 的锁文件下恢复覆盖。同时把版本号改为由根 workspace 继承并纳入 `pnpm bump`，pre-commit 钩子与 dependabot 覆盖根 workspace。
   - 修复后的门禁：`make fmt-check`、`make lint`、`make test` 全过。前端 367 个测试；Tauri 集成测试 1 个；core 的 396 个测试（394 通过，2 忽略）在 Tauri 与根 workspace 两套锁文件下各跑一遍。
+- 2026-11-25 · 首次托管 CI（PR #243）：Tauri 应用的 12 项检查首轮全部通过，新增的 `cargo test -p gitwave-core` 在三端都跑了。`workspace` 工作流首轮 macOS、Windows 通过，Ubuntu 在 `cargo clippy` 失败：`libdbus-sys` 需要 `libdbus-1-dev`，Tauri 的任务里它由 `libayatana-appindicator3-dev` 间接带入。补上该包后 15 项全部通过，用时 macOS 1 分 51 秒、Windows 2 分 58 秒、Ubuntu 11 分 48 秒。

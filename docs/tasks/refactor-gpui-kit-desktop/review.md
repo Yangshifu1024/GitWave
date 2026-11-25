@@ -198,7 +198,7 @@
 | 4 | 版本号 bump 不覆盖新 crate | 根 `[workspace.package]` 加 `version`，两个 crate 改为继承；`scripts/bump-version.mjs` 同时改根 `Cargo.toml` 并刷新两套锁；发布技能、README、AGENTS.md 同步。实测 bump 到 0.11.1 时四处版本与两套锁的 `gitwave`、`gitwave-core` 条目全部更新，随后逐字节还原 | 已修复 |
 | 5 | 文档写了不存在的 `cargo fmt --workspace` | AGENTS.md 与 README 改为「`cargo fmt` 用 `--all`，其余用 `--workspace`」 | 已修复 |
 | 6 | TLS 断言的注释与脚本相反 | 注释改回与实现一致：第一层断言负责发现清单里丢了 feature，第二层只在多个构建目录并存时避免误报 | 已修复（仅注释） |
-| 7 | Linux 依赖清单有疑点 | 采纳低风险的补全：加上 `libxcb-shape0-dev`、`libxcb-xfixes0-dev`，保留上游安装脚本的全部条目，注释改为与来源一致 | 已修改；未经托管环境验证 |
+| 7 | Linux 依赖清单有疑点 | 采纳低风险的补全：加上 `libxcb-shape0-dev`、`libxcb-xfixes0-dev`，保留上游安装脚本的全部条目，注释改为与来源一致 | 已修改；首次托管运行时 Ubuntu 另缺 `libdbus-1-dev`，补上后三端通过 |
 | 8 | 侧栏显隐让三栏宽度串位 | 三个面板始终存在，侧栏用 `resizable_panel().visible(..)` 隐藏 | 已修复，clippy、构建、启动通过；未手工验证往返 |
 
 处理过程中另外修正的两处：
