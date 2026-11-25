@@ -43,7 +43,7 @@ docs/tech/
 
 | 分类 | 文档 | 内容 |
 |---|---|---|
-| tech-selection | [tech-selection/00-overview.md](./tech-selection/00-overview.md) | 桌面框架（GPUI Kit）/ 界面文案 / Git 后端 / 存储 / AI 集成的选型与理由；旧实现（Tauri 2 + React，已移除）的选型留作对照 |
+| tech-selection | [tech-selection/00-overview.md](./tech-selection/00-overview.md) | 桌面框架（GPUI Kit）/ 界面文案与语言切换 / Git 后端 / 存储 / AI 集成的选型与理由；旧实现（Tauri 2 + React，已移除）的选型留作对照 |
 | tech-selection | [tech-selection/gpui-kit-research.md](./tech-selection/gpui-kit-research.md) | GPUI Kit 技术调研：治理、平台支持、组件覆盖、发布链路、风险清单（ADR 0007 的选型依据） |
 | architecture | [architecture/00-overview.md](./architecture/00-overview.md) | 进程拓扑、DDD 分层、crate 划分；旧实现的 IPC 边界、性能热点、多 Workspace 并行留作对照 |
 | decisions | [decisions/00-overview.md](./decisions/00-overview.md) | ADR 汇总（框架 / Workspace / 凭证 / AI 双轨 / i18n / GPUI Kit 迁移；Tauri 与 HeroUI 两条已废弃） |

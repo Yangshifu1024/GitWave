@@ -32,6 +32,11 @@
       "token": "Access token (PAT)",
       "remember": "Save to the system keychain (shared with the git CLI)",
       "submit": "Save and retry"
+    },
+    "language": {
+      "followSystem": "Follow system",
+      "english": "English",
+      "chinese": "简体中文"
     }
   }
 }
