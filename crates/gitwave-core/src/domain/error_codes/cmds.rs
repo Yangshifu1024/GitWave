@@ -1,4 +1,9 @@
-//! Error codes raised by the Tauri command layer (`lib.rs`).
+//! Error codes for a caller's failure to join a background task. The Tauri
+//! command layer raised them; it was removed with the Tauri application, so
+//! nothing references these yet. The GPUI Kit application decides, per
+//! feature, whether its own handlers raise them. Until then they stay
+//! together with their messages in `crates/gitwave/locales/errors-*.json`
+//! (one is not valid without the other).
 
 /// 等待克隆后台任务结束失败。
 pub const CLONE_TASK_JOIN: &str = "cmds.clone_task_join";

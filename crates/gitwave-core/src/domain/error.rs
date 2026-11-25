@@ -1,8 +1,8 @@
 //! Top-level error type for GitWave domain and application layers.
 //!
-//! `Serialize` so it crosses the Tauri IPC boundary as structured JSON
+//! `Serialize` so it can cross a serialization boundary as structured JSON
 //! (category / message / trace_id, plus optional code / params) and is
-//! rendered with friendly text on the frontend: when `code` is present the
+//! rendered with friendly text in the UI: when `code` is present the
 //! UI looks up `errors.<code>` in the active locale (interpolating
 //! `params`), otherwise it falls back to the English `message`. Categories
 //! follow `docs/tech/engineering/00-overview.md` § 错误处理与日志.
@@ -13,8 +13,9 @@ use std::collections::BTreeMap;
 /// Stable i18n error code (`"area.name_style"`), from `domain/error_codes`.
 pub type ErrorCode = &'static str;
 
-/// Interpolation params for the translated message (`{{name}}` on the UI
-/// side). The English `message` keeps the same values inline as fallback.
+/// Interpolation params for the translated message (`%{name}` in the UI's
+/// catalogues). The English `message` keeps the same values inline as
+/// fallback.
 pub type ErrorParams = Vec<(&'static str, String)>;
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -228,7 +229,7 @@ impl AppError {
     }
 }
 
-/// Wire shape across IPC. `code` is always present (every constructor takes
+/// Serialized shape of an error. `code` is always present (every constructor takes
 /// one); empty `params` is omitted to keep payloads lean. The UI falls back
 /// to the English `message` whenever it lacks a translation for `code`.
 #[derive(Serialize)]

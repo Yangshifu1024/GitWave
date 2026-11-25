@@ -62,8 +62,8 @@ pub enum CredentialStorageOutcome {
     Failed,
 }
 
-/// Snapshot of the last persistence attempt, drained by the command layer
-/// after the sync operation returns. A slot — not a queue — because the
+/// Snapshot of the last persistence attempt, drained by the caller after
+/// the sync operation returns. A slot — not a queue — because the
 /// status area shows only the last message anyway.
 #[derive(Debug, Clone, Default)]
 pub struct CredentialStorageSlot(Arc<Mutex<Option<CredentialStorageOutcome>>>);
@@ -273,7 +273,7 @@ fn set_vault(vault: Option<&'static dyn CredentialVault>) {
 }
 
 /// Where persistence results are reported for the current operation; the
-/// command layer drains it into the `credential-storage` event.
+/// presentation layer drains it after the operation to report the outcome.
 static STORAGE_SLOT: LazyLock<CredentialStorageSlot> = LazyLock::new(CredentialStorageSlot::new);
 /// Upper bound for one `git credential fill`. A GUI helper (GCM) may hold
 /// the process open while its dialog waits for the user; without a cap, a
@@ -822,8 +822,8 @@ fn map_storage_outcome(
 }
 
 /// Take (and clear) the outcome recorded by the last sync operation so the
-/// command layer can surface it in the UI. Empty when the operation never
-/// approved a credential.
+/// presentation layer can surface it in the UI. Empty when the operation
+/// never approved a credential.
 pub fn drain_storage_outcome() -> Option<CredentialStorageOutcome> {
     STORAGE_SLOT.take()
 }

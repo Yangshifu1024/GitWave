@@ -2,10 +2,6 @@
 resolver = "3"
 members = ["crates/*"]
 
-# The Tauri 2 application keeps its own package, lockfile and build cache until the
-# GPUI Kit rewrite reaches parity (ADR 0007, docs/tech/decisions/00-overview.md).
-exclude = ["src-tauri"]
-
 [workspace.package]
 version = "0.11.0"
 edition = "2024"
@@ -19,6 +15,9 @@ repository = "https://github.com/Yangshifu1024/GitWave"
 # is pinned exactly. Upgrading is a deliberate step, not `cargo update`.
 # See docs/tech/tech-selection/gpui-kit-research.md.
 gpui-kit = { version = "=0.11.0", features = ["syntect"] }
+
+# The interface text; gpui-component reads its own messages with the same crate.
+rust-i18n = "4.2"
 
 # GPUI lays out and rasterises text on the main thread, which is unusably slow without
 # optimisation. Dependencies are optimised while workspace crates stay fast to compile.

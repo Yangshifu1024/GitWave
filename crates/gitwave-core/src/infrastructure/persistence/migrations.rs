@@ -1,6 +1,6 @@
 //! Embedded migration runner.
 //!
-//! Migrations live in `src-tauri/migrations/NNNN-name.sql` and are embedded
+//! Migrations live in `crates/gitwave-core/migrations/NNNN-name.sql` and are embedded
 //! at compile time via `include_str!`. The `schema_version` table tracks
 //! which migrations have been applied. New migrations are added by appending
 //! a `Migration` entry to `MIGRATIONS` and the corresponding SQL file.

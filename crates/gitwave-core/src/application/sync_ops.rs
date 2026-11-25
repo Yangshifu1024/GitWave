@@ -26,8 +26,8 @@ use super::use_cases::AppContext;
 use crate::domain::error::AppError;
 use crate::domain::error_codes as codes;
 
-/// Wall-clock budget for one network sync operation, enforced at the
-/// command layer. Generous on purpose: incremental syncs finish far below
+/// Wall-clock budget for one network sync operation, enforced by
+/// [`run_sync_op`]. Generous on purpose: incremental syncs finish far below
 /// it, and the cost of exceeding it is aborting a legitimately slow
 /// transfer (the user can retry).
 pub const SYNC_OP_TIMEOUT: Duration = Duration::from_secs(180);

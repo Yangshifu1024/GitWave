@@ -2,7 +2,7 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.11.0 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
+**Status:** v0.11.0 released · `main` is being rewritten on GPUI Kit and does not build a releasable app yet · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Migration plan](./docs/tasks/refactor-gpui-kit-desktop/plan.md)
 
 ### What's new in v0.11.x
 
@@ -23,9 +23,11 @@ The screenshot shows v0.11.0 with the Tide Workbench. Its design is documented i
 
 ## Download
 
-Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Linux (deb / rpm / AppImage) are on <https://gitwave.work> and the [GitHub Releases](https://github.com/Yangshifu1024/GitWave/releases/latest) page.
+Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Linux (deb / rpm / AppImage) are on <https://gitwave.work> and the [GitHub Releases](https://github.com/Yangshifu1024/GitWave/releases/latest) page. v0.11.0 is the latest release, and the last one built from the Tauri-based application; no further release is cut until the rewrite below has a release pipeline.
 
 ## Features
+
+What v0.11.0 does. The rewrite on `main` brings the same scope to the new application; the [migration plan](./docs/tasks/refactor-gpui-kit-desktop/plan.md) tracks what has landed so far.
 
 - **Workspace management** — multiple workspaces, drag-reorderable repo tabs that scroll horizontally with the mouse wheel once they overflow the window (the active tab stays in view), adding several local repositories at once (already-added paths and repeats inside the batch are skipped, unusable paths are reported without failing the batch), per-workspace AI context; a workspace is an abstraction, not a directory
 - **Tide Workbench** — the main area is split into peer History and Changes workspaces with a resizable history pane above a wide file/diff inspector; selections, drafts and the commit composer are scoped per repository, so switching repositories never mixes state. Diff content is virtualized to fill the pane, and working-copy writes stay pinned to the repository they started from even if you switch focus mid-operation
@@ -41,98 +43,61 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **SSH key management** — generate / import keys, per-repo SSH configuration
 - **Platform UX** — a compact source-list sidebar with expandable health metrics, keyboard-resizable panes, a bottom operation-status bar, command palette, menu bar app mode, themes plus UI / monospace font family and size settings, one-click open of the active repo in the system file manager, a detected terminal, or a detected code editor (VS Code / Zed / VSCodium), Chinese / English interface with instant switching, and a self-drawn title bar that merges the app menu and the operation bar into a single row (traffic lights / window controls kept clear)
 
+## The rewrite on `main`
+
+`main` no longer contains the Tauri application or the React frontend. Both were removed on 2026-11-25 and their source stays readable at commit `8466d55`. What remains is a Rust-only Cargo workspace:
+
+- **`crates/gitwave-core`** — the domain, use-case and infrastructure layers v0.11.0 ran on: libgit2, SQLite, credential and proxy handling, the AI providers. It is meant to be called in process, with no IPC; the new application does not link it yet.
+- **`crates/gitwave`** — the new desktop application, built on [GPUI Kit](https://github.com/longbridge/gpui-kit). Today it is a window shell (title bar, resizable panes, status bar); it grows one milestone at a time.
+
+Until the rewrite reaches parity there is nothing to download from `main`: no installer is built and no release is cut. The decision is recorded in [ADR 0007](./docs/tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit); milestones and the execution log are in the [migration plan](./docs/tasks/refactor-gpui-kit-desktop/plan.md).
+
 ## Tech stack
 
-- **Frontend:** React 19 + TypeScript 6 + Vite 8, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query
-- **Backend:** Rust + [Tauri 2](https://tauri.app), clean-architecture layers (`domain` / `application` / `infrastructure`), `git2` (vendored libgit2 + libssh2 + OpenSSL) — no system Git dependency
-- **Testing:** Vitest (unit and React Testing Library/jsdom component behavior); Playwright end-to-end tests have a script but no suite yet
+- **Application:** Rust with [GPUI Kit](https://github.com/longbridge/gpui-kit) 0.11, pinned to the exact version; the interface text has been moved into `rust-i18n` catalogues under `crates/gitwave/locales/` (Chinese and English), which the window shell does not read yet
+- **Core:** `gitwave-core`, layered as `domain` / `application` / `infrastructure`, on `git2` (vendored libgit2 + libssh2 + OpenSSL), `rusqlite` (bundled SQLite) and `reqwest`
+- **Testing:** `cargo test` — unit and integration tests against real Git fixtures in the core, and consistency checks on the interface catalogues; headless-window tests for the interface arrive with milestone M2. There is no end-to-end suite yet
 
 ## Quick start
 
 Prerequisites:
 
-- Rust stable ([rustup](https://rustup.rs))
-- Node.js 22 (the version CI uses)
+- Rust 1.92 or newer ([rustup](https://rustup.rs)); CI runs the latest stable
+- `git` on `PATH` — one test starts it, and the core shells out to it for HTTPS credential helpers and for Git LFS
 - macOS: Xcode command line tools (`xcode-select --install`)
-- Linux: `webkit2gtk-4.1-dev`, `build-essential`, `cmake`, `curl`, `wget`, `file`, `libssl-dev`, `libxdo-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`
-- Windows: WebView2 runtime + MSVC build tools
+- Linux: `build-essential`, `clang`, `cmake`, `pkg-config`, `libdbus-1-dev`, `libfontconfig-dev`, `libwayland-dev`, `libxkbcommon-x11-dev`, `libx11-xcb-dev`, `libssl-dev`, `libzstd-dev`, `libasound2-dev`, `libvulkan1`, `vulkan-validationlayers`
+- Windows: a standard Rust MSVC setup (Visual Studio C++ Build Tools); CI installs nothing beyond the toolchain
 
 ```bash
-pnpm install
-pnpm tauri dev
+make dev      # cargo run -p gitwave
 ```
 
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `pnpm dev` | Vite dev server (frontend only, no IPC) |
-| `pnpm build` | TypeScript check + Vite production build |
-| `pnpm preview` | Serve the production build locally |
-| `pnpm tauri dev` | Tauri app in dev mode (frontend + Rust core) |
-| `pnpm tauri build` | Tauri production build (.dmg / .exe / .deb / .rpm / .AppImage) |
-| `pnpm lint` | ESLint (`lint:fix` to auto-fix) |
-| `pnpm format:check` | Prettier check (no write) |
-| `pnpm format` | Prettier write |
-| `pnpm typecheck` | TypeScript check |
-| `pnpm check:tauri-versions` | Check resolved npm/Rust Tauri major/minor compatibility |
-| `pnpm test` | Node Tauri compatibility regression tests + Vitest unit tests (`test:watch` for Vitest watch mode) |
-| `pnpm test:e2e` | Playwright end-to-end tests (no suite yet) |
-| `pnpm bump <x.y.z>` | Bump the version in `package.json`, `tauri.conf.json`, and both Cargo manifests |
-
-Rust commands (run inside `src-tauri/`):
-
-| Command | What it does |
-|---|---|
-| `cargo check --all-targets` | Type check |
-| `cargo clippy --all-targets -- -D warnings` | Strict lint |
-| `cargo test --all-targets` | Run all tests |
-| `cargo fmt` | Format Rust sources |
-
-The same commands serve the root Cargo workspace — `crates/gitwave-core` (the `domain` / `application` / `infrastructure` layers, shared by both applications) and `crates/gitwave` (the GPUI Kit application that replaces the WebView; in progress, see [ADR 0007](./docs/tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)) — when run from the repository root instead of inside `src-tauri/`, with `--all` for `cargo fmt` and `--workspace` for the others.
-
-## Quality gates
-
-`make` wraps the same gates CI runs. The one to remember:
-
-```bash
-make check   # fmt-check + lint + test, writes nothing — the pre-delivery gate
-```
+## Make targets
 
 | Target | What it does |
 |---|---|
-| `make check` | `fmt-check` + `lint` + `test` (the CI-equivalent gate) |
-| `make fmt-check` | Prettier check + `cargo fmt --check`, in both workspaces |
-| `make lint` | Tauri npm/Rust version compatibility + ESLint + clippy + typecheck + `cargo check` |
-| `make test` | Node compatibility tests + Vitest + `cargo test --all-targets`, in both workspaces |
-| `make format` | Prettier write + `cargo fmt`, in both workspaces (rewrites files) |
-| `make build` | format + lint + test, then `pnpm tauri build` |
-| `make dev` | `pnpm tauri dev` (no pre-checks) |
+| `make dev` | Run the application (`cargo run -p gitwave`), no checks first |
+| `make build` | `check`, then build the debug binary |
+| `make check` | `fmt-check` + `lint` + `test` — the CI-equivalent gate, writes nothing |
+| `make fmt-check` | `cargo fmt --all -- --check` |
+| `make lint` | `cargo clippy --workspace --all-targets -- -D warnings` |
+| `make test` | `cargo test --workspace --all-targets` |
+| `make format` | `cargo fmt --all` (rewrites files) |
 
-A `pre-commit` hook runs a subset of these on `git commit` — see [CONTRIBUTING.md](./CONTRIBUTING.md). Markdown is excluded from Prettier (`.prettierignore`), so documentation is reviewed by hand.
+A `pre-commit` hook runs rustfmt and clippy on `git commit` — see [CONTRIBUTING.md](./CONTRIBUTING.md). No formatter covers Markdown, so documentation is reviewed by hand.
 
 ## CI
 
 Workflows live in `.github/workflows/`:
 
-- **lint / test** — on every push to `main` and every PR: `rust-lint` + `frontend-lint`, `rust-test` + `frontend-test`, each on a macOS / Ubuntu / Windows matrix. Pure-documentation changes (`site/**`, `docs/**`, `**.md`) are skipped
-- **workspace** — the root Cargo workspace (`gitwave-core` and the GPUI Kit application): rustfmt + clippy + tests on the same three platforms, only when its own files change
-- **build** — on tag push: builds macOS (aarch64), Linux (deb / rpm / AppImage) and Windows (NSIS); when all three pass, a **draft GitHub release** is created with all artifacts and auto-generated release notes, and the updater manifest's download URLs are then rewritten to plain `releases/download` links (tauri-action writes asset-API URLs, which answer 403 without a User-Agent header and count against the unauthenticated API quota). macOS builds are signed and notarized via repository secrets (`APPLE_*`, `KEYCHAIN_PASSWORD`), and OpenSSL/libgit2 are statically linked so binaries are self-contained
+- **ci** — on every push to `main` and every PR: rustfmt, clippy and the tests on a macOS / Ubuntu / Windows matrix, plus two assertions that vendored libgit2 keeps its TLS transport. Pure-documentation changes (`site/**`, `docs/**`, `**.md`) are skipped
 - **pages** — deploys `site/` to GitHub Pages on push to `main`
+
+There is no build workflow. The tag-triggered pipeline that produced the v0.11.0 installers and the signed update manifest was removed together with the Tauri application.
 
 ### Cutting a release
 
-1. Bump the version everywhere with `pnpm bump <x.y.z>` — it rewrites `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and refreshes the `gitwave` entry in `src-tauri/Cargo.lock`. Never edit versions by hand; `pnpm-lock.yaml` is untouched (it does not record the root package's own version)
-2. Sync the user-facing surfaces: this README's **Status** line and its **What's new** list, and `site/index.html` (version badge, `Latest release`, feature cards)
-3. Commit, then tag and push:
-   ```bash
-   git tag -a v0.x.0 -m "v0.x.0"
-   git push origin main v0.x.0
-   ```
-4. When CI is green, find the draft under Releases, check that all three platforms' assets are present and that `latest.json` carries all three keys with non-empty signatures, then publish
-   - Publishing the draft also publishes `latest.json` — the manifest the in-app updater polls; existing installs pick the new version up from there
-   - Updater artifacts (`.app.tar.gz` / `.sig` / `-setup.exe.sig` / `latest.json`) are produced by CI; local `tauri build` now requires `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key is encrypted) exported in the shell: `export TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/gitwave.key)`
-   - The full checklist, including how to repair a bad `latest.json` before publishing, lives in [`.agents/skills/gitwave-release/SKILL.md`](./.agents/skills/gitwave-release/SKILL.md)
+Not yet possible from `main`. Packaging, signing, notarization and signed updates are milestone M7 of the [migration plan](./docs/tasks/refactor-gpui-kit-desktop/plan.md); until then pushing a tag starts no build. The version stays `0.11.0` until the first release of the new application is decided, and is then bumped with `scripts/bump-version.sh <x.y.z>`.
 
 Per AGENTS.md, **AI agents must not commit / push / merge** — humans gate every change to `main`.
 
@@ -141,7 +106,7 @@ Per AGENTS.md, **AI agents must not commit / push / merge** — humans gate ever
 - Website — <https://gitwave.work> (landing page & downloads)
 - [`docs/pm/core/`](./docs/pm/core/README.md) — product management (features, scope, roadmap)
 - [`docs/tech/`](./docs/tech/README.md) — engineering decisions (architecture, selection, ADRs, conventions)
-- [`docs/design/`](./docs/design/00-overview.md) — UI/UX overview (3-pane layout, tokens, components)
+- [`docs/design/`](./docs/design/00-overview.md) — UI/UX overview (3-pane layout, tokens, components), written against v0.11.0
 - [`docs/tasks/`](./docs/tasks/README.md) — per-task plans and reviews
 - [`AGENTS.md`](./AGENTS.md) — workflow rules and agent boundaries
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — branch, commit and review conventions

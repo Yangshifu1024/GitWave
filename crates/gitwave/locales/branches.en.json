@@ -1,0 +1,156 @@
+{
+  "branches": {
+    "title": "Branches",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "delete": "Delete",
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "%{n}m ago",
+      "hoursAgo": "%{n}h ago",
+      "daysAgo": "%{n}d ago"
+    },
+    "menu": {
+      "new": "New Branch…",
+      "checkout": "Checkout",
+      "copyName": "Copy Branch Name",
+      "copyTagName": "Copy Tag Name",
+      "push": "Push to '%{remote}'…",
+      "pushGeneric": "Push…",
+      "newTag": "New Tag…",
+      "tracking": "Tracking…",
+      "rename": "Rename…",
+      "mergeIntoCurrent": "Merge into current",
+      "rebaseCurrentOntoThis": "Rebase current onto this",
+      "interactiveRebase": "Interactive rebase"
+    },
+    "row": {
+      "current": "current"
+    },
+    "checkout": {
+      "stashMessage": "switch to %{name}",
+      "success": "Checked out %{name}",
+      "createdFromRemote": "Created and switched to %{name} (tracking %{remote})",
+      "withStash": "Checked out %{name} and re-applied stash",
+      "stashFailed": "Checked out %{name}. Stash re-apply failed; the stash was kept."
+    },
+    "list": {
+      "selectWorkspace": "Select a workspace to view branches",
+      "selectRepo": "Select a repository to view branches",
+      "empty": "No branches found",
+      "localGroup": "Local"
+    },
+    "switch": {
+      "dirtyTitle": "Switch to %{name}?",
+      "dirtyDescription_one": "Working copy has %{count} uncommitted file. Discard them, or stash, switch, and re-apply the stash on the new branch.",
+      "dirtyDescription_other": "Working copy has %{count} uncommitted files. Discard them, or stash, switch, and re-apply the stash on the new branch.",
+      "discard": "Discard",
+      "stashAndSwitch": "Stash & switch",
+      "blockedTitle": "Cannot switch to %{name}"
+    },
+    "newBranch": {
+      "title": "New branch from \"%{name}\"",
+      "description": "Creates a local branch at this tip; the current branch stays checked out.",
+      "placeholder": "feature/my-branch",
+      "create": "Create",
+      "created": "Created branch %{name} from %{base}"
+    },
+    "deleteDialog": {
+      "title": "Delete Branch",
+      "description": "Delete local branch from your repository",
+      "branchLabel": "Branch",
+      "alsoDeleteRemote": "Also delete corresponding remote branch",
+      "deleted": "Deleted %{name}",
+      "deletedWithRemote": "Deleted %{name} and its remote counterpart"
+    },
+    "deleteRemote": {
+      "title": "Delete Remote Branch",
+      "menuItem": "Delete Remote Branch",
+      "description": "Delete remote branch \"%{name}\" from the remote. Local branches are not affected.",
+      "deleted": "Deleted remote branch %{name}"
+    },
+    "guard": {
+      "current": "Already the current branch",
+      "currentBranch": "Cannot delete the current branch"
+    },
+    "push": {
+      "confirmDescription": "Push local branch \"%{name}\" to \"%{remote}\"?",
+      "done": "Pushed %{name} to %{remote}"
+    },
+    "rename": {
+      "title": "Rename Branch",
+      "confirm": "Rename",
+      "done": "Renamed %{old} to %{name}"
+    },
+    "tracking": {
+      "title": "Tracking — %{name}",
+      "description": "Current upstream: %{upstream}. Pick the remote branch this branch should track.",
+      "none": "No upstream",
+      "confirm": "Set tracking",
+      "done": "%{name} now tracks %{upstream}",
+      "cleared": "Upstream cleared for %{name}",
+      "aria": "Upstream branch"
+    },
+    "merge": {
+      "title": "Merge branch",
+      "description": "Merge %{name} into %{current}.",
+      "sourceLabel": "Merge",
+      "targetLabel": "Into",
+      "optionLabel": "Option",
+      "optionAria": "Merge option",
+      "optionAuto": "Auto — fast-forward when possible",
+      "optionNoFf": "No fast-forward — always create a merge commit",
+      "confirm": "Merge",
+      "checking": "Checking merge…",
+      "upToDate": "Already up to date",
+      "mayConflict_one": "May conflict in %{count} file (resolve after merge)",
+      "mayConflict_other": "May conflict in %{count} files (resolve after merge)",
+      "noConflicts": "Merge can be done without conflicts",
+      "withConflicts": "Merged %{name} with %{n} conflict(s): %{files}",
+      "success": "Merged %{name} (%{kind})",
+      "dirtyWarning_one": "Working copy has %{count} uncommitted file — commit or stash before merging",
+      "dirtyWarning_other": "Working copy has %{count} uncommitted files — commit or stash before merging"
+    },
+    "rebase": {
+      "hitConflicts": "Rebase onto %{name} hit conflicts: %{files}",
+      "hitConflictsPlain": "Rebase onto %{name} hit conflicts",
+      "success": "Rebased onto %{name} (%{kind})"
+    },
+    "irebase": {
+      "title": "Interactive rebase onto %{name}",
+      "start": "Start rebase",
+      "hint": "Drag to reorder. Actions: pick / reword / edit / squash / fixup / drop. Does not auto-push.",
+      "loading": "Loading commits…",
+      "upToDate": "Already up to date with %{name}.",
+      "actionAria": "Rebase action",
+      "rewordPlaceholder": "New commit message",
+      "squashPlaceholder": "Combined message (optional)",
+      "conflictError": "Rebase conflicts",
+      "paused": "Paused for edit after applying a commit onto %{name}. Amend via Working Copy, then Continue from Branches.",
+      "done": "Interactive rebase onto %{name} (%{kind})",
+      "continue": "Continue rebase",
+      "discardPause": "Discard pause",
+      "continueConflicts": "Continue rebase conflicts: %{files}",
+      "autoAborted": "Rebase hit a conflict and was automatically rolled back — the branch is back at its pre-rebase tip",
+      "stillPaused": "Still paused for edit — amend then Continue again.",
+      "continued": "Continued interactive rebase (%{kind})",
+      "pauseCleared": "Aborted interactive rebase — branch restored to its pre-rebase tip",
+      "dirtyWarning_one": "Working copy has %{count} uncommitted file — commit or stash before rebasing",
+      "dirtyWarning_other": "Working copy has %{count} uncommitted files — commit or stash before rebasing"
+    },
+    "graph": {
+      "selectWorkspaceTitle": "Select a workspace",
+      "selectWorkspaceDesc": "Choose a workspace in the toolbar to view commit history.",
+      "selectRepoTitle": "Select a repository",
+      "selectRepoDesc": "Pick a repository from the sidebar to view commit history.",
+      "loading": "Loading history...",
+      "empty": "No commits yet",
+      "loadingOlder": "Loading older commits…",
+      "endOfHistory": "End of history · %{total} commits",
+      "snapshotLimited": "History is limited to the newest %{total} commits. Older commits are outside this search.",
+      "endOfSnapshot": "End of loaded range · %{total} commits",
+      "title": "Commit history",
+      "allRefs": "All refs (%{count})"
+    }
+  }
+}

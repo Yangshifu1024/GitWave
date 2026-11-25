@@ -1,86 +1,18 @@
 ---
 name: gitwave-release
-description: 'Cut a GitWave release — verify the full gate, bump the version everywhere with the bump script, sync README and the site, commit, and after explicit confirmation push main and the v* tag that triggers the three-platform release CI (draft release + updater manifest). Use whenever the user wants to release, ship, publish, or tag a GitWave version, bump the version, or sync the version to README / site — including 发版/发布/出新版本/升个版本/打个 tag/更新 README 和 site — even a bare "release 0.7.15" or "发个版". Even when the user only mentions one piece (e.g. just bump the version), proactively check the other sync points: a half-synced version breaks the release chain.'
+description: 'Cut a GitWave release — currently dormant. main holds the GPUI Kit rewrite without a release pipeline; the skill documents why there is nothing to release and what still applies until the pipeline exists.'
 ---
 
 # GitWave release
 
-A release is: bump the version everywhere → sync README + site → commit on `main` → push → push a `v*` tag. The tag push triggers `.github/workflows/build.yml`, which builds Windows NSIS, macOS dmg, and Linux AppImage into a **draft** GitHub Release and generates `latest.json` — the in-app updater manifest — at build time. Publishing the draft is a separate, manual step gated by the user.
+**There is nothing to release from `main` yet.** `main` holds the GPUI Kit rewrite, which is still being built (ADR 0007, `docs/tech/decisions/00-overview.md`). Its release pipeline — packaging, signing, notarization and signed updates — is milestone M7 of `docs/tasks/refactor-gpui-kit-desktop/plan.md`. Until that milestone lands, do not tag or cut a release from `main`: pushing a tag starts no build.
 
-**This skill always stops before pushing.** The tag push triggers builds and produces artifacts users install and update from. Follow AGENTS.md: invoking this skill is the user's explicit request to bump / sync / commit, but never push `main` or a tag without the user's explicit yes — not even with every check green.
+The last released version is **v0.11.0**, a Tauri application. Its source lives at the `v0.11.0` tag and at commit `8466d55`, the last one before it was removed from `main`. The installer stays available from the releases page.
 
-## 1. Determine the version
+## What still applies
 
-- An explicit version in the invocation wins (accept `0.7.15` or `v0.7.15`).
-- Otherwise derive a suggestion:
-  - Latest tag: `git fetch --tags && git describe --tags --abbrev=0`
-  - What's shipping: `git log <latest-tag>..HEAD --oneline`
-  - Suggest the next semver from those commits: `feat` → minor, `fix`/`chore`/`docs` → patch; bump the **minor** for anything user-visible while the project is 0.x.
-- State the suggestion and the commits it's based on, then ask the user to confirm or override. Never bump an unconfirmed version.
-- Never reuse a version that already has a tag: CI's prepare-release job asserts the tag name equals `package.json`'s version, and published releases / updater manifests are immutable. If a release went wrong, pick a new number — don't move the tag (`git tag -d vX.Y.Z` + `git push origin :refs/tags/vX.Y.Z` re-triggers, but only before the draft is published).
+- **The version** is `[workspace.package] version` in `Cargo.toml`, which every crate in the workspace inherits. `scripts/bump-version.sh <x.y.z>` rewrites it and refreshes `Cargo.lock`. It stays `0.11.0` until the first release of the new application is decided.
+- **README and the site** still present v0.11.0 as the released version; README also says that `main` is the rewrite in progress. Both stay that way until the same decision.
+- **A release is still a human decision.** Nothing in this repository commits, pushes or tags on its own.
 
-## 2. Pre-flight — abort on any failure
-
-Run these before touching any file; a red tree never gets bumped.
-
-1. `git status --porcelain` — must be empty. The bump rewrites 4 files; committing on a dirty tree mixes unrelated changes into the release commit.
-2. `git branch --show-current` must be `main`, then `git pull --ff-only` — releases are always cut from an up-to-date main (GitHub Flow).
-3. Full gate, CI-equivalent: `make check` (prettier + `cargo fmt` format gates, eslint + clippy + typecheck, frontend and Rust test suites).
-
-On failure: stop, show the failing output, and let the user decide what to fix. Do not bump.
-
-## 3. Bump
-
-```
-pnpm bump <version>
-```
-
-The script (`scripts/bump-version.mjs`) strips a leading `v` itself. It rewrites `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and the root `Cargo.toml` (the workspace version that `gitwave-core` and the GPUI Kit application inherit), then refreshes the `gitwave` and `gitwave-core` entries in `src-tauri/Cargo.lock` via `cargo update -p gitwave` and in the root `Cargo.lock` via `cargo metadata`. `pnpm-lock.yaml` is deliberately untouched — it does not record the root package's own version, and CI installs with `--frozen-lockfile`. Never edit versions by hand.
-
-Verify with `git status --porcelain`: expect exactly those 4 files plus the 2 lockfiles. Anything else in the diff — investigate before committing.
-
-## 4. Sync user-facing surfaces
-
-- **README.md** — the "Cutting a release" section there is the release checklist's source of truth:
-  - Header **Status** line: `**Status:** vX.Y.Z · Release notes · Product scope · Engineering decisions` — update the version number in place; the three links stay as they are.
-  - **What's new** list (`### What's new in vX.Y.x`, right below the Status line): add one bullet at the top for this version — `- **vX.Y.Z** — …`, a single line leading with its most user-visible capability — and keep the list to the current and the last few patch releases. Older releases live in the release notes, so trim the tail instead of letting the list grow.
-  - **Features** list: add a bullet for new capabilities; don't re-list existing ones.
-  - Download section: reconcile any version / platform mentions.
-- **site/index.html** (official site — a single English page, auto-deploys to GitHub Pages on push to main):
-  - Hero badge: `<div class="badge">vX.Y.Z · <today></div>` — current version + current date (`YYYY-MM-DD`).
-  - Download area: `Latest release: vX.Y.Z`.
-  - Feature cards: fold small features into an existing card (e.g. the "Diff viewer" or "Batteries included" cards) rather than adding a new one and breaking the grid rhythm.
-- **PM docs** — sync the current-version references in `docs/pm/core/README.md`, `01-features.md`, `02-scope.md`, and `03-roadmap.md`; add the release's representative changes to the scope table. Preserve historical version rows and release notes.
-- **Branding assets** — when application icons changed since the previous tag, copy `src-tauri/icons/icon.png` to `site/icon.png`, `32x32.png` to `site/favicon-32.png`, and `128x128.png` to `public/app-icon.png`. Keep the frontend favicon in `index.html` pointed at the app icon. Verify these are byte-identical copies; do not regenerate artwork during release sync.
-- Residue check: `grep -rn "<old-version>" README.md site/ package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml Cargo.toml crates/` — GitWave's own version should only appear at the new value (matches inside unrelated dependencies don't count).
-
-## 5. Commit
-
-```
-git commit -m "chore: bump version to vX.Y.Z"
-```
-
-This matches existing release history; no body needed.
-
-## 6. Summarize, then STOP
-
-Show the user, concretely:
-
-- The version and the commits going out since the previous tag
-- What release CI will build once the tag lands: a **draft** release with three-platform installers plus `latest.json`
-- That publishing the draft activates the updater — existing installs start receiving the new version from that moment
-
-Then ask, and wait: "Push main + tag vX.Y.Z now?" A yes to the summary is consent to push; silence or anything ambiguous is not.
-
-## 7. Push (only after the user's explicit yes)
-
-```
-git tag -a vX.Y.Z -m "vX.Y.Z"
-git push origin main vX.Y.Z
-```
-
-Tag timing is a hard constraint: the tag snapshots HEAD at creation, so it must be created only after the bump commit is merged into `main` and is HEAD. Pushing newer commits never moves an existing tag; a mistagged release gets a new number.
-
-Then offer to monitor the run (`gh run list`, `gh run watch <run-id>`). When CI is green, help the user verify the draft under Releases before they publish: assets present for all three platforms, and `latest.json` carries all three keys (`darwin-aarch64` / `linux-x86_64` / `windows-x86_64`) with non-empty signatures. **Every `platforms.*.url` must be a plain download link** (`https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`), never `api.github.com/.../releases/assets/<id>` — the rewrite-manifest-urls job does that, and asset-API URLs answer 403 without a User-Agent header and burn the unauthenticated API quota (60 requests/hour per IP), which broke the in-app updater on v0.9.2. **Publishing is the user's manual click** — that click flips the draft live and pushes `latest.json` to every installed updater.
-
-**If that manifest check fails, do not publish.** Split the consequences: a `platforms.*.url` that is not a `releases/download` link — or a red `rewrite-manifest-urls` job — means the draft would ship asset-API URLs, i.e. the v0.9.2 403 breakage, to every installed updater; a **missing platform key** is quieter but no better, because that platform's installs silently stop updating. Repair the draft's `latest.json`, re-verify, and only then publish — the failure modes and a step-by-step repair recipe are in `docs/tasks/fix-rewrite-manifest-draft/plan.md`. Two traps live in this area: a draft release is **not** reachable through `GET /releases/tags/<tag>` (404 — go through the release id; `gh release download/upload` do work on a draft), and a draft asset's `browser_download_url` is an `untagged-<hash>` pseudo path rather than the published `/download/<tag>/<file>`.
+When M7 lands, rewrite this skill around the new pipeline instead of extending this page.

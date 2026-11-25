@@ -1,7 +1,7 @@
 //! AI reply language (F010).
 //!
 //! The app's global AI-language preference rides each prose-producing
-//! command as an optional IPC argument. The prompt body stays English —
+//! use case as an optional argument. The prompt body stays English —
 //! instruction-following is most reliable in English — and only a trailing
 //! directive governs the reply language.
 

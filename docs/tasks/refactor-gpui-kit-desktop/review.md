@@ -207,3 +207,356 @@
 - 验证 bump 脚本时有两次操作失误，都把版本文件改到了 0.11.1：一次是备份步骤在 zsh 下没有生效，一次是误在后台启动了脚本。两次都已还原，并用逐包比对确认 Tauri 锁文件相对 `main` 仍只有预期的差异，两个 workspace 的 `--locked` 解析通过。
 
 修复后的验证：`make fmt-check`、`make lint`、`make test` 全部通过；前端 367 个测试，Tauri 集成测试 1 个，core 在两套锁文件下各 396 个（394 通过，2 忽略）。
+
+---
+
+# 代码审查：M1b 移除旧应用
+
+> **作者**：AI code-reviewer 子代理，未经人工复核
+> **状态**：草案
+> **最近更新**：2026-11-25
+
+| 项 | 内容 |
+|---|---|
+| 分支 | `chore/remove-tauri-app`，审查时尚未提交的工作区改动 |
+| 基线 | `8466d55`（`main`，PR #243 合并后） |
+| 计划与决策 | [plan.md](./plan.md) · [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit) |
+| 环境 | macOS arm64，rustc 1.100.0，cargo 1.100.0，bash 3.2.57 |
+| 结论 | 没有必须修复才能合并的问题；`make check` 全绿，文案转换逐字保真，文档里的数字都有依据。合并前建议处理 🟡 的前两条 |
+
+审查范围是整组未提交的改动，重点核实了九件事：删除的完整性、文案转换的保真度、`locales.rs` 的测试、`scripts/bump-version.sh`、配置与文档的一致性、`gitwave-core` 的改动是否只有注释、`rust-version` 的变更、依赖与锁文件、CI。审查者独立跑了命令并做了变异实验，下面的报告是它的原文。
+
+## ✅ 优点
+
+- **文案转换逐字保真。** 50 对文件一一对应，2216 条叶子的键集合、顺序、文本全部一致，686 处占位符只从 `{{name}}` 变成 `%{name}`。审查者用独立的对比脚本和真实的 rust-i18n 4.2.4 各验证了一遍，后者经 `t!` 取回 2216 个键，0 处不符。
+- **`gitwave-core` 的改动严格限于注释。** 80 条变更行里 78 条是 `//` 注释，2 条是 `Cargo.toml` 的 `#` 注释，没有代码行。顺手修正了 `migrations.rs` 里指向 `src-tauri/migrations/` 的陈旧路径。
+- **文档里的数字都能复现。** 测试数 84 / 306 / 3 / 3 / 4、文案 1108 条、占位符 343 处、复数 9 组、后端 2.4 万行与 2.6 万行、前端 2.45 万行与 5.9 千行、10 个无引用的 `cmds.*` 错误码，逐项对上了（见验证记录）。
+- **测试的核心保证是有效的。** 错误码与文案双向校验、非字符串值拒绝、空消息拒绝都成立；审查者在 `/tmp` 副本上做的 22 个变异里有 15 个被抓到。
+- **文档对现状是诚实的。** `architecture` 与 `tech-selection` 总览明确写了「还没有接入 `gitwave-core`」，工程总览写明日志初始化没有调用方、目前不写日志，ADR 表把 0001 / 0005 标为已废弃。
+- **删除干净。** 17 个图标与原文件 blob 哈希逐一相同；`site/` 只引用自己目录里的资源；`Cargo.lock` 相对 `main` 只多两行依赖边。
+- **MSRV 的变更理由属实，且恰好。** 依赖图 864 个包里 MSRV 高于 1.92 的第三方包正好是那三个，`1.95` 就是全图最高值。
+
+## 🔴 严重问题（必须修复）
+
+无。
+
+## 🟡 一般问题（建议修复）
+
+### 1. `proxy.rs` 的注释多了一行重复
+
+- **位置**：`crates/gitwave-core/src/infrastructure/proxy.rs:251-252`
+- **描述**：第 252 行 `/// loaders use; libgit2/reqwest read the env from other unsynchronized` 是第 251 行后半句的重复。读起来是半句接半句，句子断了。这是编辑事故，不影响行为。
+- **建议**：第 251 行改为 `/// dotenv loaders use; libgit2/reqwest read the env from other unsynchronized`，删除第 252 行。
+- **核实**：读文件；`grep -c 'loaders use; libgit2/reqwest'` 当前为 2，`main` 上为 1。
+
+### 2. 两处把「尚未接线」写成了现状
+
+- **位置**：`README.md:50`（"It is called in process, with no IPC."）；`docs/tech/tech-selection/00-overview.md:16`（「界面在进程内直接调用 `gitwave-core` 的用例」）
+- **描述**：`crates/gitwave` 的 `Cargo.toml` 不依赖 `gitwave-core`，`bootstrap.rs` 与全部用例目前没有任何调用方。同一份 README 的第 51 行和 `architecture/00-overview.md:48` 写的是「还没有接入」，前后矛盾。上一轮审查指出过同类问题。
+- **建议**：改成将来时，例如 "It is meant to be called in process, with no IPC; the application does not link it yet."
+- **核实**：`cat crates/gitwave/Cargo.toml`；`cargo tree --locked -p gitwave -i gitwave-core` 报 "did not match any packages"；全仓 grep `bootstrap::` 无结果。
+
+### 3. `scripts/bump-version.sh` 在误用时会改错文件或改错行，并且照样报成功
+
+- **位置**：`scripts/bump-version.sh:15`（`cd "$(git rev-parse --show-toplevel)"`）、`:18-34`（按「第一个以 `version = "` 开头的行」定位）
+- **描述**：两个问题，在 `/tmp` 临时仓库里都复现了。
+  - 在非 git 目录里运行不会中止：`git rev-parse` 失败后变成 `cd ""`，脚本留在当前目录。审查者在一个无关的 Rust 项目目录里运行，它的 `Cargo.toml` 从 `1.0.0` 被改成了 `9.9.9`。
+  - 不校验匹配到的行是否在 `[workspace.package]` 段内。在该段之前插入一行 `version = "9.9.9"` 后，脚本改的是那一行，真正的版本和 `Cargo.lock` 都没动，输出仍是 "[bump] Cargo.lock refreshed, every crate -> 0.12.0"。
+  - 旧脚本 `bump-version.mjs` 有「替换后内容必须变化」的自检，新脚本没有。
+- **建议**：`toplevel=$(git rev-parse --show-toplevel) || exit 1`；定位时限定 `[workspace.package]` 段；改完后用 `cargo metadata --locked --no-deps` 读回 workspace 版本，与目标值比较，不一致就回滚并退出非零。
+- **核实**：在 `/tmp/gw-bump-lab`（`git init`，复制 `Cargo.toml`、`Cargo.lock`、两个 crate 的清单）里运行脚本，对比 `git diff`。
+
+### 4. `scripts/bump-version.sh` 失败时不回滚，会留下改坏的 `Cargo.toml`
+
+- **位置**：`scripts/bump-version.sh:10`（正则）、`:24-38`
+- **描述**：带前导零的版本（`0.012.0`、`00.12.0`、`0.12.00`）能通过校验并被写入 `Cargo.toml`，随后 `cargo metadata` 以 101 退出，文件留在无效状态。`cargo` 不在 `PATH` 时同理（exit 127，`Cargo.toml` 已改而 `Cargo.lock` 未改）。
+- **建议**：正则改为 `0|[1-9][0-9]*`；改写前备份，`trap` 在失败时恢复。
+- **核实**：同上，逐个传入非法参数并检查 `git status --porcelain` 与退出码。其它非法输入（空、`0.12`、`abc`、`1.2.3.4`、`0.12.0+build`、大写 `V`、全角数字）都在写文件之前被拒。
+
+### 5. `scripts/bump-version.sh` 的「只改版本号」有前提，脚本不检查也不披露
+
+- **位置**：`scripts/bump-version.sh:36-39`
+- **描述**：注释写 "nothing else moves"，输出写 "every crate -> x.y.z"。这只在 `Cargo.lock` 的起点与清单一致时成立。审查者先把一个依赖需求改掉再运行，脚本顺带把 `base64 0.23.1` 改成了 `0.22.1`，输出没有提示。旧版 `SKILL.md` 要求 bump 前工作区干净、事后核对变更文件，新版没有这道人工检查。
+- **建议**：改版本之前先跑 `cargo metadata --locked`，起点不干净就中止。
+- **核实**：同上；bump 前 `cargo metadata --locked` 退出码 101，bump 退出码 0，`git diff -U0 -- Cargo.lock` 多出 base64 两行。
+
+### 6. `locales.rs` 的 `merge` 对跨文件重复键静默覆盖
+
+- **位置**：`crates/gitwave/src/locales.rs:126-137`（`merge`），用于 `:115-124` 的 `errors()`
+- **描述**：两个 `errors-*.json` 定义同一个键时，后者直接覆盖前者，四条测试全部通过。rust-i18n 加载时也是静默覆盖，最终显示哪条取决于目录遍历顺序。当前没有重复键，所以这是防线缺口而不是现存缺陷。
+- **建议**：`merge` 里遇到「已存在的叶子」时 `assert!` 并报出文件名与键；`errors()` 遇到没有顶层 `errors` 键的文件也应当报错，而不是跳过。
+- **核实**：在 `/tmp` 副本上往 `errors-infra.*.json` 里塞入 `errors.git.raw`，4 passed；在探针 crate 里复现 rust-i18n 的覆盖行为。
+
+### 7. 改了语言文件后，本地增量构建仍内嵌旧文案
+
+- **位置**：`crates/gitwave/src/main.rs:9`（`rust_i18n::i18n!(…)` 在编译期读文件）；`crates/gitwave/src/locales.rs:195-202`
+- **描述**：cargo 的指纹不追踪过程宏自己读的文件。实测只改 `locales/app.en.json` 后 `cargo run`，二进制里还是旧值 `Health`，`touch main.rs` 之后才更新。后果有两个：
+  - 本地改文案后 `make dev` 看不到变化。
+  - 测试 3（`the_messages_load_through_rust_i18n`）在本地跑的是陈旧的内嵌表，而测试 1、2、4 读的是磁盘上的新文件。
+
+  另外，测试 3 把 `Health` / `健康` 写死为期望值，任何对这两个文案的合法修改都会让它失败。CI 是全新构建，不受影响。
+- **建议**：三选一。
+  - `build.rs` 里对 `locales/` 算摘要并输出 `cargo:rustc-env`，让文件变化触发重编。
+  - 在 `locales.rs` 模块注释和 `CONTRIBUTING.md` 里写明「改了语言文件要 `cargo clean -p gitwave`」。
+  - 测试 3 的期望值改为从 JSON 读出。
+- **核实**：`/tmp/gw-probe`（依赖 `rust-i18n = "=4.2.4"`，`--offline` 构建）三步实验。
+
+### 8. MSRV 提到 1.95 的决策没有记录，而且与依赖自己的注释矛盾
+
+- **位置**：`Cargo.toml:8`；`crates/gitwave-core/Cargo.toml:51-53`
+- **描述**：改法本身恰当。合成实验证实 cargo 的 MSRV 检查是构建期的硬错误，并且只针对参与当前 target 构建的包，所以 `main` 上的 `1.92` 在 Windows 上本来就自相矛盾，只是 CI 用 stable 没有暴露。问题在决策依据：
+  - 把 MSRV 推到 1.95 的唯一原因是 `windows-registry = "0.100"`。
+  - 这个依赖上一行的注释说，版本范围是为了与 hyper-util 的可选依赖一致，好让依赖图解析出单一共享构建。
+  - hyper-util 的实际需求是 `">=0.3, <0.7"`，0.100 不在其中。锁文件里 `windows-registry` 有 0.4.0、0.6.1、0.100.0 三个版本并存。
+  - 0.6.1 的 MSRV 是 1.82。
+- **建议**：在 ADR 0007 或提交说明里记一句 MSRV 的来由。同时澄清 0.100 是有意的选择还是笔误，并修正那句注释。这句话在 `main` 上就有，不是本次引入。
+- **核实**：`cargo metadata --locked`；`cargo tree --locked --target <triple> -i windows-registry@0.100.0`；读 registry 里三个 crate 的 `Cargo.toml`；`/tmp/gw-msrv` 合成实验。
+
+## 🟢 优化建议（可选）
+
+- **`locales.rs` 测试的其余盲区**（实证 4 passed）：
+  - 占位符出现次数不同（比较的是集合）。
+  - 新增 `app.ja.json` 而未列入 `LANGUAGES`（硬编码）。
+  - 非 `errors` 域文件里出现孤儿 `errors.*`（只扫 `errors*` 域）。
+  - `%{ detail }` 与未闭合的 `%{`。
+  - 反方向：`error_codes/*.rs` 的注释里出现 `pub const X: &str = "git.fake"` 会被当成常量，测试 4 失败。
+- **`locales.rs` 模块注释**："the keys that end in `_one` and `_other` are chosen in code" 是现在时，但生产代码里没有任何 `t!` 调用，`workbench.rs` 里的 "Sidebar" / "History" / "Diff" / "No repository selected" 仍是硬编码英文。README 的 "interface text lives in rust-i18n catalogues" 同理，建议注明尚未接线。
+- **`main.rs`**："defines the `t!` macro at the crate root" 不够精确。`i18n!` 展开出的是 `pub(crate) use __rust_i18n_t as _rust_i18n_t`，`t!` 由 `rust_i18n` crate 导出并转发到 `crate::_rust_i18n_t!`。结论（必须放在 crate 根）是对的，实验证实放进子模块会报 `E0433`。
+- **`remote.rs`**：沿袭下来的 "Empty when constructed; always stamped before emit." 与事实不符。`SyncProgress` 全仓只有一个构造点，那里直接填入调用方的值。
+- **`use_cases.rs`、`cmds.rs`**：把 "the presentation layer…" 写成了现状，建议改成将来时或「设计约定」的语气。
+- **`proxy.rs`、`remote.rs`**：注释仍提到 updater 插件，它已随 Tauri 应用删除。
+- **`.github/PULL_REQUEST_TEMPLATE.md`**：被注释掉的提示文字里还有 "CI green (lint / test / build)"，是已删除的工作流名。
+- **`docs/tech/engineering/00-overview.md`**：`*.md` 应为 `**.md`；只列了一条 TLS 断言，实际有两条。`plan.md` 说三个命令「在三端 CI 上运行」，fmt 只在 Ubuntu 上跑。
+- **`plan.md` 与 README、工程总览**：后两者说界面的无头窗口测试「随 M2 起」，但计划的 M2 定义里没有这一项。
+- **`.gitattributes`**：`package-lock.json`、`yarn.lock`、`composer.lock` 已是模板残留。
+- **`scripts/bump-version.sh`**：多余参数被静默忽略；awk 中断时残留的 `Cargo.toml.tmp` 不在 `.gitignore` 里。
+- **`.pre-commit-config.yaml`**：clippy 没带 `--locked`，CI 带。
+- **`.github/dependabot.yml`**：`keyring` 的注释属实，但直接依赖写的是 `"3"`，本来就解析不到 4.x，这条 ignore 目前不起作用。
+- **合并后的收尾**：GitHub 上还开着 4 个针对 npm 生态的 dependabot PR（#238、#239、#240、#241），建议关闭。
+- **`branches.irebase.*`**：键名里的 `irebase` 是旧实现就有的拼写，转换如实保留；接线时注意别写成 `rebase`。
+
+## 📝 总体评价
+
+这次改动的机械部分质量很高：文案转换、图标搬移、核心库的注释改写都逐字可查，没有发现偏差；文档里的每个数字审查者都能用命令复现。最需要优先处理的是三类「说的和做的不一致」：`proxy.rs` 那行重复注释，README 与选型总览里两处把「将要进程内调用」写成「正在进程内调用」，以及 MSRV 决策与 `windows-registry` 注释之间的矛盾。`bump-version.sh` 在文档写明的用法下是正确且幂等的，但它比旧脚本少了自检和回滚；在 M7 之前它处于休眠状态，建议等发布链路落地时一并补上。语言文件不触发重编译这一点会让后续里程碑里接线 `t!` 的人困惑，值得现在就在文档里留一句。
+
+## 验证记录
+
+以下两小节是审查者列出的、它亲自运行过的命令和结果，以及它没有验证的内容。行号对应审查时的工作区，后续修复后有移动。
+
+### 验证过的
+
+**环境与范围**
+
+- `git status --short | wc -l` → 383（D 325、M 37、R 17、RM 1、未跟踪 3 条目 / 52 个文件）；审查结束时仍是 383，`Cargo.lock` 哈希前后一致。
+- `git diff main -- crates/gitwave-core` → 80 条变更行，按前缀分类：`//` 78、`#` 2、其它 0。
+- `git diff main -- Cargo.lock` → 只有 `+ "rust-i18n",`、`+ "serde_json",`。
+
+**文案保真度**
+
+- 独立脚本把 `main:src/i18n/locales/<语言>/<域>.json` 与 `crates/gitwave/locales/<域>.<语言>.json` 展平后对比：文件 50 / 50；叶子 2216 / 2216；占位符 686 / 686；键集合差异 0；规范化后文本差异 0；空白差异 0；非字符串值 0；重复 JSON 键 0；含点的键名 0；展平冲突 0；跨文件重复键 0（每种语言 1108 个键）。
+- 占位符审计：64 个不同的名字，字符只有字母与下划线；没有 `$t(`、`${`，占位符之外没有孤立的花括号；没有 `%{` 之外的 `%`。
+- 旧实现 `src/i18n/index.ts`：`fallbackLng: "en"`、`escapeValue: false`；`resources.ts` 把四个 `errors-*.json` deep-merge 进同一个 `errors` 子树。
+- 四个错误文件的二级前缀：`errors-cmds` → `cmds`（10 条）；`errors-git` → `git`（94 条）；`errors-infra` → `ai` / `persist` / `ssh`（40 条）；`errors-usecases` → `usecases`（49 条）。合并后 193 条，对应 `error_codes/` 下 `cmds.rs` 10、`git.rs` 94、`infra.rs` 40、`usecases.rs` 49 个常量。
+- 复数键：9 对 `_one` / `_other`，没有 `_zero` / `_two` / `_few` / `_many`。
+- 新文件：50 个都是 LF、无 BOM、恰好一个结尾换行。
+
+**rust-i18n 4.2.4 的行为**
+
+- 读了 registry 里 `rust-i18n-support`、`rust-i18n-macro`、`rust-i18n` 4.2.4 的源码（`load_locales`、`flatten_keys`、`merge_value`、`i18n!` 的展开与回退链、`t!` 的展开、`replace_patterns`）。
+- 确认：语言取自 `file_stem()` 按 `.` 切分的最后一段；缺键时先走 `zh-CN` → `zh` 的子标签链，再查 `fallback`；缺键返回键名，不报错；没有复数；`t!` 对键没有编译期校验。
+- `/tmp/gw-probe`（真实 rust-i18n，50 个文件复制过去）：`available_locales = ["en", "zh-CN"]`；2216 个键经 `t!` 取回与 JSON 逐字一致；`zh-TW` 回退到 `"Health"`；缺键返回 `"does.not.exist"`；`diff.toolbar.filesChanged` 返回键名（复数键不会被自动选择）。
+- `/tmp/gw-pos`：`i18n!` 放进子模块 → `error[E0433]: cannot find _rust_i18n_t in the crate root`；放在 crate 根时子模块可用。
+- `/tmp/gw-probe` 重编译实验：只改 JSON 后内嵌值仍是 `"Health"`，`touch main.rs` 后才变。
+
+**`locales.rs` 测试的变异实验**（`/tmp/gw-mut`，基线 4 passed）
+
+| 变异 | 结果 |
+|---|---|
+| 删除 zh-CN 的一个键 | 抓到（3 条失败） |
+| zh-CN 改占位符名 | 抓到 |
+| en 加数字叶子 | 抓到 |
+| errors 文件加无对应 code 的消息 | 抓到 |
+| `error_codes` 加无文案的常量 | 抓到 |
+| 某个 code 从 `pub const` 改为 `const` | 抓到 |
+| 空消息 | 抓到 |
+| 顶层 `errors` 键改名 | 抓到 |
+| code 值前缀写错；删除一个 code 常量；键名含点 | 抓到 |
+| 删除整个 `errors-cmds.zh-CN.json`；文案换成数组；文案换成空对象 | 抓到 |
+| 两个 errors 文件定义同一个键 | 未发现 |
+| 占位符出现次数不同 | 未发现 |
+| 新增 `app.ja.json` 未列入 `LANGUAGES` | 未发现 |
+| 非 errors 域文件里的孤儿 `errors.*` | 未发现 |
+| `%{ detail }`；未闭合的 `%{` | 未发现 |
+| 源码注释里出现 `pub const X: &str = "git.fake"` | 误报 |
+
+**`scripts/bump-version.sh`**（`/tmp/gw-bump-lab`，`CARGO_NET_OFFLINE=true`）
+
+- 正常升级：`exit=0`；`Cargo.toml` 只改 `version` 一行；`Cargo.lock` 只改 `gitwave` 与 `gitwave-core` 的两个 `version`。
+- 幂等：提交后重跑同一版本，`git status --porcelain` 为空，无残留文件，权限保持。
+- `v0.13.0-rc.1`：正常。
+- 14 种非法输入：除前导零外全部 `exit=1` 且不改文件；全角数字在 `C`、`en_US.UTF-8`、`zh_CN.UTF-8` 下都被 bash 拒绝。
+- 清单变体：行尾注释、无空格、尾随空格、CRLF、单引号 → 都是 `exit=1`，文件不变。
+- 仓库外、非 git 目录 → 改写了当前目录的无关 `Cargo.toml`。
+- `PATH` 里没有 `cargo` → `exit=127`，`Cargo.toml` 已改而 `Cargo.lock` 未改。
+- 锁文件起点过期 → 顺带改写 `base64`。
+
+**MSRV**
+
+- `cargo metadata --locked`：864 个包，583 个声明了 `rust_version`；高于 1.92 的第三方包是 `windows-strings` 0.100.0、`windows-result` 0.100.0、`windows-registry` 0.100.0，都是 1.95；其余最高是 `oo7` 0.6.0 的 1.92。
+- 读 registry 源码：三个 crate 的 `Cargo.toml` 都是 `rust-version = "1.95"`；`hyper-util` 对 `windows-registry` 的需求是 `">=0.3, <0.7"`；`windows-registry` 0.6.1 的 MSRV 是 1.82。
+- `cargo tree --locked --target <triple> -i <包>@0.100.0`：macOS 与 Linux 上都是 "nothing to print"；`x86_64-pc-windows-msvc`、`aarch64-pc-windows-msvc` 上链路是 `gitwave-core → windows-registry 0.100.0 → windows-result` / `windows-strings 0.100.0`。
+- `/tmp/gw-msrv` 合成实验：声明 `rust-version = "1.200"` 的本地包作普通依赖时，`cargo build` 报 "rustc 1.100.0 is not supported by the following package"；放进 `cfg(target_os = "windows")` 依赖后，宿主 `cargo build` 不报，`cargo check --target x86_64-pc-windows-msvc` 才报。
+
+**依赖与锁文件**
+
+- `crates/gitwave/Cargo.toml`：`rust-i18n.workspace = true` 被 `main.rs` 的宏使用；dev `serde_json = "1"` 被 `locales.rs` 使用。
+- `rust-i18n` 4.2.4 在 `main` 上已由 `gpui-component` 引入。
+- `cargo build --locked -p gitwave`：Finished。
+
+**门禁**
+
+- `make check` 经注入 `--locked` 的 cargo 包装脚本运行：`exit=0`。`cargo fmt --all -- --check` 无差异；clippy `Finished`；`gitwave` 4 passed；`gitwave-core` 394 passed、0 failed、2 ignored。
+- `cargo clippy --locked --workspace --all-targets -- -D warnings -W clippy::all`：警告与错误 0 行。
+- `make -n check`、`make -n build`、`make help`：解析正确。
+- `cargo tree --locked -e features | grep -c 'git2 feature "https"'` → 1；按 `ci.yml` 的脚本在本机找到 `#define GIT_SECURE_TRANSPORT 1`。
+
+**删除完整性**
+
+- 排除历史记录目录后，在 183 个文件里按 38 个关键词搜索旧路径与旧工具链，命中项都属于：已标注的旧实现对照小节、ADR 的废弃记录、调研快照、说明「已移除」的文字、合法的同名内容（`health.rs` 里的 `"node_modules"`、`Cargo.lock` 里的 `tauri-winrt-notification`），以及上面列出的几处。
+- 17 个重命名图标的 blob 哈希与 `main` 逐一相同；`src-tauri/icons/` 下未带走的只有 `android/`（17 个）与 `ios/`（18 个）。
+- `site/index.html` 的本地引用只有 `/favicon-32.png`、`/icon.png`，都存在。
+- `pages.yml` 相对 `main` 无改动，只依赖 `site/`，与 `ci.yml` 的 `paths-ignore` 互补。
+- 非历史文档的相对链接检查：116 处有效，0 处断开。
+
+**文档里的数字与名称**
+
+| 陈述 | 实测 |
+|---|---|
+| 每种语言 1108 条文案 | 1108 / 1108 |
+| 占位符 343 处（每种语言） | 686 / 2 = 343 |
+| 9 组 `_one` / `_other`，每种语言 18 个 | 9 对 |
+| 单元 84、集成 306、`host` 3、守卫 3、界面 4 | `--list` 分类：domain 29 + application 55 = 84；infrastructure 306；host 3；lib.rs 3；gitwave 4 |
+| `cmds.*` 10 个错误码无引用 | 10 个常量，`cmds::` 0 处引用 |
+| core 约 2.4 万行 | 24293 |
+| v0.11.0 后端约 2.6 万行 | tag `v0.11.0` 的 `src-tauri/src`：69 个文件，25948 行 |
+| 前端约 2.45 万行，测试 5.9 千行 | 24531 行；5925 行（61 个文件） |
+| 日志初始化没有调用方 | 0 处；旧调用方在 `main:src-tauri/src/lib.rs:1667` |
+| 「应用设置只有代理一项」 | `app_settings.rs` 只有 `ProxyMode`、`ProxySettings` |
+| `#![allow(dead_code)]`、`#![allow(unused_imports)]` | `lib.rs` |
+| keyring 4.x 改了 feature 名 | 3.6.3：`apple-native`、`windows-native`、`sync-secret-service` 等；4.0.0：无；4.2.0：`cli`、`default`、`v1` |
+| Go 分支托管 CI 只运行一次、三端全败 | `go-desktop.yml` 共 1 次运行，3 个 job 都是 failure |
+| 架构总览列出的类型、模块、函数 | `Workspace`、`RepoRef`、`FileChange`、`BranchInfo`、`StashEntry`、`clone_repo`、`generate_commit_message`、`repo_adapter::init` / `clone_remote`、`SqliteWorkspaceRepo`、`SqliteAppSettingsRepo`、`ai::provider` / `secrets`、`AppContext` 全部存在 |
+| 「domain 层只依赖 serde」 | domain 下的 `use` 只有 serde 与 crate 内 |
+| 「GPUI 不依赖 tokio」 | `cargo tree --locked -p gitwave -i tokio` → nothing to print |
+| README 的 Linux 依赖清单 | 16 个包与 `ci.yml` 的 apt 列表逐项一致 |
+| 「一个测试会启动 `git --version`」 | `process.rs` |
+| 「运行时调用系统 `git`」 | `credentials.rs`；`lfs.rs` |
+| 迁移脚本截至 0004 | 4 个 SQL 文件 |
+
+**CI 与仓库外围**
+
+- `ci.yml`、`pages.yml`、`dependabot.yml`、`.pre-commit-config.yaml`、`.vscode/extensions.json`、`SKILL.md` 的 frontmatter：都能解析。
+- `ci.yml` 的 6 个 `run` 块：`bash -n` 全部通过。
+- 徽章：无。旧工作流名只出现在历史记录目录、`docs/pm/features/F009-auto-update.md`、工程总览的说明文字和 PR 模板的注释里。
+- GitHub 只读查询：`main` 没有经典分支保护（HTTP 404）；规则集 `Main` 只有 `deletion`、`non_fast_forward`，没有必需的状态检查；基线 `8466d55` 在 `main` 上三个旧工作流都是 success。
+
+### 没有验证的
+
+- **三端托管 CI 没有跑过。** 本分支当时还没有 PR；本机只有 macOS arm64。
+- **Linux 依赖清单**：包名相对 `main` 没有变化，基线在三端是绿的，这是间接证据。`ci.yml` 注释说它「镜像 GPUI Kit 的 `script/install-linux.sh`」，但发布到 crates.io 的包里没有 `script/` 目录，无法核对。
+- **`pre-commit` 钩子没有实际运行**：本机没有安装。`actionlint` 也没有运行。
+- **bash 5 下 `cd ""` 的行为**：本机只有 bash 3.2。
+- **「367 个前端测试」无法复现**：Node 工具链已删除。依据是 M1 的执行记录加上粗数（331 处 `it(` 加 4 处 `it.each`），量级吻合。
+- **ADR 0007 里「2026-11-23 至 25 日」的起始日**：那个分支已删除，只能确认运行日期是 11-25。
+- **「Dependabot 对 cargo 的更新在 `keyring` 上失败」**：这是历史事件，没有查；只核实了 feature 名确实变了。
+- **`gpui-kit` 要求 Rust 1.92**：来自其官方文档，crate 本身没有声明 `rust-version`。
+- **`plan.md` 的「基线 `004c9f4`（v0.11.0）」**：tag `v0.11.0` 实际指向 `04e8b6c`，`004c9f4` 在它之后 37 个提交。这半句在 `main` 上就有。
+- **审查中的假设与偏离**：
+  - 历史记录目录（`docs/tasks/`、`docs/design/`、`docs/pm/`、`docs/tech/planning/`、`.specify/`、`.claude/`）按任务说明排除在残留检查之外。
+  - `Makefile` 里的 cargo 命令不带 `--locked`，所以 `make check` 是通过注入 `--locked` 的包装脚本运行的。
+  - 有一条命令没有带 `--locked`：`cargo test --workspace --all-targets --no-run`，是创建包装脚本时出错导致的。事后核对 `Cargo.lock` 相对 `main` 仍只多那两行。
+  - 任务说不需要联网；审查者做了上面列出的 GitHub 只读查询，都是 GET，没有改变任何状态。
+
+---
+
+## 处理结果：M1b
+
+记录人：主会话（实现方），2026-11-25。🟡 八条全部处理；🟢 逐条给出结论；最后是处理过程中实现方自己另外发现并更正的几处，以及修复后的验证。
+
+### 🟡 一般问题
+
+| # | 问题 | 处理 | 状态 |
+|---|---|---|---|
+| 1 | `proxy.rs` 的注释多了一行重复 | 删掉重复的那一行。它是实现方上一轮编辑留下的 | 已修复 |
+| 2 | 两处把「尚未接线」写成了现状 | README 与技术选型总览改成「设计上在进程内调用，新应用尚未接入」；`use_cases.rs` 里 `AppContext` 的注释、`cmds.rs` 的模块注释同样改成设计约定的语气；README 的技术栈一行写明窗口壳还不读取这些文案 | 已修复 |
+| 3 | `bump-version.sh` 在非 git 目录不中止，不校验所在段，没有自检 | 重写。依次确认在仓库内、`cargo` 可用、`Cargo.lock` 与清单一致；只在 `[workspace.package]` 段内定位版本行；改完读回两个文件，锁文件里除版本行外有任何变化就还原并退出非零；多余参数被拒绝；临时目录建在仓库外并自动清理 | 已修复 |
+| 4 | 带前导零的版本被写入后才失败，且不回滚 | 正则拒绝前导零；改写前备份，之后任何一步失败都把 `Cargo.toml` 与 `Cargo.lock` 放回原样 | 已修复 |
+| 5 | 「只改版本号」有前提却不检查 | 改动前先跑 `cargo metadata --locked`，起点不干净就中止；改动后比对锁文件，只允许版本行从旧值变成新值 | 已修复 |
+| 6 | `merge` 对跨文件重复键静默覆盖；没有 `errors` 键的文件被跳过 | 两处都改成断言并报出文件与键 | 已修复 |
+| 7 | 改了语言文件不触发重新编译；测试 3 写死期望值 | 新增 `crates/gitwave/build.rs`，把语言文件的摘要作为给 rustc 的环境变量放进 crate 的指纹；测试改为把每条文案经 `t!` 读回与文件比对 | 已修复 |
+| 8 | MSRV 提到 1.95 的决策没有记录，且与 `windows-registry` 的注释矛盾 | 从根上处理，见下 | 已修复；Windows 上的编译由 PR #245 的 CI 验证通过 |
+
+第 3 到 5 条的验证：重写后的脚本在 `/tmp` 的一次性仓库里跑了 26 次。正常升级只改 `Cargo.toml` 一行与 `Cargo.lock` 里两行版本；同一版本重跑报告「已经在该版本」且不动文件；`v` 前缀与预发布号可用；9 种非法调用（前导零三种、`abc`、`1.2.3.4`、带 `+build`、空串、参数过多、无参数）都在动文件之前被拒；在无关项目的目录里运行时，那个项目的 `Cargo.toml` 原样未动；`[workspace.package]` 之前另有一行 `version` 时改的仍是正确的那一行；锁文件落后于清单时拒绝执行；`PATH` 里没有 `cargo`、清单的版本行带行尾注释、没有空格、用单引号、以 CRLF 结尾，这五种情况都拒绝且不改文件；用一个假的 `cargo` 模拟了「解锁文件时多写了一行」「那一步失败」「没有刷新锁文件」，三种都还原了两个文件并以非零退出。macOS 自带的 bash 3.2 下全部可运行。
+
+第 6、7 条的验证：在隔离副本上重做了变异实验，基线 5 个测试全过。
+
+| 变异 | 结果 |
+|---|---|
+| 同一个错误键出现在两个 `errors-*.json` 里 | 抓到：`two message files define errors.git.raw` |
+| 新增未列入 `LANGUAGES` 的 `app.ja.json` | 抓到 |
+| 非 errors 文件里出现 `errors` 树 | 抓到：`app.en.json carries an errors tree` |
+| 占位符名字带空格 `%{ detail }` | 抓到 |
+| 占位符没有闭合 | 抓到 |
+| 源码注释里出现 `pub const …` | 不再误报，5 个全过 |
+| `errors-*` 文件丢了顶层 `errors` 键 | 抓到 |
+| 只改 JSON、二进制没有重新编译 | 抓到（副本里去掉了 `build.rs`） |
+| zh-CN 的某条文案变成数字 | 抓到 |
+
+重编译本身在真实仓库里验证：只改 `app.en.json`、不碰 `main.rs`，`cargo test` 重新编译了 `gitwave`，而那条逐条比对的测试通过，说明内嵌值已更新。只 `touch` 而内容不变时也会重新编译一次，这是 cargo 在 build script 重跑后的固有行为，代价是这个很小的 crate 多编译一次。
+
+第 8 条的处理。读了 registry 里 `windows-registry` 0.6.1 与 0.100.0 的源码：调用处（`proxy.rs` 探测系统代理）用到的 `CURRENT_USER`、`Key::open`、`get_u32`、`get_string` 在两个版本里签名相同，`open`、`get_u32`、`get_string` 的实现没有变化，0.100.0 只有新增（`get_bytes`、WOW64 选项等）和随新版 `windows` crate 改名的类型别名。于是把 `gitwave-core` 在 Windows 上的直接依赖从 `"0.100"` 改成 `"0.6"`：改后 `gitwave-core`、`hyper-util`、`gpui-pre-windows` 三者共用 0.6.1，锁文件少了 `windows-link`、`windows-registry` 0.100.0、`windows-result` 0.100.0、`windows-strings` 0.100.0 四个包，全图声明最高的最低版本回到 1.92（`oo7` 0.6.0，GPUI Kit 的 Linux 平台层带进来的），workspace 的 `rust-version` 保持 `1.92`。那句注释改为事实。本机无法编译 Windows 目标，编译结果由本分支的 Windows CI 给出；失败则退回 0.100 与 1.95。
+
+### 🟢 优化建议
+
+| 建议 | 处理 | 状态 |
+|---|---|---|
+| 占位符出现次数不同 | 没有改。同一条文案里重复提到同一个名字是合法的，沿袭自 i18next 版的测试比较的也是名字的集合 | 不改 |
+| 新增语种未列入 `LANGUAGES` | 新增一条测试：磁盘上的语种必须与 `LANGUAGES` 完全一致 | 已修复 |
+| 非 errors 域文件里的孤儿 `errors.*` | `errors()` 遍历所有域名：只有 `errors-*` 文件可以带 `errors` 树，而且必须带 | 已修复 |
+| `%{ detail }` 与未闭合的 `%{` | 占位符名只能是字母、数字、下划线，且必须闭合 | 已修复 |
+| 注释里的 `pub const` 被当成常量 | 只认以 `pub const ` 开头的行 | 已修复 |
+| `locales.rs` 与 README 把未接线的文案写成现状 | 改为「要由代码选择」「窗口壳还不读取」 | 已修复 |
+| `main.rs` 关于 `t!` 的注释不精确 | 改为「`t!` 转发到这次调用在 crate 根定义的宏」 | 已修复 |
+| `remote.rs` 的 "Empty when constructed; always stamped before emit." | 删掉这句与事实不符的话 | 已修复 |
+| `use_cases.rs`、`cmds.rs` 的时态 | 见 🟡 第 2 条 | 已修复 |
+| `proxy.rs`、`remote.rs` 提到 updater 插件 | 模块注释改为只列现存的三条出站路径；另一处改为 "only the reqwest clients honored them" | 已修复 |
+| PR 模板注释里的 "lint / test / build" | 改为 "CI green" | 已修复 |
+| 工程总览的 `*.md` 与 TLS 断言条数；计划里「三端 CI 上运行」的说法 | 改为 `**.md`、两条断言；计划写明 rustfmt 只在 Ubuntu 上检查 | 已修复 |
+| 「无头窗口测试随 M2 起」但 M2 的定义里没有这一项 | 写进 M2 的实施内容 | 已修复 |
+| `.gitattributes` 里的 `package-lock.json` 等模板残留 | 没有改。这几行是通用模板，从来不是本项目专用的；只删掉了指向本项目已删除文件的 `pnpm-lock` 两行 | 不改 |
+| `bump-version.sh` 忽略多余参数、可能残留 `.tmp` | 见 🟡 第 3 条 | 已修复 |
+| pre-commit 的 clippy 没带 `--locked` | 加上，与 CI 一致 | 已修复 |
+| dependabot 对 `keyring` 的 ignore 目前不起作用 | 配置保留。计划里「Dependabot 在 `keyring` 上失败」这句在 GitHub 上找不到任何证据（没有相关的 PR 或运行），改写成能核实的说法：4.x 改了 feature 名，当前清单要求 `3`，这条忽略只是声明意图 | 已修改 |
+| 合并后关闭 4 个 npm 的 dependabot PR | 合并后先看 Dependabot 是否自动关闭 | 待办 |
+| `branches.irebase.*` 的拼写 | 写进计划的 M2 设计输入。核对过：新旧文件里各 20 个这样的键，集合相同 | 已记录 |
+
+### 处理过程中另外发现并更正的
+
+- `ci.yml` 的注释把 `libxcb-shape0-dev` 与 `libxcb-xfixes0-dev` 归为「Zed 的 Linux 构建清单」。核对上游：Zed 的 `script/linux` 里没有这两个包；锁文件里 860 个 crate 没有一个提到 xcb 的 shape 或 xfixes。它们是 M1 审查建议补上的，当时写明是推测。去掉这两个包，注释改为与 GPUI Kit 的 [`install-linux.sh`](https://github.com/longbridge/gpui-kit/blob/main/script/install-linux.sh) 逐项对应并附上链接，README 的清单同步。PR #245 的 Ubuntu 任务在没有它们的环境里装依赖、编译并链接通过。
+- 发布技能里「README and the site describe v0.11.0 and stay as they are」与重写后的 README 不符，已改。
+- 计划状态行「基线 `004c9f4`（v0.11.0）」：`v0.11.0` 标签指向 `04e8b6c`，`004c9f4` 在其后 37 个提交。改为「v0.11.0 发布后的 `main`」。
+- 「Rust 1.92 受 GPUI Kit 约束」这句话，实现方一度因为找不到依据而删掉。核对上游后确认依据存在，只是在依赖树里而不在文档里：GPUI Kit 自己不声明最低版本，仓库里也没有工具链文件，它依赖树里声明最高的是 Linux 平台层带进来的 `oo7` 0.6.0（1.92）。工程约定按这个说法重写。
+
+### 对「没有验证的」的回应
+
+- 三端托管 CI、Linux 依赖清单是否够用：PR #245 三端全部通过，结果回写到了 plan 的执行记录。
+- Linux 清单注释引用的上游脚本：已核对并附链接。
+- `pre-commit`、`actionlint` 没有运行：实现方这边同样没有安装，没有擅自安装。`make check` 跑的是钩子里那两条命令。
+- bash 5 下 `cd ""`：脚本现在显式检查 `git rev-parse` 的结果，这个问题不再存在。
+- ADR 0007 的起始日 11-23：依据是本地归档标签 `archive/nsgo-native-ui` 里的 `7991e57`（2026-11-23，NSGo history workbench preview）和 `74d42aa`（2026-11-25，迁移提交）。
+- `gpui-kit` 要求 Rust 1.92：上游没有这样的声明，见上一节最后一条。
+- 审查过程中那次没带 `--locked` 的命令：知悉。它没有改动 `Cargo.lock`；这之后锁文件又被有意修改过一次，见 🟡 第 8 条。
+
+### 修复后的验证
+
+`make check` 通过：`cargo fmt --all -- --check` 无差异，clippy 没有输出，`gitwave` 5 个测试，`gitwave-core` 394 个通过、2 个忽略。改动过的 12 份 Markdown 里 61 处相对链接与锚点全部有效。`ci.yml`、`dependabot.yml`、`.pre-commit-config.yaml` 可解析。`bump-version.sh` 通过 `bash -n`。应用构建并启动 8 秒无崩溃。
