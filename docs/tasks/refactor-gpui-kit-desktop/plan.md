@@ -113,3 +113,9 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
   - 验证：`make check` 通过（`gitwave` 5 个测试，`gitwave-core` 394 个通过、2 个忽略）；应用构建并启动 8 秒无崩溃；`bump-version.sh` 在 `/tmp` 的一次性仓库里跑了 26 次，含 3 条回滚路径。本机没有 `pre-commit`，钩子没有实际运行过。
 
 - 2026-11-25 · 首次托管 CI（PR #245，提交 `fa57247`）：`Rust (ubuntu-latest)`、`Rust (macos-latest)`、`Rust (windows-latest)` 全部通过，用时 Ubuntu 1 分 8 秒、macOS 2 分 20 秒、Windows 3 分 16 秒。三端的 clippy 都没有输出，`gitwave` 5 个测试、`gitwave-core` 394 个通过、2 个忽略。Windows 任务重新编译了 `gitwave-core`，Windows 上探测系统代理的代码在 `windows-registry` 0.6.1 下编译、链接通过。Ubuntu 任务只装了清单上的 14 个包，日志里没有 `libxcb-shape0-dev` 与 `libxcb-xfixes0-dev`，依赖和两个测试二进制都完成了链接。上面两处改动都不需要回退。三端都快，是因为 rust-cache 按 restore-key 命中了上一次的缓存，依赖的编译产物被复用。
+- 2026-11-25 · M2 切片一（分支 `feature/gpui-kit-app-shell`，基于合并了 M0 / M1 的 `main`）：
+  - tokio 运行时桥接（`crates/gitwave/src/runtime.rs`）。应用状态默认放在内存里，不读写磁盘：core 新增 `AppContext::in_memory()`，等应用具备接管真实数据的能力再切换。
+  - 应用菜单（GitWave、编辑、查看、窗口）用同一份定义同时接入 macOS 的系统菜单栏和标题栏内的 `AppMenuBar`；浅色 / 深色切换；一个带多行输入框的设置对话框，用来实测输入法。
+  - 验证：五个无头测试通过，覆盖运行时桥接（任务在 tokio 线程上执行并返回结果、任务 panic 转为错误）、状态栏端到端读出 core 的工作区数量、`⌘,` 打开设置对话框、切换外观后「查看」菜单的勾选项更新。`cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings` 通过；应用在 macOS 上启动运行无崩溃；Tauri 一侧对 core 的测试和 clippy 通过。
+  - 测试查出一个真实缺陷：窗口打开后没有任何元素获得焦点，而 GPUI 的按键和动作是从聚焦元素向上派发的，工作台上的监听器收不到。也就是说 M0 骨架里的 `⌘Q` 实际是失效的，当时只验证了启动不崩溃，没有验证交互。现已让工作台在窗口打开时获得焦点，并由上面的测试覆盖。
+  - 未完成：语言切换（等文案来源确定）；「进入全屏」菜单项（这个版本的 gpui 没有对应方法）；系统菜单栏和对话框的实际显示、中文输入法需要人工验证，本机终端没有录屏权限，无法截图。

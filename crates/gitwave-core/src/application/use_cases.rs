@@ -150,6 +150,28 @@ impl AppContext {
         }
     }
 
+    /// A context whose stores live in memory only, so nothing on disk is read
+    /// or written. For a presentation layer that is not ready to touch the
+    /// user's state yet.
+    pub fn in_memory() -> Result<Self> {
+        use crate::infrastructure::persistence::{
+            migrations, SqliteAppSettingsRepo, SqliteWorkspaceRepo,
+        };
+
+        let conn = rusqlite::Connection::open_in_memory().map_err(|e| {
+            AppError::unknown_with(
+                codes::infra::SQLITE_ERROR,
+                format!("sqlite: {e}"),
+                &[("error", e.to_string())],
+            )
+        })?;
+        migrations::apply(&conn)?;
+        Ok(Self::new(
+            Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
+            Arc::new(Mutex::new(SqliteAppSettingsRepo::open_in_memory()?)),
+        ))
+    }
+
     /// Open a Repository for the given repo path (no caching — git2::Repository
     /// is !Sync so can't be stored in shared state).
     #[allow(dead_code)]
@@ -3107,6 +3129,16 @@ mod tests {
     use crate::infrastructure::persistence::migrations;
     use rusqlite::Connection;
     use std::fs;
+
+    #[test]
+    fn in_memory_context_starts_with_no_workspaces() {
+        let ctx = AppContext::in_memory().expect("in-memory context");
+        assert!(list_workspaces(&ctx).expect("list workspaces").is_empty());
+        assert_eq!(
+            get_proxy_settings(&ctx).expect("get"),
+            ProxySettings::default()
+        );
+    }
 
     #[test]
     fn proxy_settings_unset_falls_back_to_default() {

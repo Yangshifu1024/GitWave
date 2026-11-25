@@ -14,8 +14,11 @@ name = "gitwave"
 path = "src/main.rs"
 
 [dependencies]
+gitwave-core.workspace = true
 gpui-kit.workspace = true
 rust-i18n.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support"] }
 serde_json = "1"

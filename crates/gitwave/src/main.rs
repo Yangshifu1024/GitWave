@@ -1,7 +1,10 @@
 // Prevents an additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_state;
 mod locales;
+mod menus;
+mod runtime;
 mod workbench;
 
 // rust-i18n reads `locales/<domain>.<locale>.json` at compile time. `t!` forwards
@@ -19,7 +22,10 @@ fn main() {
         .run(|cx| {
             // This must be called before using any GPUI Component features.
             gpui_kit::init(cx);
+            runtime::init(cx);
+            app_state::init(cx);
             workbench::init(cx);
+            let app_menu_bar = menus::init(cx);
 
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::centered(None, size(px(1200.), px(800.)), cx)),
@@ -30,7 +36,7 @@ fn main() {
             // Opens a window with a `Root` wrapping the view, so dialogs, sheets,
             // notifications and menus work in it.
             gpui_kit::open_window(options, cx, |window, cx| {
-                cx.new(|cx| Workbench::new(window, cx))
+                cx.new(|cx| Workbench::new(app_menu_bar, window, cx))
             })
             .expect("Failed to open the GitWave window");
             cx.activate(true);
