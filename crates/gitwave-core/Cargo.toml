@@ -22,7 +22,7 @@ thiserror = "2"
 
 # persistence + git backend
 dirs = "7"
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 # Image diff previews (F016): blob bytes are encoded as base64.
 base64 = "0.23"
 # `ssh` compiles the libssh2 transport into vendored libgit2 — without it
