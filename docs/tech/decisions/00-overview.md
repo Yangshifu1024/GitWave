@@ -12,6 +12,7 @@
 | 0004 | AI 双轨：写 = 确定性，建议 = AI | 已采纳 |
 | 0005 | 前端 UI 库栈：Tailwind v4 + HeroUI v3 + Lucide（原 Radix，见修订） | 已采纳 |
 | 0006 | i18n 架构：react-i18next + 错误 key 化 | 已采纳 |
+| [0007](#0007--桌面界面迁移到-gpui-kit) | 桌面界面迁移到 GPUI Kit | 已采纳，实施中 |
 
 ---
 
@@ -242,3 +243,40 @@ history 与 text diff 均为固定行高，改用 `useFixedVirtualizer`：`useSy
 - `docs/pm/features/F010-i18n.md`：功能提案
 - `docs/tasks/feat-i18n/plan.md`：实施计划与 key 命名约定
 - `docs/tech/engineering/00-overview.md` §错误处理与日志：错误文案策略由「前端渲染 friendly text」细化为「前端按 code 翻译」
+
+---
+
+## 0007 · 桌面界面迁移到 GPUI Kit
+
+### 上下文
+
+- ADR 0001 的 Tauri 2 + Rust core 与 ADR 0005 的 React 前端交付了 v0.1 到 v0.11.0。代价是两套工具链（Rust 与 Node.js）、WebView 进程与 IPC 边界，以及三个平台各不相同的 WebView 渲染与输入行为。
+- 2026-11-24 至 25 日尝试过整体迁移到 Go + NSGo。该方案的界面框架只有五周历史，选型时没有留下备选对比，托管 CI 从未运行过，合并前暴露问题后放弃，分支已移除。
+- 用户要求把应用改为不依赖 Tauri、WebView 与 Node.js 前端的纯 Rust 应用，界面采用 GPUI Kit。
+- 选型依据见 `docs/tech/tech-selection/gpui-kit-research.md`。
+
+### 备选
+
+- **继续使用 Tauri 2 + React**：已交付且稳定，功能完整。否决的原因是它保留 Node.js 工具链、WebView 与 IPC 边界，正是这次要消除的部分。
+- **Go + NSGo**：纯 Go，单一二进制。否决：框架过新且维护集中；Go 生态没有能覆盖 rebase、stash、LFS、reflog 与三方合并的 Git 实现，迁移只能连后端一起重写。
+- **GPUI Kit**（Longbridge 维护，Apache-2.0，底层是 Zed 的 GPUI）：纯 Rust，单一二进制，没有 WebView。组件覆盖工作台需要的大部分能力，有出货中的三端商业应用。代价是仍为 0.x、每个小版本都带破坏性变更，不提供打包、签名与自动更新，性能与中文输入法在目标场景下尚无实测。
+- **其它 Rust 界面框架**（Iced、Slint、egui、Dioxus 等）：本次未做调研，不作结论。
+
+### 决策
+
+- 用 GPUI Kit 重写界面，应用成为纯 Rust 程序。Rust 后端的领域、应用、基础设施三层保留，抽成独立 crate，由界面在进程内直接调用，不再经过 IPC。
+- GPUI Kit 的版本精确钉死。升级是独立的任务，不随 `cargo update` 发生。
+- 迁移期间 Tauri 版继续作为发布版本。GPUI Kit 版达到功能对等、三端验收通过并建好发布链路后切换，届时移除 Tauri 与 Node.js 前端，ADR 0001、0005、0006 随之废弃。
+- 用户选择不做前置原型，直接按里程碑重写。作为补偿，最没有把握的部分排在最前面，三端 CI 从第一个里程碑开始运行。
+- 实施计划、验收与风险见 `docs/tasks/refactor-gpui-kit-desktop/plan.md`。
+
+### 后果
+
+- **正面**：单一工具链与单一二进制；没有 IPC 序列化与 WebView 差异；后端约 2.6 万行 Rust 原样保留。
+- **负面**：约 2.45 万行 TypeScript 界面及其 5.9 千行测试要重写且无法迁移；Tauri 提供的出包、签名公证、带签名更新要整体重建；迁移期间两套应用并存。
+- **风险**：上游 API 每一到两周一次破坏性变更；冷启动与数万 commit 的性能没有证据；macOS 拼音候选窗与 Windows 平台层有未关闭的问题；无障碍仅为部分支持；macOS 最低系统版本可能抬高。
+
+### 关联
+
+- `docs/tech/tech-selection/gpui-kit-research.md`：调研笔记（一手来源与风险清单）
+- `docs/tasks/refactor-gpui-kit-desktop/plan.md`：里程碑、验收与执行记录

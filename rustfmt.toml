@@ -1,0 +1,9 @@
+max_width = 100
+reorder_imports = true
+newline_style = "Unix"
+
+# Unstable features (require nightly Rust) — leave commented until we move
+# to nightly or until they stabilize.
+# imports_granularity = "Crate"
+# format_code_in_doc_comments = true
+# format_strings = true
