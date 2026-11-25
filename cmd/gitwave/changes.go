@@ -240,10 +240,13 @@ func (w *workbench) cancelChangeDiff() {
 }
 
 func (w *workbench) showChanges(active bool) {
-	if w.path.Get() == "" || active == w.changesMode.Get() {
+	if w.path.Get() == "" {
 		return
 	}
 	w.focus.Set(false)
+	if active == w.changesMode.Get() {
+		return
+	}
 	w.closeBlame()
 	w.changesMode.Set(active)
 	if !active {

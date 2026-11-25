@@ -11,13 +11,13 @@
 ## Branch + commit conventions
 
 - Branch from `main`: `feature/<name>` or `fix/<name>`
-- Commit messages: [Conventional Commits](https://www.conventionalcommits.org/) — enforced by `commitlint` via `pre-commit` hook
+- Commit messages: [Conventional Commits](https://www.conventionalcommits.org/)
 - Merge into `main` with a merge commit (no squash); branch commits follow Conventional Commits
 - AI agents must not commit / push / merge without explicit user instruction
 
 ## Local quality gates
 
-The Go desktop preview uses the root Go module. Its desktop command is `cmd/gitwave`, including the NSGo configuration. Use Git 2.46 or newer and put `git-lfs` on `PATH` for the Git fixtures.
+The desktop app uses the root Go module. Its desktop command is `cmd/gitwave`, including the NSGo configuration. Use Git 2.46 or newer and put `git-lfs` on `PATH` for the Git fixtures.
 
 ```bash
 make check      # Go formatting, go vet, and Go tests.
@@ -28,17 +28,11 @@ go -C cmd/gitwave tool nsgo test -target macos -run '^TestNativeCommandPaletteAI
 
 `make fmt-check`, `make lint` and `make test` run the three checks individually. The Go tests cover the verified legacy behavior for History, diff, blame, the staging index, commits, discard and repository health.
 
-### Tauri preference exporter
-
-Run `make legacy-check` for exporter changes. It runs the Rust and frontend format, lint, type and test checks. Its individual targets are `make legacy-fmt-check`, `make legacy-lint` and `make legacy-test`.
-
-The exporter CI runs when its source, build inputs or the shared SQLite migrations change. Go source changes run through the Go desktop workflow.
-
 ### Pre-commit hooks
 
-The pre-commit configuration checks changed Go sources with gofmt and retains the Rust and frontend hooks for exporter files. `pre-commit run --all-files` runs all source hooks, including the exporter hooks. The commit message hook uses commitlint.
+The pre-commit hook checks changed Go sources with gofmt. Run `pre-commit install` to enable it and `pre-commit run --all-files` to check all Go sources. After switching from the old toolchain, run `pre-commit uninstall --hook-type commit-msg` if you installed the old commit-message hook.
 
-Review documentation changes by hand. Markdown is outside the source format checks.
+Review documentation changes by hand. Check Conventional Commits and Markdown by hand.
 
 ## PR checklist
 

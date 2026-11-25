@@ -81,10 +81,16 @@ func (w *workbench) submitMergeAbort() {
 				failed := *prompt
 				failed.plan, failed.failure = nil, changesWriteError(err)
 				w.mergeAbort.Set(&failed)
+				if prompt.plan.SavesAutostash() {
+					w.loadStashes()
+				}
 			} else {
 				w.closeMergeAbort()
 				w.closeConflicts()
 				notice := w.tr("Merge aborted", "合并已中止")
+				if prompt.plan.SavesAutostash() {
+					notice = w.tr("Merge aborted · Autostash saved to Stashes", "合并已中止 · 自动贮藏已保存至贮藏列表")
+				}
 				if warning != nil {
 					notice += " · " + warning.Error()
 				}
@@ -141,6 +147,12 @@ func (w *workbench) mergeAbortDialog(chrome palette) core.Node {
 				}
 				if prompt.checking {
 					return chrome.label(w.tr("Checking merge…", "正在检查合并…"), chrome.muted, 12)
+				}
+				if prompt.plan != nil && prompt.plan.SavesAutostash() {
+					return core.Text{Content: w.tr(
+						"Changes saved by Git before the merge will be kept in Stashes. You can restore them after aborting.",
+						"Git 在合并前保存的改动会保留在贮藏列表中。中止后可手动恢复。"),
+						Style: core.Style{Color: chrome.text, FontSize: chrome.uiSize(12)}}
 				}
 			}
 			return core.View{Style: core.Style{Display: core.DisplayNone}}

@@ -5,15 +5,12 @@
 # Force text for source / config files (prevents git from mis-detecting as binary)
 *.md    text eol=lf
 *.json  text eol=lf
-*.ts    text eol=lf
-*.tsx   text eol=lf
 *.js    text eol=lf
-*.jsx   text eol=lf
 *.css   text eol=lf
 *.html  text eol=lf
 *.yml   text eol=lf
 *.yaml  text eol=lf
-*.rs    text eol=lf
+*.go    text eol=lf
 *.toml  text eol=lf
 *.sql   text eol=lf
 *.xml   text eol=lf
@@ -26,13 +23,6 @@
 
 # Lock files must NOT be normalized (changing EOL can break tooling)
 *.lock            -text
-package-lock.json -text
-pnpm-lock.yaml    -text
-pnpm-lock.yml     -text
-yarn.lock         -text
-Cargo.lock        -text
-composer.lock     -text
-Gemfile.lock      -text
 
 # Explicit binary declarations (do not touch)
 *.png   binary

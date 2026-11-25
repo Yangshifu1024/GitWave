@@ -7,6 +7,86 @@ import (
 	"testing"
 )
 
+func TestMergeAbortPreservesExternalAutostashAndIndependentEdits(t *testing.T) {
+	for _, format := range []string{"files", "reftable"} {
+		t.Run(format, func(t *testing.T) {
+			dir, repo, _, target := mergeFixture(t, true, true, "--ref-format="+format)
+			writeFixture(t, dir, "previous.txt", "previous stash\n")
+			fixtureGit(t, dir, "stash", "push", "-u", "-m", "Previous stash")
+			previous := gitValue(t, dir, "rev-parse", "refs/stash")
+			writeFixture(t, dir, "mixed.txt", "before merge staged\n")
+			fixtureGit(t, dir, "add", "--", "mixed.txt")
+			writeFixture(t, dir, "mixed.txt", "before merge unstaged\n")
+			fixtureConflict(t, dir, "merge", "--autostash", "feature")
+			autostash := gitValue(t, dir, "rev-parse", "MERGE_AUTOSTASH")
+
+			// Both the old staged/worktree versions and local changes made
+			// during the merge must survive, even when they share a path.
+			writeFixture(t, dir, "mixed.txt", "during merge staged\n")
+			fixtureGit(t, dir, "add", "--", "mixed.txt")
+			writeFixture(t, dir, "mixed.txt", "during merge unstaged\n")
+			plan, err := repo.PrepareMergeAbort(t.Context())
+			if err != nil || !plan.SavesAutostash() {
+				t.Fatalf("prepare autostash abort: %v", err)
+			}
+			if warning, err := plan.Apply(t.Context()); err != nil || warning != nil {
+				t.Fatalf("abort: %v, warning: %v", err, warning)
+			}
+			if got := gitValue(t, dir, "rev-parse", "HEAD"); got != target.OID {
+				t.Fatalf("abort changed HEAD: %s", got)
+			}
+			if current := readFixtureStatus(t, repo); current.Commit != (CommitState{}) {
+				t.Fatalf("operation state remains: %+v", current.Commit)
+			}
+			entries, err := repo.Stashes(t.Context())
+			if err != nil || len(entries) != 2 || entries[0].OID != autostash || entries[1].OID != previous {
+				t.Fatalf("stash stack: %+v, %v", entries, err)
+			}
+			for spec, want := range map[string]string{
+				":mixed.txt":               "during merge staged",
+				autostash + "^2:mixed.txt": "before merge staged",
+				autostash + ":mixed.txt":   "before merge unstaged",
+			} {
+				if got := gitValue(t, dir, "show", spec); got != want {
+					t.Errorf("%s = %q, want %q", spec, got, want)
+				}
+			}
+			if got, err := os.ReadFile(filepath.Join(dir, "mixed.txt")); err != nil || string(got) != "during merge unstaged\n" {
+				t.Fatalf("working copy = %q, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestMergeAbortDoesNotDuplicateSavedAutostash(t *testing.T) {
+	for _, format := range []string{"files", "reftable"} {
+		t.Run(format, func(t *testing.T) {
+			dir, repo, _, _ := mergeFixture(t, true, true, "--ref-format="+format)
+			writeFixture(t, dir, "mixed.txt", "saved independently\n")
+			other := gitValue(t, dir, "stash", "create", "another entry")
+			writeFixture(t, dir, "mixed.txt", "saved before merge\n")
+			fixtureConflict(t, dir, "merge", "--autostash", "feature")
+			autostash := gitValue(t, dir, "rev-parse", "MERGE_AUTOSTASH")
+
+			// Simulate a restart after storing the snapshot, then another
+			// process appending a distinct entry before the abort is retried.
+			fixtureGit(t, dir, "stash", "store", "-m", "On merge abort: autostash", autostash)
+			fixtureGit(t, dir, "stash", "store", "-m", "another entry", other)
+			plan, err := repo.PrepareMergeAbort(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if warning, err := plan.Apply(t.Context()); err != nil || warning != nil {
+				t.Fatalf("retry abort: %v, warning: %v", err, warning)
+			}
+			entries, err := repo.Stashes(t.Context())
+			if err != nil || len(entries) != 2 || entries[0].OID != other || entries[1].OID != autostash {
+				t.Fatalf("stash stack after retry: %+v, %v", entries, err)
+			}
+		})
+	}
+}
+
 func TestMergeAbortKeepsIndependentChanges(t *testing.T) {
 	for _, external := range []bool{false, true} {
 		name := "native merge"

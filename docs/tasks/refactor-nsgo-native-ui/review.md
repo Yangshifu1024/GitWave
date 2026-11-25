@@ -1,5 +1,15 @@
 # GitWave 原生工作台预览审查
 
+## 2026-11-25 · 工作台分支状态与旧工具链退役
+
+按 v0.11.0 恢复 History 和 Changes 工具栏里的上游与分歧计数，分离 HEAD 显示短 SHA。外部切换分支后，工具栏、底部状态栏与 Pull 使用工作副本刷新所得的检出状态。重选当前工作区会恢复 diff 专注布局隐藏的分栏。AppKit 夹具覆盖 1024 点窗口、隐藏导航、再次选择 Changes、分离 HEAD、刷新后的 Pull 目标和取消。
+
+外部 `git merge --autostash` 中止前先把原始快照保存至贮藏列表，再清理合并引用并恢复合并所改动的路径。合并期间新增的独立编辑留在索引和工作树。原始快照支持手动恢复，保留合并前的暂存与未暂存版本。files 和 reftable 的独立复核覆盖已存在的贮藏、竞态导致历史项丢失、被替换的引用，以及保存后中止失败的重试。 [Git 回归](../../../internal/gitcli/merge_abort_test.go) [原生窗口回归](../../../cmd/gitwave/merge_test.go)
+
+在移除旧工具链的干净源码上，`make build` 通过 Go 格式检查、静态分析、全量测试和 NSGo 构建。macOS CI 所列的 26 项 AppKit 原生用例全部通过，包含 495 条变更、窄栏及长行 diff、设置、菜单、子模块、退出和恢复。最终代码另外通过 7 项冲突、Rebase、Pull、Push、Stash 和 Worktree 原生用例，新增的 3 项原生用例也已复跑。macOS arm64 应用通过本地 ad hoc 签名严格校验，Windows 与 Linux x64 Go 交叉构建通过。 [原生门禁](../../../.github/workflows/go-desktop.yml)
+
+当前分支移除了 Tauri/Rust/React/pnpm 源码、构建入口与 CI。偏好导出版的完整源码、锁文件和标签工作流保存在 [`e175c65`](https://github.com/Yangshifu1024/GitWave/commit/e175c657d1516cd9b06f8ad7b973097613c0d001)。正式签名与公开升级按发布计划另行验收。 [导出版流程](./plan.md#偏好导出版检查点)
+
 ## 2026-11-25 · 文本 diff 窄栏与长行
 
 在 307 点宽的提交 diff 中复现截断提示把「加载更多内容」推到面板外。工具栏和提示现在会换行，扩展预览仍超限时显示上限提示。可用的工作树文件同时提示在编辑器中打开。

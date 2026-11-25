@@ -56,46 +56,25 @@ make build      # Run the checks and build the native preview for this host.
 
 Use `go run ./cmd/prepare-unix-setup -out <directory>` on the supported macOS or Linux build host to create preview installers with bundled Git. The [Go desktop workflow](./.github/workflows/go-desktop.yml) documents the three-platform build and package checks.
 
-## Tech stack in v0.11.0
+## Technology
 
-- **Frontend:** React 19 + TypeScript 6 + Vite 8, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query
-- **Backend:** Rust + [Tauri 2](https://tauri.app), clean-architecture layers (`domain` / `application` / `infrastructure`), `git2` (vendored libgit2 + libssh2 + OpenSSL) — no system Git dependency
-- **Testing:** Vitest (unit and React Testing Library/jsdom component behavior); Playwright end-to-end tests have a script but no suite yet
+GitWave development uses Go and NSGo to build the native desktop app. It uses Git CLI and Git LFS for repository operations, SQLite for Workspace data, and operating-system credential stores for secrets. [Architecture](./docs/tech/architecture/00-overview.md)
 
-## Tauri preference exporter development
-
-Prerequisites:
-
-- Rust stable ([rustup](https://rustup.rs))
-- Node.js 22 (the version CI uses)
-- macOS: Xcode command line tools (`xcode-select --install`)
-- Linux: `webkit2gtk-4.1-dev`, `build-essential`, `cmake`, `curl`, `wget`, `file`, `libssl-dev`, `libxdo-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`
-- Windows: WebView2 runtime + MSVC build tools
-
-```bash
-pnpm install
-make legacy-dev
-make legacy-check
-make legacy-build
-```
-
-See the local checks and pre-commit hooks in [CONTRIBUTING.md](./CONTRIBUTING.md).
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local checks and hooks.
 
 ## CI
 
 Workflows live in `.github/workflows/`:
 
 - **Go desktop** — validates the root Go module and builds NSGo preview installers on macOS, Linux and Windows
-- **lint / test** — on every push to `main` and every PR: `rust-lint` + `frontend-lint`, `rust-test` + `frontend-test`, each on a macOS / Ubuntu / Windows matrix. Pure-documentation changes (`site/**`, `docs/**`, `**.md`) are skipped
-- **Tauri preference exporter release** — runs manually on the exporter tag, verifies each installer signature and generates `latest.json` in the draft
 - **Go desktop release** — runs manually from `main`, assembles the verified NSGo installers and all three update manifests, and optionally creates a draft for the matching existing tag
 - **pages** — deploys `site/` to GitHub Pages on push to `main`
 
 ### Cutting a release
 
-For the Tauri preference exporter, use `pnpm bump <x.y.z>` to update the Tauri and frontend versions. After creating the release tag, run **Tauri preference exporter release** on that tag. Wait for **Verify preference exporter update feed**, then review the draft installers and `latest.json` before publishing.
-
 For a Go release, set the application version with `make bump VERSION=X.Y.Z` and confirm it with `make version`. Run **Go desktop release** from `main` with the release, exporter, and first Go bridge versions. To create a draft, use a release version that matches `cmd/gitwave/nsgo.yaml` and a release tag that points to the selected `main` commit. Wait for **Create and verify a draft for the verified tag** to confirm the uploaded files match the assembled release, then review and publish in GitHub Releases. [Signing and upgrade details](./docs/tasks/refactor-nsgo-native-ui/plan.md#三端包装更新与回退)
+
+The one-time preference exporter builds from a preserved source checkpoint. Its release steps are in the [migration plan](./docs/tasks/refactor-nsgo-native-ui/plan.md#三端包装更新与回退).
 
 Per AGENTS.md, **AI agents must not commit / push / merge** — humans gate every change to `main`.
 

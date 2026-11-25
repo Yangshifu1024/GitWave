@@ -48,10 +48,16 @@ func (r *Repository) PrepareMergeAbort(ctx context.Context) (*MergeAbortPlan, er
 	if !validOID(status.HeadOID) || status.Commit.MergeHeads == "" {
 		return nil, fmt.Errorf("there is no merge in progress")
 	}
-	if status.Commit.Continuation != "" {
+	if status.Commit.Continuation != "" && status.Commit.Continuation != mergeAutostashOperation {
 		return nil, fmt.Errorf("cannot abort this merge while %s is active", status.Commit.Continuation)
 	}
 	p := &MergeAbortPlan{repo: r, local: CheckoutTarget{Ref: status.HeadRef, OID: status.HeadOID}, state: status.Commit}
+	if p.SavesAutostash() {
+		snapshot, err := r.readCommitHeader(ctx, p.state.MergeAutostash)
+		if err != nil || len(snapshot.parents) != 2 || snapshot.parents[0] != p.local.OID {
+			return nil, errors.Join(err, fmt.Errorf("MERGE_AUTOSTASH is not a snapshot of this checkout"))
+		}
+	}
 	if p.original, err = r.exactRootRef(ctx, "ORIG_HEAD"); err != nil {
 		return nil, err
 	}
@@ -96,6 +102,8 @@ func (r *Repository) PrepareMergeAbort(ctx context.Context) (*MergeAbortPlan, er
 	}
 	return p, nil
 }
+
+func (p *MergeAbortPlan) SavesAutostash() bool { return p.state.MergeAutostash != "" }
 
 func (p *MergeAbortPlan) mergePaths(ctx context.Context, git *workingGit) (map[string]string, error) {
 	tree := p.autoTree
@@ -304,7 +312,7 @@ func (p *MergeAbortPlan) verify(ctx context.Context, git *workingGit, gitDir *os
 	if state != p.state {
 		return fmt.Errorf("the merge changed since it was shown")
 	}
-	for _, ref := range []struct{ name, oid string }{{"ORIG_HEAD", p.original}, {"AUTO_MERGE", p.autoTree}, {"MERGE_AUTOSTASH", ""}} {
+	for _, ref := range []struct{ name, oid string }{{"ORIG_HEAD", p.original}, {"AUTO_MERGE", p.autoTree}, {"MERGE_AUTOSTASH", p.state.MergeAutostash}} {
 		current, err := p.repo.exactRootRef(ctx, ref.name)
 		if err != nil || current != ref.oid {
 			return errors.Join(err, fmt.Errorf("%s changed since the merge was shown", ref.name))

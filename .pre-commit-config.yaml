@@ -2,8 +2,6 @@
 # Install: pre-commit install --install-hooks
 # Run manually: pre-commit run --all-files
 
-# Stages to install; commit-msg enables Conventional Commits via commitlint.
-default_install_hook_types: [pre-commit, commit-msg]
 default_stages: [pre-commit]
 
 repos:
@@ -14,37 +12,3 @@ repos:
         entry: bash scripts/go-format.sh
         language: system
         files: ^(cmd|internal)/.*\.go$
-
-      - id: cargo-fmt
-        name: cargo fmt
-        entry: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-        language: system
-        types: [rust]
-        pass_filenames: false
-
-      - id: cargo-clippy
-        name: cargo clippy
-        entry: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-        language: system
-        types: [rust]
-        pass_filenames: false
-
-      - id: prettier-check
-        name: prettier check
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install prettier --check .'
-        language: system
-        types_or: [ts, tsx, javascript, css]
-        pass_filenames: false
-
-      - id: eslint
-        name: eslint
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install eslint .'
-        language: system
-        types_or: [ts, tsx, javascript]
-        pass_filenames: false
-
-      - id: commitlint
-        name: commitlint (Conventional Commits)
-        entry: pnpm exec commitlint --edit
-        language: system
-        stages: [commit-msg]

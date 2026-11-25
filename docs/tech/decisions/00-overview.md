@@ -262,7 +262,7 @@ history 与 text diff 均为固定行高，改用 `useFixedVirtualizer`：`useSy
 
 ### 决策
 
-- NSGo 承担桌面界面，Go 承担应用用例、Git 编排、数据访问、系统服务和 AI。采用官方 Git CLI 作为统一仓库引擎，允许随包分发经审核的第三方 Git，基础功能无需用户单独安装。正式版本切换后移除 Tauri、Rust core、React/WebView 及其桌面构建依赖。
+- NSGo 承担桌面界面，Go 承担应用用例、Git 编排、数据访问、系统服务和 AI。采用官方 Git CLI 作为统一仓库引擎，允许随包分发经审核的第三方 Git，基础功能无需用户单独安装。当前 Go 分支移除 Tauri、Rust core、React/WebView 及其桌面构建依赖。一次性偏好导出版由迁移计划记录的 Git 检查点构建。
 - 仓库根目录管理 Go module。桌面程序与 NSGo 项目配置位于 `cmd/gitwave`，打包命令位于 `cmd/`，可复用的应用逻辑位于 `internal/`。NSGo 从 `cmd/gitwave` 启动，Go 的测试和静态检查从根目录运行。
 - 使用现有 SQLite 数据格式和 OS 凭证命名，兼容适配层负责读取旧记录。旧 Tauri 更新链负责交付签名过渡包，新的更新链独立签名。
 - GitWave 的更新设置、通知、下载进度和重启交互由 Go + NSGo 工作台统一呈现。Go 检查 GitHub Releases 中的 Ed25519 签名清单，按当前平台下载并从清单验证长度和 SHA-256。检查和下载采用 GitWave 当前的代理配置。macOS 和 Windows 的 NSGo 内置更新 API 由 Sparkle、WinSparkle 展示独立窗口，Linux 的内置安装流程覆盖包管理器安装。因此本项目实现各平台的安装和重启适配，并沿用各平台要求的代码签名。 [NSGo v0.2.0 更新 API](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/core/updates.go) [NSGo 更新机制](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/docs/architecture/updates.md)
@@ -270,5 +270,5 @@ history 与 text diff 均为固定行高，改用 `useFixedVirtualizer`：`useSy
 ### 后果
 
 - Git 行为可用稳定 CLI 格式和真实仓库验证。应用需要控制执行边界、跨平台取消、写入并发、错误转换以及 Git 发行物维护。
-- 三端签名安装、凭证兼容、旧版升级与回退是切换条件。NSGo 的 Linux 运行库和各平台无障碍、输入法须单独验收。
+- 三端签名安装、凭证兼容、旧版升级与回退是正式发布切换条件。NSGo 的 Linux 运行库和各平台无障碍、输入法须单独验收。
 - 实施和验收记录见 [迁移计划](../../tasks/refactor-nsgo-native-ui/plan.md)。

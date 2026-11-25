@@ -8,6 +8,47 @@ import (
 	"time"
 )
 
+func TestNativeAbortMergeOffersAutostashRecovery(t *testing.T) {
+	path, git := historyRepository(t)
+	local := filepath.Join(path, "local.txt")
+	write := func(value string) {
+		t.Helper()
+		if err := os.WriteFile(local, []byte(value+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("base")
+	git("", "add", "local.txt")
+	git("", "commit", "-m", "Common base")
+	git("", "switch", "-c", "topic")
+	git("", "commit", "--allow-empty", "-m", "Topic")
+	git("", "switch", "main")
+	git("", "commit", "--allow-empty", "-m", "Main")
+	write("pre-merge staged")
+	git("", "add", "local.txt")
+	write("pre-merge unstaged")
+	git("", "merge", "--no-commit", "--autostash", "topic")
+	snapshot := git("", "rev-parse", "MERGE_AUTOSTASH")
+	app := refTestApp(t, path)
+	const timeout = 10 * time.Second
+	app.WaitFor("id:abort-merge", timeout)
+	app.Press("id:abort-merge")
+	app.WaitFor("id:merge-abort-dialog >> text:/kept in Stashes/", timeout)
+	app.Press("id:cancel-merge-abort")
+	app.WaitForGone("id:merge-abort-dialog", timeout)
+	if got := git("", "rev-parse", "MERGE_AUTOSTASH"); got != snapshot {
+		t.Fatalf("cancel changed the recovery reference to %s", got)
+	}
+	app.Press("id:abort-merge")
+	app.WaitUntil(timeout, func() bool { return app.Exists("id:confirm-merge-abort") && app.Enabled("id:confirm-merge-abort") })
+	app.Press("id:confirm-merge-abort")
+	app.WaitForGone("id:merge-banner", timeout)
+	app.WaitFor("id:stash-row >> text:On merge abort: autostash", timeout)
+	if got := git("", "rev-parse", "refs/stash"); got != snapshot {
+		t.Fatalf("recovery stash = %s, want %s", got, snapshot)
+	}
+}
+
 func TestNativeAbortMergeKeepsIndependentChanges(t *testing.T) {
 	path, git := historyRepository(t)
 	write := func(name, value string) {

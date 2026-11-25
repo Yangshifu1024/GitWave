@@ -12,9 +12,12 @@ import (
 
 type CommitState struct {
 	MergeHeads        string
+	MergeAutostash    string
 	Continuation      string
 	InteractiveRebase string
 }
+
+const mergeAutostashOperation = "merge with autostash"
 
 func (s CommitState) CanAmendInteractiveRebase() bool {
 	return s.Continuation == interactiveRebaseOperation && validOID(s.InteractiveRebase)
@@ -29,7 +32,7 @@ func (r *Repository) readCommitState(ctx context.Context, root *os.Root) (Commit
 	for _, item := range [...]struct{ path, operation string }{
 		{"rebase-merge", "rebase"}, {"rebase-apply", "rebase"},
 		{"CHERRY_PICK_HEAD", "cherry-pick"}, {"REVERT_HEAD", "revert"},
-		{"sequencer", "sequencer"}, {"MERGE_AUTOSTASH", "merge with autostash"},
+		{"sequencer", "sequencer"},
 	} {
 		if _, err := root.Lstat(item.path); err == nil {
 			state.Continuation = item.operation
@@ -38,7 +41,22 @@ func (r *Repository) readCommitState(ctx context.Context, root *os.Root) (Commit
 			return CommitState{}, err
 		}
 	}
+	if state.Continuation == "" && state.MergeHeads != "" {
+		state.MergeAutostash, err = r.exactRootRef(ctx, "MERGE_AUTOSTASH")
+		if err != nil {
+			return CommitState{}, err
+		}
+		if state.MergeAutostash != "" {
+			state.Continuation = mergeAutostashOperation
+		}
+	}
 	if state.Continuation == "" && state.MergeHeads == "" {
+		if _, err := root.Lstat("MERGE_AUTOSTASH"); err == nil {
+			state.Continuation = mergeAutostashOperation
+			return state, nil
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return CommitState{}, err
+		}
 		state.InteractiveRebase, err = r.interactiveRebaseRef(ctx)
 		if err != nil {
 			return CommitState{}, err

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -81,6 +82,15 @@ func (p *MergeAbortPlan) Apply(ctx context.Context) (warning error, err error) {
 		return nil, err
 	}
 	finalize := context.WithoutCancel(ctx)
+	if p.SavesAutostash() {
+		if err := p.moveAutostash(ctx, finalize, &live, lock); err != nil {
+			return nil, err
+		}
+		// A later error can leave a regular in-progress merge and a saved stash.
+		next := *p
+		next.state.MergeAutostash, next.state.Continuation = "", ""
+		p = &next
+	}
 	cmd := r.command(finalize, "", "-c", "core.hooksPath="+git.dir, "update-ref", "--stdin", "-z")
 	installed := false
 	var applied []*abortSwap
@@ -138,6 +148,59 @@ func (p *MergeAbortPlan) Apply(ctx context.Context) (warning error, err error) {
 		warning = errors.Join(warning, swap.finish(finalize))
 	}
 	return warning, nil
+}
+
+// Keep the merge retryable if its checkout cannot be published. The original
+// autostash is durable before the merge becomes a regular in-progress merge.
+func (p *MergeAbortPlan) moveAutostash(ctx, finalize context.Context, git *workingGit, lock *checkoutIndexLock) error {
+	r, oid := p.repo, p.state.MergeAutostash
+	if err := p.verify(ctx, git, lock.root); err != nil {
+		return err
+	}
+	tip, err := r.exactRootRef(ctx, stashRef)
+	if err != nil {
+		return err
+	}
+	entries, err := r.Stashes(ctx)
+	if err != nil {
+		return err
+	}
+	if tip != "" && (len(entries) == 0 || entries[0].OID != tip) {
+		return fmt.Errorf("the existing stash reference does not match its history")
+	}
+	isAutostash := func(entry StashEntry) bool { return entry.OID == oid }
+	if !slices.ContainsFunc(entries, isAutostash) {
+		if tip == "" {
+			tip = strings.Repeat("0", len(oid))
+		}
+		if err := r.editDirectRef(ctx, stashRef, tip, oid, "On merge abort: autostash", nil); err != nil {
+			return fmt.Errorf("could not save the merge autostash: %w", err)
+		}
+		tip = oid
+	}
+	cmd := r.command(finalize, "", "-c", "core.hooksPath="+git.dir, "update-ref", "--stdin", "-z")
+	statement := verifyCheckoutRef(stashRef, tip) + "option no-deref\x00delete MERGE_AUTOSTASH\x00" + oid + "\x00"
+	moved, sent, err := runReferenceTransaction(cmd, statement, func() error {
+		if !lock.ownsLock() {
+			return fmt.Errorf("the Git index lock changed before saving the autostash")
+		}
+		entries, err := r.Stashes(ctx)
+		if err != nil || !slices.ContainsFunc(entries, isAutostash) {
+			return errors.Join(err, fmt.Errorf("the saved autostash is no longer in the stash history"))
+		}
+		return p.verify(ctx, git, lock.root)
+	})
+	if moved {
+		return nil
+	}
+	if sent {
+		current, readErr := r.exactRootRef(finalize, "MERGE_AUTOSTASH")
+		if readErr == nil && current == "" {
+			return nil
+		}
+		err = errors.Join(err, readErr)
+	}
+	return fmt.Errorf("the autostash was saved, but Git could not clear its merge reference: %w", err)
 }
 
 func (p *MergeAbortPlan) referenceStatement() string {

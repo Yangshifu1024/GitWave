@@ -1,12 +1,9 @@
 GO := go
-CARGO := cargo
-CARGO_MANIFEST := --manifest-path src-tauri/Cargo.toml
 NSGO := $(GO) -C cmd/gitwave tool nsgo
 NSGO_TARGET = $(subst darwin,macos,$(shell $(GO) env GOOS))_$(subst amd64,x64,$(shell $(GO) env GOARCH))
 
 .DEFAULT_GOAL := help
 .PHONY: format fmt-check lint test test-race check build dev version bump help \
-	legacy-format legacy-fmt-check legacy-lint legacy-test legacy-check legacy-build legacy-dev \
 	native-dev native-test native-git-test
 
 format: ## 格式化 Go 源码
@@ -40,33 +37,6 @@ version: ## 打印 NSGo 配置版本
 bump: ## 用 VERSION=X.Y.Z 修改 NSGo 配置版本
 	@test -n "$(VERSION)" || { echo 'Usage: make bump VERSION=X.Y.Z' >&2; exit 1; }
 	$(GO) run ./cmd/release-version "$(VERSION)"
-
-legacy-format: ## 格式化 Tauri 偏好导出版
-	pnpm format
-	$(CARGO) fmt $(CARGO_MANIFEST)
-
-legacy-fmt-check: ## 检查 Tauri 偏好导出版格式
-	pnpm exec prettier --check .
-	$(CARGO) fmt $(CARGO_MANIFEST) -- --check
-
-legacy-lint: ## 检查 Tauri 偏好导出版
-	pnpm check:tauri-versions
-	pnpm lint
-	$(CARGO) clippy $(CARGO_MANIFEST) --all-targets -- -D warnings
-	pnpm typecheck
-	$(CARGO) check $(CARGO_MANIFEST) --all-targets
-
-legacy-test: ## 运行 Tauri 偏好导出版测试
-	pnpm test
-	$(CARGO) test $(CARGO_MANIFEST) --all-targets
-
-legacy-check: legacy-fmt-check legacy-lint legacy-test ## 运行 Tauri 偏好导出版的全部检查
-
-legacy-build: legacy-check ## 构建 Tauri 偏好导出版
-	pnpm tauri build
-
-legacy-dev: ## 启动 Tauri 偏好导出版开发模式
-	pnpm tauri dev
 
 native-dev: dev
 native-test: test

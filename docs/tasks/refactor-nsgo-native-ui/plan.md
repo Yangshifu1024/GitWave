@@ -4,7 +4,7 @@ M0 平台验收待完成。M1 已接通原生 Workspace、History、diff 和 bla
 
 M4 已接通常规、外观和网络设置、中英界面切换、主题、配色、字体和「关于 GitWave」。网络设置沿用旧 SQLite 代理记录，并接入 AI、Git、Git LFS 和凭证 helper。Workspace AI 设置已接通 provider、模型、地址、离线模式、备用顺序、Prompt 模板及密钥保存。Go 调用链已接入 Changes 的提交建议、Reflog 解释、仓库健康总结、History 提交解释、PR 草稿和冲突解释。命令面板已接通静态命令、提交搜索定位和白名单 AI 建议。Go 已实现 Windows 和 Linux 旧版 AI key 的读取与清除，并接入 Git HTTPS 凭证回退、旧账号选择与独立 LFS 认证。WebView 偏好过渡桥、SQLite 首启复制和 SSH 密钥设置已接入。SSH 多行备注已通过隔离 agent 回归，Windows Git LFS 的 agent 选择、Git Bash socket 和三端交互继续实机验收。
 
-M5 的 Go module 已迁到仓库根目录，三端预览 CI 已切换到新目录结构。macOS DMG 与 Linux deb、Arch、AppImage、RPM 已实际生成并验证随包 Git。Fedora 43 已通过 RPM 安装和桌面启动，Ubuntu 24.04 已通过 deb 安装和桌面启动，Ubuntu 22.04 已验证随包 GTK 的 deb 和 AppImage。Windows MinGit、LFS 与 NSIS 安装器已通过构建和解包校验，实际 Windows 安装与运行待验证。Go 更新器已接入旧偏好、签名清单、代理和下载校验，macOS 与 Linux AppImage 的原位替换和重启通过本地夹具。Go CI 已加入 Windows 旧包升级和失败回滚检查。正式签名与公证、正式发布切换、旧版升级与回退演练、旧工具链退役仍待完成。
+M5 的 Go module 已迁到仓库根目录，三端预览 CI 已切换到新目录结构。macOS DMG 与 Linux deb、Arch、AppImage、RPM 已实际生成并验证随包 Git。Fedora 43 已通过 RPM 安装和桌面启动，Ubuntu 24.04 已通过 deb 安装和桌面启动，Ubuntu 22.04 已验证随包 GTK 的 deb 和 AppImage。Windows MinGit、LFS 与 NSIS 安装器已通过构建和解包校验，实际 Windows 安装与运行待验证。Go 更新器已接入旧偏好、签名清单、代理和下载校验，macOS 与 Linux AppImage 的原位替换和重启通过本地夹具。Go CI 已加入 Windows 旧包升级和失败回滚检查。当前分支已经退役旧桌面工具链。正式签名与公证、正式发布切换和公开升级回退演练另行验收。
 
 ## 目标与验收基线
 
@@ -14,7 +14,7 @@ M5 的 Go module 已迁到仓库根目录，三端预览 CI 已切换到新目�
 
 Go module 位于仓库根目录。`cmd/gitwave` 包含桌面入口、NSGo 配置和图标，`cmd/` 下其余命令负责打包，`internal/` 包含应用库。切换后，默认构建、测试和发布使用根目录 Go 工具链，并清除旧桌面源码、包管理与锁文件、Tauri/Rust 配置、旧 CI/CD 和已失效的脚本及文档入口，历史实现通过 Git tag 追溯。逐项对照旧应用的实际入口、布局、文案、交互与 Git 结果，确认旧版缺陷时先记录可复现条件和预期行为，再用回归测试约束修复结果。最终发布链需在三端从干净环境产出安装包，验证签名、安装、升级与回退。
 
-全量迁移及验收完成后，按约定提交并推送重构分支。
+重构分支先推送 Go 迁移检查点，再提交旧工具链退役及后续验收结果。正式发布延后。
 
 当前先完成 macOS 交互、安装与更新验收。Windows 的最终实机验证由用户执行。
 
@@ -34,6 +34,8 @@ History 提交详情恢复标题展开、完整正文和指向所选提交的本
 
 文本 diff 的工具栏和截断提示可在窄栏内换行，达到上限后显示原因。统一和分栏视图使用原生字体宽度和虚拟列表中已显示行的尺寸校正横向范围。折叠或切换工作台视图时保留同一预览已测出的宽度及滚动位置。 [diff 对照记录](./review.md#2026-11-25--文本-diff-窄栏与长行)
 
+工作台工具栏显示当前分支、upstream、领先与落后计数，分离 HEAD 显示短 SHA。工具栏、底部状态栏与 Pull 使用同一份当前检出状态，外部切换分支后，工作副本刷新即可更新 Pull 目标。重选当前 History 或 Changes 会退出 diff 专注布局并恢复分栏。 [工作台对照记录](./review.md#2026-11-25--工作台分支状态与旧工具链退役)
+
 Changes 已用一条已暂存加一条未暂存及 495 条路径变化的两份夹具对照。文件区块、文件状态、批量动作、提交编辑器和最窄分栏均复核。对 Git 未识别的唯一同名文本比较保留的内容后，495 条路径的未暂存列表已与原版一样识别出 12 对移动。补配项在未暂存区和暂存区均显示为一行，可预览两端差异，并在同一笔索引事务内暂存或取消暂存两个路径。暂存之后的工作树变化继续单独显示。 [Changes 对照记录](./review.md#2026-11-25--暂存区的同名文本移动)
 
 未跟踪文本的预览直接生成可见行，保留总新增行数和既有预览上限。已在 Apple Silicon 上比较预览分配量，并为 495 条路径的原生用例加上长文件截断检查。混合重命名周期刷新会核对候选内容、模式和 Git 属性后复用配对。macOS 和 Linux 可并行执行独立的 Git 检查，最终列表一次更新。包含同名补配后，Apple Silicon 上 495 条混合变更的完整重命名扫描约为 171 毫秒，缓存命中的重复扫描约为 42 毫秒。 [大列表性能记录](../fix-nsgo-large-changes/review.md#首次打开混合变更)
@@ -44,7 +46,7 @@ Changes 状态刷新只读取当前分支和上游信息。495 条混合变更�
 
 设置已恢复旧版的弹窗几何、右上角关闭入口、导航选中态和主题、配色、代理的等宽选项。系统切换外观时，设置控件保留焦点和输入。设置各页的三端对照继续验收。 [设置对照记录](./review.md#2026-11-25--macos-设置弹窗布局)
 
-默认 `make dev`、`make build` 和 `make check` 已使用根目录 Go module 与 NSGo。原 Rust 行为对照程序已退役，核验过的 Git fixture、diff 边界和 History 结果由默认 Go 门禁覆盖。偏好导出版保留 `make legacy-dev`、`make legacy-build` 和 `make legacy-check`，用于完成第一个升级跳转。
+默认 `make dev`、`make build` 和 `make check` 已使用根目录 Go module 与 NSGo。原 Rust 行为对照程序已退役，核验过的 Git fixture、diff 边界和 History 结果由默认 Go 门禁覆盖。偏好导出版从独立 Git 检查点构建，用于完成第一个升级跳转。
 
 ## 实施里程碑
 
@@ -77,7 +79,7 @@ Changes 状态刷新只读取当前分支和上游信息。495 条混合变更�
 - 延续 `gitwave.ai` / `workspaceID:provider` 与 `gitwave.remote` 的历史账号映射。Windows 旧 keyring 使用 `account.service` 作为目标，NSGo 使用 `service/account`；Linux 旧库查 `username`，NSGo 查 `account`。通过平台适配层读取旧条目，用旧版写、新版读的实机 fixture 验证，并保留系统 helper、应用凭证弹窗和 vault 回退。SSH 验证配置 key、agent、已知主机、端口和口令提示。凭证不写到日志、迁移快照、命令参数或环境变量。
 - 保留系统／手动代理与 bypass。按操作构造代理配置，离线 AI 仅通过直连 loopback 并禁止重定向。所有 AI 出站经统一脱敏与授权流程；AI 只能提出建议，实际写操作由用户确认。
 
-依据：[SQLite 路径和初始化](../../../src-tauri/src/infrastructure/persistence/sqlite.rs)、[旧凭证命名](../../../src-tauri/src/infrastructure/ai/secrets.rs)、[Git credential 协议](https://git-scm.com/docs/git-credential)、[NSGo Windows 凭证实现](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/internal/platform/windows/secrets.go)、[NSGo Linux 凭证实现](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/internal/platform/linux/secrets.go)。
+依据：[SQLite 路径和初始化](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/src-tauri/src/infrastructure/persistence/sqlite.rs)、[旧凭证命名](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/src-tauri/src/infrastructure/ai/secrets.rs)、[Git credential 协议](https://git-scm.com/docs/git-credential)、[NSGo Windows 凭证实现](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/internal/platform/windows/secrets.go)、[NSGo Linux 凭证实现](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/internal/platform/linux/secrets.go)。
 
 ## 三端包装、更新与回退
 
@@ -109,7 +111,7 @@ Windows 正式候选由 [Go Windows release candidate](../../../.github/workflow
 
 偏好导出版在过渡清单上线前回退到 `latest.json`，下载时要求签名绑定公告版本。发布侧用 `go run ./cmd/prepare-legacy-feeds -export-version <X.Y.Z> -export-assets <目录> -go-version <X.Y.Z> -go-assets <目录> -out <新目录>` 同时验收两份清单。每份输入包含 macOS 应用归档、Windows NSIS、Linux AppImage、deb、rpm 及各自的原始 Minisign `.sig`。工具验证已安装客户端公钥、受信任的版本及文件名，再输出包含原有八个目标的清单。两套安装包均通过安装升级验收后才附带清单公开发布。 [旧版更新器锁定版本](https://crates.io/crates/tauri-plugin-updater/2.13.3)
 
-旧发布流程在三端工件齐全后，以 `-export-only` 从同一草稿下载五个包和签名并生成 `latest.json`。验签 job 按 Release ID 上传和回读清单。重复运行时核对已有清单的内容，差异会使 job 失败。Go 联合发布重新验签，并和已公开导出版的清单比对版本及八条路由，确认两条升级路径使用相同的包和签名。 [导出版发布流程](../../../.github/workflows/build.yml) [Go 联合发布](../../../.github/workflows/go-release.yml)
+旧发布流程在三端工件齐全后，以 `-export-only` 从同一草稿下载五个包和签名并生成 `latest.json`。验签 job 按 Release ID 上传和回读清单。重复运行时核对已有清单的内容，差异会使 job 失败。Go 联合发布重新验签，并和已公开导出版的清单比对版本及八条路由，确认两条升级路径使用相同的包和签名。 [导出版发布流程](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/.github/workflows/build.yml) [Go 联合发布](../../../.github/workflows/go-release.yml)
 
 Linux 正式包通过 [Go Linux release candidate](../../../.github/workflows/go-linux-candidate.yml) 在 Ubuntu 22.04 构建。正式 deb 和 rpm 沿用 v0.11.0 的 `git-wave` 包名与 `/usr/bin/gitwave` 入口。包内保留 `GitWave.desktop` 作为兼容入口，并使用 `NoDisplay=true` 避免在应用菜单出现两项。候选流程检查 AppImage、deb、rpm 的 SHA-256，执行 v0.11.0 包升级、启动与回退，再上传产物。 [v0.11.0 发布资产](https://github.com/Yangshifu1024/GitWave/releases/tag/v0.11.0) [桌面入口规范](https://specifications.freedesktop.org/desktop-entry/latest/recognized-keys.html)
 
@@ -117,16 +119,20 @@ Linux 正式包通过 [Go Linux release candidate](../../../.github/workflows/go
 
 Go 客户端读取独立的 `gitwave-update.json`，其 Ed25519 签名覆盖版本、发布说明、三端包的长度与 SHA-256，以及 Windows 安装器内已签名的 `GitWave.exe` 的 SHA-256。发布步骤通过 `go run ./cmd/sign-update` 生成清单，要求私钥种子匹配打包时注入的公钥，并通过 `-windows-exe` 传入打包使用的已签名可执行文件。初次升级保留数据备份，回退默认保留已经产生的用户数据。CI 收齐三端产物和校验文件后继续创建人工审核的 draft release。
 
-联合发布由 [Go desktop release](../../../.github/workflows/go-release.yml) 从 `main` 手动执行。输入当前版本、已公开的偏好导出版和 Go 首版。首次 Go 发布时，三个候选连同旧格式 macOS 归档一并验收，Windows 与 Linux 兼容包使用旧 Minisign 密钥签名。后续发行版从固定历史标签重新核验导出版及 Go 首版资产，并携带相同的两份旧格式清单。三端门禁及 SHA-256 全部通过后再签署 `gitwave-update.json`。正式版本通过 `make bump VERSION=X.Y.Z` 写入 `cmd/gitwave/nsgo.yaml`。如启用 draft，输入版本必须与该配置一致，现有版本标签必须指向该次 `main` 的构建提交。Tauri 过渡版通过原工作流手动选择其标签生成草稿。 [GitHub Actions 可复用工作流](https://docs.github.com/en/actions/how-tos/sharing-automations/reusing-workflows) [GitHub CLI 草稿发布](https://cli.github.com/manual/gh_release_create)
+联合发布由 [Go desktop release](../../../.github/workflows/go-release.yml) 从 `main` 手动执行。输入当前版本、已公开的偏好导出版和 Go 首版。首次 Go 发布时，三个候选连同旧格式 macOS 归档一并验收，Windows 与 Linux 兼容包使用旧 Minisign 密钥签名。后续发行版从固定历史标签重新核验导出版及 Go 首版资产，并携带相同的两份旧格式清单。三端门禁及 SHA-256 全部通过后再签署 `gitwave-update.json`。正式版本通过 `make bump VERSION=X.Y.Z` 写入 `cmd/gitwave/nsgo.yaml`。如启用 draft，输入版本必须与该配置一致，现有版本标签必须指向该次 `main` 的构建提交。偏好导出版通过下述 Git 检查点的标签工作流生成草稿。 [GitHub Actions 可复用工作流](https://docs.github.com/en/actions/how-tos/sharing-automations/reusing-workflows) [GitHub CLI 草稿发布](https://cli.github.com/manual/gh_release_create)
 
-依据：[现有 updater 配置](../../../src-tauri/tauri.conf.json)、[现有 release 工作流](../../../.github/workflows/build.yml)、[Tauri updater](https://v2.tauri.app/plugin/updater/)、[NSGo 安装包与签名](https://github.com/nsgo-dev/nsgo/blob/v0.3.0/docs/public/en/building.md)、[NSGo 更新机制](https://github.com/nsgo-dev/nsgo/blob/v0.3.0/docs/architecture/updates.md)。
+### 偏好导出版检查点
+
+Git 检查点 [`e175c65`](https://github.com/Yangshifu1024/GitWave/commit/e175c657d1516cd9b06f8ad7b973097613c0d001) 保留完整导出版源码、旧检查命令和签名草稿工作流。正式发布获授权后，在单独的工作区从该提交派生导出版版本提交。先执行 `pnpm install --frozen-lockfile`、`pnpm bump <版本>` 和 `make legacy-check`，再按发布授权把新版本标签推送到导出版版本提交。该标签自身的 `build.yml` 验证版本与提交，构建三端并生成带 `latest.json` 的草稿。核对安装包和更新签名后再公开草稿。Go 正式版仍从 `main` 的独立工作流构建。
+
+依据：[现有 updater 配置](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/src-tauri/tauri.conf.json)、[现有 release 工作流](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/.github/workflows/build.yml)、[Tauri updater](https://v2.tauri.app/plugin/updater/)、[NSGo 安装包与签名](https://github.com/nsgo-dev/nsgo/blob/v0.3.0/docs/public/en/building.md)、[NSGo 更新机制](https://github.com/nsgo-dev/nsgo/blob/v0.3.0/docs/architecture/updates.md)。
 
 Go 发布的组装 job 将全部发布文件的 SHA-256 随 Actions 工件一同交接。草稿 job 在上传前校验交接内容，再按 Release ID 从 GitHub 核对完整的资产名称、上传状态和 SHA-256。对同一标签的现有草稿重跑时，只读取并复验草稿。资产缺失、额外资产或摘要差异会使门禁失败。 [GitHub Release Assets API](https://docs.github.com/en/rest/releases/assets#list-release-assets)
 
 ## 测试门禁
 
 - 旧版与 Go 版使用相同 fixture 的独立副本，比较 refs、index、工作区文件、stash、reflog 和操作状态。覆盖 unborn/detached HEAD、双侧修改、换行／Unicode 路径、冲突、断网、权限、外部进程竞争、取消与恢复。要求写操作退出后没有意外文件或状态变更。
-- PR 门禁包含 `gofmt`、`go vet`、`go test`、支持平台的 `-race`、NSGo 模型测试、三端实机和安装冒烟。发布门禁加入旧数据库及凭证、更新、损坏产物拒绝与回退。保留旧版门禁直至切换。
+- PR 门禁包含 `gofmt`、`go vet`、`go test`、支持平台的 `-race`、NSGo 模型测试、原生交互和三端安装冒烟。发布门禁加入旧数据库及凭证、更新、损坏产物拒绝与回退。偏好导出版在 Git 检查点单独执行旧版门禁。
 - Go 测试的外部 Git 夹具使用 Git 2.46 或更新版本和 `PATH` 中的 `git-lfs`。LFS 回归包含在已启用 LFS 的仓库中执行原生 Git 命令及通过 Go 用例恢复工作树。安装包冒烟另行在系统 Git 缺失时验证随包工具。
 - 使用原有 [性能预算](../../tech/engineering/00-overview.md#性能预算)：Apple Silicon 冷启动 < 1 秒、10k commit History < 500 毫秒、1 MB diff < 200 毫秒。另测分页增长、快速切 repo、跨分栏、长路径及后台 Git 是否阻塞主界面。
 
@@ -159,7 +165,7 @@ Go 发布的组装 job 将全部发布文件的 SHA-256 随 Actions 工件一同
 - 选中文件可查看文本 diff、图片及 HEAD blame。已暂存比较 HEAD 与 index，未暂存比较 index 与工作树，未跟踪文件作为新增处理。常规未暂存文件通过有界副本生成 patch，状态与工作树 diff 使用私有 Git 配置读取。预览运行时无需旧 Rust 后端。
 - 原生 Stage/Unstage 支持状态图标、选中项和分组全部操作，接通范围选择、切换选择、键盘导航和全选。每次写入复核仓库、HEAD 和所选项，按仓库绑定结果及错误。临时索引写完后经 Git 索引锁原子发布，重命名两个路径一并处理。预览版 Stage 通过 Git 2.42 起的属性路径查询冻结属性文件。外部过滤器支持留在 M3。
 - 手动 Commit 和 Amend 已接通 Changes。支持 Conventional Commits 类型、首行长度提示、键盘提交、按 Workspace 和 repo 恢复会话草稿，以及成功后跳转 History。Amend 需要确认具体分支和 HEAD。取消确认保留当前草稿，进入修正后可恢复修正前的草稿。
-- Commit 复核 HEAD、索引和操作状态，提交私有索引生成的树。支持首次提交、detached HEAD 上的普通提交、仅修改提交信息，以及工作树无额外改动时完成 merge。浅克隆的边界提交缺少父对象时，Amend 会保留原提交并报告错误。rebase、cherry-pick、revert 及带 autostash 的 merge 继续操作留在 M3。
+- Commit 复核 HEAD、索引和操作状态，提交私有索引生成的树。支持首次提交、detached HEAD 上的普通提交、仅修改提交信息，以及工作树无额外改动时完成 merge。浅克隆的边界提交缺少父对象时，Amend 会保留原提交并报告错误。rebase、cherry-pick 与 revert 的继续操作留在 M3。外部带 autostash 的 merge 支持中止，完成该 merge 的提交仍由外部 Git 处理。
 - Discard 已接通未暂存文件右键、选中项和整组操作。确认区分恢复跟踪文件和删除未跟踪文件。操作从索引恢复已暂存版本，保留索引及未选中文件。确认后的外部编辑会使本次请求失效。参考旧版继续禁用直接丢弃未暂存的重命名，子模块及 intent-to-add 条目需要单独验收。
 - 本地分支支持从 HEAD、分支或选中提交创建、重命名、设置或清除 tracking，以及确认后删除。重命名当前分支保留检出状态及 upstream。删除复核用户确认的 tip、现有 worktree 占用和暂停操作。
 - 标签可在提交详情、History 右键及分支菜单创建，支持轻量与附注。替换和删除需要确认。侧栏 Tags 支持导航和删除。只被标签引用的提交仍可直接查看详情。
@@ -180,7 +186,7 @@ Go 发布的组装 job 将全部发布文件的 SHA-256 随 Actions 工件一同
 - 侧栏本地分支与 History 引用菜单接通「合并到当前分支」。确认对话框展示源、目标、快进选项和冲突预检。执行绑定双方引用与提交，记录 `ORIG_HEAD`，保护脏工作树与忽略文件。支持快进、强制生成合并提交、三方合并及已合并时无改动返回。 [Git merge](https://git-scm.com/docs/git-merge)，[Git merge-tree](https://git-scm.com/docs/git-merge-tree)。
 - 有冲突时保存工作文件标记、未合并 index stages 和 `MERGE_HEAD`，原 HEAD 保持不变。稀疏检出的冲突文件单独落到工作树，继续排除其他文件。Changes 可以暂存外部编辑后的冲突结果或明确暂存删除，并提交完成合并。
 - Merge 横幅与 Changes 接通原生冲突编辑器。文件列表支持切换并保留会话草稿，展示我方、基准和对方内容。编辑区标记冲突块并支持导航、整文件选边及暂存。选择缺失一方会暂存删除。二进制支持按 Git stage 选边，保留原字节。外部已暂存的文件仍可打开未保存草稿并复制。
-- Merge 横幅和冲突编辑器接通「中止合并」。取消保留合并和草稿，确认后恢复本次合并修改的索引条目和文件，并保留独立的暂存、未暂存、未跟踪及忽略文件。原生 Merge 保存 `AUTO_MERGE` 作为结果基线，常规外部 Git Merge 可使用同一入口。无法区分合并内容和额外编辑时中止请求失效，重叠文件保留。带 autostash 的外部 Merge 和缺少结果树且暂存归属不明确的外部 Merge 仍待迁移。 [Git merge](https://git-scm.com/docs/git-merge)，[Git ls-files](https://git-scm.com/docs/git-ls-files)。
+- Merge 横幅和冲突编辑器接通「中止合并」。取消保留合并和草稿，确认后恢复本次合并修改的索引条目和文件，并保留独立的暂存、未暂存、未跟踪及忽略文件。原生 Merge 保存 `AUTO_MERGE` 作为结果基线，常规外部 Git Merge 可使用同一入口。无法区分合并内容和额外编辑时中止请求失效，重叠文件保留。带 autostash 的外部 Merge 在中止前将原始快照加入贮藏列表，保留合并前各自独立的暂存与工作树内容。用户可在中止后自行恢复，应用保留合并期间新增的独立改动。缺少结果树且暂存归属不明确时继续保留合并状态。 [Git merge](https://git-scm.com/docs/git-merge)，[Git ls-files](https://git-scm.com/docs/git-ls-files)。
 - 本地分支菜单接通「将当前分支变基到此分支」。当前分支和上游均绑定菜单所见的提交。已包含上游时直接返回，落后时快进，分叉时复用 Pull 的私有重放。普通 Rebase 沿用旧版冲突后退出的语义，报告冲突文件并保留当前检出。成功时记录 `ORIG_HEAD`，保持原分支和 tracking。上游已 revert 的本地补丁会重新应用，确实已生效的等价补丁按空应用跳过。检测到线性 Rebase 会丢失 merge commit 独有内容时保留当前分支，多亲 merge 暂需单独处理。 [Git rebase](https://git-scm.com/docs/git-rebase)，[Git merge-tree](https://git-scm.com/docs/git-merge-tree)。
 - 本地分支菜单接通交互式 Rebase。提交可拖动或用方向键排序，支持 pick、reword、edit、squash、fixup、drop 和提交信息输入。提交在私有工作树中重放，edit 暂停与当前分支通过同一引用事务发布。重启后可继续编辑、显式 Amend、暂存后 Continue，或在工作树干净时放弃暂停。Continue 遇到冲突且有待并入的暂存修改时保留暂停和修改。 [Git cherry-pick](https://git-scm.com/docs/git-cherry-pick)，[Git worktree](https://git-scm.com/docs/git-worktree#_refs)。
 - 旧版 `gitwave-interactive-rebase.json` 通过 HEAD 和当前分支的 reflog 确认归属后迁移，切回原分支后可继续。缺少 `original_head` 的记录可只放弃暂停记录，保留当前改动。无法核对归属的旧记录保留原状。
@@ -196,8 +202,8 @@ Go 发布的组装 job 将全部发布文件的 SHA-256 随 Actions 工件一同
 - History 引用菜单和分支侧栏接通远端分支删除。本地分支删除可以显式勾选对应远端分支。确认显示分支、实际推送目标和提交短 OID。每次删除使用确认时的完整 OID 作为 Git lease，并保留服务器已确认的分步结果。 [Git push](https://git-scm.com/docs/git-push)
 - reftable 的远端改名会在持有 manifest 锁时准备私有副本，复制原始 reflog 记录，并由 Git 更新引用。发布前核对 checkout、manifest、原表、工作树 HEAD 及包括外部 include 在内的有效配置。发布失败时尝试恢复原配置，并清理未发布的新表。Git 2.46 和 2.54 的隔离仓库已覆盖 SHA-1、SHA-256、linked worktree 和多层索引。 [Git reftable](https://git-scm.com/docs/reftable#_log_block_format)，[Git update-ref](https://git-scm.com/docs/git-update-ref)
 - Remote 侧栏识别旧式 `.git/remotes/` 和 `.git/branches/`，Fetch 使用其配置的 URL 与 refspec。编辑或改名将有效配置写入仓库配置，保留 Fetch/Push refspec，并在引用事务失败后恢复原文件。旧式 Remote 可以移除。对直接映射到本地分支的 refspec，Fetch 只允许明确的快进写入，拒绝改动已检出或被暂停操作占用的分支。当前分支的 Pull 继续通过工作树事务集成。 [Git fetch 的旧式远端格式](https://git-scm.com/docs/git-fetch#_remotes)
-- Submodule 侧栏已接通列表、初始化、添加、递归更新和取消注册。同步状态以父仓库索引中的 gitlink 为准。添加成功后暂存 gitlink 和 `.gitmodules`。取消注册保留子模块工作树和未跟踪文件。递归更新从已验证的远端和 checkout 获取目标提交，认证重试从发生认证失败的子模块继续。 [旧 Submodule 后端](../../../src-tauri/src/infrastructure/git/submodule.rs)，[Git submodule](https://git-scm.com/docs/git-submodule)
-- Repository 菜单接通 Git LFS 面板、仓库级安装和 `.gitattributes` 规则管理。linked worktree 从实际 Git 共享配置读取安装状态。安装会先由官方 CLI 在私有仓库准备结果，再按已验证的本地配置和 hooks 路径发布。仓库外共享 hooks 目录保持原样。规则编辑支持 C 风格引号，保留其他属性和换行格式，也能读取 index 中的备用规则。 [旧 LFS 实现](../../../src-tauri/src/infrastructure/git/lfs.rs) [Git LFS install](https://github.com/git-lfs/git-lfs/blob/v3.8.1/docs/man/git-lfs-install.adoc) [Git attributes](https://git-scm.com/docs/gitattributes)
+- Submodule 侧栏已接通列表、初始化、添加、递归更新和取消注册。同步状态以父仓库索引中的 gitlink 为准。添加成功后暂存 gitlink 和 `.gitmodules`。取消注册保留子模块工作树和未跟踪文件。递归更新从已验证的远端和 checkout 获取目标提交，认证重试从发生认证失败的子模块继续。 [旧 Submodule 后端](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/src-tauri/src/infrastructure/git/submodule.rs)，[Git submodule](https://git-scm.com/docs/git-submodule)
+- Repository 菜单接通 Git LFS 面板、仓库级安装和 `.gitattributes` 规则管理。linked worktree 从实际 Git 共享配置读取安装状态。安装会先由官方 CLI 在私有仓库准备结果，再按已验证的本地配置和 hooks 路径发布。仓库外共享 hooks 目录保持原样。规则编辑支持 C 风格引号，保留其他属性和换行格式，也能读取 index 中的备用规则。 [旧 LFS 实现](https://github.com/Yangshifu1024/GitWave/blob/e175c657d1516cd9b06f8ad7b973097613c0d001/src-tauri/src/infrastructure/git/lfs.rs) [Git LFS install](https://github.com/git-lfs/git-lfs/blob/v3.8.1/docs/man/git-lfs-install.adoc) [Git attributes](https://git-scm.com/docs/gitattributes)
 - 已接通标准 LFS 对象的暂存、提交、状态、离线检出和 Stash 保存与应用。Go 通过私有 Git 过滤器生成 SHA-256 指针，写操作把对象存入仓库共享缓存或配置的 `lfs.storage`。检出校验本地缓存，缺失时保留指针。切换或应用 Stash 将覆盖工作树中仅存的完整内容时，先校验并补回缓存。 [Git LFS 指针规范](https://github.com/git-lfs/git-lfs/blob/v3.8.1/docs/spec.md)
 - Push 按 Git 实际发出的 `pre-push` 引用更新计算 LFS 对象。文件远端直接写入校验后的对象，HTTPS 使用官方 Git LFS 基本传输。对象上传失败时保留原远端引用。确认框显示专用 LFS 目的地，确认后目的地配置变更会使请求失效。已通过本地裸仓库和 HTTPS 测试端点验证对象字节与远端引用。 [Git pre-push](https://git-scm.com/docs/githooks#_pre_push) [Git LFS pre-push](https://github.com/git-lfs/git-lfs/blob/v3.8.1/commands/command_pre_push.go)
 - Pull 按所选远端分支 tip 的 Git 属性和 `lfs.fetchinclude`／`lfs.fetchexclude` 下载缺少的对象，校验对象和缓存后再发布引用与工作树。命中排除规则的文件即使已有缓存也保留指针。独立 HTTPS 媒体地址单独提示凭证，仅将实际发放的凭证路径交给 Git helper 保存。普通 Fetch 保持只更新 Git 对象与引用的语义。 [Git LFS fetch](https://github.com/git-lfs/git-lfs/blob/v3.8.1/docs/man/git-lfs-fetch.adoc)

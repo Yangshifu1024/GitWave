@@ -36,6 +36,13 @@ func newPullUI(cx *core.Scope) pullUI {
 }
 
 func (w *workbench) pullSourceBranch() branch {
+	state := w.changes.Get()
+	if state.ready && !state.bare {
+		if strings.HasPrefix(state.status.HeadRef, "refs/heads/") {
+			return branch{Name: state.status.Branch, Kind: "local", Tip: state.status.HeadOID}
+		}
+		return branch{}
+	}
 	for _, candidate := range w.repo.Get().Branches {
 		if candidate.Current && candidate.Kind == "local" {
 			return candidate

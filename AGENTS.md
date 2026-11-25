@@ -83,7 +83,7 @@ Before delivering a task (commit / push / PR), run the CI-equivalent checks and 
 make check   # Go formatting + go vet + Go tests
 ```
 
-Use `make fmt-check`, `make lint`, and `make test` to run those checks individually. For changes to the Tauri preference exporter, also run `make legacy-check`. CI runs the Go and exporter gates on all three platforms.
+Use `make fmt-check`, `make lint`, and `make test` to run those checks individually. CI runs Go checks on all three platforms.
 
 ## Documentation maintenance
 
@@ -94,7 +94,7 @@ A user-visible change is not done while its docs still describe the old behaviou
 - **`site/index.html`** — the hero version badge and the feature cards
 - **`.agents/skills/gitwave-release/SKILL.md`** — the sync points registered for the release skill
 
-Nothing automated will catch a stale doc: Markdown is outside Prettier (`.prettierignore` excludes `*.md`) and the lint / test workflows skip `site/**`, `docs/**` and `**.md` changes. Verify by hand.
+Nothing automated will catch a stale doc: The Go desktop workflow runs for code and build input changes. Verify by hand.
 
 ## Specialized agents
 
@@ -140,7 +140,7 @@ Trigger: development done, new code awaiting merge
 
 ## Specialized skills
 
-- **gitwave-release** (`/gitwave-release`): version bump and release synchronization (the 4 hardcoded version spots, README status, the site pages) — use it whenever bumping a version, cutting a release, or syncing README / site content
+- **gitwave-release** (`/gitwave-release`): version bump and release synchronization (the NSGo version, README status, and site pages) — use it whenever bumping a version, cutting a release, or syncing README / site content
 
 ## Terminology
 

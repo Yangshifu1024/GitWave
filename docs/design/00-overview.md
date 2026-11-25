@@ -1,5 +1,7 @@
 # GitWave · UI/UX 设计总览
 
+> 当前开发分支使用 NSGo 实现 Tide Workbench。交互和视觉对照见 [迁移验收](../tasks/refactor-nsgo-native-ui/review.md)。下方组件库和验证命令记录发布版本的设计演进。
+
 > 2026-10-15：用户接受 [Tide Workbench](./09-workbench-redesign.md) 第一阶段。当前分支的主布局改为 History / Changes 双工作区，详见该文档开头的已实施范围；其余章节仍是后续提案。下方三纵栏说明保留为发布版本的历史规范。
 
 > v0.10.3（2026-10-14）修订：历史优先界面已随 v0.10.3 交付，当前规格以 [08-history-first.md](./08-history-first.md) 为准。侧栏默认 240px、健康摘要默认收起、分支图预览有界、操作状态移至底栏。下方历史排期与已发布版本说明保留。

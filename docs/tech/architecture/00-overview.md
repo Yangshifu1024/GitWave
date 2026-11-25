@@ -1,106 +1,24 @@
 # GitWave · 系统架构
 
-> 与 `docs/tech/tech-selection/` 配套的总体架构视图。对照 **v0.9.3** 代码，不是早期规划草案。
+桌面程序及 NSGo 配置位于 `cmd/gitwave/`。界面、会话状态和 Go 用例在同一进程运行。平台 UI 由 NSGo 接入 AppKit、Win32 和 GTK。
 
-## 进程拓扑
+| 目录 | 职责 |
+|---|---|
+| `cmd/gitwave/` | History / Changes 工作台、Workspace 切换、仓库会话、确认流程、系统菜单和设置 |
+| `internal/gitcli/`、`internal/gittool/` | Git CLI 参数和输出、仓库事务、凭证提示、随包 Git 与 Git LFS 定位 |
+| `internal/workspace/` | SQLite 持久化、旧数据迁移、Workspace 导入导出及桌面偏好 |
+| `internal/ai/`、`internal/proxy/`、`internal/sshclient/` | AI provider、脱敏、代理解析与 SSH 客户端 |
+| `internal/appupdate/`、`cmd/prepare-*-setup/` | 更新清单验证、平台安装与重启、打包 |
 
-```
-┌──────────────────────────────────────────────────┐
-│  WebView（React + TS）                            │
-│   ├── UI 渲染层                                  │
-│   ├── 状态管理（Zustand / TanStack Query）       │
-│   └── IPC 客户端（typed command + event 订阅）    │
-└────────────────────┬─────────────────────────────┘
-                     │ Tauri command / event
-┌────────────────────▼─────────────────────────────┐
-│  Rust Core                                       │
-│   ├── application   用例编排、事务边界           │
-│   ├── domain        Git / Workspace / AI 模型   │
-│   ├── infrastructure libgit2 / SQLite /         │
-│   │                  HTTP / Keychain            │
-│   └── async runtime tokio                       │
-└────────────────────┬─────────────────────────────┘
-                     │
-        ┌────────────┼────────────┐
-        ▼            ▼            ▼
-   libgit2 (in-proc) Keychain  HTTP (AI)
-                     SQLite
-```
+## 工作台和事务
 
-## 分层（DDD 四层）
+- Workspace 可同时打开多个，每次仅一个活动仓库。SQLite 按 Workspace 与仓库 ID 恢复选择、设置和顺序。
+- 切换 Workspace 时，工作台恢复该组仓库及最后活动仓库，再异步加载 History、Changes 和侧栏。晚到结果按发起仓库与请求校验，写操作完成状态仍归给发起仓库。
+- Git 操作通过上下文取消。改变文件、索引或引用的确认绑定 `HEAD`、索引及相关路径状态，确认过期时保留工作区。
+- History 和 diff 仅渲染可见行。大文件先加载有界预览，超限时提供明确状态。后台自动刷新按偏好扫描当前 Workspace，手动刷新面向活动仓库。
 
-| 层 | 职责 | 例子 |
-|---|---|---|
-| **presentation** | WebView 渲染 + UI 状态 | React components, hooks, stores |
-| **application** | 用例编排、事务边界 | `use_cases.rs` 中的自由函数（`clone_repo`、`generate_commit_message`、…），不是每用例一个 struct |
-| **domain** | 核心模型与不变量 | `Workspace`, `RepoRef`, `CommitMessage`, `RebaseAction` |
-| **infrastructure** | 外部能力适配 | `Git2RepoAdapter`, `SqliteWorkspaceStore`, `KeychainSecretStore`, `HttpAiProvider` |
+## 数据、AI 与更新
 
-依赖方向：`presentation → application → domain ← infrastructure`。domain 层零外部依赖。
-
-## IPC 边界
-
-- **Command**（request / response）：`src-tauri/src/lib.rs` 里的 `#[tauri::command]` 薄封装，转发到 `application::use_cases`；用于一次性动作（clone、commit、switch workspace、AI 生成等）
-- **Event**（push）：后端 → 前端的进度 / 凭证存储结果等（如 sync-progress）。**AI 生成不是 event 流**
-- **序列化**：JSON
-- **类型**：前端 `src/lib/api.ts` **手工**镜像 Rust 结构与命令名。未使用 tauri-specta；新增命令必须同时改 Rust 与 `api.ts`
-
-## 性能热点处理
-
-| 热点 | 策略 | 现状 |
-|---|---|---|
-| history DAG（数万 commit） | `useFixedVirtualizer` 固定行高虚拟滚动，以 `useSyncExternalStore` 提供不可变可见行；后端 cursor 分页 | 已落地 |
-| 大文件 diff | 超大文件走占位、不把数十 MB 灌进 IPC；前端按文件折叠 | 无 hunk 级 Tauri event 流 |
-| syntax highlight | Shiki 按需 grammar JSON + 独立 Oniguruma WASM；仅打包支持的语言 | 已接线；大文件回退纯文本，叠加 character-level 高亮 |
-| 后台 git 操作 | tokio + 超时 / 取消；进度进状态区 | 已落地 |
-| 仓库变化感知 | 无 FS watcher | **每 N 分钟轮询（可配置，默认 5）workspace 内所有仓库**（`useAutoRefresh`）+ 手动刷新（Cmd+R，仅 active 仓库） |
-| AI 生成 | 单次 HTTP，`stream: false`，command 返回全文 | 非 SSE |
-
-## 多 Workspace 并行
-
-- **单一 SQLite** + `workspace_id` 列区分数据
-- **切换语义**：Zustand 记下 lastActiveRepo，切 Workspace 后重新拉该 Workspace 的 repo 列表与 lastActiveRepo；无独立 git watcher 可卸
-- **单 active repo 模型**：UI 全局只渲染一个 repo 的主视图
-- **数据隔离**：Workspace settings 在 `workspaces.settings_json`。`repos.settings_override_json` 列存在，写入恒为 `None`，无 per-repo 覆盖 UI。AI rules 读各仓 `.gitwave/AI.md`
-
-## Workspace 切换时序
-
-```
-用户点击 Workspace B
-  ↓
-记下 B 为 active（Zustand + lastActiveRepo）
-  ↓
-listRepos(B) → pickRestoredRepo
-  ↓
-React Query 按新 workspaceId / repoId 重拉
-  ↓
-各面板（history / working copy / sidebar）跟随 query key 刷新
-```
-
-没有 git watcher 的 subscribe / unsubscribe。自动刷新是一个全局定时器，按可配置的间隔（默认 5 分钟，在「设置 → 通用」里配置）扫过当前 Workspace 里的每一个仓库，对每个仓库尽力而为地抓取；一个仓库失败只让状态区显示部分成功，不把整轮刷新判成失败（`useAutoRefreshLoop` / `useRefreshWorkspaceRepos`）。⌘R / Ctrl+R 是按需刷新当前仓库（`useRefreshRepo`），它与自动刷新共用同一次本地重读，区别只在于抓取范围是当前仓库。
-
-## AI 调用时序
-
-```
-UI 触发 "生成 commit message"
-  ↓
-generate_commit_message 命令（可带 language）
-  ↓
-use case: 拼装最近 N 个 commit + 当前 diff + 可选 .gitwave/AI.md
-  ↓
-infrastructure: scrubber 扫描 → 注入 prompt
-  ↓
-failover 链上 generate_text（HTTP JSON，stream: false）
-  ↓
-命令返回全文 + provider_used
-  ↓
-用户编辑 / 确认 → 走确定性 commit 用例
-```
-
-## 后续 TODO（架构层面）
-
-- 跨 Workspace 全局搜索的索引策略
-- 大仓库（monorepo）的 lazy load 策略
-- FS watcher 取代（或补强）按可配置间隔的轮询
-- 大 diff hunk 流式 / 分页
-- IPC 类型生成（若再评估 tauri-specta）
+- 正式程序沿用 `GitWave/state.db` 和原有 SQLite 迁移。第一次打开旧数据前保存包含已提交 WAL 的在线备份。预览使用独立数据目录。
+- AI 请求在本地构造 prompt 并扫描敏感内容，按 Workspace 设置选择 provider。建议填回界面，Git 写入仍由用户确认。
+- 更新器验证 GitHub Releases 中的 Ed25519 签名清单、下载长度和 SHA-256。旧版偏好迁移使用签名过渡包，生产切换步骤见[迁移计划](../../tasks/refactor-nsgo-native-ui/plan.md#三端包装更新与回退)。

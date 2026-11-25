@@ -290,6 +290,10 @@ func (w *workbench) workbenchBar(chrome palette) core.Node {
 				mode := func(label string, changes bool) core.Node {
 					selected := func() bool { return w.changesMode.Get() == changes }
 					button := toolbarAction(chrome, label, func() { w.showChanges(changes) }, chrome.label(label, chrome.text, 12))
+					button.TestID = "workbench-history-mode"
+					if changes {
+						button.TestID = "workbench-changes-mode"
+					}
 					button.Disabled, button.Selected = repoMissing, selected
 					button.Style.Disabled = disabledStyle
 					button.Style.AriaSelected = &core.Style{Background: chrome.selected}
@@ -306,18 +310,7 @@ func (w *workbench) workbenchBar(chrome palette) core.Node {
 			label.Style.FontWeight = 600
 			return label
 		}),
-		core.Dynamic(func(*core.Scope) core.Node {
-			if w.repo.Get().Branch == "" {
-				return core.View{Style: core.Style{FlexGrow: 1}}
-			}
-			return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 6,
-				FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0), Padding: core.Edges{Left: 12},
-				Borders: core.Edges{Left: 1}, BorderColor: chrome.border}, Children: []core.Node{
-				core.Icon{SVG: lucide.GitBranch(), Style: core.Style{FontSize: 13, Color: chrome.accent}},
-				core.Text{ContentFunc: func() string { return w.repo.Get().Branch }, MaxLines: 1,
-					Style: core.Style{FlexShrink: 1, FontSize: chrome.uiSize(12), Color: chrome.muted}},
-			}}
-		}),
+		core.Dynamic(func(*core.Scope) core.Node { return w.workbenchBranch(chrome) }),
 		core.Show{When: func() bool { return repoMissing() || !w.changesMode.Get() }, Then: func(*core.Scope) core.Node {
 			button := toolbarAction(chrome, w.tr("Search commits", "搜索 commit"), w.toggleCommandPalette,
 				core.Icon{SVG: lucide.Search(), Style: core.Style{FontSize: 14, Color: chrome.muted}},
@@ -339,11 +332,56 @@ func (w *workbench) workbenchBar(chrome palette) core.Node {
 		}))
 }
 
+func (w *workbench) workbenchBranch(chrome palette) core.Node {
+	state := w.changes.Get()
+	if w.path.Get() == "" || !state.ready || state.bare || state.status.Branch == "" {
+		return core.View{Style: core.Style{FlexGrow: 1}}
+	}
+	status := state.status
+	name, tooltip, color, icon := status.Branch, status.Branch, chrome.accent, lucide.GitBranch()
+	if status.HeadRef == "" && status.HeadOID != "" {
+		name = w.tr("detached @ ", "分离于 ") + shortSHA(status.HeadOID)
+		tooltip = w.tr("detached @ ", "分离于 ") + status.HeadOID
+		color, icon = chrome.muted, lucide.GitCommitHorizontal()
+	}
+	children := []core.Node{
+		core.Icon{SVG: icon, Style: core.Style{FontSize: 13, Color: color}},
+		core.Text{Content: name, MaxLines: 1, Style: core.Style{
+			FlexShrink: 1, MinWidth: core.Pt(0), FontSize: chrome.uiSize(12), Color: chrome.text,
+		}},
+	}
+	if status.Upstream != "" {
+		upstream := "→ " + status.Upstream
+		tooltip += " " + upstream
+		children = append(children, core.Text{Content: upstream, MaxLines: 1, Style: core.Style{
+			FlexShrink: 3, MinWidth: core.Pt(0), FontSize: chrome.uiSize(11), Color: chrome.muted,
+		}})
+	}
+	if status.Ahead > 0 {
+		count := fmt.Sprintf("↑%d", status.Ahead)
+		tooltip += " " + count
+		children = append(children, chrome.label(count, chrome.accent, 11))
+	}
+	if status.Behind > 0 {
+		count := fmt.Sprintf("↓%d", status.Behind)
+		tooltip += " " + count
+		children = append(children, chrome.label(count, chrome.warning, 11))
+	}
+	return core.View{TestID: "workbench-branch", Tooltip: chrome.label(tooltip, chrome.text, 11),
+		Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 6,
+			FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0), Padding: core.Edges{Left: 12},
+			Borders: core.Edges{Left: 1}, BorderColor: chrome.border}, Children: children}
+}
+
 func (w *workbench) statusBar(chrome palette) core.Node {
 	status := bar(chrome, 32, chrome.bar, core.Text{
+		TestID: "status-current-branch",
 		ContentFunc: func() string {
 			if w.path.Get() == "" {
 				return w.tr("No repository selected", "未选择仓库")
+			}
+			if current := w.changes.Get(); current.ready && !current.bare && current.status.Branch != "" {
+				return current.status.Branch
 			}
 			return w.repo.Get().Branch
 		},

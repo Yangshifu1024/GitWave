@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+func TestNativePullUsesNewCheckoutAfterChangesRefresh(t *testing.T) {
+	repo, git := historyRepository(t)
+	git("", "commit", "--allow-empty", "-m", "Local main")
+	git("", "switch", "-c", "topic")
+	git("", "commit", "--allow-empty", "-m", "Local topic")
+	git("", "switch", "main")
+	git("", "remote", "add", "origin", ".")
+	git("", "fetch", "origin")
+	git("", "branch", "--set-upstream-to=origin/main", "main")
+	git("", "branch", "--set-upstream-to=origin/topic", "topic")
+
+	app := refTestApp(t, repo)
+	app.WaitFor("id:workbench-branch >> text:→ origin/main", refTestTimeout)
+	git("", "switch", "topic")
+	app.Press("id:navigate-changes")
+	app.WaitFor("id:workbench-branch >> text:→ origin/topic", refTestTimeout)
+	app.WaitUntil(refTestTimeout, func() bool { return app.Find("id:status-current-branch").Text == "topic" })
+	app.Press("id:pull")
+	app.WaitFor("id:pull-dialog >> text:/^topic$/", refTestTimeout)
+	app.WaitFor("id:pull-branch >> text:origin/topic", refTestTimeout)
+	app.Press("label:Cancel")
+	app.WaitForGone("id:pull-dialog", refTestTimeout)
+}
+
 func TestNativePullSelectsRemoteBranchAndReappliesLocalChanges(t *testing.T) {
 	remote, gitRemote := historyRepository(t)
 	tracked := filepath.Join(remote, "tracked.txt")
