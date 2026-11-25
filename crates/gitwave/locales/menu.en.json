@@ -5,13 +5,25 @@
       "workspace": "Workspace",
       "repository": "Repository",
       "branch": "Branch",
+      "view": "View",
       "edit": "Edit",
       "window": "Window"
     },
     "app": {
       "aboutGitWave": "About GitWave",
       "checkUpdates": "Check for Updates…",
-      "settings": "Settings…"
+      "settings": "Settings…",
+      "hide": "Hide GitWave",
+      "hideOthers": "Hide Others",
+      "quit": "Quit GitWave"
+    },
+    "edit": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "cut": "Cut",
+      "copy": "Copy",
+      "paste": "Paste",
+      "selectAll": "Select All"
     },
     "file": {
       "settings": {
@@ -104,6 +116,14 @@
         "label": "PR",
         "text": "AI PR description for the current branch"
       }
+    },
+    "view": {
+      "language": "Language"
+    },
+    "window": {
+      "minimize": "Minimize",
+      "zoom": "Zoom",
+      "bringAllToFront": "Bring All to Front"
     }
   }
 }

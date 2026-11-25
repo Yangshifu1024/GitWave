@@ -5,13 +5,25 @@
       "workspace": "工作区",
       "repository": "仓库",
       "branch": "分支",
+      "view": "显示",
       "edit": "编辑",
       "window": "窗口"
     },
     "app": {
       "aboutGitWave": "关于 GitWave",
       "checkUpdates": "检查更新…",
-      "settings": "设置…"
+      "settings": "设置…",
+      "hide": "隐藏 GitWave",
+      "hideOthers": "隐藏其他",
+      "quit": "退出 GitWave"
+    },
+    "edit": {
+      "undo": "撤销",
+      "redo": "重做",
+      "cut": "剪切",
+      "copy": "复制",
+      "paste": "粘贴",
+      "selectAll": "全选"
     },
     "file": {
       "settings": {
@@ -104,6 +116,14 @@
         "label": "PR",
         "text": "AI 生成本分支的 PR 描述"
       }
+    },
+    "view": {
+      "language": "语言"
+    },
+    "window": {
+      "minimize": "最小化",
+      "zoom": "缩放",
+      "bringAllToFront": "前置全部窗口"
     }
   }
 }

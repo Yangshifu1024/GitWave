@@ -3,22 +3,32 @@
 
 use std::time::{Duration, Instant};
 
-use gpui_kit::component::{ActiveTheme as _, ThemeMode};
+use gpui_kit::component::{ActiveTheme as _, GlobalState, ThemeMode};
 use gpui_kit::test::TestWindowExt as _;
 use gpui_kit::{
-    AnyWindowHandle, AppContext as _, Entity, MenuItem, TestAppContext, WindowOptions, px, size,
+    AnyWindowHandle, App, AppContext as _, Entity, MenuItem, OwnedMenu, OwnedMenuItem,
+    TestAppContext, WindowOptions, px, size,
 };
 
+use gitwave_core::application::use_cases::get_language_settings;
+
 use super::Workbench;
-use crate::{app_state, menus, runtime, workbench};
+use crate::{
+    app_state,
+    locales::{self, LanguageChoice},
+    menus::{self, SwitchLanguage},
+    runtime, workbench,
+};
 
 /// Opens the workbench the way `main` does, with a test window in place of the
-/// real one.
+/// real one. The system reports no language, so the interface starts in English
+/// whatever the machine running the tests prefers.
 fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Workbench>) {
     cx.update(|cx| {
         gpui_kit::init(cx);
         runtime::init(cx);
         app_state::init(cx);
+        locales::init(&app_state::context(cx), Vec::new(), cx);
         workbench::init(cx);
         let app_menu_bar = menus::init(cx);
         let options = WindowOptions {
@@ -33,6 +43,15 @@ fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Workbench>) {
             cx.new(|cx| Workbench::new(app_menu_bar, window, cx))
         })
         .expect("open the test window")
+    })
+}
+
+/// What gitwave-core has stored for the language.
+fn stored_language(cx: &mut TestAppContext) -> Option<String> {
+    cx.read(|cx| {
+        get_language_settings(&app_state::context(cx))
+            .expect("read the stored language")
+            .locale
     })
 }
 
@@ -54,8 +73,13 @@ fn settle_status(cx: &mut TestAppContext, workbench: &Entity<Workbench>) -> Stri
     }
 }
 
+// Every test below reads English, so each holds the turn on the process-wide
+// language for its whole run: `open` sets the language, and another test
+// switching it in between would change the labels.
+
 #[gpui_kit::test]
 fn status_bar_counts_the_workspaces_once_core_has_read_them(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
     let (_, workbench) = open(cx);
 
     let status = settle_status(cx, &workbench);
@@ -63,20 +87,51 @@ fn status_bar_counts_the_workspaces_once_core_has_read_them(cx: &mut TestAppCont
     assert_eq!(status, "In-memory state, nothing is saved · 0 workspace(s)");
 }
 
-#[gpui_kit::test]
-fn settings_shortcut_opens_a_dialog_with_a_text_input(cx: &mut TestAppContext) {
-    let (window, _) = open(cx);
-    let shortcut = if cfg!(target_os = "macos") {
+/// The shortcut for Settings on this platform.
+fn settings_shortcut() -> &'static str {
+    if cfg!(target_os = "macos") {
         "cmd-,"
     } else {
         "ctrl-,"
-    };
+    }
+}
+
+/// Draws a frame, in an update of its own.
+fn render(cx: &mut TestAppContext, window: AnyWindowHandle) {
+    cx.update_window(window, |_, window, cx| window.render_frame(cx))
+        .unwrap();
+}
+
+/// Presses the Settings shortcut. The dialog opens once the update that
+/// delivered the keystroke has ended, so the function ends with a frame that
+/// shows it.
+fn open_settings(cx: &mut TestAppContext, window: AnyWindowHandle) {
+    cx.update_window(window, |_, window, cx| {
+        window.press(settings_shortcut(), cx)
+    })
+    .unwrap();
+    render(cx, window);
+}
+
+#[gpui_kit::test]
+fn settings_shortcut_opens_a_dialog_with_a_text_input(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+    render(cx, window);
 
     cx.update_window(window, |_, window, cx| {
-        window.render_frame(cx);
         assert!(window.try_find("settings-note").is_none());
-        window.press(shortcut, cx);
-        window.render_frame(cx);
+        window.press(settings_shortcut(), cx);
+    })
+    .unwrap();
+
+    assert_settings_dialog_open(cx, window);
+}
+
+/// Asserts that the Settings dialog is on screen.
+fn assert_settings_dialog_open(cx: &mut TestAppContext, window: AnyWindowHandle) {
+    render(cx, window);
+    cx.update_window(window, |_, window, _| {
         assert!(
             window.find("settings-note").visible(),
             "the settings dialog did not open"
@@ -85,8 +140,42 @@ fn settings_shortcut_opens_a_dialog_with_a_text_input(cx: &mut TestAppContext) {
     .unwrap();
 }
 
+/// A dialog takes the focus and is drawn outside the workbench. The
+/// application's actions have to keep working then: the macOS menu bar
+/// delivers an item the same way a focused element does.
+#[gpui_kit::test]
+fn application_actions_work_while_a_dialog_is_open(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+    open_settings(cx, window);
+    assert_settings_dialog_open(cx, window);
+
+    // From here on the focus is in the dialog.
+    cx.update_window(window, |_, window, cx| {
+        window.dispatch_action(
+            Box::new(SwitchLanguage(LanguageChoice::Fixed(
+                &locales::SIMPLIFIED_CHINESE,
+            ))),
+            cx,
+        );
+        window.dispatch_action(Box::new(menus::SwitchThemeMode(ThemeMode::Dark)), cx);
+    })
+    .unwrap();
+
+    cx.read(|cx| {
+        assert_eq!(
+            menus::build_menus(cx)[2].name,
+            "显示",
+            "the language switched while the dialog was open"
+        );
+        assert!(cx.theme().mode.is_dark(), "the appearance switched too");
+    });
+    assert_eq!(stored_language(cx).as_deref(), Some("zh-CN"));
+}
+
 #[gpui_kit::test]
 fn switching_the_appearance_updates_the_view_menu(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
     let (window, _) = open(cx);
 
     cx.update_window(window, |_, window, cx| {
@@ -109,4 +198,260 @@ fn switching_the_appearance_updates_the_view_menu(cx: &mut TestAppContext) {
         assert!(!light, "Light stays checked after switching to Dark");
         assert!(dark, "Dark is not checked after switching to it");
     });
+}
+
+#[gpui_kit::test]
+fn switching_the_language_relabels_the_menus_and_stores_the_choice(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+
+    cx.update_window(window, |_, window, cx| {
+        window.render_frame(cx);
+        window.dispatch_action(
+            Box::new(SwitchLanguage(LanguageChoice::Fixed(
+                &locales::SIMPLIFIED_CHINESE,
+            ))),
+            cx,
+        );
+    })
+    .unwrap();
+
+    cx.read(|cx| {
+        assert_eq!(rust_i18n::t!("menu.app.settings"), "设置…");
+        let menus = menus::build_menus(cx);
+        let view = &menus[2];
+        assert_eq!(view.name, "显示");
+        let MenuItem::Submenu(language) = view.items.get(3).expect("a language submenu") else {
+            panic!("the fourth View item is the language submenu");
+        };
+        let offered: Vec<(&str, bool)> = language
+            .items
+            .iter()
+            .map(|item| match item {
+                MenuItem::Action { name, checked, .. } => (name.as_ref(), *checked),
+                MenuItem::Separator | MenuItem::Submenu(_) | MenuItem::SystemMenu(_) => {
+                    panic!("the language submenu holds actions only")
+                }
+            })
+            .collect();
+        assert_eq!(
+            offered,
+            [("跟随系统", false), ("English", false), ("简体中文", true)]
+        );
+    });
+    assert_eq!(
+        stored_language(cx).as_deref(),
+        Some("zh-CN"),
+        "the choice is stored by the time the switch returns"
+    );
+
+    // Back to the system, which reports nothing: English again, and nothing stored.
+    cx.update_window(window, |_, window, cx| {
+        window.dispatch_action(Box::new(SwitchLanguage(LanguageChoice::System)), cx);
+    })
+    .unwrap();
+    cx.read(|cx| assert_eq!(menus::build_menus(cx)[2].name, "View"));
+    assert_eq!(stored_language(cx), None);
+}
+
+/// The labels of the language radios, in the order they are offered. The group
+/// numbers its children, so inside it a radio's id is its position.
+fn language_radio_labels(window: &mut gpui_kit::Window) -> Vec<String> {
+    let group = window.within("settings-language");
+    (0..3)
+        .map(|index| {
+            group
+                .find(index)
+                .label()
+                .expect("a radio has a label")
+                .to_string()
+        })
+        .collect()
+}
+
+/// The language radio that is selected. A radio reports being selected, and
+/// also toggled, for different kinds of assistive technology.
+fn selected_radio(window: &mut gpui_kit::Window) -> usize {
+    let group = window.within("settings-language");
+    (0..3)
+        .find(|index| {
+            let radio = group.find(*index);
+            radio
+                .selected()
+                .or_else(|| radio.checked())
+                .unwrap_or_default()
+        })
+        .expect("one radio is selected")
+}
+
+#[gpui_kit::test]
+fn the_settings_dialog_switches_the_language_from_its_radios(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+    open_settings(cx, window);
+
+    cx.update_window(window, |_, window, cx| {
+        assert_eq!(
+            language_radio_labels(window),
+            ["Follow system", "English", "简体中文"],
+            "each language names itself"
+        );
+        assert_eq!(selected_radio(window), 0);
+
+        // Choose 简体中文 the way a user would: the third radio of the group.
+        window.within("settings-language").click(2, cx);
+        window.render_frame(cx);
+        assert_eq!(
+            language_radio_labels(window),
+            ["跟随系统", "English", "简体中文"],
+            "the open dialog follows the switch"
+        );
+        assert_eq!(selected_radio(window), 2);
+    })
+    .unwrap();
+
+    cx.read(|cx| {
+        assert_eq!(menus::build_menus(cx)[2].name, "显示");
+        assert_eq!(
+            locales::choice(cx),
+            LanguageChoice::Fixed(&locales::SIMPLIFIED_CHINESE)
+        );
+    });
+    assert_eq!(stored_language(cx).as_deref(), Some("zh-CN"));
+}
+
+/// A menu the way the platform shows it: its name, then one line per item. A
+/// separator is `-`, and a submenu is listed indented under its own name.
+fn outline(menu: &OwnedMenu) -> Vec<String> {
+    let mut lines = vec![menu.name.to_string()];
+    for item in &menu.items {
+        match item {
+            OwnedMenuItem::Separator => lines.push("-".into()),
+            OwnedMenuItem::Submenu(submenu) => {
+                lines.extend(outline(submenu).into_iter().map(|line| format!("  {line}")));
+            }
+            OwnedMenuItem::SystemMenu(system) => lines.push(system.name.to_string()),
+            OwnedMenuItem::Action { name, .. } => lines.push(name.clone()),
+        }
+    }
+    lines
+}
+
+/// Both sets of menus: those the system shows, which is the macOS menu bar,
+/// and those of the title bar on Windows and Linux.
+fn menu_outlines(cx: &App) -> [Vec<Vec<String>>; 2] {
+    [
+        cx.get_menus()
+            .expect("the application has set its menus")
+            .iter()
+            .map(outline)
+            .collect(),
+        GlobalState::global(cx)
+            .app_menus()
+            .iter()
+            .map(outline)
+            .collect(),
+    ]
+}
+
+/// What the menus say in a language, written out here rather than read back
+/// from the message files: a label that is wired to the wrong message, or to
+/// no message at all, shows up as a difference.
+fn expected_menus(english: bool) -> Vec<Vec<String>> {
+    let mut application = if english {
+        vec![
+            "GitWave",
+            "About GitWave",
+            "Check for Updates…",
+            "-",
+            "Settings…",
+        ]
+    } else {
+        vec!["GitWave", "关于 GitWave", "检查更新…", "-", "设置…"]
+    };
+    if cfg!(target_os = "macos") {
+        application.extend(if english {
+            ["-", "Hide GitWave", "Hide Others"]
+        } else {
+            ["-", "隐藏 GitWave", "隐藏其他"]
+        });
+    }
+    application.extend([
+        "-",
+        if english {
+            "Quit GitWave"
+        } else {
+            "退出 GitWave"
+        },
+    ]);
+    let edit = if english {
+        [
+            "Edit",
+            "Undo",
+            "Redo",
+            "-",
+            "Cut",
+            "Copy",
+            "Paste",
+            "Select All",
+        ]
+    } else {
+        ["编辑", "撤销", "重做", "-", "剪切", "复制", "粘贴", "全选"]
+    };
+    let view = if english {
+        [
+            "View",
+            "Light",
+            "Dark",
+            "-",
+            "  Language",
+            "  Follow system",
+        ]
+    } else {
+        ["显示", "浅色", "深色", "-", "  语言", "  跟随系统"]
+    };
+    let window = if english {
+        ["Window", "Minimize", "Zoom", "-", "Bring All to Front"]
+    } else {
+        ["窗口", "最小化", "缩放", "-", "前置全部窗口"]
+    };
+    vec![
+        application.into_iter().map(String::from).collect(),
+        edit.into_iter().map(String::from).collect(),
+        view.into_iter()
+            .chain(["  English", "  简体中文"])
+            .map(String::from)
+            .collect(),
+        window.into_iter().map(String::from).collect(),
+    ]
+}
+
+/// After a switch, both sets of menus follow by themselves, through the
+/// observer, and every label of theirs comes from the message files. In
+/// Chinese, nothing is left in English except the application's name and the
+/// names of the languages, which name themselves.
+#[gpui_kit::test]
+fn both_sets_of_menus_follow_the_language_and_leave_nothing_in_english(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+    render(cx, window);
+    assert_eq!(
+        cx.read(menu_outlines),
+        [expected_menus(true), expected_menus(true)]
+    );
+
+    cx.update_window(window, |_, window, cx| {
+        window.dispatch_action(
+            Box::new(SwitchLanguage(LanguageChoice::Fixed(
+                &locales::SIMPLIFIED_CHINESE,
+            ))),
+            cx,
+        );
+    })
+    .unwrap();
+
+    assert_eq!(
+        cx.read(menu_outlines),
+        [expected_menus(false), expected_menus(false)]
+    );
 }

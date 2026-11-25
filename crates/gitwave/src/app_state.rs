@@ -29,9 +29,14 @@ pub fn storage(cx: &App) -> &'static str {
     cx.global::<AppState>().storage
 }
 
+/// The context gitwave-core's use cases run with.
+pub fn context(cx: &App) -> AppContext {
+    cx.global::<AppState>().context.clone()
+}
+
 /// The workspaces, read off the main thread.
 pub fn workspaces(cx: &App) -> Task<Result<Vec<WorkspaceSummary>, String>> {
-    let context = cx.global::<AppState>().context.clone();
+    let context = context(cx);
     let task = runtime::blocking(cx, move || {
         list_workspaces(&context).map_err(|error| error.message())
     });

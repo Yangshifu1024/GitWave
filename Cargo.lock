@@ -2211,7 +2211,9 @@ dependencies = [
  "gpui-kit",
  "rust-i18n",
  "serde_json",
+ "sys-locale",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

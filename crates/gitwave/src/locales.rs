@@ -1,4 +1,5 @@
-//! The interface languages, and the checks that keep their message files aligned.
+//! The interface languages: which ones GitWave ships, how one is chosen, and the
+//! checks that keep their message files aligned.
 //!
 //! `locales/<domain>.<locale>.json` holds the interface text, one tree per domain
 //! and language. rust-i18n takes the language from the last dot-separated part
@@ -14,16 +15,253 @@
 //! have to be chosen in code.
 
 #[cfg(test)]
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
+use gitwave_core::application::use_cases::{
+    AppContext, get_language_settings, set_language_settings,
+};
+use gitwave_core::domain::LanguageSettings;
+#[cfg(test)]
+use gpui_kit::TestAppContext;
+use gpui_kit::{App, Global};
+
+use crate::app_state;
+
+/// A language the interface ships.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Language {
+    /// Its tag, the way rust-i18n names the files: `app.zh-CN.json`.
+    pub tag: &'static str,
+    /// The key of its name in the message files. Each language names itself, so
+    /// a user who cannot read the current one can still find theirs.
+    pub name: &'static str,
+}
+
+/// English. `main` registers it as rust-i18n's fallback, so a message missing
+/// from another language still shows, and it is what a system that reports
+/// nothing GitWave ships gets.
+pub const ENGLISH: Language = Language {
+    tag: "en",
+    name: "common.language.english",
+};
+
+/// The one Chinese language GitWave ships; every Chinese variant of the system
+/// maps onto it.
+pub const SIMPLIFIED_CHINESE: Language = Language {
+    tag: "zh-CN",
+    name: "common.language.chinese",
+};
+
+/// The languages the interface ships, the fallback first.
+pub const LANGUAGES: [Language; 2] = [ENGLISH, SIMPLIFIED_CHINESE];
+
+/// The locale of [`ENGLISH`]. `main` names it a second time, as the literal of
+/// its `i18n!` call; a test keeps the two from drifting apart.
+pub const FALLBACK: &str = ENGLISH.tag;
+
+/// What the user asked for: the system's language, or a fixed one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LanguageChoice {
+    /// The shipped language closest to the first one the system reports.
+    System,
+    /// One of `LANGUAGES`. A reference to it, so that there is no such thing
+    /// as the fixed choice of a language GitWave does not ship.
+    Fixed(&'static Language),
+}
+
+impl LanguageChoice {
+    /// The fixed choice for a stored tag when it names a shipped language. Tags
+    /// compare without regard to case, the way language tags do.
+    #[must_use]
+    pub fn showing(tag: &str) -> Option<Self> {
+        LANGUAGES
+            .iter()
+            .find(|language| language.tag.eq_ignore_ascii_case(tag))
+            .map(Self::Fixed)
+    }
+
+    /// What gitwave-core stores for the choice.
+    fn settings(self) -> LanguageSettings {
+        LanguageSettings {
+            locale: match self {
+                Self::System => None,
+                Self::Fixed(language) => Some(language.tag.to_string()),
+            },
+        }
+    }
+
+    /// The locale the choice puts in force.
+    fn locale(self, system_languages: &[String]) -> &'static str {
+        match self {
+            Self::System => language_for(system_languages),
+            Self::Fixed(language) => language.tag,
+        }
+    }
+}
+
+/// The user's language choice, and the languages of the system it is resolved
+/// against.
+pub(crate) struct InterfaceLanguage {
+    choice: LanguageChoice,
+    /// The languages the system reports, most preferred first, as read when the
+    /// application started.
+    system_languages: Vec<String>,
+}
+
+impl Global for InterfaceLanguage {}
+
+/// The choices on offer, in the order every list shows them: following the
+/// system first, then each shipped language.
+pub fn choices() -> impl Iterator<Item = LanguageChoice> {
+    std::iter::once(LanguageChoice::System).chain(LANGUAGES.iter().map(LanguageChoice::Fixed))
+}
+
+/// The languages the system reports, most preferred first.
+#[must_use]
+pub fn system_languages() -> Vec<String> {
+    sys_locale::get_locales().collect()
+}
+
+/// Maps the languages the system reports, in order of preference, onto one
+/// GitWave ships: every Chinese variant onto the single simplified-Chinese
+/// language, English onto English, and anything else onto the fallback.
+#[must_use]
+pub fn language_for(system_languages: &[String]) -> &'static str {
+    for language in system_languages {
+        // Only the language part decides: `en-GB` is English, `zh-Hant-TW` is Chinese.
+        let primary = language
+            .split(['-', '_'])
+            .next()
+            .unwrap_or_default()
+            .to_lowercase();
+        if primary == "zh" {
+            return SIMPLIFIED_CHINESE.tag;
+        }
+        if primary == "en" {
+            return FALLBACK;
+        }
+    }
+    FALLBACK
+}
+
+/// The choice the interface starts with: the stored one when it names a shipped
+/// language, otherwise the system's.
+#[must_use]
+pub fn initial_choice(stored: Option<&str>) -> LanguageChoice {
+    stored
+        .and_then(LanguageChoice::showing)
+        .unwrap_or(LanguageChoice::System)
+}
+
+/// Reads the stored choice and starts the interface in that language. Call it
+/// once, before the first window opens and before anything builds a menu. It
+/// reads synchronously: a window that showed in the wrong language first would
+/// be worse than one small read.
+pub fn init(context: &AppContext, system_languages: Vec<String>, cx: &mut App) {
+    let stored = get_language_settings(context).unwrap_or_else(|error| {
+        tracing::warn!("the stored language could not be read, following the system: {error}");
+        LanguageSettings::default()
+    });
+    let choice = initial_choice(stored.locale.as_deref());
+    rust_i18n::set_locale(choice.locale(&system_languages));
+    cx.set_global(InterfaceLanguage {
+        choice,
+        system_languages,
+    });
+}
+
+/// The choice behind the language in force.
+#[must_use]
+pub fn choice(cx: &App) -> LanguageChoice {
+    cx.global::<InterfaceLanguage>().choice
+}
+
+/// Switches the interface to `choice` and stores it through gitwave-core, so
+/// that the next start begins in the same language. Views and menus observe the
+/// language and update themselves.
+///
+/// The store runs on the main thread and the interface waits for it. It is one
+/// small write to the local database, far too short to be worth a background
+/// task, and doing it here is also what keeps two quick switches from racing.
+///
+/// Choosing the language already in force, which is what picking the checked
+/// menu item does, changes nothing: nothing is stored and nothing is redrawn.
+pub fn switch_and_store(choice: LanguageChoice, cx: &mut App) {
+    if cx.global::<InterfaceLanguage>().choice == choice {
+        return;
+    }
+    {
+        // Going through `global_mut` is what tells the observers that the language changed.
+        let state = cx.global_mut::<InterfaceLanguage>();
+        rust_i18n::set_locale(choice.locale(&state.system_languages));
+        state.choice = choice;
+    }
+    // A failed store only means that the next start falls back to what was
+    // stored before; the choice is showing already.
+    if let Err(error) = set_language_settings(&app_state::context(cx), choice.settings()) {
+        tracing::warn!("the language choice could not be stored: {error}");
+    }
+}
+
+/// rust-i18n keeps the language for the whole process, so the tests that depend
+/// on it take turns.
+#[cfg(test)]
+static LANGUAGE_LOCK: Mutex<()> = Mutex::new(());
+
+/// The turn, held by the application of a test for as long as it exists. The
+/// guard is never read: holding it is the whole point.
+#[cfg(test)]
+struct LanguageTurn {
+    _turn: MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl Global for LanguageTurn {}
+
+/// Takes the turn for the rest of a test that renders a window. The lock is
+/// held until the application of the test is dropped, which is later than the
+/// end of its body: the framework draws a frame or two after the body returns,
+/// and a dialog that is still open reads the language then.
+#[cfg(test)]
+pub(crate) fn take_language_turn(cx: &mut TestAppContext) {
+    let turn = lock_language();
+    cx.update(|cx| cx.set_global(LanguageTurn { _turn: turn }));
+}
+
+/// Takes the turn for the rest of a test that reads the language without a
+/// window: hold the guard until the body of the test ends.
+#[cfg(test)]
+pub(crate) fn lock_language() -> MutexGuard<'static, ()> {
+    LANGUAGE_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Whether some test holds the turn. For checks that the lock is where it has
+/// to be.
+#[cfg(test)]
+pub(crate) fn language_is_locked() -> bool {
+    LANGUAGE_LOCK.try_lock().is_err()
+}
+
+#[cfg(test)]
 mod tests {
+    use std::cell::Cell;
     use std::collections::BTreeSet;
     use std::fs;
     use std::path::{Path, PathBuf};
+    use std::rc::Rc;
 
+    use gpui_kit::TestAppContext;
     use serde_json::Value;
 
-    /// The languages the interface ships with. English is the fallback, so a
-    /// message missing from another language still shows.
-    const LANGUAGES: [&str; 2] = ["en", "zh-CN"];
+    use super::{
+        ENGLISH, FALLBACK, LANGUAGES, SIMPLIFIED_CHINESE, choice, init, initial_choice,
+        language_for, lock_language, switch_and_store, take_language_turn,
+    };
+    use crate::app_state;
+    use gitwave_core::application::use_cases::{get_language_settings, set_language_settings};
+    use gitwave_core::domain::LanguageSettings;
+
+    use super::LanguageChoice;
 
     /// The message files live in the crate; the error codes they name live in
     /// gitwave-core.
@@ -205,6 +443,10 @@ mod tests {
         codes
     }
 
+    fn languages(list: &[&str]) -> Vec<String> {
+        list.iter().map(ToString::to_string).collect()
+    }
+
     #[test]
     fn the_languages_on_disk_are_exactly_the_shipped_ones() {
         let on_disk: BTreeSet<String> = message_files().iter().map(|path| split(path).1).collect();
@@ -212,7 +454,7 @@ mod tests {
             on_disk,
             LANGUAGES
                 .iter()
-                .map(|language| language.to_string())
+                .map(|language| language.tag.to_string())
                 .collect(),
             "a message file names a language that is not in LANGUAGES, or the other way round"
         );
@@ -220,19 +462,21 @@ mod tests {
 
     #[test]
     fn every_language_ships_the_same_domains_with_the_same_messages() {
-        let english = domains("en");
+        let english = domains(FALLBACK);
         for language in LANGUAGES {
-            let other = domains(language);
+            let other = domains(language.tag);
             assert_eq!(
                 other.iter().map(|(domain, _)| domain).collect::<Vec<_>>(),
                 english.iter().map(|(domain, _)| domain).collect::<Vec<_>>(),
-                "{language} ships different domains"
+                "{} ships different domains",
+                language.tag
             );
             for ((_, en_tree), (_, tree)) in english.iter().zip(&other) {
                 assert_eq!(
                     messages(tree),
                     messages(en_tree),
-                    "{language} ships different messages"
+                    "{} ships different messages",
+                    language.tag
                 );
             }
         }
@@ -240,14 +484,15 @@ mod tests {
 
     #[test]
     fn every_message_uses_the_same_placeholders_in_every_language() {
-        let english = domains("en");
-        for language in LANGUAGES.into_iter().skip(1) {
-            for ((_, en_tree), (_, tree)) in english.iter().zip(domains(language)) {
+        let english = domains(FALLBACK);
+        for language in LANGUAGES.iter().skip(1) {
+            for ((_, en_tree), (_, tree)) in english.iter().zip(domains(language.tag)) {
                 for path in messages(en_tree) {
                     assert_eq!(
                         placeholders(message(&tree, &path)),
                         placeholders(message(en_tree, &path)),
-                        "{language}/{path} uses different placeholders"
+                        "{}/{path} uses different placeholders",
+                        language.tag
                     );
                 }
             }
@@ -259,19 +504,32 @@ mod tests {
     /// before a file was edited fails here as well.
     #[test]
     fn every_message_loads_through_rust_i18n_as_written() {
+        let _turn = lock_language();
         for language in LANGUAGES {
-            rust_i18n::set_locale(language);
-            for (domain, tree) in domains(language) {
+            rust_i18n::set_locale(language.tag);
+            for (domain, tree) in domains(language.tag) {
                 for path in messages(&tree) {
                     assert_eq!(
                         rust_i18n::t!(&path),
                         message(&tree, &path),
-                        "{language}/{path} does not load the way {domain}.{language}.json spells it"
+                        "{}/{path} does not load the way {domain}.{}.json spells it",
+                        language.tag,
+                        language.tag
                     );
                 }
             }
+            // The name of every language has to be in every catalogue.
+            for named in LANGUAGES {
+                assert_ne!(
+                    rust_i18n::t!(named.name),
+                    named.name,
+                    "{}/{} has no name",
+                    language.tag,
+                    named.tag
+                );
+            }
         }
-        rust_i18n::set_locale("en");
+        rust_i18n::set_locale(FALLBACK);
     }
 
     #[test]
@@ -279,19 +537,166 @@ mod tests {
         let codes = error_codes();
         assert!(!codes.is_empty(), "no error codes found");
         for language in LANGUAGES {
-            let errors = errors(language);
+            let errors = errors(language.tag);
             for code in &codes {
                 assert!(
                     node(&errors, code).is_some_and(Value::is_string),
-                    "{language}: errors.{code} has no message"
+                    "{}: errors.{code} has no message",
+                    language.tag
                 );
             }
             for path in messages(&errors) {
                 assert!(
                     codes.contains(&path),
-                    "{language}: errors.{path} matches no error code"
+                    "{}: errors.{path} matches no error code",
+                    language.tag
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_languages_the_rules_name_are_shipped() {
+        let tags: Vec<&str> = LANGUAGES.iter().map(|language| language.tag).collect();
+        assert!(
+            tags.contains(&FALLBACK),
+            "the fallback has to be a shipped language"
+        );
+        assert!(
+            tags.contains(&SIMPLIFIED_CHINESE.tag),
+            "the Chinese every Chinese variant maps onto has to be shipped"
+        );
+        assert_eq!(tags.first(), Some(&FALLBACK), "English is the fallback");
+        assert!(
+            include_str!("main.rs").contains(&format!("fallback = \"{FALLBACK}\"")),
+            "main registers another fallback than FALLBACK"
+        );
+    }
+
+    #[test]
+    fn system_languages_map_to_the_closest_shipped_language() {
+        let system = |list: &[&str]| language_for(&languages(list));
+
+        assert_eq!(system(&["zh-TW", "en"]), SIMPLIFIED_CHINESE.tag);
+        assert_eq!(system(&["fr", "zh-Hans-CN"]), SIMPLIFIED_CHINESE.tag);
+        assert_eq!(
+            system(&["zh_CN"]),
+            SIMPLIFIED_CHINESE.tag,
+            "an underscore is not a hyphen, but still Chinese"
+        );
+        // Only the first language the user prefers decides.
+        assert_eq!(system(&["en-GB", "zh-Hans-CN"]), FALLBACK);
+        assert_eq!(system(&["fr", "en-US"]), FALLBACK);
+        assert_eq!(system(&["fr"]), FALLBACK);
+        assert_eq!(system(&[]), FALLBACK);
+    }
+
+    #[test]
+    fn a_stored_choice_wins_when_it_names_a_shipped_language() {
+        assert_eq!(
+            initial_choice(Some("zh-CN")),
+            LanguageChoice::Fixed(&SIMPLIFIED_CHINESE)
+        );
+        assert_eq!(
+            initial_choice(Some("ZH-cn")),
+            LanguageChoice::Fixed(&SIMPLIFIED_CHINESE),
+            "language tags do not care about case"
+        );
+        assert_eq!(
+            initial_choice(Some("ja")),
+            LanguageChoice::System,
+            "a language GitWave no longer ships falls back to the system"
+        );
+        assert_eq!(initial_choice(Some("")), LanguageChoice::System);
+        assert_eq!(initial_choice(None), LanguageChoice::System);
+    }
+
+    /// What gitwave-core has stored.
+    fn stored(cx: &mut TestAppContext) -> Option<String> {
+        cx.read(|cx| {
+            get_language_settings(&app_state::context(cx))
+                .expect("read the stored language")
+                .locale
+        })
+    }
+
+    /// Starts in the language of the stored choice, or of the system, and
+    /// switching changes the language in force, tells the observers and has
+    /// stored the choice by the time it returns.
+    #[gpui_kit::test]
+    fn starting_and_switching_follow_the_stored_choice_and_the_system(cx: &mut TestAppContext) {
+        take_language_turn(cx);
+        assert!(super::language_is_locked());
+        let started = Rc::new(Cell::new(0));
+
+        // Nothing stored: the system decides.
+        cx.update(|cx| {
+            gpui_kit::init(cx);
+            app_state::init(cx);
+            init(
+                &app_state::context(cx),
+                languages(&["zh-Hans-CN", "en-GB"]),
+                cx,
+            );
+            let started = started.clone();
+            cx.observe_global::<super::InterfaceLanguage>(move |_| {
+                started.set(started.get() + 1);
+            })
+            .detach();
+        });
+        assert_eq!(&*rust_i18n::locale(), SIMPLIFIED_CHINESE.tag);
+        assert_eq!(cx.read(choice), LanguageChoice::System);
+
+        cx.update(|cx| switch_and_store(LanguageChoice::Fixed(&ENGLISH), cx));
+        assert_eq!(&*rust_i18n::locale(), FALLBACK);
+        assert_eq!(cx.read(choice), LanguageChoice::Fixed(&ENGLISH));
+        assert_eq!(started.get(), 1, "the observers hear about a switch");
+        assert_eq!(
+            stored(cx).as_deref(),
+            Some(FALLBACK),
+            "the choice is stored by the time the switch returns"
+        );
+
+        // Choosing the language in force again changes nothing.
+        cx.update(|cx| switch_and_store(LanguageChoice::Fixed(&ENGLISH), cx));
+        assert_eq!(
+            started.get(),
+            1,
+            "the observers hear nothing the second time"
+        );
+
+        // Back to the system, which reports Chinese first.
+        cx.update(|cx| switch_and_store(LanguageChoice::System, cx));
+        assert_eq!(&*rust_i18n::locale(), SIMPLIFIED_CHINESE.tag);
+        assert_eq!(started.get(), 2);
+        assert_eq!(
+            stored(cx),
+            None,
+            "following the system is stored as no choice"
+        );
+
+        // Two switches in a row leave the second one stored: nothing runs in
+        // the background that could finish out of order.
+        cx.update(|cx| {
+            switch_and_store(LanguageChoice::Fixed(&ENGLISH), cx);
+            switch_and_store(LanguageChoice::Fixed(&SIMPLIFIED_CHINESE), cx);
+        });
+        assert_eq!(stored(cx).as_deref(), Some(SIMPLIFIED_CHINESE.tag));
+
+        // What a later start finds stored is what it shows: store a choice
+        // behind the application's back, then start again.
+        cx.update(|cx| {
+            set_language_settings(
+                &app_state::context(cx),
+                LanguageSettings {
+                    locale: Some(SIMPLIFIED_CHINESE.tag.to_string()),
+                },
+            )
+            .expect("store a choice");
+            init(&app_state::context(cx), languages(&["en-GB"]), cx);
+        });
+        assert_eq!(cx.read(choice), LanguageChoice::Fixed(&SIMPLIFIED_CHINESE));
+        assert_eq!(&*rust_i18n::locale(), SIMPLIFIED_CHINESE.tag);
+        rust_i18n::set_locale(FALLBACK);
     }
 }

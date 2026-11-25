@@ -21,9 +21,11 @@ pub fn init(cx: &mut App) {
 }
 
 /// Runs a blocking use case on tokio's blocking pool and hands its result back
-/// as a GPUI task. Use it for anything that touches a repository or the
-/// database, so the main thread never waits on it. The error is the message of
-/// a panic inside the job.
+/// as a GPUI task. Use it for work that is slow or open to take long, such as
+/// a network sync or a walk over a large repository, so that the main thread
+/// never waits on it. A short local write, storing a setting among them, is
+/// done on the main thread instead; `docs/tech/architecture/00-overview.md`
+/// has the rule. The error is the message of a panic inside the job.
 pub fn blocking<T, F>(cx: &App, job: F) -> Task<Result<T, String>>
 where
     T: Send + 'static,

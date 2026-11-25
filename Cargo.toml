@@ -24,6 +24,11 @@ rust-i18n = "4.2"
 # GPUI has its own executors; gitwave-core's use cases are async and need tokio.
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 
+# The languages the system reports. Already in the graph: GPUI reads them too.
+sys-locale = "0.3"
+# What gitwave-core logs with; the application starts the subscriber and uses it for its own warnings.
+tracing = "0.1"
+
 # GPUI lays out and rasterises text on the main thread, which is unusably slow without
 # optimisation. Dependencies are optimised while workspace crates stay fast to compile.
 [profile.dev.package."*"]

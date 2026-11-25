@@ -24,6 +24,8 @@ fn main() {
             gpui_kit::init(cx);
             runtime::init(cx);
             app_state::init(cx);
+            // Before the first window opens, so that no window shows in the wrong language first.
+            locales::init(&app_state::context(cx), locales::system_languages(), cx);
             workbench::init(cx);
             let app_menu_bar = menus::init(cx);
 
