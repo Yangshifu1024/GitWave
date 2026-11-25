@@ -494,7 +494,7 @@
 | 5 | 「只改版本号」有前提却不检查 | 改动前先跑 `cargo metadata --locked`，起点不干净就中止；改动后比对锁文件，只允许版本行从旧值变成新值 | 已修复 |
 | 6 | `merge` 对跨文件重复键静默覆盖；没有 `errors` 键的文件被跳过 | 两处都改成断言并报出文件与键 | 已修复 |
 | 7 | 改了语言文件不触发重新编译；测试 3 写死期望值 | 新增 `crates/gitwave/build.rs`，把语言文件的摘要作为给 rustc 的环境变量放进 crate 的指纹；测试改为把每条文案经 `t!` 读回与文件比对 | 已修复 |
-| 8 | MSRV 提到 1.95 的决策没有记录，且与 `windows-registry` 的注释矛盾 | 从根上处理，见下 | 已修复；Windows 上的编译待本分支的 CI |
+| 8 | MSRV 提到 1.95 的决策没有记录，且与 `windows-registry` 的注释矛盾 | 从根上处理，见下 | 已修复；Windows 上的编译由 PR #245 的 CI 验证通过 |
 
 第 3 到 5 条的验证：重写后的脚本在 `/tmp` 的一次性仓库里跑了 26 次。正常升级只改 `Cargo.toml` 一行与 `Cargo.lock` 里两行版本；同一版本重跑报告「已经在该版本」且不动文件；`v` 前缀与预发布号可用；9 种非法调用（前导零三种、`abc`、`1.2.3.4`、带 `+build`、空串、参数过多、无参数）都在动文件之前被拒；在无关项目的目录里运行时，那个项目的 `Cargo.toml` 原样未动；`[workspace.package]` 之前另有一行 `version` 时改的仍是正确的那一行；锁文件落后于清单时拒绝执行；`PATH` 里没有 `cargo`、清单的版本行带行尾注释、没有空格、用单引号、以 CRLF 结尾，这五种情况都拒绝且不改文件；用一个假的 `cargo` 模拟了「解锁文件时多写了一行」「那一步失败」「没有刷新锁文件」，三种都还原了两个文件并以非零退出。macOS 自带的 bash 3.2 下全部可运行。
 
@@ -542,14 +542,14 @@
 
 ### 处理过程中另外发现并更正的
 
-- `ci.yml` 的注释把 `libxcb-shape0-dev` 与 `libxcb-xfixes0-dev` 归为「Zed 的 Linux 构建清单」。核对上游：Zed 的 `script/linux` 里没有这两个包；锁文件里 860 个 crate 没有一个提到 xcb 的 shape 或 xfixes。它们是 M1 审查建议补上的，当时写明是推测。去掉这两个包，注释改为与 GPUI Kit 的 [`install-linux.sh`](https://github.com/longbridge/gpui-kit/blob/main/script/install-linux.sh) 逐项对应并附上链接，README 的清单同步。是否真的不需要，以本分支的 Linux CI 为准；失败就按实加回。
+- `ci.yml` 的注释把 `libxcb-shape0-dev` 与 `libxcb-xfixes0-dev` 归为「Zed 的 Linux 构建清单」。核对上游：Zed 的 `script/linux` 里没有这两个包；锁文件里 860 个 crate 没有一个提到 xcb 的 shape 或 xfixes。它们是 M1 审查建议补上的，当时写明是推测。去掉这两个包，注释改为与 GPUI Kit 的 [`install-linux.sh`](https://github.com/longbridge/gpui-kit/blob/main/script/install-linux.sh) 逐项对应并附上链接，README 的清单同步。PR #245 的 Ubuntu 任务在没有它们的环境里装依赖、编译并链接通过。
 - 发布技能里「README and the site describe v0.11.0 and stay as they are」与重写后的 README 不符，已改。
 - 计划状态行「基线 `004c9f4`（v0.11.0）」：`v0.11.0` 标签指向 `04e8b6c`，`004c9f4` 在其后 37 个提交。改为「v0.11.0 发布后的 `main`」。
 - 「Rust 1.92 受 GPUI Kit 约束」这句话，实现方一度因为找不到依据而删掉。核对上游后确认依据存在，只是在依赖树里而不在文档里：GPUI Kit 自己不声明最低版本，仓库里也没有工具链文件，它依赖树里声明最高的是 Linux 平台层带进来的 `oo7` 0.6.0（1.92）。工程约定按这个说法重写。
 
 ### 对「没有验证的」的回应
 
-- 三端托管 CI、Linux 依赖清单是否够用：由本分支的 CI 给出，结果回写到 plan 的执行记录。
+- 三端托管 CI、Linux 依赖清单是否够用：PR #245 三端全部通过，结果回写到了 plan 的执行记录。
 - Linux 清单注释引用的上游脚本：已核对并附链接。
 - `pre-commit`、`actionlint` 没有运行：实现方这边同样没有安装，没有擅自安装。`make check` 跑的是钩子里那两条命令。
 - bash 5 下 `cd ""`：脚本现在显式检查 `git rev-parse` 的结果，这个问题不再存在。

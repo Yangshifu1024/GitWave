@@ -111,3 +111,5 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
   - `gitwave-core`：相对 `main` 只有注释和上面那一行依赖变化，注释共 25 处（15 个文件），改掉的是指向已删除的命令层、IPC 边界和 `src-tauri/` 路径的说法，以及一句对 `windows-registry` 版本选择的错误解释。
   - 文档：README、CONTRIBUTING、AGENTS.md、技术文档索引与四份总览、ADR 0007、设计总览说明同步到移除后的状态。同时更正了此前文档里没有依据或不准确的说法，逐条见[审查报告](./review.md#处理结果m1b)。
   - 验证：`make check` 通过（`gitwave` 5 个测试，`gitwave-core` 394 个通过、2 个忽略）；应用构建并启动 8 秒无崩溃；`bump-version.sh` 在 `/tmp` 的一次性仓库里跑了 26 次，含 3 条回滚路径。本机没有 `pre-commit`，钩子没有实际运行过。
+
+- 2026-11-25 · 首次托管 CI（PR #245，提交 `fa57247`）：`Rust (ubuntu-latest)`、`Rust (macos-latest)`、`Rust (windows-latest)` 全部通过，用时 Ubuntu 1 分 8 秒、macOS 2 分 20 秒、Windows 3 分 16 秒。三端的 clippy 都没有输出，`gitwave` 5 个测试、`gitwave-core` 394 个通过、2 个忽略。Windows 任务重新编译了 `gitwave-core`，Windows 上探测系统代理的代码在 `windows-registry` 0.6.1 下编译、链接通过。Ubuntu 任务只装了清单上的 14 个包，日志里没有 `libxcb-shape0-dev` 与 `libxcb-xfixes0-dev`，依赖和两个测试二进制都完成了链接。上面两处改动都不需要回退。三端都快，是因为 rust-cache 按 restore-key 命中了上一次的缓存，依赖的编译产物被复用。
