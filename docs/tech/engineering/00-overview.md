@@ -16,13 +16,19 @@
 - **没有自动格式检查的文件**：Markdown、YAML、JSON（语言文件、工作流、dependabot 配置）。它们的排版与事实只能人工核对
 - **`make check` 只覆盖代码门**：`fmt-check + lint + test`（见 `Makefile`），不含任何文档检查
 
+## 界面的无障碍
+
+- **有 id 的元素要有 role。** GPUI 只把同时有 id 和 role 的元素放进无障碍树，只有 id 的元素对读屏器不存在。跟踪焦点的元素尤其如此：焦点落在没有节点的元素上时，按 gpui 的说法读屏器会念整个窗口，gpui 还会在每次焦点回到它时记一行 INFO 日志。M2 实机验证时，工作台根元素就缺 role，这一行占了当天日志的 78/109。
+- **容器用 `Role::Group`。** 经 accesskit 映射后，它在 macOS 上是 `AXGroup`，Windows 上是 Group，Linux 上是 Panel，三端都是中性的容器。`Role::Pane` 在 macOS 上是 Unknown；`Role::Region` 和 `Role::Main` 是地标，要有名称；`Role::Window` 是 gpui 树根用的，在 macOS 上不可聚焦；`Role::Application` 在 Linux 上映射成 Embedded；`Role::GenericContainer` 被 gpui 过滤掉，不进树，调试构建下 `.role(..)` 直接断言失败。
+- **测试里读元素的前提。** 测试接口 `window.find(id)` 只找得到标了 `.test_support()` 的元素；要读焦点，`.test_support()` 得写在 `track_focus` 之前。测试平台不激活无障碍树，所以测试断言的是 gpui 建节点的前提（role 与焦点），不是读屏器读到的内容。例子见 `crates/gitwave/src/workbench_tests.rs` 的 `the_workbench_is_exposed_to_assistive_technology`。
+
 ## 测试策略（测试金字塔）
 
 | 层 | 范围 | 工具 | 现状 |
 |---|---|---|---|
 | **单元** | `gitwave-core` 的 domain / application | `cargo test` | 已落地（90 个，含内联测试） |
 | **集成** | infrastructure 适配（libgit2、SQLite、HTTP、代理、凭证） | 真实依赖 + 临时 Git fixture，同一套 `cargo test --all-targets` | 已落地（306 个；另有 `host` 3 个、`lib.rs` 的守卫测试 3 个） |
-| **界面** | `gitwave`（19 个）：语言文件的一致性与语言的选择（`locales.rs`，9 个）、tokio 桥接（`runtime.rs`，2 个）、窗口壳的交互（`workbench_tests.rs`，7 个）、日志（`logging.rs`，1 个） | gpui-kit 的 test-support：无头窗口渲染真实组件并模拟输入 | 已起步，随各里程碑补充 |
+| **界面** | `gitwave`（22 个）：语言文件的一致性与语言的选择（`locales.rs`，9 个）、tokio 桥接（`runtime.rs`，2 个）、窗口壳的交互（`workbench_tests.rs`，10 个）、日志（`logging.rs`，1 个） | gpui-kit 的 test-support：无头窗口渲染真实组件并模拟输入 | 已起步，随各里程碑补充 |
 | **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | 未定 | **未落地**。旧实现的 Playwright 也从未落地 |
 
 - 关键算法（diff、3-way merge、scrubber、credential callback）必须有专项单测

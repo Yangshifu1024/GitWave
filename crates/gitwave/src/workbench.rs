@@ -215,7 +215,14 @@ impl Render for Workbench {
         let title_bar = title_bar_with(leading);
         v_flex()
             .id("workbench")
+            .test_support()
             .track_focus(&self.focus)
+            // It takes the focus when the window opens and gets it back whenever
+            // a dialog closes, so it has to be a node assistive technology can
+            // see: a focused element without a role is not one, and the whole
+            // window gets announced instead. A group is the neutral container
+            // on every platform.
+            .role(Role::Group)
             .key_context("GitWave")
             .size_full()
             .min_w_0()

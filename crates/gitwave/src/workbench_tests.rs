@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 use gpui_kit::component::{ActiveTheme as _, GlobalState, ThemeMode};
 use gpui_kit::test::TestWindowExt as _;
 use gpui_kit::{
-    AnyWindowHandle, App, AppContext as _, Entity, MenuItem, OwnedMenu, OwnedMenuItem,
-    TestAppContext, WindowOptions, px, size,
+    AnyWindowHandle, App, AppContext as _, Background, Entity, MenuItem, OwnedMenu, OwnedMenuItem,
+    Role, TestAppContext, WindowOptions, px, size, solid_background,
 };
 
 use gitwave_core::application::use_cases::get_language_settings;
@@ -87,6 +87,46 @@ fn status_bar_counts_the_workspaces_once_core_has_read_them(cx: &mut TestAppCont
     assert_eq!(status, "In-memory state, nothing is saved · 0 workspace(s)");
 }
 
+/// The workbench takes the focus when the window opens and gets it back whenever
+/// a dialog closes, so it has to be a node assistive technology can see. A
+/// focused element that is not one gets the whole window announced instead, and
+/// a line from GPUI every time the focus comes back to it. The test platform
+/// does not activate the accessibility tree, so what is asserted is what GPUI
+/// needs to build the node: a role.
+#[gpui_kit::test]
+fn the_workbench_is_exposed_to_assistive_technology(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+    render(cx, window);
+
+    assert_the_workbench_holds_the_focus(cx, window);
+
+    // The dialog takes the focus and gives it back when it closes.
+    open_settings(cx, window);
+    assert_settings_dialog_open(cx, window);
+    press(cx, window, "escape");
+    cx.update_window(window, |_, window, _| {
+        assert!(
+            window
+                .try_find("settings-note")
+                .is_none_or(|note| !note.visible()),
+            "the dialog closed"
+        );
+    })
+    .unwrap();
+    assert_the_workbench_holds_the_focus(cx, window);
+}
+
+/// Asserts that the workbench's root is a node with the focus.
+fn assert_the_workbench_holds_the_focus(cx: &mut TestAppContext, window: AnyWindowHandle) {
+    cx.update_window(window, |_, window, _| {
+        let root = window.find("workbench");
+        assert_eq!(root.role(), Some(Role::Group), "the root has a role");
+        assert_eq!(root.focused(), Some(true), "the root holds the focus");
+    })
+    .unwrap();
+}
+
 /// The shortcut for Settings on this platform.
 fn settings_shortcut() -> &'static str {
     if cfg!(target_os = "macos") {
@@ -102,15 +142,17 @@ fn render(cx: &mut TestAppContext, window: AnyWindowHandle) {
         .unwrap();
 }
 
-/// Presses the Settings shortcut. The dialog opens once the update that
-/// delivered the keystroke has ended, so the function ends with a frame that
-/// shows it.
-fn open_settings(cx: &mut TestAppContext, window: AnyWindowHandle) {
-    cx.update_window(window, |_, window, cx| {
-        window.press(settings_shortcut(), cx)
-    })
-    .unwrap();
+/// Presses a key, then draws a frame. What the key opens or closes waits for
+/// the update that delivered the keystroke to end, so the frame comes after it.
+fn press(cx: &mut TestAppContext, window: AnyWindowHandle, key: &str) {
+    cx.update_window(window, |_, window, cx| window.press(key, cx))
+        .unwrap();
     render(cx, window);
+}
+
+/// Presses the Settings shortcut.
+fn open_settings(cx: &mut TestAppContext, window: AnyWindowHandle) {
+    press(cx, window, settings_shortcut());
 }
 
 #[gpui_kit::test]
@@ -198,6 +240,100 @@ fn switching_the_appearance_updates_the_view_menu(cx: &mut TestAppContext) {
         assert!(!light, "Light stays checked after switching to Dark");
         assert!(dark, "Dark is not checked after switching to it");
     });
+}
+
+/// The backgrounds of the quads that cover (almost) the whole window in the
+/// last frame.
+fn window_fills(window: &mut gpui_kit::Window) -> Vec<Background> {
+    let viewport = window.viewport_size();
+    let full = viewport.scale(window.scale_factor());
+    window
+        .painted_quads()
+        .into_iter()
+        .filter(|quad| {
+            quad.bounds.size.width.0 + 2.0 >= full.width.0 * 0.9
+                && quad.bounds.size.height.0 + 2.0 >= full.height.0 * 0.9
+        })
+        .map(|quad| quad.background)
+        .collect()
+}
+
+/// The other half of a theme switch: the menu's check mark moves, covered
+/// above, and the window takes the new colours. The workbench picks its
+/// background when it renders, so after the switch nothing may be left in the
+/// colour of the theme it left.
+#[gpui_kit::test]
+fn switching_the_appearance_repaints_the_window(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+    render(cx, window);
+
+    let light = cx.read(|cx| solid_background(cx.theme().background));
+    cx.update_window(window, |_, window, _| {
+        assert!(
+            window_fills(window).contains(&light),
+            "the window starts in the light theme"
+        );
+    })
+    .unwrap();
+
+    cx.update_window(window, |_, window, cx| {
+        window.dispatch_action(Box::new(menus::SwitchThemeMode(ThemeMode::Dark)), cx);
+        window.render_frame(cx);
+    })
+    .unwrap();
+
+    let dark = cx.read(|cx| solid_background(cx.theme().background));
+    assert_ne!(light, dark, "the two themes differ");
+    cx.update_window(window, |_, window, _| {
+        let fills = window_fills(window);
+        assert!(
+            fills.contains(&dark),
+            "the window is painted in the dark theme: {fills:?}"
+        );
+        assert!(
+            !fills.contains(&light),
+            "something is still painted in the light theme: {fills:?}"
+        );
+    })
+    .unwrap();
+}
+
+/// Whether a text shows in the last frame.
+fn shows(window: &mut gpui_kit::Window, text: &str) -> bool {
+    gpui_kit::base::test_support::texts(window)
+        .iter()
+        .any(|found| found.text() == text && found.visible())
+}
+
+/// The shortcut for the sidebar on this platform.
+fn sidebar_shortcut() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "cmd-b"
+    } else {
+        "ctrl-b"
+    }
+}
+
+/// The shortcut hides the sidebar and brings it back. The panes keep their
+/// places, so the sidebar is hidden, not removed.
+#[gpui_kit::test]
+fn the_sidebar_shortcut_hides_the_sidebar_and_brings_it_back(cx: &mut TestAppContext) {
+    locales::take_language_turn(cx);
+    let (window, _) = open(cx);
+    render(cx, window);
+
+    let title_shows = |cx: &mut TestAppContext| {
+        cx.update_window(window, |_, window, _| shows(window, "Sidebar"))
+            .unwrap()
+    };
+    assert!(title_shows(cx), "the sidebar is shown at first");
+
+    press(cx, window, sidebar_shortcut());
+    assert!(!title_shows(cx), "the shortcut hides the sidebar");
+
+    press(cx, window, sidebar_shortcut());
+    assert!(title_shows(cx), "the shortcut brings the sidebar back");
 }
 
 #[gpui_kit::test]
