@@ -38,6 +38,16 @@
 
 依赖方向：`presentation → application → domain ← infrastructure`。domain 层零外部依赖。
 
+## Crate 划分
+
+三个业务层在 `crates/gitwave-core`，由各 presentation 层共用（[ADR 0007](../decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)）：
+
+| Crate | 内容 | 约束 |
+|---|---|---|
+| `gitwave-core` | `application`、`domain`、`infrastructure` 三层，加上不依赖界面框架的 `bootstrap`（状态库、libgit2 所有者校验、代理环境桥接）与 `host`（终端、编辑器）。网络操作的统一调度 `run_sync_op` 在 `application::sync_ops`，跑在 tokio 上 | 不得依赖任何界面框架，`src/lib.rs` 有测试守卫 |
+| `src-tauri` | Tauri 壳。`lib.rs` 只剩 `#[tauri::command]` 薄封装、窗口装饰和发往 WebView 的事件，通过路径依赖使用 `gitwave-core` | 迁移期间继续作为发布版本 |
+| `gitwave` | GPUI Kit 应用，迁移中 | 与 Tauri 壳一样直接调用 `gitwave-core` 的用例，不经 IPC |
+
 ## IPC 边界
 
 - **Command**（request / response）：`src-tauri/src/lib.rs` 里的 `#[tauri::command]` 薄封装，转发到 `application::use_cases`；用于一次性动作（clone、commit、switch workspace、AI 生成等）

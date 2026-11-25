@@ -60,10 +60,11 @@
 
 | Workflow / Job | Runner | 校验内容 |
 |---|---|---|
-| `lint.yml` · `rust-lint` | macOS + Ubuntu + Windows | rustfmt + clippy `-D warnings` |
+| `lint.yml` · `rust-lint` | macOS + Ubuntu + Windows | rustfmt + clippy `-D warnings`；另对 `gitwave-core` 按 Tauri 应用的锁文件跑 clippy |
 | `lint.yml` · `frontend-lint` | 同上 | Prettier + ESLint + `tsc --noEmit` |
-| `test.yml` · `rust-test` | 同上 | `cargo test --all-targets` + git2 `https` feature 断言 |
+| `test.yml` · `rust-test` | 同上 | `cargo test --all-targets` + `gitwave-core` 的全部测试（按 Tauri 应用的锁文件）+ git2 `https` feature 断言 |
 | `test.yml` · `frontend-test` | 同上 | Vitest |
+| `workspace.yml` | 同上 | 根 Cargo workspace（`gitwave-core` 与 GPUI Kit 应用）：rustfmt + clippy `-D warnings` + `cargo test --all-targets` + git2 `https` feature 断言；只在 `crates/**`、根 `Cargo.*` 等相关路径变化时触发 |
 | `build.yml` | tag（`**`） | 见 Release |
 | `pages.yml` | 官网 | 部署 `site/` 到 GitHub Pages |
 
@@ -80,10 +81,23 @@ commitlint 只在本地 `pre-commit` 的 commit-msg hook，**不在 CI**。
 
 ## 仓库目录约定
 
-参考 Tauri 2 官方模板结构（`src-tauri/` 承载 Rust 核心，顶层 `src/` 承载前端）：
+参考 Tauri 2 官方模板结构（`src-tauri/` 承载 Tauri 应用，顶层 `src/` 承载前端）。DDD 三层已抽到根 workspace 的 `gitwave-core`，供 Tauri 应用与迁移中的 GPUI Kit 应用共用（[ADR 0007](../decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)）：
 
 ```
 gitwave/
+├── Cargo.toml               ← 根 workspace（独立于 src-tauri）
+├── Cargo.lock
+├── crates/
+│   ├── gitwave-core/        ← 应用核心，不含任何界面框架
+│   │   ├── Cargo.toml
+│   │   ├── migrations/      ← SQLite 迁移脚本（编译期内嵌）
+│   │   └── src/
+│   │       ├── application/      ← DDD 应用层（用例编排、同步操作调度）
+│   │       ├── domain/           ← DDD 领域层
+│   │       ├── infrastructure/   ← DDD 基础设施层（libgit2 / SQLite / Keychain / HTTP）
+│   │       ├── bootstrap.rs      ← 状态库、libgit2 所有者校验、代理环境桥接
+│   │       └── host.rs           ← 终端与编辑器的探测、启动
+│   └── gitwave/             ← GPUI Kit 应用（迁移中）
 ├── package.json
 ├── index.html
 ├── vite.config.ts
@@ -93,9 +107,9 @@ gitwave/
 │   ├── App.tsx
 │   └── ...
 ├── public/                   ← 静态资源（不经 Vite 处理）
-├── src-tauri/                ← Rust core
+├── src-tauri/                ← Tauri 应用（壳）
 │   ├── Cargo.toml
-│   ├── Cargo.lock
+│   ├── Cargo.lock            ← 独立的 workspace，自己的锁文件
 │   ├── build.rs
 │   ├── tauri.conf.json
 │   ├── capabilities/
@@ -106,10 +120,8 @@ gitwave/
 │   │   └── icon.ico
 │   └── src/
 │       ├── main.rs
-│       ├── lib.rs
-│       ├── domain/           ← DDD 领域层
-│       ├── application/      ← DDD 应用层（用例编排）
-│       └── infrastructure/   ← DDD 基础设施层（libgit2 / SQLite / Keychain / HTTP）
+│       ├── lib.rs           ← Tauri 命令薄封装，转发到 gitwave-core 的用例
+│       └── macos_window.rs
 ├── docs/
 │   ├── pm/
 │   ├── tech/
@@ -120,10 +132,10 @@ gitwave/
 
 要点：
 
-- **顶层 `src/` 是前端**（Vite 默认入口），**Rust 核心在 `src-tauri/src/`**。不要把两者合并。
+- **顶层 `src/` 是前端**（Vite 默认入口）。**Tauri 应用在 `src-tauri/`**，它被排除在根 workspace 之外、保留自己的锁文件与构建缓存，并通过路径依赖使用 `crates/gitwave-core`。改了 core 要同时跑两套检查。
+- **DDD 三层只在 `crates/gitwave-core/src/` 内**，不得依赖任何界面框架（`crates/gitwave-core/src/lib.rs` 有测试守卫）。前端按 React 习惯组织（components / hooks / stores / ipc）。
 - **`tauri.conf.json` 与 `Cargo.toml` 同级**，均位于 `src-tauri/`。
 - **`capabilities/`** 用于声明 Tauri 2 的 capability / permission 集合（IPC、白名单 API 等）。
-- **DDD 分层只作用于 Rust 核心**（`src-tauri/src/` 内），前端按 React 习惯组织（components / hooks / stores / ipc）。
 
 ## 安全
 

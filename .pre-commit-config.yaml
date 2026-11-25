@@ -9,16 +9,18 @@ default_stages: [pre-commit]
 repos:
   - repo: local
     hooks:
+      # Rust lives in two workspaces: the Tauri application in src-tauri (its own
+      # lockfile) and the root workspace (gitwave-core and the GPUI Kit application).
       - id: cargo-fmt
         name: cargo fmt
-        entry: cargo fmt --manifest-path src-tauri/Cargo.toml --
+        entry: bash -c 'cargo fmt --manifest-path src-tauri/Cargo.toml -- && cargo fmt --all'
         language: system
         types: [rust]
         pass_filenames: false
 
       - id: cargo-clippy
         name: cargo clippy
-        entry: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        entry: bash -c 'cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo clippy --workspace --all-targets -- -D warnings'
         language: system
         types: [rust]
         pass_filenames: false

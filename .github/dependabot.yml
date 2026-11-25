@@ -18,3 +18,16 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"
+
+  # 根 Cargo workspace（Cargo.toml + Cargo.lock）：gitwave-core 与 GPUI Kit 应用
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      # GPUI Kit is pinned exactly because every minor release ships breaking
+      # changes; upgrading it is a deliberate task (ADR 0007).
+      - dependency-name: "gpui-kit"

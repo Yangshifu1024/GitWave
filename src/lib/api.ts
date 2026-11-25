@@ -1,5 +1,5 @@
 // Typed wrappers around Tauri commands. Mirrors the Rust types in
-// src-tauri/src/domain/workspace.rs, ssh/keys.rs, and error.rs.
+// crates/gitwave-core/src/domain/workspace.rs, ssh/keys.rs, and error.rs.
 //
 // Errors thrown by invoke follow `AppError`'s serialized shape:
 //   { category: string, message: string, trace_id: string }

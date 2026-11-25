@@ -78,7 +78,7 @@ pnpm tauri dev
 | `pnpm check:tauri-versions` | Check resolved npm/Rust Tauri major/minor compatibility |
 | `pnpm test` | Node Tauri compatibility regression tests + Vitest unit tests (`test:watch` for Vitest watch mode) |
 | `pnpm test:e2e` | Playwright end-to-end tests (no suite yet) |
-| `pnpm bump <x.y.z>` | Bump the version in the four version files |
+| `pnpm bump <x.y.z>` | Bump the version in `package.json`, `tauri.conf.json`, and both Cargo manifests |
 
 Rust commands (run inside `src-tauri/`):
 
@@ -88,6 +88,8 @@ Rust commands (run inside `src-tauri/`):
 | `cargo clippy --all-targets -- -D warnings` | Strict lint |
 | `cargo test --all-targets` | Run all tests |
 | `cargo fmt` | Format Rust sources |
+
+The same commands serve the root Cargo workspace — `crates/gitwave-core` (the `domain` / `application` / `infrastructure` layers, shared by both applications) and `crates/gitwave` (the GPUI Kit application that replaces the WebView; in progress, see [ADR 0007](./docs/tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)) — when run from the repository root instead of inside `src-tauri/`, with `--all` for `cargo fmt` and `--workspace` for the others.
 
 ## Quality gates
 
@@ -100,10 +102,10 @@ make check   # fmt-check + lint + test, writes nothing — the pre-delivery gate
 | Target | What it does |
 |---|---|
 | `make check` | `fmt-check` + `lint` + `test` (the CI-equivalent gate) |
-| `make fmt-check` | Prettier check + `cargo fmt --check` |
+| `make fmt-check` | Prettier check + `cargo fmt --check`, in both workspaces |
 | `make lint` | Tauri npm/Rust version compatibility + ESLint + clippy + typecheck + `cargo check` |
-| `make test` | Node compatibility tests + Vitest + `cargo test --all-targets` |
-| `make format` | Prettier write + `cargo fmt` (rewrites files) |
+| `make test` | Node compatibility tests + Vitest + `cargo test --all-targets`, in both workspaces |
+| `make format` | Prettier write + `cargo fmt`, in both workspaces (rewrites files) |
 | `make build` | format + lint + test, then `pnpm tauri build` |
 | `make dev` | `pnpm tauri dev` (no pre-checks) |
 
@@ -114,6 +116,7 @@ A `pre-commit` hook runs a subset of these on `git commit` — see [CONTRIBUTING
 Workflows live in `.github/workflows/`:
 
 - **lint / test** — on every push to `main` and every PR: `rust-lint` + `frontend-lint`, `rust-test` + `frontend-test`, each on a macOS / Ubuntu / Windows matrix. Pure-documentation changes (`site/**`, `docs/**`, `**.md`) are skipped
+- **workspace** — the root Cargo workspace (`gitwave-core` and the GPUI Kit application): rustfmt + clippy + tests on the same three platforms, only when its own files change
 - **build** — on tag push: builds macOS (aarch64), Linux (deb / rpm / AppImage) and Windows (NSIS); when all three pass, a **draft GitHub release** is created with all artifacts and auto-generated release notes, and the updater manifest's download URLs are then rewritten to plain `releases/download` links (tauri-action writes asset-API URLs, which answer 403 without a User-Agent header and count against the unauthenticated API quota). macOS builds are signed and notarized via repository secrets (`APPLE_*`, `KEYCHAIN_PASSWORD`), and OpenSSL/libgit2 are statically linked so binaries are self-contained
 - **pages** — deploys `site/` to GitHub Pages on push to `main`
 

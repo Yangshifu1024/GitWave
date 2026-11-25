@@ -1,0 +1,17 @@
+[package]
+name = "gitwave"
+version.workspace = true
+description = "GitWave — local-first Git client with AI collaboration"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "gitwave"
+path = "src/main.rs"
+
+[dependencies]
+gpui-kit.workspace = true

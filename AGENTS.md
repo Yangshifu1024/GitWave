@@ -80,10 +80,10 @@ All PRs merge into `main` with a merge commit — branch history is preserved, n
 Before delivering a task (commit / push / PR), run the CI-equivalent checks and make them pass:
 
 ```bash
-make check   # fmt-check (prettier + cargo fmt) + lint (eslint + clippy + typecheck) + all tests
+make check   # fmt-check (prettier + cargo fmt) + lint (eslint + clippy + typecheck) + all tests, in both Cargo workspaces
 ```
 
-Or individually — frontend: `pnpm format:check` · `pnpm lint` · `pnpm typecheck` · `pnpm test`; backend: `cargo fmt -- --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --all-targets`. CI runs the same gates on all three platforms — a red formatting/lint check on the PR means this step was skipped.
+Or individually — frontend: `pnpm format:check` · `pnpm lint` · `pnpm typecheck` · `pnpm test`; backend: `cargo fmt -- --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --all-targets`, run in `src-tauri/` for the Tauri application. From the repository root the same three commands cover `gitwave-core` and the GPUI Kit application: `cargo fmt` takes `--all`, `cargo clippy` and `cargo test` take `--workspace`. CI runs the same gates on all three platforms — a red formatting/lint check on the PR means this step was skipped.
 
 ## Documentation maintenance
 
@@ -140,7 +140,7 @@ Trigger: development done, new code awaiting merge
 
 ## Specialized skills
 
-- **gitwave-release** (`/gitwave-release`): version bump and release synchronization (the 4 hardcoded version spots, README status, the site pages) — use it whenever bumping a version, cutting a release, or syncing README / site content
+- **gitwave-release** (`/gitwave-release`): version bump and release synchronization (the four version files and both lockfiles, README status, the site pages) — use it whenever bumping a version, cutting a release, or syncing README / site content
 
 ## Terminology
 
