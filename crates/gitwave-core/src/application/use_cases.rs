@@ -6,7 +6,9 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use crate::domain::app_settings::{ProxyMode, ProxySettings};
+use crate::domain::app_settings::{
+    normalize_language_tag, LanguageSettings, ProxyMode, ProxySettings,
+};
 use crate::domain::blame::BlameLine;
 use crate::domain::branch::{BranchInfo, CheckoutRemoteOutcome};
 use crate::domain::diff::{DiffLineKind, FileDiff, ImageContent};
@@ -395,6 +397,62 @@ fn validate_and_store_proxy_settings(
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .set(PROXY_SETTINGS_KEY, &json)?;
+    Ok(settings)
+}
+
+// ─── Language settings ───────────────────────────────────────────────────────
+
+/// The `app_settings` key holding the interface language.
+const LANGUAGE_SETTINGS_KEY: &str = "language";
+
+/// Read the language settings; an unset or unreadable entry means "follow the
+/// system language".
+pub fn get_language_settings(ctx: &AppContext) -> Result<LanguageSettings> {
+    let raw = ctx
+        .app_settings
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(LANGUAGE_SETTINGS_KEY)?;
+    let Some(raw) = raw else {
+        return Ok(LanguageSettings::default());
+    };
+    match serde_json::from_str(&raw) {
+        Ok(settings) => Ok(settings),
+        Err(e) => {
+            tracing::warn!("stored language settings unreadable, following the system: {e}");
+            Ok(LanguageSettings::default())
+        }
+    }
+}
+
+/// Validate and persist the language settings. Whitespace around the tag is
+/// dropped, a blank tag means "follow the system", and anything that is not a
+/// language tag is refused. Returns the normalized settings.
+pub fn set_language_settings(
+    ctx: &AppContext,
+    settings: LanguageSettings,
+) -> Result<LanguageSettings> {
+    let requested = settings.locale.clone().unwrap_or_default();
+    let settings = LanguageSettings {
+        locale: normalize_language_tag(&requested).map_err(|reason| {
+            AppError::protocol_with(
+                codes::usecases::LANGUAGE_INVALID,
+                format!("language settings were not stored, {reason}"),
+                &[("locale", requested.clone())],
+            )
+        })?,
+    };
+    let json = serde_json::to_string(&settings).map_err(|e| {
+        AppError::unknown_with(
+            codes::usecases::LANGUAGE_SERIALIZE_FAILED,
+            format!("serialize language settings: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    ctx.app_settings
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .set(LANGUAGE_SETTINGS_KEY, &json)?;
     Ok(settings)
 }
 
@@ -3214,6 +3272,96 @@ mod tests {
         )
         .expect("system with blank url");
         assert_eq!(stored.manual_url, None);
+    }
+
+    #[test]
+    fn language_settings_unset_follows_the_system() {
+        let ctx = fresh_ctx();
+        assert_eq!(
+            get_language_settings(&ctx).expect("get"),
+            LanguageSettings::default()
+        );
+        assert_eq!(get_language_settings(&ctx).expect("get").locale, None);
+    }
+
+    #[test]
+    fn language_settings_are_trimmed_and_persisted() {
+        let ctx = fresh_ctx();
+        let stored = set_language_settings(
+            &ctx,
+            LanguageSettings {
+                locale: Some(" zh-CN ".to_string()),
+            },
+        )
+        .expect("a tag is stored");
+        assert_eq!(stored.locale.as_deref(), Some("zh-CN"));
+        assert_eq!(get_language_settings(&ctx).expect("get"), stored);
+    }
+
+    #[test]
+    fn language_settings_follow_various_tag_shapes() {
+        for tag in ["en", "zh-CN", "zh-Hans-CN", "EN-us", "sr-Latn-RS", "es-419"] {
+            let stored = set_language_settings(
+                &fresh_ctx(),
+                LanguageSettings {
+                    locale: Some(tag.to_string()),
+                },
+            )
+            .unwrap_or_else(|error| panic!("{tag} is a language tag: {error}"));
+            assert_eq!(
+                stored.locale.as_deref(),
+                Some(tag),
+                "{tag} keeps its spelling"
+            );
+        }
+    }
+
+    #[test]
+    fn language_settings_refuse_what_is_not_a_tag() {
+        for tag in [
+            "fr!",
+            "zh_CN",
+            "-zh",
+            "zh-",
+            "123",
+            "abcdefghi",
+            "a-b-c-d",
+            "中文",
+            "en CN",
+            // Letters, but not ASCII ones: only ASCII belongs in a tag.
+            "en-中文",
+            "zh-é",
+        ] {
+            let error = set_language_settings(
+                &fresh_ctx(),
+                LanguageSettings {
+                    locale: Some(tag.to_string()),
+                },
+            )
+            .expect_err("not a language tag");
+            assert_eq!(error.code(), codes::usecases::LANGUAGE_INVALID, "{tag}");
+        }
+    }
+
+    #[test]
+    fn language_settings_blank_means_follow_the_system() {
+        let ctx = fresh_ctx();
+        set_language_settings(
+            &ctx,
+            LanguageSettings {
+                locale: Some("zh-CN".to_string()),
+            },
+        )
+        .expect("store a choice");
+        let stored = set_language_settings(
+            &ctx,
+            LanguageSettings {
+                locale: Some("   ".to_string()),
+            },
+        )
+        .expect("a blank tag follows the system");
+        assert_eq!(stored.locale, None);
+        assert_eq!(get_language_settings(&ctx).expect("get").locale, None);
     }
 
     #[test]

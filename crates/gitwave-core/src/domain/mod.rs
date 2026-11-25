@@ -18,7 +18,7 @@ pub mod working_copy;
 pub mod workspace;
 pub mod worktree;
 
-pub use app_settings::{ProxyMode, ProxySettings};
+pub use app_settings::{normalize_language_tag, LanguageSettings, ProxyMode, ProxySettings};
 pub use blame::BlameLine;
 pub use branch::{BranchInfo, BranchKind};
 pub use diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};

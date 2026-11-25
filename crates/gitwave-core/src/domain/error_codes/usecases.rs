@@ -56,6 +56,12 @@ pub const PROXY_URL_INVALID: &str = "usecases.proxy.url_invalid";
 /// 代理设置序列化失败。
 pub const PROXY_SERIALIZE_FAILED: &str = "usecases.proxy.serialize_failed";
 
+/// 界面语言不是一个合法的语言标记。
+pub const LANGUAGE_INVALID: &str = "usecases.language.invalid";
+
+/// 语言设置序列化失败。
+pub const LANGUAGE_SERIALIZE_FAILED: &str = "usecases.language.serialize_failed";
+
 // ─── Commit / diff ──────────────────────────────────────────────────────────
 
 /// 生成 commit message 前没有已暂存的变更。
