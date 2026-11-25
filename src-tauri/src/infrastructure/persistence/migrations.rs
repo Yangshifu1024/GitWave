@@ -1,6 +1,6 @@
 //! Embedded migration runner.
 //!
-//! Migrations live in `src-tauri/migrations/NNNN-name.sql` and are embedded
+//! The Go and Rust apps share `internal/workspace/migrations/`. SQL is embedded
 //! at compile time via `include_str!`. The `schema_version` table tracks
 //! which migrations have been applied. New migrations are added by appending
 //! a `Migration` entry to `MIGRATIONS` and the corresponding SQL file.
@@ -18,22 +18,22 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
         name: "workspaces-repos",
-        sql: include_str!("../../../migrations/0001-workspaces-repos.sql"),
+        sql: include_str!("../../../../internal/workspace/migrations/0001-workspaces-repos.sql"),
     },
     Migration {
         version: 2,
         name: "repos-status-and-missing",
-        sql: include_str!("../../../migrations/0002-repos-status.sql"),
+        sql: include_str!("../../../../internal/workspace/migrations/0002-repos-status.sql"),
     },
     Migration {
         version: 3,
         name: "repos-position",
-        sql: include_str!("../../../migrations/0003-repos-position.sql"),
+        sql: include_str!("../../../../internal/workspace/migrations/0003-repos-position.sql"),
     },
     Migration {
         version: 4,
         name: "app-settings",
-        sql: include_str!("../../../migrations/0004-app-settings.sql"),
+        sql: include_str!("../../../../internal/workspace/migrations/0004-app-settings.sql"),
     },
 ];
 

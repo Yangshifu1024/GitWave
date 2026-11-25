@@ -11,6 +11,7 @@ import { invoke } from "@tauri-apps/api/core";
 import i18next from "i18next";
 
 import { readStoredAiLanguage } from "@/i18n/aiLanguage";
+import { finishLegacyPreferencesBeforeQuit } from "./legacyPreferences";
 
 /**
  * The AI reply-language preference rides every prose-producing AI command
@@ -244,7 +245,8 @@ export function openInEditor(path: string, editorId: string): Promise<void> {
 }
 
 /** Quit the whole application (File → Exit; not tied to window close). */
-export function quitApp(): Promise<void> {
+export async function quitApp(): Promise<void> {
+  await finishLegacyPreferencesBeforeQuit();
   return invoke<void>("quit_app");
 }
 

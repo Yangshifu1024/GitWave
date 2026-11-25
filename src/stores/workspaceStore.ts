@@ -2,6 +2,7 @@
 // Query). Zustand for transient UI selections, Query for IPC-derived data.
 
 import { create } from "zustand";
+import { queueLegacyPreferenceExport } from "@/lib/legacyPreferences";
 
 interface WorkspaceUiState {
   activeWorkspaceId: string | null;
@@ -26,6 +27,7 @@ export function rememberActive(workspaceId: string | null, repoId: string | null
     else window.localStorage.removeItem(LAST_WS_KEY);
     if (repoId) window.localStorage.setItem(LAST_REPO_KEY, repoId);
     else window.localStorage.removeItem(LAST_REPO_KEY);
+    queueLegacyPreferenceExport();
   } catch {
     // Storage unavailable (private mode etc.) — restore simply won't happen.
   }

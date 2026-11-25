@@ -3,6 +3,8 @@
 // value and appends a "respond in …" directive to the system prompt. The
 // prompt body stays English; only the output language is governed here.
 
+import { queueLegacyPreferenceExport } from "@/lib/legacyPreferences";
+
 export const AI_LANGUAGES = ["en", "zh", "ja", "ko"] as const;
 export type AiLanguage = (typeof AI_LANGUAGES)[number];
 
@@ -31,6 +33,7 @@ export function readStoredAiLanguage(): AiLanguage {
 export function setAiLanguage(lang: AiLanguage): void {
   try {
     localStorage.setItem(AI_LANGUAGE_STORAGE_KEY, lang);
+    queueLegacyPreferenceExport();
   } catch {
     // Persistence is best-effort; the in-session value is still used.
   }

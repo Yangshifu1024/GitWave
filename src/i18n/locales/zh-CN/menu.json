@@ -10,6 +10,7 @@
     },
     "app": {
       "aboutGitWave": "关于 GitWave",
+      "quitGitWave": "退出 GitWave",
       "checkUpdates": "检查更新…",
       "settings": "设置…"
     },

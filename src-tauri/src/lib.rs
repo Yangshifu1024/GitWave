@@ -12,6 +12,7 @@
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
+mod legacy_preferences;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -1974,6 +1975,13 @@ fn quit_app(app: tauri::AppHandle) {
 pub fn run() {
     let _guard = init_tracing();
     info!("GitWave starting (version {})", env!("CARGO_PKG_VERSION"));
+    let _profile_lock = match infrastructure::persistence::sqlite::lock_desktop_profile() {
+        Ok(lock) => lock,
+        Err(error) => {
+            tracing::error!("failed to acquire the GitWave profile: {error}");
+            return;
+        }
+    };
 
     // libgit2's owner check (the safe.directory equivalent) rejects repos
     // owned by another local account — e.g. an elevated clone leaves the dir
@@ -2048,6 +2056,7 @@ pub fn run() {
             cmd_update_workspace_settings,
             cmd_get_proxy_settings,
             cmd_set_proxy_settings,
+            legacy_preferences::cmd_write_legacy_preferences,
             cmd_set_ai_api_key,
             cmd_clear_ai_api_key,
             cmd_get_ai_key_status,

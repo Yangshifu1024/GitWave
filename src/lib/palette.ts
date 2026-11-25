@@ -1,3 +1,5 @@
+import { queueLegacyPreferenceExport } from "./legacyPreferences";
+
 export const PALETTES = ["native-blue", "tide"] as const;
 
 export type Palette = (typeof PALETTES)[number];
@@ -80,6 +82,7 @@ export function applyInitialPalette(): void {
 export function storePalette(palette: Palette): void {
   try {
     localStorage.setItem(STORAGE_KEY, palette);
+    queueLegacyPreferenceExport();
   } catch {
     // Persist later; the choice below still takes effect now.
   }

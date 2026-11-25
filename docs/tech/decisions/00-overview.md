@@ -12,10 +12,13 @@
 | 0004 | AI 双轨：写 = 确定性，建议 = AI | 已采纳 |
 | 0005 | 前端 UI 库栈：Tailwind v4 + HeroUI v3 + Lucide（原 Radix，见修订） | 已采纳 |
 | 0006 | i18n 架构：react-i18next + 错误 key 化 | 已采纳 |
+| [0007](#0007--全量迁移到-go--nsgo) | 全量迁移到 Go + NSGo | 方向已采纳，发布切换待验收 |
 
 ---
 
 ## 0001 · 框架选型：Tauri 2 + Rust core
+
+> 仍用于 v0.11.0 和迁移期间的对照构建。目标架构见 [ADR 0007](#0007--全量迁移到-go--nsgo)。
 
 ### 上下文
 
@@ -242,3 +245,30 @@ history 与 text diff 均为固定行高，改用 `useFixedVirtualizer`：`useSy
 - `docs/pm/features/F010-i18n.md`：功能提案
 - `docs/tasks/feat-i18n/plan.md`：实施计划与 key 命名约定
 - `docs/tech/engineering/00-overview.md` §错误处理与日志：错误文案策略由「前端渲染 friendly text」细化为「前端按 code 翻译」
+
+---
+
+## 0007 · 全量迁移到 Go + NSGo
+
+### 上下文
+
+2026-11-24 确定以 Go 和 NSGo 替换桌面运行时及应用逻辑，功能、数据、更新和三端发布以 v0.11.0 为对照。现有分支已用 NSGo 验证只读工作台，后端仍通过 Rust 子进程。Workspace 抽象、凭证策略和 AI 显式确认原则继续遵循 ADR 0002–0004。
+
+### 备选
+
+- **Go + 官方 Git CLI**：由 Git 维护 worktree、index、refs 和操作状态，应用通过 Go 管理进程、解析输出及执行用例。需要建立三端 Git 来源与分发策略。
+- **Go + go-git**：支持纯 Go，但 [上游兼容表](https://github.com/go-git/go-git/blob/main/COMPATIBILITY.md) 中的 rebase、stash、reflog、LFS 和非快进 merge 缺口涉及现有写操作。
+- **Go + git2go/libgit2**：仍需 cgo 和 libgit2 工具链，见 [上游构建要求](https://github.com/libgit2/git2go)。
+
+### 决策
+
+- NSGo 承担桌面界面，Go 承担应用用例、Git 编排、数据访问、系统服务和 AI。采用官方 Git CLI 作为统一仓库引擎，允许随包分发经审核的第三方 Git，基础功能无需用户单独安装。正式版本切换后移除 Tauri、Rust core、React/WebView 及其桌面构建依赖。
+- 仓库根目录管理 Go module。桌面程序与 NSGo 项目配置位于 `cmd/gitwave`，打包命令位于 `cmd/`，可复用的应用逻辑位于 `internal/`。NSGo 从 `cmd/gitwave` 启动，Go 的测试和静态检查从根目录运行。
+- 使用现有 SQLite 数据格式和 OS 凭证命名，兼容适配层负责读取旧记录。旧 Tauri 更新链负责交付签名过渡包，新的更新链独立签名。
+- GitWave 的更新设置、通知、下载进度和重启交互由 Go + NSGo 工作台统一呈现。Go 检查 GitHub Releases 中的 Ed25519 签名清单，按当前平台下载并从清单验证长度和 SHA-256。检查和下载采用 GitWave 当前的代理配置。macOS 和 Windows 的 NSGo 内置更新 API 由 Sparkle、WinSparkle 展示独立窗口，Linux 的内置安装流程覆盖包管理器安装。因此本项目实现各平台的安装和重启适配，并沿用各平台要求的代码签名。 [NSGo v0.2.0 更新 API](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/core/updates.go) [NSGo 更新机制](https://github.com/nsgo-dev/nsgo/blob/v0.2.0/docs/architecture/updates.md)
+
+### 后果
+
+- Git 行为可用稳定 CLI 格式和真实仓库验证。应用需要控制执行边界、跨平台取消、写入并发、错误转换以及 Git 发行物维护。
+- 三端签名安装、凭证兼容、旧版升级与回退是切换条件。NSGo 的 Linux 运行库和各平台无障碍、输入法须单独验收。
+- 实施和验收记录见 [迁移计划](../../tasks/refactor-nsgo-native-ui/plan.md)。

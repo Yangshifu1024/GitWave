@@ -3,16 +3,46 @@ name: test
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "site/**"
-      - "docs/**"
-      - "**.md"
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "internal/workspace/migrations/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig*.json"
+      - "vite.config.ts"
+      - "eslint.config.js"
+      - ".editorconfig"
+      - ".prettierignore"
+      - ".prettierrc.json"
+      - "scripts/check-tauri-versions*.mjs"
+      - "scripts/bump-version.mjs"
+      - ".github/workflows/build.yml"
+      - ".github/workflows/test.yml"
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "site/**"
-      - "docs/**"
-      - "**.md"
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "internal/workspace/migrations/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig*.json"
+      - "vite.config.ts"
+      - "eslint.config.js"
+      - ".editorconfig"
+      - ".prettierignore"
+      - ".prettierrc.json"
+      - "scripts/check-tauri-versions*.mjs"
+      - "scripts/bump-version.mjs"
+      - ".github/workflows/build.yml"
+      - ".github/workflows/test.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

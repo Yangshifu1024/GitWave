@@ -41,7 +41,7 @@ export interface AppMenuItemHandler {
   openAbout: () => void;
   /** Runs a manual update check; Settings opens so the outcome is visible. */
   checkUpdates: () => void;
-  /** In-app bar quits the app; the native menu's Quit is OS-handled (no-op). */
+  /** Opens the application's normal quit flow. */
   quit: () => void;
 }
 

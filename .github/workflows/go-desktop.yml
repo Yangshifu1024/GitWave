@@ -1,0 +1,474 @@
+name: Go desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - "scripts/go-format.sh"
+      - "scripts/check-go-test-tools.sh"
+      - "scripts/build-linux-installers.sh"
+      - "scripts/test-windows-setup.ps1"
+      - ".github/workflows/go-desktop.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - "scripts/go-format.sh"
+      - "scripts/check-go-test-tools.sh"
+      - "scripts/build-linux-installers.sh"
+      - "scripts/test-windows-setup.ps1"
+      - ".github/workflows/go-desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            target: macos_arm64
+          - os: windows-2025
+            target: windows_x64
+          - os: ubuntu-24.04
+            target: linux_x64
+    defaults:
+      run:
+        shell: bash
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Check Git and Git LFS for the fixtures
+        run: bash scripts/check-go-test-tools.sh
+      - name: Check Go formatting
+        run: bash scripts/go-format.sh cmd internal
+      - run: go vet ./...
+      - name: Test Go packages and Git fixtures
+        env:
+          GITWAVE_TEST_REQUIRE_MSYS_AGENT: "1"
+        run: go test -count=1 ./...
+      - name: Race checks
+        if: runner.os != 'Windows'
+        run: go test -race -count=1 ./...
+      - name: Test workbench interaction in AppKit
+        if: runner.os == 'macOS'
+        run: go -C cmd/gitwave tool nsgo test -target macos -run '^(TestNativeApplicationMenuRestoresWindowActions|TestNativeCommandPalette(AIMutationsRequireConfirmation|SearchAndSettings)|TestNativeDesktopSettings(FitsAndClosesAtBothWindowSizes|ApplyToWindowAndMenus|RetainsFontEditingOnSystemAppearanceChange|WaitsForAmendConfirmation)|TestWorkbenchRefreshPreservesLocatedCommitAndDiff|TestNativeBranchSidebarGroupsAndRevealsCheckout|TestNativeHistory(ExpandsCompleteCommitDetails|OpensReferenceBadgesAndPreservesTheSelectedCommit|ReferenceOverflowScrolls|RetainsGraphViewportAcrossModes)|TestNativeDiff(KeepsLongLineEndsReachable|PreviewFitsNarrowInspectorAndStopsAtLimit)|TestNativeChanges(LargeListKeepsControlsReachable|ShowsDirtySubmoduleAndStagesOnlyParentFiles)|TestNativeFileMoveStagesAndUnstagesBothPaths|TestNativeEditedMoveStaysSelectedDuringLargeRefresh|TestNativeRemoteSidebarReappliesDefaultAtCountThreshold|TestNativeSubmodule(AddStagesSelectedPath|ReadErrorClearsAfterRefresh)|TestNativeQuitChecksInactiveRepositoryAndCancelKeepsWindow)$'
+      - name: Test signed bundle replacement and restart on macOS
+        if: runner.os == 'macOS'
+        env:
+          GITWAVE_TEST_MAC_RESTART: "1"
+        run: go test -race -count=1 -run '^TestMacBundleRelaunchesVerifiedExecutable$' ./internal/appupdate
+      - name: Test legacy Linux credentials in Secret Service
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            dbus gnome-keyring libgtk-4-1 xvfb xauth xdotool libxtst6 fonts-dejavu-core squashfs-tools
+          keyring_fixture=$(mktemp -d)
+          trap 'rm -rf "$keyring_fixture"' EXIT
+          export XDG_RUNTIME_DIR="$keyring_fixture/run" XDG_DATA_HOME="$keyring_fixture/data"
+          mkdir -m 700 "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME"
+          dbus-run-session -- bash -euo pipefail -c '
+            printf %s gitwave-fixture-unlock | gnome-keyring-daemon --unlock --components=secrets >/dev/null
+            GITWAVE_TEST_LINUX_KEYRING=1 go test -count=1 -run ^TestLinuxLegacyAISecretsWithSecretService$ ./cmd/gitwave
+          '
+      - name: Test settings, recovery, and commit search in a GTK window
+        if: runner.os == 'Linux'
+        env:
+          GDK_BACKEND: x11
+          GSK_RENDERER: cairo
+          GTK_A11Y: none
+        run: |
+          dbus-run-session -- xvfb-run -a go -C cmd/gitwave tool nsgo test -target linux \
+            -run '^(TestNativeNetworkSettings|TestRecoveryRemainsReachableInAnOverflowingSidebar$|TestWorkbenchRefreshPreservesLocatedCommitAndDiff$)'
+      - name: Install NSIS for the Windows preview
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if (!(Get-Command makensis -ErrorAction SilentlyContinue) -and !(Test-Path $compiler)) {
+            choco install nsis --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Build and verify preview installers
+        env:
+          NSGO_PREVIEW_TARGET: ${{ matrix.target }}
+        run: |
+          output="$RUNNER_TEMP/gitwave-preview"
+          if [[ $RUNNER_OS == Windows ]]; then
+            output="$(cygpath -u "$RUNNER_TEMP")/gitwave-preview"
+          fi
+          if [[ $NSGO_PREVIEW_TARGET == windows_x64 ]]; then
+            go -C cmd/gitwave tool nsgo build -target "$NSGO_PREVIEW_TARGET" -installers -channel none -output "$output"
+            shopt -s nullglob
+            scripts=( "$output/"*-windows_x64/GitWave.nsi )
+            if (( ${#scripts[@]} != 1 )); then
+              echo 'Expected one generated GitWave NSIS script'
+              exit 1
+            fi
+            compiler=$(command -v makensis || cygpath -u "$(printenv 'ProgramFiles(x86)')/NSIS/makensis.exe")
+            go run ./cmd/prepare-windows-setup -script "${scripts[0]}" -out "$output/releases" -makensis "$compiler"
+          elif [[ $NSGO_PREVIEW_TARGET == linux_x64 ]]; then
+            mkdir -p "$output"
+            docker run --rm \
+              -v "$GITHUB_WORKSPACE:/source:ro" \
+              -v "$(go env GOROOT):/go:ro" \
+              -v "$output:/output" ubuntu:22.04 bash /source/scripts/build-linux-installers.sh
+          else
+            go run ./cmd/prepare-unix-setup -out "$output"
+          fi
+          mkdir "$output/verified"
+          cd "$output/releases"
+          case "$NSGO_PREVIEW_TARGET" in
+            macos_arm64) suffixes=(.dmg) ;;
+            windows_x64) suffixes=(-setup.exe) ;;
+            linux_x64) suffixes=(.deb .rpm .pkg.tar.gz .AppImage) ;;
+            *) exit 1 ;;
+          esac
+          shopt -s nullglob
+          for suffix in "${suffixes[@]}"; do
+            artifacts=( *"$suffix" )
+            if (( ${#artifacts[@]} != 1 )); then
+              echo "Expected one preview installer ending in $suffix"
+              exit 1
+            fi
+            installer=${artifacts[0]}
+            if command -v sha256sum >/dev/null; then
+              sha256sum -c "$installer.sha256"
+            else
+              shasum -a 256 -c "$installer.sha256"
+            fi
+            cp "$installer" "$installer.sha256" "$output/verified/"
+          done
+          if [[ $NSGO_PREVIEW_TARGET != windows_x64 ]]; then
+            cd "$output/git-source"
+            for digest in *.sha256; do shasum -a 256 -c "$digest"; done
+            cp -R "$output/git-source" "$output/verified/"
+          fi
+          if [[ $NSGO_PREVIEW_TARGET == linux_x64 ]]; then
+            (cd "$output/gtk-source" && sha256sum -c SHA256SUMS)
+            cp -R "$output/gtk-source" "$output/verified/"
+          fi
+      - name: Test Git from the mounted macOS installer
+        if: runner.os == 'macOS'
+        run: |
+          fixture=$(mktemp -d)
+          cleanup() {
+            hdiutil detach "$fixture/mount" >/dev/null 2>&1 || true
+            rm -rf "$fixture"
+          }
+          trap cleanup EXIT
+          mkdir "$fixture/mount" "$fixture/no-system-path"
+          images=( "$RUNNER_TEMP/gitwave-preview/verified/"*.dmg )
+          hdiutil attach -readonly -nobrowse -mountpoint "$fixture/mount" "${images[0]}"
+          app="$fixture/mount/GitWave.app"
+          codesign --verify --strict --deep "$app"
+          test "$(plutil -extract LSMinimumSystemVersion raw "$app/Contents/Info.plist")" = 13.0
+          test -L "$app/Contents/Resources/gitwave-git/libexec/git-core/git-remote-https"
+          ditto "$app" "$fixture/GitWave.app"
+          probe="$fixture/GitWave.app/Contents/MacOS/git-bundle.test"
+          go test -c -o "$probe" ./internal/gitcli
+          PATH="$fixture/no-system-path" GITWAVE_TEST_INSTALLED_GIT=1 "$probe" -test.v -test.run '^TestInstalledGitBundle$'
+      - name: Test Git from each Linux installer
+        if: runner.os == 'Linux'
+        run: |
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          packages="$RUNNER_TEMP/gitwave-preview/verified"
+          go test -c -o "$fixture/git-bundle.test" ./internal/gitcli
+          for system in ubuntu:22.04 ubuntu:24.04; do
+            echo "Testing packaged Git on $system"
+            docker run --rm --network none \
+              -v "$packages:/packages:ro" -v "$fixture/git-bundle.test:/git-bundle.test:ro" \
+              "$system" bash -euo pipefail -c '
+                if command -v git; then exit 1; fi
+                mkdir /test /test/no-system-path /test/deb /test/arch /test/image
+                mkdir -p /etc/ssl/certs
+                if [[ -e /etc/ssl/certs/ca-certificates.crt ]]; then
+                  mv /etc/ssl/certs/ca-certificates.crt /test/original-ca.crt
+                fi
+                dpkg-deb -x /packages/*.deb /test/deb
+                tar -xf /packages/*.pkg.tar.gz -C /test/arch
+                cp /packages/*.AppImage /test/installer.AppImage
+                chmod u+x /test/installer.AppImage
+                (cd /test/image && /test/installer.AppImage --appimage-extract >/dev/null)
+                for format in deb arch image; do
+                  bundle=$(find "/test/$format" -type d -name gitwave-git)
+                  test -L "$bundle/libexec/git-core/git-remote-https"
+                  curl_library=$(ldd "$bundle/libexec/git-core/git-remote-https" | awk "\$1 == \"libcurl.so.4\" { print \$3 }")
+                  test "$(readlink -f "$curl_library")" = "$bundle/lib/libcurl.so.4"
+                  probe="$(dirname "$bundle")/git-bundle.test"
+                  cp /git-bundle.test "$probe"
+                  PATH=/test/no-system-path GITWAVE_TEST_INSTALLED_GIT=1 \
+                    GITWAVE_TEST_GIT_SYSTEM_CA=/etc/ssl/certs/ca-certificates.crt \
+                    "$probe" -test.v -test.run "^TestInstalledGitBundle$"
+                done
+              '
+          done
+      - name: Test the installed Linux desktop preview
+        if: runner.os == 'Linux'
+        env:
+          GDK_BACKEND: x11
+          GSK_RENDERER: cairo
+          GTK_A11Y: none
+        run: |
+          sudo apt-get install -y --no-install-recommends "$RUNNER_TEMP/gitwave-preview/verified/"*.deb
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          export XDG_DATA_HOME="$fixture/data"
+          dbus-run-session -- xvfb-run -a bash -euo pipefail -c '
+            gitwave-preview >"$1/startup.log" 2>&1 &
+            pid=$!
+            trap "kill $pid 2>/dev/null || true" EXIT
+            for attempt in {1..30}; do
+              if xdotool search --onlyvisible --name GitWave >/dev/null 2>&1; then
+                grep -E "/usr/lib/.*/libgtk-4\.so" /proc/"$pid"/maps >/dev/null
+                if grep -F /gitwave-gtk/lib/ /proc/"$pid"/maps; then exit 1; fi
+                exit 0
+              fi
+              kill -0 "$pid" 2>/dev/null || break
+              sleep 1
+            done
+            cat "$1/startup.log" >&2
+            exit 1
+          ' gitwave-desktop "$fixture"
+      - name: Test the bundled desktop runtime on Ubuntu 22.04
+        if: runner.os == 'Linux'
+        run: |
+          packages="$RUNNER_TEMP/gitwave-preview/verified"
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          CGO_ENABLED=0 go test -c -o "$fixture/desktopgtk.test" ./internal/desktopgtk
+          docker run --rm -v "$packages:/packages:ro" -v "$fixture/desktopgtk.test:/desktopgtk.test:ro" ubuntu:22.04 bash -euo pipefail -c '
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y --no-install-recommends /packages/*.deb dbus xauth xvfb xdotool fonts-dejavu-core
+            dpkg --compare-versions "$(dpkg-query -W -f="\${Version}" libgtk-4-1)" lt 4.14
+            GITWAVE_TEST_PACKAGED_GTK=/usr/bin/gitwave-preview /desktopgtk.test -test.v \
+              -test.run "^TestPackagedAppRejectsBrokenGTKBeforeUpdateHandoff$"
+            export GDK_BACKEND=x11 GSK_RENDERER=cairo GTK_A11Y=none
+            dbus-run-session -- xvfb-run -a bash -euo pipefail -c "
+              gitwave-preview >/tmp/gitwave-startup.log 2>&1 &
+              pid=\$!
+              trap \"kill \$pid 2>/dev/null || true\" EXIT
+              for attempt in {1..30}; do
+                if xdotool search --onlyvisible --name GitWave >/dev/null 2>&1; then
+                  grep -F /opt/gitwave-preview/gitwave-gtk/lib/libgtk-4.so.1 /proc/\"\$pid\"/maps >/dev/null
+                  grep -F /opt/gitwave-preview/gitwave-gtk/lib/libglib-2.0.so.0 /proc/\"\$pid\"/maps >/dev/null
+                  exit 0
+                fi
+                kill -0 \"\$pid\" 2>/dev/null || break
+                sleep 1
+              done
+              cat /tmp/gitwave-startup.log >&2
+              exit 1
+            "
+          '
+      - name: Test the installed RPM on Fedora
+        if: runner.os == 'Linux'
+        run: |
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          packages="$RUNNER_TEMP/gitwave-preview/verified"
+          go test -c -o "$fixture/git-bundle.test" ./internal/gitcli
+          docker run --rm -v "$packages:/packages:ro" -v "$fixture/git-bundle.test:/git-bundle.test:ro" \
+            fedora:43 bash -euo pipefail -c '
+              dnf -y --setopt=localpkg_gpgcheck=0 --setopt=install_weak_deps=False install \
+                /packages/*.rpm dbus-daemon xorg-x11-server-Xvfb xdotool xorg-x11-xauth dejavu-sans-fonts
+              if command -v git; then exit 1; fi
+              rpm -q gitwave-preview
+              test ! -e /opt/gitwave
+              test ! -e /usr/bin/gitwave
+              mkdir -p /tmp/no-system-path
+              cp /git-bundle.test /opt/gitwave-preview/git-bundle.test
+              for cert in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt; do
+                if [[ -e $cert || -L $cert ]]; then mv "$cert" "$cert.original"; fi
+              done
+              PATH=/tmp/no-system-path GITWAVE_TEST_INSTALLED_GIT=1 \
+                GITWAVE_TEST_GIT_SYSTEM_CA=/etc/pki/tls/certs/ca-bundle.crt \
+                /opt/gitwave-preview/git-bundle.test -test.v -test.run "^TestInstalledGitBundle$"
+              for cert in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt; do
+                if [[ -e $cert.original || -L $cert.original ]]; then mv "$cert.original" "$cert"; fi
+              done
+              export GDK_BACKEND=x11 GSK_RENDERER=cairo GTK_A11Y=none
+              dbus-run-session -- xvfb-run -a bash -euo pipefail -c "
+                gitwave-preview >/tmp/gitwave.log 2>&1 &
+                pid=\$!
+                trap \"kill \$pid 2>/dev/null || true\" EXIT
+                for attempt in {1..30}; do
+                  if xdotool search --onlyvisible --name GitWave >/dev/null 2>&1; then exit 0; fi
+                  kill -0 \"\$pid\" 2>/dev/null || break
+                  sleep 1
+                done
+                cat /tmp/gitwave.log >&2
+                exit 1
+              "
+            '
+      - name: Test Windows NSIS install and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $packages = @(Get-ChildItem "$env:RUNNER_TEMP/gitwave-preview/verified" -Filter '*-setup.exe')
+          if ($packages.Count -ne 1) { throw 'Expected one verified NSIS setup' }
+          $install = Join-Path $env:RUNNER_TEMP 'GitWave installer fixture'
+          $registration = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\desktop.gitwave.work.native-preview'
+          $setup = Start-Process ($packages[0].FullName) -ArgumentList "/S /D=$install" -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "NSIS setup returned $($setup.ExitCode)" }
+          if ((Get-ItemPropertyValue $registration InstallLocation) -ne $install) { throw 'InstallLocation does not match /D' }
+          if (!(Test-Path (Join-Path $install 'GitWave.exe'))) { throw 'GitWave.exe was not installed' }
+          $bundle = Join-Path $install 'gitwave-git'
+          $bundleGit = Join-Path $bundle 'cmd/git.exe'
+          $probe = Join-Path $install 'git-bundle.test.exe'
+          go test -c -o $probe ./internal/gitcli
+          if ($LASTEXITCODE -ne 0) { throw 'Could not build the installed Git probe' }
+          $originalPath = $env:PATH
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            $env:GITWAVE_TEST_INSTALLED_GIT = '1'
+            & $probe -test.v -test.run '^TestInstalledGitBundle$'
+            if ($LASTEXITCODE -ne 0) { throw 'Git bundle failed without system Git on PATH' }
+          } finally {
+            $env:PATH = $originalPath
+            Remove-Item Env:GITWAVE_TEST_INSTALLED_GIT -ErrorAction SilentlyContinue
+            Remove-Item $probe
+          }
+          $sentinel = Join-Path $install 'user-file.txt'
+          Set-Content $sentinel 'user-owned file'
+          $application = Join-Path $install 'GitWave.exe'
+          Copy-Item (Join-Path $env:SystemRoot 'System32/whoami.exe') $application -Force
+          $oldHash = (Get-FileHash $application).Hash
+          Set-Content $bundleGit 'old Git executable fixture'
+          $oldGitHash = (Get-FileHash $bundleGit).Hash
+          $lock = [IO.File]::Open((Join-Path $install 'Uninstall.exe'), 'Open', 'Read', 'None')
+          try {
+            $failed = Start-Process ($packages[0].FullName) -ArgumentList "/S /D=$install" -Wait -PassThru
+            if ($failed.ExitCode -eq 0) { throw 'NSIS setup overwrote a locked file' }
+            if ((Get-FileHash $application).Hash -ne $oldHash) { throw 'NSIS setup did not recover the old app' }
+            if ((Get-FileHash $bundleGit).Hash -ne $oldGitHash) { throw 'NSIS setup did not recover the old Git bundle' }
+          } finally {
+            $lock.Dispose()
+          }
+          $retry = Start-Process ($packages[0].FullName) -ArgumentList "/S /D=$install" -Wait -PassThru
+          if ($retry.ExitCode -ne 0 -or (Get-FileHash $application).Hash -eq $oldHash -or (Get-FileHash $bundleGit).Hash -eq $oldGitHash) {
+            throw 'NSIS setup retry failed to update the app and Git bundle'
+          }
+          $installedUninstaller = Join-Path $install 'Uninstall.exe'
+          $uninstaller = Join-Path $env:RUNNER_TEMP 'GitWave preview uninstall fixture.exe'
+          Copy-Item $installedUninstaller $uninstaller
+          $uninstallArgs = "/S _?=$install"
+          $setupLock = [Threading.Mutex]::new($false, 'Local\GitWave.PackageSetup.1')
+          try {
+            if (!$setupLock.WaitOne(0)) { throw 'Another NSIS operation is running' }
+            try {
+              $blocked = Start-Process $uninstaller -ArgumentList $uninstallArgs -Wait -PassThru
+              if ($blocked.ExitCode -eq 0 -or !(Test-Path $bundleGit)) { throw 'Uninstall bypassed its setup lock' }
+            } finally { $setupLock.ReleaseMutex() }
+          } finally { $setupLock.Dispose() }
+          $config = Join-Path $bundle 'etc/gitconfig'
+          $originalConfig = [IO.File]::ReadAllBytes($config)
+          Add-Content $config '# user configuration'
+          $changedConfig = (Get-FileHash $config).Hash
+          $blocked = Start-Process $uninstaller -ArgumentList $uninstallArgs -Wait -PassThru
+          if ($blocked.ExitCode -eq 0 -or (Get-FileHash $config).Hash -ne $changedConfig) {
+            throw 'Uninstall did not preserve changes to bundled configuration'
+          }
+          [IO.File]::WriteAllBytes($config, $originalConfig)
+          $toastRegistration = 'HKCU:\Software\Classes\AppUserModelId\desktop.gitwave.work.native-preview'
+          New-Item $toastRegistration -Force | Out-Null
+          Remove-Item $application
+          $uninstall = Start-Process $uninstaller -ArgumentList $uninstallArgs -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0 -or (Test-Path $registration) -or (Test-Path (Join-Path $install 'GitWave.exe')) -or (Test-Path $bundle) -or (Test-Path $installedUninstaller)) {
+            throw 'NSIS uninstall left GitWave registered or installed'
+          }
+          if (Test-Path $toastRegistration) { throw 'Uninstall did not remove the notification registration' }
+          if (!(Test-Path $sentinel)) { throw 'NSIS uninstall removed a user-owned file' }
+      - name: Test migration from the published Windows installer
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'gitwave-legacy-update'
+          $source = Join-Path $fixture 'source'
+          New-Item -ItemType Directory -Path $source -Force | Out-Null
+          Copy-Item -LiteralPath @('cmd', 'internal', 'go.mod', 'go.sum', 'LICENSE') -Destination $source -Recurse
+          $app = Join-Path $source 'cmd/gitwave'
+          $config = Join-Path $app 'nsgo.yaml'
+          (Get-Content $config -Raw) -replace '(?m)^id: desktop\.gitwave\.work\.native-preview\r?$', 'id: desktop.gitwave.work' -replace '(?m)^version: [^\r\n]+\r?$', 'version: 0.12.0' | Set-Content $config
+          $output = Join-Path $fixture 'build'
+          go -C $app tool nsgo build -target windows_x64 -installers -channel none -output $output
+          if ($LASTEXITCODE -ne 0) { throw 'Stable fixture build failed' }
+          $compiler = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (!$compiler) { $compiler = Join-Path ${env:ProgramFiles(x86)} 'NSIS/makensis.exe' }
+          $script = Join-Path $output 'GitWave-0.12.0-windows_x64/GitWave.nsi'
+          $packages = Join-Path $fixture 'packages'
+          go run ./cmd/prepare-windows-setup -script $script -out $packages -makensis $compiler
+          if ($LASTEXITCODE -ne 0) { throw 'Stable NSIS fixture build failed' }
+          $previousName = 'GitWave_0.11.0_x64-setup.exe'
+          gh release download v0.11.0 -R Yangshifu1024/GitWave --pattern $previousName --dir $fixture
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the v0.11.0 fixture' }
+          & ./scripts/test-windows-setup.ps1 -Setup (Join-Path $packages 'gitwave-0.12.0-windows-x64-setup.exe') `
+            -Version '0.12.0' -Previous (Join-Path $fixture $previousName) -Fixture $fixture
+      - name: Test AppImage installation and relaunch
+        if: runner.os == 'Linux'
+        run: |
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          shopt -s nullglob
+          images=( "$RUNNER_TEMP/gitwave-preview/verified/"*.AppImage )
+          if (( ${#images[@]} != 1 )); then
+            echo "Expected one verified AppImage"
+            exit 1
+          fi
+          image=${images[0]}
+          chmod u+x "$image"
+          offset=$("$image" --appimage-offset)
+          head -c "$offset" "$image" > "$fixture/runtime"
+          go test -c -o "$fixture/appimage.test" ./internal/appupdate
+          for version in old new broken; do
+            mkdir "$fixture/$version"
+            printf '%s version' "$version" > "$fixture/$version/fixture-release"
+            if [[ $version != broken ]]; then
+              cp "$fixture/appimage.test" "$fixture/$version/GitWave"
+              ln -s GitWave "$fixture/$version/AppRun"
+            fi
+            mksquashfs "$fixture/$version" "$fixture/$version.squashfs" -noappend -quiet -no-progress -processors 2 -all-root
+            cat "$fixture/runtime" "$fixture/$version.squashfs" > "$fixture/$version.AppImage"
+            chmod u+x "$fixture/$version.AppImage"
+          done
+          export GITWAVE_TEST_APPIMAGE_BEFORE="$fixture/old.AppImage"
+          export GITWAVE_TEST_APPIMAGE_AFTER="$fixture/new.AppImage"
+          export GITWAVE_TEST_APPIMAGE_BROKEN="$fixture/broken.AppImage"
+          "$fixture/appimage.test" -test.v -test.timeout=90s -test.run '^TestAppImage(Install|Relaunches)'
+      - name: Upload preview installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitwave-preview-${{ matrix.target }}
+          path: ${{ runner.temp }}/gitwave-preview/verified/
+          compression-level: 0
+          if-no-files-found: error

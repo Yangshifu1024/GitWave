@@ -9,9 +9,15 @@ default_stages: [pre-commit]
 repos:
   - repo: local
     hooks:
+      - id: go-format-check
+        name: gofmt check
+        entry: bash scripts/go-format.sh
+        language: system
+        files: ^(cmd|internal)/.*\.go$
+
       - id: cargo-fmt
         name: cargo fmt
-        entry: cargo fmt --manifest-path src-tauri/Cargo.toml --
+        entry: cargo fmt --manifest-path src-tauri/Cargo.toml --check
         language: system
         types: [rust]
         pass_filenames: false
@@ -25,7 +31,7 @@ repos:
 
       - id: prettier-check
         name: prettier check
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install prettier --check'
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install prettier --check .'
         language: system
         types_or: [ts, tsx, javascript, css]
         pass_filenames: false
@@ -34,11 +40,11 @@ repos:
         name: eslint
         entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install eslint .'
         language: system
+        types_or: [ts, tsx, javascript]
         pass_filenames: false
 
       - id: commitlint
         name: commitlint (Conventional Commits)
-        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npx --no-install commitlint --edit "$1"'
+        entry: pnpm exec commitlint --edit
         language: system
         stages: [commit-msg]
-        pass_filenames: false

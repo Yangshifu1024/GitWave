@@ -80,10 +80,10 @@ All PRs merge into `main` with a merge commit — branch history is preserved, n
 Before delivering a task (commit / push / PR), run the CI-equivalent checks and make them pass:
 
 ```bash
-make check   # fmt-check (prettier + cargo fmt) + lint (eslint + clippy + typecheck) + all tests
+make check   # Go formatting + go vet + Go tests
 ```
 
-Or individually — frontend: `pnpm format:check` · `pnpm lint` · `pnpm typecheck` · `pnpm test`; backend: `cargo fmt -- --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --all-targets`. CI runs the same gates on all three platforms — a red formatting/lint check on the PR means this step was skipped.
+Use `make fmt-check`, `make lint`, and `make test` to run those checks individually. For changes to the Tauri preference exporter, also run `make legacy-check`. CI runs the Go and exporter gates on all three platforms.
 
 ## Documentation maintenance
 

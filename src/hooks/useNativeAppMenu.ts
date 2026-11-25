@@ -25,6 +25,7 @@ import { runUpdateCheck } from "@/hooks/useUpdater";
 import { useUiStore, type AppMenuAction } from "@/stores/uiStore";
 import { readLastActive } from "@/stores/workspaceStore";
 import { useAppMenuGating } from "./useAppMenuGating";
+import { requestQuit } from "./useQuitGuard";
 
 /** Callbacks resolved at fire time via the latest-callbacks ref below. */
 interface LatestCallbacks {
@@ -44,9 +45,7 @@ function handlerFrom(callbacks: RefObject<LatestCallbacks>): AppMenuItemHandler 
       callbacks.current.setSettingsOpen(true);
       runUpdateCheck();
     },
-    // The native Quit is the predefined OS item — macOS handles it and this
-    // route never fires; kept explicit so both surfaces route alike.
-    quit: () => undefined,
+    quit: () => void requestQuit(),
   };
 }
 
@@ -142,7 +141,7 @@ export function installNativeAppMenuEarly(): void {
         // activate_and_show); this transient install is replaced on mount.
         openAbout: () => undefined,
         checkUpdates: () => undefined,
-        quit: () => undefined,
+        quit: () => void requestQuit(),
       };
       await installMenu(gating, handler);
     } catch (error) {

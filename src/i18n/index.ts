@@ -8,6 +8,7 @@
 
 import i18next, { type i18n as I18nInstance } from "i18next";
 import { initReactI18next } from "react-i18next";
+import { queueLegacyPreferenceExport } from "@/lib/legacyPreferences";
 
 import { resources } from "./resources";
 
@@ -69,6 +70,7 @@ export function initI18n(): I18nInstance {
 export function changeUiLanguage(lang: UiLanguage): void {
   try {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+    queueLegacyPreferenceExport();
   } catch {
     // Persistence is best-effort; the in-session switch still applies.
   }

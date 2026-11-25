@@ -6,16 +6,13 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { GithubIcon } from "@/components/ui/GithubIcon";
 import {
+  releaseNotesUrl,
   useInstallUpdate,
   useOpenReleases,
   useRestartApp,
   useRetryUpdate,
 } from "@/hooks/useUpdater";
 import { useUpdaterStore } from "@/stores/updaterStore";
-
-function releaseNotesUrl(version: string): string {
-  return `https://github.com/Yangshifu1024/GitWave/releases/tag/v${version}`;
-}
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

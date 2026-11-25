@@ -1,0 +1,121 @@
+name: Go Windows release candidate
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: GitWave Windows release version (X.Y.Z)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.GITWAVE_WINDOWS_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.GITWAVE_WINDOWS_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.GITWAVE_WINDOWS_AZURE_SUBSCRIPTION_ID }}
+      - name: Build and sign the Windows candidate
+        env:
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=readonly
+          RELEASE_VERSION: ${{ inputs.version }}
+          GITWAVE_UPDATE_PUBLIC_KEY: ${{ vars.GITWAVE_UPDATE_PUBLIC_KEY }}
+          SIGNING_ENDPOINT: ${{ vars.GITWAVE_WINDOWS_SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.GITWAVE_WINDOWS_SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.GITWAVE_WINDOWS_SIGNING_PROFILE }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $version = $env:RELEASE_VERSION
+          if ($version -cnotmatch '\A(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\z') { throw 'Use a numeric X.Y.Z version' }
+          $publicKey = $env:GITWAVE_UPDATE_PUBLIC_KEY
+          if (!$publicKey) { throw 'Missing GITWAVE_UPDATE_PUBLIC_KEY' }
+          $key = [Convert]::FromBase64String($publicKey)
+          if ($key.Length -ne 32 -or [Convert]::ToBase64String($key) -cne $publicKey) {
+            throw 'GITWAVE_UPDATE_PUBLIC_KEY must contain a base64-encoded Ed25519 public key'
+          }
+          if (!$env:SIGNING_ENDPOINT -or !$env:SIGNING_ACCOUNT -or !$env:SIGNING_PROFILE) {
+            throw 'Configure the Windows Artifact Signing endpoint, account, and certificate profile'
+          }
+          $endpoint = [Uri]::new($env:SIGNING_ENDPOINT, [UriKind]::Absolute)
+          if ($endpoint.Scheme -ne 'https' -or $endpoint.Host -notmatch '\A[a-z0-9]+\.codesigning\.azure\.net\z' -or
+              !$endpoint.IsDefaultPort -or $endpoint.AbsolutePath -ne '/' -or $endpoint.Query -or $endpoint.Fragment -or $endpoint.UserInfo) {
+            throw 'Use the HTTPS regional Artifact Signing endpoint'
+          }
+          $work = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'gitwave-windows-signing')
+          $sdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
+          $sdk = Get-ChildItem -LiteralPath $sdkBin -Directory |
+            Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' -and (Test-Path (Join-Path $_.FullName 'x64/signtool.exe')) } |
+            Sort-Object { [Version]$_.Name } -Descending | Select-Object -First 1
+          if (!$sdk) { throw 'Windows SDK SignTool is unavailable' }
+          $env:GITWAVE_WINDOWS_SIGNTOOL = Join-Path $sdk.FullName 'x64/signtool.exe'
+          nuget install Microsoft.ArtifactSigning.Client -Version 1.0.151 -ExcludeVersion -NonInteractive `
+            -Source https://api.nuget.org/v3/index.json -OutputDirectory $work.FullName
+          $env:GITWAVE_WINDOWS_SIGNING_DLIB = Join-Path $work.FullName 'Microsoft.ArtifactSigning.Client/bin/x64/Azure.CodeSigning.Dlib.dll'
+          $env:GITWAVE_WINDOWS_SIGNING_METADATA = Join-Path $work.FullName 'metadata.json'
+          @{
+            Endpoint = $endpoint.AbsoluteUri
+            CodeSigningAccountName = $env:SIGNING_ACCOUNT
+            CertificateProfileName = $env:SIGNING_PROFILE
+          } | ConvertTo-Json | Set-Content -LiteralPath $env:GITWAVE_WINDOWS_SIGNING_METADATA -Encoding utf8NoBOM
+          $signer = Join-Path $work.FullName 'sign-windows-artifact.exe'
+          go build -o $signer ./cmd/sign-windows-artifact
+          $compiler = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (!$compiler) { $compiler = Join-Path ${env:ProgramFiles(x86)} 'NSIS/makensis.exe' }
+          if (!(Test-Path -LiteralPath $compiler)) { choco install nsis --yes --no-progress }
+          $env:PATH = "$(Split-Path -Parent $compiler);$env:PATH"
+          $output = Join-Path $env:RUNNER_TEMP 'gitwave-windows-build'
+          go -C cmd/gitwave tool nsgo build -target windows_x64 -installers -channel none -id desktop.gitwave.work `
+            -version $version -ldflags "-X main.releaseUpdateKey=$publicKey" -output $output
+          $script = Join-Path $output "GitWave-$version-windows_x64/GitWave.nsi"
+          go run ./cmd/prepare-windows-setup -script $script -out (Join-Path $env:RUNNER_TEMP 'gitwave-windows-candidate') `
+            -release-version $version -signer $signer -makensis $compiler
+      - name: Verify signatures and migration from v0.11.0
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $fixture = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'gitwave-windows-legacy-test')
+          $previous = 'GitWave_0.11.0_x64-setup.exe'
+          gh release download v0.11.0 --repo $env:GITHUB_REPOSITORY --pattern $previous --dir $fixture.FullName
+          $packages = Join-Path $env:RUNNER_TEMP 'gitwave-windows-candidate'
+          & ./scripts/test-windows-setup.ps1 -Setup (Join-Path $packages "gitwave-$env:RELEASE_VERSION-windows-x64-setup.exe") `
+            -SignedApp (Join-Path $packages 'GitWave.exe') -Version $env:RELEASE_VERSION `
+            -Previous (Join-Path $fixture.FullName $previous) -Fixture $fixture.FullName
+      - name: Upload verified release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitwave-windows-x64-${{ inputs.version }}
+          if-no-files-found: error
+          path: ${{ runner.temp }}/gitwave-windows-candidate/

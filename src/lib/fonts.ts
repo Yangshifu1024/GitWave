@@ -1,3 +1,5 @@
+import { queueLegacyPreferenceExport } from "./legacyPreferences";
+
 export interface FontPreferences {
   sans: string;
   mono: string;
@@ -178,6 +180,7 @@ export function storeFonts(prefs: FontPreferences): FontPreferences {
       if (size === "") localStorage.removeItem(SIZE_STORAGE_KEYS[slot]);
       else localStorage.setItem(SIZE_STORAGE_KEYS[slot], size);
     }
+    queueLegacyPreferenceExport();
   }
   applyFont("sans", saved.sans);
   applyFont("mono", saved.mono);

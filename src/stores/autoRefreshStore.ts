@@ -4,6 +4,7 @@
 // one shared value. Persistence to localStorage is best-effort.
 
 import { create } from "zustand";
+import { queueLegacyPreferenceExport } from "@/lib/legacyPreferences";
 
 const ENABLED_STORAGE_KEY = "gitwave-auto-refresh";
 const INTERVAL_STORAGE_KEY = "gitwave-auto-refresh-interval";
@@ -53,6 +54,7 @@ export const useAutoRefreshStore = create<AutoRefreshState>()((set) => ({
   setAutoRefresh: (autoRefresh) => {
     try {
       window.localStorage.setItem(ENABLED_STORAGE_KEY, String(autoRefresh));
+      queueLegacyPreferenceExport();
     } catch {
       // Persistence is best-effort; the in-memory value still applies.
     }
@@ -62,6 +64,7 @@ export const useAutoRefreshStore = create<AutoRefreshState>()((set) => ({
     const intervalMinutes = sanitizeIntervalMinutes(minutes);
     try {
       window.localStorage.setItem(INTERVAL_STORAGE_KEY, String(intervalMinutes));
+      queueLegacyPreferenceExport();
     } catch {
       // Persistence is best-effort; the in-memory value still applies.
     }

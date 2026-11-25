@@ -1,47 +1,79 @@
+GO := go
 CARGO := cargo
 CARGO_MANIFEST := --manifest-path src-tauri/Cargo.toml
+NSGO := $(GO) -C cmd/gitwave tool nsgo
+NSGO_TARGET = $(subst darwin,macos,$(shell $(GO) env GOOS))_$(subst amd64,x64,$(shell $(GO) env GOARCH))
 
 .DEFAULT_GOAL := help
-.PHONY: test format fmt-check lint check build dev native-dev native-test help
+.PHONY: format fmt-check lint test test-race check build dev version bump help \
+	legacy-format legacy-fmt-check legacy-lint legacy-test legacy-check legacy-build legacy-dev \
+	native-dev native-test native-git-test
 
-NATIVE_CARGO := $(CARGO) build $(CARGO_MANIFEST) --locked --features native-preview --bin gitwave-native-core
-NATIVE_TARGET_DIR := $(if $(CARGO_TARGET_DIR),$(abspath $(CARGO_TARGET_DIR)),$(CURDIR)/src-tauri/target)
-NATIVE_CORE := $(NATIVE_TARGET_DIR)/debug/gitwave-native-core$(if $(filter Windows_NT,$(OS)),.exe)
+format: ## 格式化 Go 源码
+	bash scripts/go-format.sh --write cmd internal
 
-format: ## 格式化前端 + Rust(会改文件)
+fmt-check: ## 检查 Go 格式
+	bash scripts/go-format.sh cmd internal
+
+lint: ## 运行 go vet
+	$(GO) vet ./...
+
+test: ## 运行 Go 测试
+	bash scripts/check-go-test-tools.sh
+	$(GO) test ./...
+
+test-race: ## 运行 Go 竞态测试
+	bash scripts/check-go-test-tools.sh
+	$(GO) test -race ./...
+
+check: fmt-check lint test ## 检查 Go 格式、静态分析和测试
+
+build: check ## 检查后构建本机 NSGo 桌面应用
+	$(NSGO) build -target $(NSGO_TARGET) -channel none
+
+dev: ## 启动 NSGo 开发模式
+	$(NSGO) dev -target native
+
+version: ## 打印 NSGo 配置版本
+	@$(GO) run ./cmd/release-version
+
+bump: ## 用 VERSION=X.Y.Z 修改 NSGo 配置版本
+	@test -n "$(VERSION)" || { echo 'Usage: make bump VERSION=X.Y.Z' >&2; exit 1; }
+	$(GO) run ./cmd/release-version "$(VERSION)"
+
+legacy-format: ## 格式化 Tauri 偏好导出版
 	pnpm format
 	$(CARGO) fmt $(CARGO_MANIFEST)
 
-fmt-check: ## 只校验格式,不改文件(对齐 CI)
+legacy-fmt-check: ## 检查 Tauri 偏好导出版格式
 	pnpm exec prettier --check .
 	$(CARGO) fmt $(CARGO_MANIFEST) -- --check
 
-test: ## 前端 + Rust 全部测试
-	pnpm test
-	$(CARGO) test $(CARGO_MANIFEST) --all-targets
-
-lint: ## Tauri version compatibility + eslint + clippy + typecheck + cargo check
+legacy-lint: ## 检查 Tauri 偏好导出版
 	pnpm check:tauri-versions
 	pnpm lint
 	$(CARGO) clippy $(CARGO_MANIFEST) --all-targets -- -D warnings
 	pnpm typecheck
 	$(CARGO) check $(CARGO_MANIFEST) --all-targets
 
-check: fmt-check lint test ## 提交前自查:只校验不改文件,等价 CI
+legacy-test: ## 运行 Tauri 偏好导出版测试
+	pnpm test
+	$(CARGO) test $(CARGO_MANIFEST) --all-targets
 
-build: format lint test ## 全量检查后构建发布包
+legacy-check: legacy-fmt-check legacy-lint legacy-test ## 运行 Tauri 偏好导出版的全部检查
+
+legacy-build: legacy-check ## 构建 Tauri 偏好导出版
 	pnpm tauri build
 
-dev: ## 启动开发模式(不做前置检查)
+legacy-dev: ## 启动 Tauri 偏好导出版开发模式
 	pnpm tauri dev
 
-native-dev: ## 启动 NSGo 原生 History/diff 预览
-	CARGO_TARGET_DIR="$(NATIVE_TARGET_DIR)" $(NATIVE_CARGO)
-	GITWAVE_NATIVE_CORE="$(NATIVE_CORE)" go -C native run .
+native-dev: dev
+native-test: test
 
-native-test: ## 用真实 Git 仓库验证原生 History/diff
-	CARGO_TARGET_DIR="$(NATIVE_TARGET_DIR)" $(NATIVE_CARGO)
-	GITWAVE_NATIVE_CORE="$(NATIVE_CORE)" go -C native test ./...
+native-git-test: ## 用本机 Git 验证 Go 仓库适配层
+	bash scripts/check-go-test-tools.sh
+	$(GO) test -count=1 ./internal/gitcli
 
 help: ## 显示可用命令
-	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-19s\033[0m %s\n", $$1, $$2}'

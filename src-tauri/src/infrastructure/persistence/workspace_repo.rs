@@ -170,7 +170,7 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
         let affected = self
             .conn
             .execute(
-                "UPDATE workspaces SET settings_json = ?1, updated_at = ?2 WHERE id = ?3",
+                "UPDATE workspaces SET settings_json = json_patch(settings_json, ?1), updated_at = ?2 WHERE id = ?3",
                 params![settings_json, now_unix(), id],
             )
             .map_err(map_sqlite_err)?;

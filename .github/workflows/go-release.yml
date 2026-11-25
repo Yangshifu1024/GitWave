@@ -1,0 +1,360 @@
+name: Go desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Go release version (X.Y.Z)
+        type: string
+        required: true
+      exporter_version:
+        description: Published Tauri preference exporter version (X.Y.Z)
+        type: string
+        required: true
+      bridge_version:
+        description: First Go version offered to the Tauri exporter (X.Y.Z)
+        type: string
+        required: true
+      draft_release:
+        description: Create a draft release using the matching tag
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: go-desktop-release
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/main' && github.repository == 'Yangshifu1024/GitWave'
+    runs-on: ubuntu-24.04
+    outputs:
+      first_go_release: ${{ steps.versions.outputs.first_go_release }}
+      previous_go_release: ${{ steps.versions.outputs.previous_go_release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Verify the Go update signing key
+        env:
+          GITWAVE_UPDATE_PUBLIC_KEY: ${{ vars.GITWAVE_UPDATE_PUBLIC_KEY }}
+          GITWAVE_UPDATE_SIGNING_SEED: ${{ secrets.GITWAVE_UPDATE_SIGNING_SEED }}
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=readonly
+        run: go run ./cmd/sign-update -check-key
+      - name: Verify transition versions and published inputs
+        id: versions
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          EXPORTER_VERSION: ${{ inputs.exporter_version }}
+          BRIDGE_VERSION: ${{ inputs.bridge_version }}
+          CREATE_DRAFT: ${{ inputs.draft_release }}
+          GH_TOKEN: ${{ github.token }}
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=readonly
+        run: |
+          set -euo pipefail
+          if [[ $CREATE_DRAFT == true ]]; then
+            configured=$(go run ./cmd/release-version)
+            if [[ $configured != "$RELEASE_VERSION" ]]; then
+              printf 'Requested release %s does not match the NSGo configuration (%s).\n' "$RELEASE_VERSION" "$configured" >&2
+              exit 1
+            fi
+            bash scripts/verify-release-tag.sh "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "v$RELEASE_VERSION" "$GITHUB_SHA"
+          fi
+          previous=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | python3 scripts/check-go-release.py)
+          test "$(gh release view "v$EXPORTER_VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false
+          printf 'previous_go_release=%s\n' "$previous" >> "$GITHUB_OUTPUT"
+          if [[ -z $previous ]]; then
+            echo 'first_go_release=true' >> "$GITHUB_OUTPUT"
+          else
+            test "$(gh release view "v$BRIDGE_VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false
+            fixed=$(mktemp -d)
+            gh release download "$previous" --repo "$GITHUB_REPOSITORY" --dir "$fixed" \
+              --pattern latest.json --pattern gitwave-legacy-transition.json
+            jq -e --arg version "$EXPORTER_VERSION" '.version == $version' "$fixed/latest.json" > /dev/null
+            jq -e --arg version "$BRIDGE_VERSION" '.version == $version' "$fixed/gitwave-legacy-transition.json" > /dev/null
+            echo 'first_go_release=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify the update key against the published Go releases
+        if: steps.versions.outputs.previous_go_release != ''
+        env:
+          BRIDGE_VERSION: ${{ inputs.bridge_version }}
+          PREVIOUS_GO_RELEASE: ${{ steps.versions.outputs.previous_go_release }}
+          GITWAVE_UPDATE_PUBLIC_KEY: ${{ vars.GITWAVE_UPDATE_PUBLIC_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=readonly
+        run: |
+          set -euo pipefail
+          published=$(mktemp -d)
+          trap 'rm -rf "$published"' EXIT
+          verify_release() {
+            local tag=$1 manifest="$published/$1.json"
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern gitwave-update.json --output "$manifest"
+            go run ./cmd/sign-update -verify-manifest "$manifest" -version "${tag#v}"
+          }
+          verify_release "v$BRIDGE_VERSION"
+          if [[ $PREVIOUS_GO_RELEASE != "v$BRIDGE_VERSION" ]]; then
+            verify_release "$PREVIOUS_GO_RELEASE"
+          fi
+
+  macos:
+    needs: preflight
+    uses: ./.github/workflows/go-macos-candidate.yml
+    with:
+      version: ${{ inputs.version }}
+      exporter_version: ${{ inputs.exporter_version }}
+      previous_go_release: ${{ needs.preflight.outputs.previous_go_release }}
+      legacy_bridge: ${{ needs.preflight.outputs.first_go_release == 'true' }}
+    secrets:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  linux:
+    needs: preflight
+    uses: ./.github/workflows/go-linux-candidate.yml
+    with:
+      version: ${{ inputs.version }}
+
+  windows:
+    needs: preflight
+    uses: ./.github/workflows/go-windows-candidate.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      version: ${{ inputs.version }}
+
+  assemble:
+    needs: [preflight, macos, linux, windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+      RELEASE_VERSION: ${{ inputs.version }}
+      EXPORTER_VERSION: ${{ inputs.exporter_version }}
+      BRIDGE_VERSION: ${{ inputs.bridge_version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@v8
+        with:
+          name: gitwave-macos-arm64-${{ inputs.version }}
+          path: ${{ runner.temp }}/artifacts/macos
+      - uses: actions/download-artifact@v8
+        with:
+          name: gitwave-linux-x64-${{ inputs.version }}
+          path: ${{ runner.temp }}/artifacts/linux
+      - uses: actions/download-artifact@v8
+        with:
+          name: gitwave-windows-x64-${{ inputs.version }}
+          path: ${{ runner.temp }}/artifacts/windows
+      - uses: actions/download-artifact@v8
+        if: needs.preflight.outputs.first_go_release == 'true'
+        with:
+          name: gitwave-macos-legacy-bridge-${{ inputs.version }}
+          path: ${{ runner.temp }}/artifacts/macos-legacy
+      - name: Collect and verify candidate artifacts
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/gitwave-release"
+          bash scripts/assemble-go-release.sh "$RUNNER_TEMP/artifacts" "$bundle" "$RELEASE_VERSION" "$BRIDGE_VERSION"
+          {
+            printf '## Upgrading from GitWave v0.11.0\n\n'
+            printf 'Install the [preference exporter v%s](https://github.com/%s/releases/tag/v%s) first, then follow its update prompt.\n\n' \
+              "$EXPORTER_VERSION" "$GITHUB_REPOSITORY" "$EXPORTER_VERSION"
+            printf '## Changes\n\n'
+            previous=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+            if [[ $previous ]]; then
+              git log --format='- %h %s' "$previous..HEAD"
+            else
+              git log -10 --format='- %h %s'
+            fi
+          } > "$bundle/release-notes.md"
+      - name: Sign the initial Go transition assets
+        if: needs.preflight.outputs.first_go_release == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          signatures="$RUNNER_TEMP/go-legacy-signatures"
+          assets="$RUNNER_TEMP/gitwave-release/assets"
+          go run ./cmd/sign-legacy-assets -version "$RELEASE_VERSION" -assets "$assets" -out "$signatures"
+          cp -- "$signatures/"*.sig "$assets/"
+      - name: Verify and assemble both legacy feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_GO_RELEASE: ${{ needs.preflight.outputs.previous_go_release }}
+          VERIFIED_MACOS_EXPORTER_SHA256: ${{ needs.macos.outputs.exporter_sha256 }}
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/gitwave-release"
+          download_legacy() {
+            local version=$1 dir=$2
+            mkdir "$dir"
+            gh release download "v$version" --repo "$GITHUB_REPOSITORY" --dir "$dir" \
+              --pattern '*.app.tar.gz' --pattern '*-setup.exe' --pattern '*.AppImage' \
+              --pattern '*.deb' --pattern '*.rpm' --pattern '*.sig'
+          }
+          exporter="$RUNNER_TEMP/preference-exporter"
+          download_legacy "$EXPORTER_VERSION" "$exporter"
+          gh release download "v$EXPORTER_VERSION" --repo "$GITHUB_REPOSITORY" --dir "$exporter" --pattern latest.json
+          archive="$exporter/GitWave_${EXPORTER_VERSION}_aarch64.app.tar.gz"
+          if [[ ! $VERIFIED_MACOS_EXPORTER_SHA256 =~ ^[a-f0-9]{64}$ ]] ||
+             ! printf '%s  %s\n' "$VERIFIED_MACOS_EXPORTER_SHA256" "$archive" | sha256sum --check --status; then
+            printf '%s\n' 'The macOS preference exporter differs from the archive tested by the macOS job.' >&2
+            exit 1
+          fi
+          gh release view "v$EXPORTER_VERSION" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$exporter/notes.md"
+          bridge="$bundle/assets"
+          bridge_notes="$bundle/release-notes.md"
+          if [[ $BRIDGE_VERSION != "$RELEASE_VERSION" ]]; then
+            bridge="$RUNNER_TEMP/fixed-go-bridge"
+            download_legacy "$BRIDGE_VERSION" "$bridge"
+            bridge_notes="$bridge/notes.md"
+            gh release view "v$BRIDGE_VERSION" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$bridge_notes"
+          fi
+          verified="$RUNNER_TEMP/verified-legacy-feeds"
+          go run ./cmd/prepare-legacy-feeds \
+            -export-version "$EXPORTER_VERSION" -export-assets "$exporter" -export-notes "$exporter/notes.md" \
+            -go-version "$BRIDGE_VERSION" -go-assets "$bridge" -go-notes "$bridge_notes" \
+            -out "$verified"
+          exporter_routes=$(jq -ceS '{version,platforms}' "$exporter/latest.json")
+          verified_exporter_routes=$(jq -ceS '{version,platforms}' "$verified/latest.json")
+          if [[ $exporter_routes != "$verified_exporter_routes" ]]; then
+            echo 'The published preference exporter feed differs from the verified download targets.' >&2
+            exit 1
+          fi
+          if [[ $PREVIOUS_GO_RELEASE ]]; then
+            fixed=$(mktemp -d)
+            gh release download "$PREVIOUS_GO_RELEASE" --repo "$GITHUB_REPOSITORY" --dir "$fixed" \
+              --pattern latest.json --pattern gitwave-legacy-transition.json
+            for feed in latest.json gitwave-legacy-transition.json; do
+              verified_routes=$(jq -ceS '{version,platforms}' "$verified/$feed")
+              fixed_routes=$(jq -ceS '{version,platforms}' "$fixed/$feed")
+              if [[ $verified_routes != "$fixed_routes" ]]; then
+                echo "The verified download targets differ from the frozen $feed." >&2
+                exit 1
+              fi
+              cp -- "$fixed/$feed" "$bundle/assets/"
+            done
+          else
+            cp -- "$verified/"*.json "$bundle/assets/"
+          fi
+      - name: Sign the Go update feed
+        env:
+          GITWAVE_UPDATE_PUBLIC_KEY: ${{ vars.GITWAVE_UPDATE_PUBLIC_KEY }}
+          GITWAVE_UPDATE_SIGNING_SEED: ${{ secrets.GITWAVE_UPDATE_SIGNING_SEED }}
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/gitwave-release"
+          go run ./cmd/sign-update -version "$RELEASE_VERSION" -assets "$bundle/assets" \
+            -windows-exe "$bundle/GitWave.exe" -notes "$bundle/release-notes.md"
+          cd "$bundle/assets"
+          export LC_ALL=C
+          sha256sum -- * > "$bundle/SHA256SUMS"
+      - name: Upload assembled release for review
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitwave-release-${{ inputs.version }}
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/gitwave-release/assets/
+            ${{ runner.temp }}/gitwave-release/release-notes.md
+            ${{ runner.temp }}/gitwave-release/SHA256SUMS
+
+  draft:
+    if: inputs.draft_release
+    needs: [preflight, assemble]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: gitwave-release-${{ inputs.version }}
+          path: ${{ runner.temp }}/gitwave-release
+      - name: Create and verify a draft for the verified tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          EXPORTER_VERSION: ${{ inputs.exporter_version }}
+          BRIDGE_VERSION: ${{ inputs.bridge_version }}
+          PREVIOUS_GO_RELEASE: ${{ needs.preflight.outputs.previous_go_release }}
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          tag="v$RELEASE_VERSION"
+          repository="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          bundle="$RUNNER_TEMP/gitwave-release"
+          test -s "$bundle/assets/latest.json"
+          test -s "$bundle/assets/gitwave-legacy-transition.json"
+          test -s "$bundle/assets/gitwave-update.json"
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          (cd "$bundle/assets" && sha256sum -- *) > "$work/local"
+          diff -u "$bundle/SHA256SUMS" "$work/local"
+          releases="repos/$GITHUB_REPOSITORY/releases"
+          check_release_history() {
+            local previous
+            gh api --paginate --slurp "$releases?per_page=100" > "$work/releases.json"
+            previous=$(python3 scripts/check-go-release.py < "$work/releases.json")
+            if [[ $previous != "$PREVIOUS_GO_RELEASE" ]]; then
+              echo 'The previous published Go release changed during assembly.' >&2
+              return 1
+            fi
+          }
+          check_release_history
+          bash scripts/verify-release-tag.sh "$repository" "$tag" "$GITHUB_SHA"
+          if ! jq -e --arg tag "$tag" 'any(.[][]; .tag_name == $tag)' "$work/releases.json" > /dev/null; then
+            if jq -e 'any(.[][]; .draft and any(.assets[]; .name == "gitwave-update.json" or .name == "gitwave-legacy-transition.json"))' "$work/releases.json" > /dev/null; then
+              echo 'Review the previous Go draft before creating another.' >&2
+              exit 1
+            fi
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+              --title "$tag" --notes-file "$bundle/release-notes.md" "$bundle/assets/"*
+            check_release_history
+          fi
+          draft_id=$(jq -er --arg tag "$tag" '
+            [.[][] | select(.tag_name == $tag)] |
+            if length == 1 and .[0].draft and (.[0].prerelease | not) then .[0].id
+            else error("expected one stable draft for " + $tag) end
+          ' "$work/releases.json")
+          gh api --paginate --slurp "$releases/$draft_id/assets?per_page=100" | jq -r '
+            flatten | sort_by(.name)[] |
+            if .state == "uploaded" and ((.digest // "") | test("^sha256:[0-9a-f]{64}$"))
+            then (.digest | ltrimstr("sha256:")) + "  " + .name
+            else error("missing upload or SHA-256 for " + .name) end
+          ' > "$work/remote"
+          diff -u "$bundle/SHA256SUMS" "$work/remote"
+          gh api "$releases/$draft_id" |
+            jq -e --arg tag "$tag" '.draft and (.prerelease | not) and .tag_name == $tag' >/dev/null
+          bash scripts/verify-release-tag.sh "$repository" "$tag" "$GITHUB_SHA"
+          printf 'Verified all release assets for draft %s. Ready for manual review.\n' "$tag"

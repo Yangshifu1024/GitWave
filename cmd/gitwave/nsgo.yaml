@@ -1,0 +1,22 @@
+name: GitWave
+id: desktop.gitwave.work.native-preview
+version: 0.11.0
+copyright: © 2026 Yangzhenbiao
+icon:
+  apple: assets/AppIcon.icns
+  png: assets/Icon.png
+# NSGo cannot classify the memory logo URL or SQLite's public-domain notice.
+# These exact modules still contribute all their texts to THIRD_PARTY_NOTICES.txt.
+licenses:
+  allow: [modernc.org/memory, modernc.org/sqlite]
+linux:
+  summary: A local-first Git desktop client with optional AI assistance
+  license: MIT
+  appimage_update: "" # GitWave uses its signed update manifest.
+  depends:
+    deb: [libgtk-4-1 (>= 4.14), libc6 (>= 2.35), ca-certificates, openssh-client]
+    arch: [gtk4>=4.14, ca-certificates, openssh]
+build:
+  output: dist
+  installers: false
+  targets: [macos_arm64, windows_x64, linux_x64]

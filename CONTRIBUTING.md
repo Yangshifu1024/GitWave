@@ -17,38 +17,28 @@
 
 ## Local quality gates
 
-All run automatically via `pre-commit` hook on `git commit`. To run manually:
+The Go desktop preview uses the root Go module. Its desktop command is `cmd/gitwave`, including the NSGo configuration. Use Git 2.46 or newer and put `git-lfs` on `PATH` for the Git fixtures.
 
 ```bash
-pre-commit run --all-files
+make check      # Go formatting, go vet, and Go tests.
+make format     # Format Go source files in place.
+make test-race  # Run Go tests with the race detector.
+go -C cmd/gitwave tool nsgo test -target macos -run '^TestNativeCommandPaletteAIMutationsRequireConfirmation$'
 ```
 
-`make check` is the same set of checks in one command, and is the equivalent entry point for the individual commands below (`make check` = `fmt-check` + `lint` + `test`):
+`make fmt-check`, `make lint` and `make test` run the three checks individually. The Go tests cover the verified legacy behavior for History, diff, blame, the staging index, commits, discard and repository health.
 
-```bash
-make check      # CI-equivalent: format gates + lint + all tests, changes nothing
-make fmt-check  # pnpm exec prettier --check . + cargo fmt -- --check
-make lint       # Tauri npm/Rust version compatibility + pnpm lint + cargo clippy + pnpm typecheck + cargo check
-make test       # pnpm test (Node regression tests + Vitest) + cargo test --all-targets
-```
+### Tauri preference exporter
 
-`make format` is the only target that rewrites files. Or run the commands individually:
+Run `make legacy-check` for exporter changes. It runs the Rust and frontend format, lint, type and test checks. Its individual targets are `make legacy-fmt-check`, `make legacy-lint` and `make legacy-test`.
 
-```bash
-# Rust (from src-tauri/)
-cargo fmt -- --check
-cargo clippy --all-targets -- -D warnings
-cargo test --all-targets
+The exporter CI runs when its source, build inputs or the shared SQLite migrations change. Go source changes run through the Go desktop workflow.
 
-# Frontend
-pnpm lint
-pnpm format:check
-pnpm typecheck
-pnpm check:tauri-versions
-pnpm test
-```
+### Pre-commit hooks
 
-Markdown is not covered by Prettier — `.prettierignore` excludes `*.md` — so neither `pnpm format:check` nor `make fmt-check` ever inspects documentation. Doc changes are verified by hand; don't expect an automated check to stop a stale or badly formatted doc.
+The pre-commit configuration checks changed Go sources with gofmt and retains the Rust and frontend hooks for exporter files. `pre-commit run --all-files` runs all source hooks, including the exporter hooks. The commit message hook uses commitlint.
+
+Review documentation changes by hand. Markdown is outside the source format checks.
 
 ## PR checklist
 

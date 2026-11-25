@@ -7,15 +7,16 @@
 
 | 语言 | 格式化 | Lint | 类型检查 |
 |---|---|---|---|
-| Rust | rustfmt | clippy（deny warnings） | 编译期强制 |
-| TypeScript | Prettier | ESLint（strict + type-checked） | tsc + tsconfig strict |
+| Go | gofmt | go vet | 编译期强制 |
+| Rust（偏好导出版） | rustfmt | clippy（deny warnings） | 编译期强制 |
+| TypeScript（偏好导出版） | Prettier | ESLint（strict + type-checked） | tsc + tsconfig strict |
 
-- **pre-commit hook**：rustfmt + clippy + Prettier + ESLint（仅对暂存文件）
+- **pre-commit hook**：Go 文件检查 gofmt。偏好导出版继续使用 rustfmt、clippy、Prettier 和 ESLint。
 - **CI 校验**：每个 PR 必须通过；CI fail 不允许合入
 - **commit message**：Conventional Commits（见 `AGENTS.md`）；commitlint 校验
 - **工具链版本**：TypeScript 6（`package.json` 中为 `~6.0.3`）、Vitest 5、Node 22（CI 使用的版本，见 `.github/workflows/lint.yml:76`、`test.yml:99`、`build.yml:75/149/197`）
 - **Markdown 不在 Prettier 管辖内**：`.prettierignore` 排除了 `*.md`，所以文档改动不会被格式检查拦住，排版与事实只能人工核对
-- **`make check` 只覆盖代码门**：`fmt-check + lint + test`（见 `Makefile`），管的是代码的格式、静态检查与测试，不含任何文档检查
+- **本地门禁**：`make check` 执行 Go 格式检查、静态分析和测试。偏好导出版使用 `make legacy-check`。文档改动由人工核对。
 
 ## 测试策略（测试金字塔）
 
@@ -64,19 +65,19 @@
 | `lint.yml` · `frontend-lint` | 同上 | Prettier + ESLint + `tsc --noEmit` |
 | `test.yml` · `rust-test` | 同上 | `cargo test --all-targets` + git2 `https` feature 断言 |
 | `test.yml` · `frontend-test` | 同上 | Vitest |
-| `build.yml` | tag（`**`） | 见 Release |
+| `go-desktop.yml` | macOS + Ubuntu + Windows | Go 静态检查、竞态测试、NSGo 预览包与安装验证 |
+| `build.yml` | 手动选择 Tauri 偏好导出版标签 | 导出版安装包及旧更新清单 |
+| `go-release.yml` | 手动从 `main` 发起 | 三端候选、签名清单及 draft release |
 | `pages.yml` | 官网 | 部署 `site/` 到 GitHub Pages |
 
 commitlint 只在本地 `pre-commit` 的 commit-msg hook，**不在 CI**。
 
 ### Release
 
-- **触发**：推送任意 tag → `build.yml`
-- **产物**：macOS aarch64 `.dmg`（Developer ID 签名 + 公证，CI 再 staple）；Windows NSIS；Linux deb / rpm / AppImage
-- **发布**：先建 **draft** GitHub Release，说明来自 `git log`（不是 release-please / git-cliff）；人审后 publish。publish 同时发出 `latest.json` 给应用内更新
-- **更新清单**：三个平台构建完成后由 `rewrite-manifest-urls` 任务把 `latest.json` 里的下载地址从接口地址（`api.github.com/.../releases/assets/<id>`）改写为普通下载地址（`github.com/.../releases/download/<tag>/<file>`）。接口地址缺请求头或接口额度耗尽（未登录每 IP 每小时 60 次）都会返回 403，普通下载地址不受影响
-- **更新**：macOS / Windows / AppImage 可应用内下载安装；deb/rpm 只提示打开 Releases 页
-- **签名密钥**：`TAURI_SIGNING_PRIVATE_KEY`；macOS 另需 `APPLE_*`
+- 先从 Tauri 偏好导出版的标签运行 `build.yml`，核对三端资产和草稿的 `latest.json` 后发布。
+- 从 `main` 运行 `go-release.yml`。三端正式候选通过验收后，工作流验证文件摘要并组装 Go 更新清单及两份旧格式清单。启用草稿时，输入的版本须与 `make version` 显示的版本一致，远端现有标签必须指向构建提交。
+- macOS 安装包与更新 ZIP 使用 Developer ID 签名和公证，Windows NSIS 使用 Authenticode，Linux 提供 deb、rpm 和 AppImage。签名配置和版本交接见 [全量迁移计划](../../tasks/refactor-nsgo-native-ui/plan.md#三端包装更新与回退)。
+- 发布草稿后，Go 客户端读取签名的 `gitwave-update.json`。旧客户端按 `latest.json` 和 `gitwave-legacy-transition.json` 依次过渡。macOS、Windows 和 AppImage 支持应用内安装，deb/rpm 打开公告版本的发布页。
 
 ## 仓库目录约定
 

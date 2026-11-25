@@ -1,0 +1,219 @@
+name: Go macOS release candidate
+
+on:
+  workflow_call:
+    outputs:
+      exporter_sha256:
+        description: SHA-256 of the preference exporter archive tested on macOS
+        value: ${{ jobs.macos.outputs.exporter_sha256 }}
+    inputs:
+      version:
+        type: string
+        required: true
+      exporter_version:
+        type: string
+        default: ''
+      previous_go_release:
+        type: string
+        default: ''
+      legacy_bridge:
+        type: boolean
+        default: false
+    secrets:
+      APPLE_CERTIFICATE:
+        required: true
+      APPLE_CERTIFICATE_PASSWORD:
+        required: true
+      APPLE_SIGNING_IDENTITY:
+        required: true
+      APPLE_API_KEY_P8:
+        required: true
+      APPLE_API_KEY:
+        required: true
+      APPLE_API_ISSUER:
+        required: true
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: GitWave macOS release version (X.Y.Z)
+        type: string
+        required: true
+      exporter_version:
+        description: Published macOS preference exporter version (X.Y.Z)
+        type: string
+        default: ''
+      previous_go_release:
+        description: Published Go release to upgrade from (vX.Y.Z)
+        type: string
+        default: ''
+      legacy_bridge:
+        description: Also sign a macOS updater archive for the installed Tauri client
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 60
+    outputs:
+      exporter_sha256: ${{ steps.verify-upgrade.outputs.exporter_sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Sign, notarize, and verify macOS artifacts
+        shell: bash
+        env:
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=readonly
+          RELEASE_VERSION: ${{ inputs.version }}
+          GITWAVE_UPDATE_PUBLIC_KEY: ${{ vars.GITWAVE_UPDATE_PUBLIC_KEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          NSGO_NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          NSGO_NOTARY_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          : "${APPLE_CERTIFICATE:?Missing APPLE_CERTIFICATE}"
+          : "${APPLE_CERTIFICATE_PASSWORD:?Missing APPLE_CERTIFICATE_PASSWORD}"
+          : "${APPLE_SIGNING_IDENTITY:?Missing APPLE_SIGNING_IDENTITY}"
+          : "${APPLE_API_KEY_P8:?Missing APPLE_API_KEY_P8}"
+          : "${NSGO_NOTARY_KEY_ID:?Missing APPLE_API_KEY}"
+          : "${NSGO_NOTARY_ISSUER:?Missing APPLE_API_ISSUER}"
+          : "${GITWAVE_UPDATE_PUBLIC_KEY:?Missing GITWAVE_UPDATE_PUBLIC_KEY}"
+          original_umask=$(umask)
+          umask 077
+          signing=$(mktemp -d "$RUNNER_TEMP/gitwave-signing.XXXXXX")
+          keychain="$signing/signing.keychain-db"
+          trap 'security delete-keychain "$keychain" >/dev/null 2>&1 || true; rm -rf "$signing"' EXIT
+          password=$(openssl rand -hex 32)
+          printf '::add-mask::%s\n' "$password"
+          printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$signing/signing.p12"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$signing/notary.p8"
+          if ! /usr/bin/openssl pkey -in "$signing/notary.p8" -passin pass: -noout >/dev/null 2>&1; then
+            echo '::error::APPLE_API_KEY_P8 is not a readable App Store Connect private key'
+            exit 1
+          fi
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$signing/signing.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -t cert -f pkcs12 -T /usr/bin/codesign -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          export NSGO_NOTARY_KEY="$signing/notary.p8"
+          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY_P8 password
+          umask "$original_umask"
+          go run ./cmd/prepare-unix-setup -out "$RUNNER_TEMP/gitwave-macos-candidate" \
+            -release-version "$RELEASE_VERSION" -sign "$APPLE_SIGNING_IDENTITY"
+      - name: Build the legacy archive tool
+        if: inputs.legacy_bridge
+        run: go build -mod=readonly -o "$RUNNER_TEMP/prepare-macos-bridge" ./cmd/prepare-macos-bridge
+      - name: Prepare the signed legacy updater archive
+        if: inputs.legacy_bridge
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/prepare-macos-bridge" -version "$RELEASE_VERSION" \
+            -app "$RUNNER_TEMP/gitwave-macos-candidate/GitWave-$RELEASE_VERSION-macos_arm64/GitWave.app" \
+            -out "$RUNNER_TEMP/gitwave-macos-legacy-bridge"
+      - name: Verify installation, profile migration, and rollback from v0.11.0
+        id: verify-upgrade
+        shell: bash
+        env:
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=readonly
+          RELEASE_VERSION: ${{ inputs.version }}
+          EXPORTER_VERSION: ${{ inputs.exporter_version }}
+          LEGACY_BRIDGE: ${{ inputs.legacy_bridge }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          old="$RUNNER_TEMP/gitwave-macos-v0.11.0"
+          archive=GitWave_0.11.0_aarch64.dmg
+          mkdir "$old"
+          gh release download v0.11.0 --repo "$GITHUB_REPOSITORY" --dir "$old" --pattern "$archive"
+          candidate="$RUNNER_TEMP/gitwave-macos-candidate/releases/gitwave-$RELEASE_VERSION-macos-arm64.dmg"
+          bridge=
+          if [[ $LEGACY_BRIDGE == true ]]; then
+            bridge="$RUNNER_TEMP/gitwave-macos-legacy-bridge/GitWave_${RELEASE_VERSION}_aarch64.app.tar.gz"
+            test -f "$bridge"
+          fi
+          if [[ -n $EXPORTER_VERSION ]]; then
+            [[ $EXPORTER_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            exporter="GitWave_${EXPORTER_VERSION}_aarch64.app.tar.gz"
+            gh release download "v$EXPORTER_VERSION" --repo "$GITHUB_REPOSITORY" --dir "$old" \
+              --pattern "$exporter" --pattern "$exporter.sig"
+            go run ./cmd/prepare-legacy-feeds -verify-export-macos -export-assets "$old" -export-version "$EXPORTER_VERSION"
+            exporter_app="$old/GitWave.app"
+            mkdir "$exporter_app"
+            /usr/bin/tar -xzf "$old/$exporter" --strip-components 1 -C "$exporter_app"
+            requirement='anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = "ZE5SZ85EZQ"'
+            /usr/bin/codesign --verify --deep --strict "-R=$requirement" -- "$exporter_app"
+            /usr/bin/xcrun stapler validate "$exporter_app"
+            bash scripts/verify-macos-upgrade.sh "$old/$archive" "$candidate" "$RELEASE_VERSION" \
+              "$exporter_app" "$EXPORTER_VERSION" "$bridge"
+            digest=$(/usr/bin/shasum -a 256 "$old/$exporter")
+            printf 'exporter_sha256=%s\n' "${digest%% *}" >> "$GITHUB_OUTPUT"
+          else
+            bash scripts/verify-macos-upgrade.sh "$old/$archive" "$candidate" "$RELEASE_VERSION" '' '' "$bridge"
+          fi
+      - name: Replace the previous Go package and reopen its workspace
+        if: inputs.previous_go_release != ''
+        shell: bash
+        env:
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=readonly
+          PREVIOUS_RELEASE: ${{ inputs.previous_go_release }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          GITWAVE_UPDATE_PUBLIC_KEY: ${{ vars.GITWAVE_UPDATE_PUBLIC_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ $PREVIOUS_RELEASE =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          previous="$RUNNER_TEMP/gitwave-previous-go"
+          mkdir "$previous"
+          version=${PREVIOUS_RELEASE#v}
+          archive="gitwave-$version-macos-arm64.zip"
+          gh release download "$PREVIOUS_RELEASE" --repo "$GITHUB_REPOSITORY" --dir "$previous" \
+            --pattern "$archive" --pattern gitwave-update.json
+          export GITWAVE_TEST_MAC_PREVIOUS_FEED="$previous/gitwave-update.json"
+          export GITWAVE_TEST_MAC_PREVIOUS_ZIP="$previous/$archive"
+          export GITWAVE_TEST_MAC_PREVIOUS_VERSION="$version"
+          export GITWAVE_TEST_MAC_TARGET_ZIP="$RUNNER_TEMP/gitwave-macos-candidate/releases/gitwave-$RELEASE_VERSION-macos-arm64.zip"
+          export GITWAVE_TEST_MAC_TARGET_VERSION="$RELEASE_VERSION"
+          go test -count=1 -run '^TestMacPackagedUpdateRelaunchesWorkspace$' ./internal/appupdate
+      - name: Upload verified release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitwave-macos-arm64-${{ inputs.version }}
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/gitwave-macos-candidate/releases/*.dmg
+            ${{ runner.temp }}/gitwave-macos-candidate/releases/*.zip
+            ${{ runner.temp }}/gitwave-macos-candidate/releases/*.sha256
+            ${{ runner.temp }}/gitwave-macos-candidate/git-source/
+      - name: Upload the verified legacy updater archive
+        if: inputs.legacy_bridge
+        uses: actions/upload-artifact@v7
+        with:
+          name: gitwave-macos-legacy-bridge-${{ inputs.version }}
+          if-no-files-found: error
+          path: ${{ runner.temp }}/gitwave-macos-legacy-bridge/

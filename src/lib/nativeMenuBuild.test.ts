@@ -67,11 +67,14 @@ describe("buildNativeAppMenuOptions", () => {
   it("builds the app menu with About, Check for Updates, Settings ⌘, and OS tail items", () => {
     const entries = submenuAt(top, 0).items ?? [];
     const texts = entries.filter(isItem).map((item) => item.text);
-    expect(texts).toEqual(["About GitWave", "Check for Updates…", "Settings…"]);
+    expect(texts).toEqual(["About GitWave", "Check for Updates…", "Settings…", "Quit GitWave"]);
 
     const settings = entries.filter(isItem)[2];
     expect(settings?.accelerator).toBe("CmdOrCtrl+,");
     expect(typeof settings?.action).toBe("function");
+    const quit = entries.filter(isItem)[3];
+    expect(quit?.accelerator).toBe("CmdOrCtrl+Q");
+    expect(typeof quit?.action).toBe("function");
 
     // Everything else is predefined (system-localized) or a separator.
     const predefined = entries.filter(isPredefined).map((item) => item.item);
@@ -82,7 +85,6 @@ describe("buildNativeAppMenuOptions", () => {
       "HideOthers",
       "ShowAll",
       "Separator",
-      "Quit",
     ]);
   });
 

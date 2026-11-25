@@ -49,8 +49,7 @@ function submenuOptions(menu: AppMenuSpec, handler: AppMenuItemHandler): Submenu
 
 // App menu (right of the Apple menu): the File menu's self-handled items
 // move here per macOS HIG, plus the OS-provided window-management items.
-// Predefined items get muda-provided titles ("Quit GitWave", ⌘Q, "Hide
-// GitWave", …).
+// Hide and Show items retain their system-provided titles.
 function appMenuEntries(handler: AppMenuItemHandler): NativeItem[] {
   const t = i18next.t.bind(i18next);
   return [
@@ -76,7 +75,12 @@ function appMenuEntries(handler: AppMenuItemHandler): NativeItem[] {
     predefined("HideOthers"),
     predefined("ShowAll"),
     separator(),
-    predefined("Quit"),
+    {
+      id: "quit",
+      text: t("menu.app.quitGitWave"),
+      accelerator: "CmdOrCtrl+Q",
+      action: () => dispatchAppMenuItem("quit", handler),
+    },
   ];
 }
 

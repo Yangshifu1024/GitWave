@@ -58,7 +58,7 @@
   - `app_settings`：key, value_json, updated_at（F013 代理等应用级设置）
   - `schema_version`：已应用迁移号
 - **没有的表**：`ai_cache`、`sessions`（规划草案，未建）。per-repo AI rules 读仓库内 `.gitwave/AI.md`，不进 SQLite
-- **迁移**：`src-tauri/migrations/NNNN-name.sql`，启动时 `BEGIN IMMEDIATE` 一次应用
+- **迁移**：Go 和 Rust 共用 `internal/workspace/migrations/NNNN-name.sql`，启动时 `BEGIN IMMEDIATE` 一次应用
 - **备份**：无自动 `state.db.bak` 快照。Workspace 导入 / 导出是 JSON 文件，不是数据库备份
 
 ## AI 集成：自研统一接口

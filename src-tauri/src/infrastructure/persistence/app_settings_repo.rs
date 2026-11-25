@@ -22,6 +22,7 @@ pub trait AppSettingsRepository: Send {
 /// SQLite-backed `AppSettingsRepository`.
 pub struct SqliteAppSettingsRepo {
     conn: Connection,
+    persistent: bool,
 }
 
 impl SqliteAppSettingsRepo {
@@ -30,6 +31,7 @@ impl SqliteAppSettingsRepo {
     pub fn open() -> Result<Self> {
         Ok(Self {
             conn: super::sqlite::open()?,
+            persistent: true,
         })
     }
 
@@ -43,7 +45,14 @@ impl SqliteAppSettingsRepo {
             )
         })?;
         super::migrations::apply(&conn)?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            persistent: false,
+        })
+    }
+
+    pub fn is_persistent(&self) -> bool {
+        self.persistent
     }
 }
 

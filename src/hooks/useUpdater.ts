@@ -12,12 +12,17 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { platform } from "@tauri-apps/plugin-os";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { formatAppError, getAppVersion, isAppimage } from "@/lib/api";
+import { flushLegacyPreferences, queueLegacyPreferenceExport } from "@/lib/legacyPreferences";
 import { useUpdaterStore } from "@/stores/updaterStore";
 
 const STORAGE_KEY = "gitwave-auto-update";
-const RELEASES_URL = "https://github.com/Yangshifu1024/GitWave/releases/latest";
+const RELEASES_URL = "https://github.com/Yangshifu1024/GitWave/releases";
 /** Startup checks let the app settle (and restore its workspace) first. */
 const STARTUP_DELAY_MS = 3000;
+
+export function releaseNotesUrl(version: string): string {
+  return `${RELEASES_URL}/tag/v${encodeURIComponent(version)}`;
+}
 
 function readStoredAutoUpdate(): boolean {
   try {
@@ -38,6 +43,7 @@ export function useAutoUpdateSetting(): UseAutoUpdateSettingReturn {
   const setAutoUpdate = useCallback((enabled: boolean) => {
     try {
       window.localStorage.setItem(STORAGE_KEY, String(enabled));
+      queueLegacyPreferenceExport();
     } catch {
       // Persistence is best-effort; the in-memory value still applies.
     }
@@ -82,12 +88,16 @@ async function checkForUpdate(options: { silent?: boolean } = {}): Promise<void>
       if (!options.silent && fresh()) useUpdaterStore.getState().markUpToDate(version);
       return;
     }
-    // Superseded: the newer check owns `pendingUpdate` and the UI.
+    const manual =
+      fresh() &&
+      (await resolveManualDownload().catch((error: unknown) => {
+        void update.close().catch(() => undefined);
+        throw error;
+      }));
+    if (!fresh() || manual) void update.close().catch(() => undefined);
     if (!fresh()) return;
     void pendingUpdate?.close().catch(() => undefined);
-    pendingUpdate = update;
-    const manual = await resolveManualDownload();
-    if (!fresh()) return;
+    pendingUpdate = manual ? null : update;
     useUpdaterStore.getState().markAvailable({
       currentVersion: update.currentVersion,
       newVersion: update.version,
@@ -136,18 +146,20 @@ export function useInstallUpdate(): () => void {
     useUpdaterStore.getState().beginDownload();
     let downloaded = 0;
     let total: number | null = null;
-    void update
-      .downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          total = event.data.contentLength ?? null;
-        } else if (event.event === "Progress") {
-          downloaded += event.data.chunkLength;
-        } else {
-          // Finished: clamp so the bar reads 100% even if chunks miscount.
-          downloaded = total ?? downloaded;
-        }
-        useUpdaterStore.getState().setProgress(downloaded, total);
-      })
+    void flushLegacyPreferences()
+      .then(() =>
+        update.downloadAndInstall((event) => {
+          if (event.event === "Started") {
+            total = event.data.contentLength ?? null;
+          } else if (event.event === "Progress") {
+            downloaded += event.data.chunkLength;
+          } else {
+            // Finished: clamp so the bar reads 100% even if chunks miscount.
+            downloaded = total ?? downloaded;
+          }
+          useUpdaterStore.getState().setProgress(downloaded, total);
+        }),
+      )
       .then(() => {
         installInFlight = false;
         // Applied — release the Rust-side handle and stop offering the
@@ -166,16 +178,27 @@ export function useInstallUpdate(): () => void {
 export function useRestartApp(): () => void {
   return useCallback(() => {
     if (!useUpdaterStore.getState().beginRestart()) return;
-    void relaunch().then(
-      () => useUpdaterStore.getState().finishRestart(null),
-      (e) => useUpdaterStore.getState().finishRestart(formatAppError(e)),
-    );
+    void flushLegacyPreferences()
+      .then(() => relaunch())
+      .then(
+        () => useUpdaterStore.getState().finishRestart(null),
+        (e) => useUpdaterStore.getState().finishRestart(formatAppError(e)),
+      );
   }, []);
 }
 
 export function useOpenReleases(): () => void {
   return useCallback(() => {
-    void openUrl(RELEASES_URL).catch((e) => useUpdaterStore.getState().fail(formatAppError(e)));
+    const { newVersion, checkEpoch } = useUpdaterStore.getState();
+    if (!newVersion) return;
+    void flushLegacyPreferences()
+      .then(() => openUrl(releaseNotesUrl(newVersion)))
+      .catch((e) => {
+        const state = useUpdaterStore.getState();
+        if (state.checkEpoch === checkEpoch && state.newVersion === newVersion) {
+          state.fail(formatAppError(e));
+        }
+      });
   }, []);
 }
 

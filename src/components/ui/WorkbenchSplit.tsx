@@ -1,4 +1,5 @@
 import { type ReactNode, useRef, useState } from "react";
+import { queueLegacyPreferenceExport } from "@/lib/legacyPreferences";
 
 interface WorkbenchSplitProps {
   id: string;
@@ -39,6 +40,7 @@ export function WorkbenchSplit({
     setRatio(next);
     try {
       localStorage.setItem(`gitwave.split.${id}`, String(next));
+      queueLegacyPreferenceExport();
     } catch {
       /* Session only. */
     }

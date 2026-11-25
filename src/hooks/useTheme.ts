@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { queueLegacyPreferenceExport } from "@/lib/legacyPreferences";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -64,6 +65,7 @@ export function useTheme(): UseThemeReturn {
     setThemeState(t);
     try {
       localStorage.setItem(STORAGE_KEY, t);
+      queueLegacyPreferenceExport();
     } catch {
       // Private mode / quota: session-only theme, same as palette.
     }

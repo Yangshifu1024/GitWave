@@ -1,8 +1,7 @@
-name: build
+name: Tauri preference exporter release
 
 on:
-  push:
-    tags: ["**"]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,22 +13,29 @@ permissions:
 jobs:
   prepare-release:
     name: Prepare release
+    if: github.repository == 'Yangshifu1024/GitWave' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     outputs:
       release_id: ${{ steps.create.outputs.id }}
-      release_notes: ${{ steps.notes.outputs.body }}
     steps:
       # Full history + tags so the notes step can diff against the previous tag.
       - uses: actions/checkout@v7
         with:
+          persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
+      - name: Verify the preference exporter tag
+        run: |
+          set -euo pipefail
+          version=$(jq -er .version src-tauri/tauri.conf.json)
+          [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$GITHUB_REF_NAME" = "v$version"
+          jq -e '.plugins.updater.requireSignedVersion == true and (.plugins.updater.endpoints[0] | endswith("/gitwave-legacy-transition.json"))' src-tauri/tauri.conf.json
       # generate_release_notes only lists merged PRs, but this repo's release
       # flow pushes release commits directly — it produced an empty body on
       # v0.8.3. List every commit between the previous tag and this one; the
-      # same text feeds the updater manifest via tauri-action's releaseBody.
+      # same text feeds the verified updater manifest from the draft body.
       - name: Build release notes
-        id: notes
         run: |
           prev_tag=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
           {
@@ -42,19 +48,31 @@ jobs:
               echo "- First tagged release"
             fi
           } > release-notes.md
-          {
-            echo "body<<NOTES_EOF"
-            cat release-notes.md
-            echo "NOTES_EOF"
-          } >> "$GITHUB_OUTPUT"
-      # draft: tauri-action uploads artifacts + latest.json but never
-      # publishes — a human reviews assets/notes and hits publish manually
+      # The build jobs upload installers. The last job verifies the installers
+      # and attaches the updater feed to the draft for manual publication.
       - name: Create draft release
         id: create
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          body_path: release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repository="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          tag="$GITHUB_REF_NAME"
+          releases="repos/$GITHUB_REPOSITORY/releases?per_page=100"
+          existing=$(gh api --paginate --slurp "$releases")
+          if jq -e --arg tag "$tag" 'any(.[][]; .tag_name == $tag)' <<< "$existing" > /dev/null; then
+            echo "A release already exists for $tag." >&2
+            exit 1
+          fi
+          bash scripts/verify-release-tag.sh "$repository" "$tag" "$GITHUB_SHA"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+            --title "$tag" --notes-file release-notes.md
+          bash scripts/verify-release-tag.sh "$repository" "$tag" "$GITHUB_SHA"
+          id=$(gh api --paginate --slurp "$releases" | jq -er --arg tag "$tag" '
+            [.[][] | select(.tag_name == $tag)] |
+            if length == 1 and .[0].draft then .[0].id else error("expected one new draft") end
+          ')
+          printf 'id=%s\n' "$id" >> "$GITHUB_OUTPUT"
 
   build-macos:
     name: Build (macOS)
@@ -105,7 +123,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
-          releaseBody: ${{ needs.prepare-release.outputs.release_notes }}
+          uploadUpdaterJson: "false"
+          uploadUpdaterSignatures: "true"
           args: --verbose
       # The bundler notarizes and staples the .app but only codesigns the dmg,
       # so Gatekeeper rejects the dmg itself ("Unnotarized Developer ID", seen
@@ -114,6 +133,7 @@ jobs:
         if: runner.os == 'macOS'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
@@ -130,6 +150,7 @@ jobs:
             --wait
           xcrun stapler staple "$dmg"
           xcrun stapler validate "$dmg"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq .draft)" = true
           gh release upload "${GITHUB_REF_NAME}" "$dmg" --clobber
 
   build-linux:
@@ -177,7 +198,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
-          releaseBody: ${{ needs.prepare-release.outputs.release_notes }}
+          uploadUpdaterJson: "false"
+          uploadUpdaterSignatures: "true"
           args: --verbose
 
   build-windows:
@@ -206,110 +228,67 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
-          releaseBody: ${{ needs.prepare-release.outputs.release_notes }}
+          uploadUpdaterJson: "false"
+          uploadUpdaterSignatures: "true"
           args: --verbose
 
-  # tauri-action writes the updater manifest with API asset URLs
-  # (https://api.github.com/repos/<owner>/<repo>/releases/assets/<id>). Those
-  # answer 403 when the request carries no User-Agent header and they count
-  # against GitHub's unauthenticated API quota (60 requests/hour per IP), so
-  # the in-app updater failed with 403 on v0.9.2. Every asset is uploaded once
-  # the last build finishes, so rewrite the URLs to plain download links
-  # (https://github.com/<owner>/<repo>/releases/download/<tag>/<file>) and
-  # replace the uploaded manifest — the file the updater actually reads.
-  #
-  # Two facts about running this against a draft release — the first real run,
-  # on v0.9.3, died on both (see
-  # docs/tasks/fix-rewrite-manifest-draft/plan.md):
-  #   - GET /releases/tags/<tag> answers 404 for a draft, so direct API calls
-  #     go through prepare-release's release id. (`gh release download/upload`
-  #     are fine on a draft: gh resolves the tag through the releases list,
-  #     which does include it.)
-  #   - browser_download_url of a draft asset is
-  #     releases/download/untagged-<hash>/<file>, not the published
-  #     releases/download/<tag>/<file> the updater needs — build the URL from
-  #     the tag and the asset name instead.
-  # The job-level permissions below are load-bearing: job-level overrides the
-  # workflow level, and a draft release is only visible to a token with push
-  # permission (set to contents: read once and gh answered "release not found"
-  # — see docs/tasks/fix-ci-redundant-publish-job/plan.md).
-  rewrite-manifest-urls:
-    name: Rewrite updater manifest URLs
+  verify-exporter-feed:
+    name: Verify preference exporter update feed
     needs: [prepare-release, build-macos, build-linux, build-windows]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.ref_name }}
-      REPO: ${{ github.repository }}
       RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
     steps:
-      - name: Rewrite API asset URLs to download URLs
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Verify signed installers and upload latest.json to the draft
+        shell: bash
         run: |
           set -euo pipefail
-          : "${RELEASE_ID:?prepare-release did not output a release id}"
-          # Deliberate, not leftover: the runner image's gh version is what
-          # decides how a draft release is resolved, so keep it in the log.
-          gh --version
-          gh release download "$TAG" --repo "$REPO" --pattern latest.json --clobber
-          # asset id -> published download link, plus the set of real asset
-          # names the guard below needs. Both come from the release id: the tag
-          # endpoint 404s while the release is a draft.
-          manifest=$(gh api "repos/$REPO/releases/$RELEASE_ID")
-          base="https://github.com/$REPO/releases/download/$TAG"
-          assets=$(printf '%s' "$manifest" \
-            | jq '[.assets[] | {key: (.id | tostring), value: .name}] | from_entries')
-          names=$(printf '%s' "$manifest" | jq '[.assets[].name]')
-          # Built from the tag and the asset name on purpose:
-          # browser_download_url points at the draft's untagged-<hash> pseudo
-          # path, which stops working once the release is published.
-          jq --argjson assets "$assets" --arg base "$base" '
-            .platforms |= with_entries(
-              .value.url = (
-                (.value.url | sub("^.*/releases/assets/"; "")) as $id
-                | if $assets[$id] then ($base + "/" + $assets[$id]) else .value.url end
-              )
-            )' latest.json > latest.rewritten.json
-          mv latest.rewritten.json latest.json
-          # Fail loudly rather than shipping a manifest the updater cannot use.
-          # Every platform URL has to be a plain download link (an api.github.com
-          # URL answers 403 to the updater) ...
-          bad_urls=$(jq -r --arg base "$base/" '[.platforms[].url | select(startswith($base) | not)] | length' latest.json)
-          if [ "$bad_urls" != "0" ]; then
-            echo "::error::latest.json has $bad_urls platform URL(s) that are not $base/<file> links"
-            jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
+          [[ ${RELEASE_ID:-} =~ ^[0-9]+$ ]]
+          tag="$GITHUB_REF_NAME"
+          release="repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          read_draft() {
+            gh api "$release" | jq -ce --arg tag "$tag" 'select(.draft and .tag_name == $tag)'
+          }
+          download_asset() {
+            gh api "repos/$GITHUB_REPOSITORY/releases/assets/$1" -H 'Accept: application/octet-stream'
+          }
+          draft=$(read_draft)
+          jq -r '.body // ""' <<< "$draft" > "$work/notes.md"
+          mkdir "$work/assets"
+          gh api "$release/assets" --paginate --jq '
+            .[] | select(.state == "uploaded" and (.name | test("^[A-Za-z0-9._-]+[.](app[.]tar[.]gz|exe|AppImage|deb|rpm|sig)$"))) |
+            [.id, .name] | @tsv' > "$work/assets.tsv"
+          while IFS=$'\t' read -r id name; do
+            download_asset "$id" > "$work/assets/$name"
+          done < "$work/assets.tsv"
+          go run ./cmd/prepare-legacy-feeds -export-only -export-version "${tag#v}" \
+            -export-assets "$work/assets" -export-notes "$work/notes.md" -out "$work/verified"
+          read_draft >/dev/null
+          asset_id=$(gh api "$release/assets" --paginate --jq '.[] | select(.name == "latest.json") | .id')
+          if [[ ! $asset_id ]]; then
+            # Upload to the verified release ID. GitHub rejects an existing asset of the same name.
+            asset_id=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+              curl --fail-with-body --silent --show-error --header @- \
+                --header 'Content-Type: application/json' --data-binary "@$work/verified/latest.json" \
+                "https://uploads.github.com/$release/assets?name=latest.json" | jq -er '.id')
+          fi
+          download_asset "$asset_id" > "$work/uploaded.json"
+          if ! cmp -s "$work/verified/latest.json" "$work/uploaded.json"; then
+            echo 'The draft already has a different latest.json. Review the existing asset and rerun verification.' >&2
             exit 1
           fi
-          # ... every one of them has to name an asset that really exists
-          # (a link to a missing file breaks updates just as quietly) ...
-          bad_names=$(jq -r --argjson names "$names" '[.platforms[].url | split("/")[-1] | select(. as $n | $names | index($n) | not)] | length' latest.json)
-          if [ "$bad_names" != "0" ]; then
-            echo "::error::latest.json points at $bad_names file(s) that are not release assets"
-            jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
-            printf '%s' "$names" | jq -r '"assets: " + join(", ")'
-            exit 1
-          fi
-          # ... and the three main platforms have to be there, since a platform
-          # that went missing means those installs silently stop updating.
-          if ! jq -e '.platforms | has("darwin-aarch64") and has("linux-x86_64") and has("windows-x86_64")' latest.json > /dev/null; then
-            echo "::error::latest.json is missing darwin-aarch64 / linux-x86_64 / windows-x86_64"
-            jq -r '.platforms | keys[]' latest.json
-            exit 1
-          fi
-          jq -r '.platforms | to_entries[] | "\(.key) -> \(.value.url)"' latest.json
-          # --clobber replaces the uploaded manifest (gh deletes the old asset
-          # and uploads the new one). If this step fails the job is red and the
-          # draft may briefly carry no latest.json — publishing stays a manual
-          # step precisely so a human sees that before the updater ever reads
-          # it (see the plan's known limitations).
-          gh release upload "$TAG" latest.json --repo "$REPO" --clobber
-          # Prove what the release now serves instead of trusting the upload.
-          verify_dir=$(mktemp -d)
-          gh release download "$TAG" --repo "$REPO" --pattern latest.json --clobber -D "$verify_dir"
-          if ! cmp -s latest.json "$verify_dir/latest.json"; then
-            echo "::error::the re-downloaded latest.json differs from the rewritten manifest"
-            exit 1
-          fi
-          echo "latest.json rewritten and verified"

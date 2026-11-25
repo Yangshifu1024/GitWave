@@ -123,6 +123,7 @@
 
 - 文件列表按 Conflicts（仅有时）/Unstaged/Staged 分组；同一文件在两个区出现时，以 path + stage side 区分。
 - 行单击是预览，checkbox/明确 stage 动作是修改 index，两者不可混用。多选后显示选中数量与批量 stage/unstage；discard 在 More 中明确可达。
+- 子模块内部改动按子模块路径显示在父仓库的 Unstaged 区，点按可查看 gitlink diff。父仓库可暂存子模块提交指针，内部文件在子模块中处理。批量暂存会跳过只有内部文件改动的行。
 - 列表和 composer 内部可调高，不让 message 挤掉全部文件。commit type 从 10 个常驻按钮改为可选 compact picker，保留自由输入。
 - subject/body 可分区输入，但映射为原有 message 字符串；标题长度为提示而非新强制规范。Amend 进入有目标 SHA 的明确模式。
 - AI 生成前标明 staged 范围及 provider；生成后可编辑、恢复原稿。生成不是 commit。

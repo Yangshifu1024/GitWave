@@ -41,13 +41,28 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **SSH key management** — generate / import keys, per-repo SSH configuration
 - **Platform UX** — a compact source-list sidebar with expandable health metrics, keyboard-resizable panes, a bottom operation-status bar, command palette, menu bar app mode, themes plus UI / monospace font family and size settings, one-click open of the active repo in the system file manager, a detected terminal, or a detected code editor (VS Code / Zed / VSCodium), Chinese / English interface with instant switching, and a self-drawn title bar that merges the app menu and the operation bar into a single row (traffic lights / window controls kept clear)
 
-## Tech stack
+## Go and NSGo development
+
+The Go module is at the repository root. The desktop entry and its NSGo configuration live in `cmd/gitwave`, packaging tools in `cmd`, and application libraries in `internal`.
+
+Use Go 1.27.3 or newer, Git 2.46 or newer, and Git LFS for the development fixtures. Linux development runs against the host GTK 4.14 or newer. The packaged Linux preview also supports its bundled GTK runtime.
+
+```bash
+make dev        # Start NSGo in development mode.
+make check      # Check Go formatting, run go vet, and run Go tests.
+make test-race  # Run Go tests with the race detector.
+make build      # Run the checks and build the native preview for this host.
+```
+
+Use `go run ./cmd/prepare-unix-setup -out <directory>` on the supported macOS or Linux build host to create preview installers with bundled Git. The [Go desktop workflow](./.github/workflows/go-desktop.yml) documents the three-platform build and package checks.
+
+## Tech stack in v0.11.0
 
 - **Frontend:** React 19 + TypeScript 6 + Vite 8, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query
 - **Backend:** Rust + [Tauri 2](https://tauri.app), clean-architecture layers (`domain` / `application` / `infrastructure`), `git2` (vendored libgit2 + libssh2 + OpenSSL) — no system Git dependency
 - **Testing:** Vitest (unit and React Testing Library/jsdom component behavior); Playwright end-to-end tests have a script but no suite yet
 
-## Quick start
+## Tauri preference exporter development
 
 Prerequisites:
 
@@ -59,77 +74,28 @@ Prerequisites:
 
 ```bash
 pnpm install
-pnpm tauri dev
+make legacy-dev
+make legacy-check
+make legacy-build
 ```
 
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `pnpm dev` | Vite dev server (frontend only, no IPC) |
-| `pnpm build` | TypeScript check + Vite production build |
-| `pnpm preview` | Serve the production build locally |
-| `pnpm tauri dev` | Tauri app in dev mode (frontend + Rust core) |
-| `pnpm tauri build` | Tauri production build (.dmg / .exe / .deb / .rpm / .AppImage) |
-| `pnpm lint` | ESLint (`lint:fix` to auto-fix) |
-| `pnpm format:check` | Prettier check (no write) |
-| `pnpm format` | Prettier write |
-| `pnpm typecheck` | TypeScript check |
-| `pnpm check:tauri-versions` | Check resolved npm/Rust Tauri major/minor compatibility |
-| `pnpm test` | Node Tauri compatibility regression tests + Vitest unit tests (`test:watch` for Vitest watch mode) |
-| `pnpm test:e2e` | Playwright end-to-end tests (no suite yet) |
-| `pnpm bump <x.y.z>` | Bump the version in the four version files |
-
-Rust commands (run inside `src-tauri/`):
-
-| Command | What it does |
-|---|---|
-| `cargo check --all-targets` | Type check |
-| `cargo clippy --all-targets -- -D warnings` | Strict lint |
-| `cargo test --all-targets` | Run all tests |
-| `cargo fmt` | Format Rust sources |
-
-## Quality gates
-
-`make` wraps the same gates CI runs. The one to remember:
-
-```bash
-make check   # fmt-check + lint + test, writes nothing — the pre-delivery gate
-```
-
-| Target | What it does |
-|---|---|
-| `make check` | `fmt-check` + `lint` + `test` (the CI-equivalent gate) |
-| `make fmt-check` | Prettier check + `cargo fmt --check` |
-| `make lint` | Tauri npm/Rust version compatibility + ESLint + clippy + typecheck + `cargo check` |
-| `make test` | Node compatibility tests + Vitest + `cargo test --all-targets` |
-| `make format` | Prettier write + `cargo fmt` (rewrites files) |
-| `make build` | format + lint + test, then `pnpm tauri build` |
-| `make dev` | `pnpm tauri dev` (no pre-checks) |
-
-A `pre-commit` hook runs a subset of these on `git commit` — see [CONTRIBUTING.md](./CONTRIBUTING.md). Markdown is excluded from Prettier (`.prettierignore`), so documentation is reviewed by hand.
+See the local checks and pre-commit hooks in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## CI
 
 Workflows live in `.github/workflows/`:
 
+- **Go desktop** — validates the root Go module and builds NSGo preview installers on macOS, Linux and Windows
 - **lint / test** — on every push to `main` and every PR: `rust-lint` + `frontend-lint`, `rust-test` + `frontend-test`, each on a macOS / Ubuntu / Windows matrix. Pure-documentation changes (`site/**`, `docs/**`, `**.md`) are skipped
-- **build** — on tag push: builds macOS (aarch64), Linux (deb / rpm / AppImage) and Windows (NSIS); when all three pass, a **draft GitHub release** is created with all artifacts and auto-generated release notes, and the updater manifest's download URLs are then rewritten to plain `releases/download` links (tauri-action writes asset-API URLs, which answer 403 without a User-Agent header and count against the unauthenticated API quota). macOS builds are signed and notarized via repository secrets (`APPLE_*`, `KEYCHAIN_PASSWORD`), and OpenSSL/libgit2 are statically linked so binaries are self-contained
+- **Tauri preference exporter release** — runs manually on the exporter tag, verifies each installer signature and generates `latest.json` in the draft
+- **Go desktop release** — runs manually from `main`, assembles the verified NSGo installers and all three update manifests, and optionally creates a draft for the matching existing tag
 - **pages** — deploys `site/` to GitHub Pages on push to `main`
 
 ### Cutting a release
 
-1. Bump the version everywhere with `pnpm bump <x.y.z>` — it rewrites `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and refreshes the `gitwave` entry in `src-tauri/Cargo.lock`. Never edit versions by hand; `pnpm-lock.yaml` is untouched (it does not record the root package's own version)
-2. Sync the user-facing surfaces: this README's **Status** line and its **What's new** list, and `site/index.html` (version badge, `Latest release`, feature cards)
-3. Commit, then tag and push:
-   ```bash
-   git tag -a v0.x.0 -m "v0.x.0"
-   git push origin main v0.x.0
-   ```
-4. When CI is green, find the draft under Releases, check that all three platforms' assets are present and that `latest.json` carries all three keys with non-empty signatures, then publish
-   - Publishing the draft also publishes `latest.json` — the manifest the in-app updater polls; existing installs pick the new version up from there
-   - Updater artifacts (`.app.tar.gz` / `.sig` / `-setup.exe.sig` / `latest.json`) are produced by CI; local `tauri build` now requires `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key is encrypted) exported in the shell: `export TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/gitwave.key)`
-   - The full checklist, including how to repair a bad `latest.json` before publishing, lives in [`.agents/skills/gitwave-release/SKILL.md`](./.agents/skills/gitwave-release/SKILL.md)
+For the Tauri preference exporter, use `pnpm bump <x.y.z>` to update the Tauri and frontend versions. After creating the release tag, run **Tauri preference exporter release** on that tag. Wait for **Verify preference exporter update feed**, then review the draft installers and `latest.json` before publishing.
+
+For a Go release, set the application version with `make bump VERSION=X.Y.Z` and confirm it with `make version`. Run **Go desktop release** from `main` with the release, exporter, and first Go bridge versions. To create a draft, use a release version that matches `cmd/gitwave/nsgo.yaml` and a release tag that points to the selected `main` commit. Wait for **Create and verify a draft for the verified tag** to confirm the uploaded files match the assembled release, then review and publish in GitHub Releases. [Signing and upgrade details](./docs/tasks/refactor-nsgo-native-ui/plan.md#三端包装更新与回退)
 
 Per AGENTS.md, **AI agents must not commit / push / merge** — humans gate every change to `main`.
 

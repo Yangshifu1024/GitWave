@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@fontsource/roboto-mono/400.css";
 import "@fontsource/roboto-mono/500.css";
 import { applyInitialFonts } from "./lib/fonts";
+import { startLegacyPreferenceExport } from "./lib/legacyPreferences";
 import { applyInitialPalette } from "./lib/palette";
 import { initI18n } from "./i18n";
 import { installNativeAppMenuEarly } from "./hooks/useNativeAppMenu";
@@ -26,6 +27,7 @@ window.addEventListener("contextmenu", (e) => {
 
 // Apply theme + palette + font preferences before React mounts to avoid FOUC.
 applyInitialPreferences();
+startLegacyPreferenceExport();
 
 // Resolve the UI language before the early native-menu install so menu
 // labels render in the chosen language from the first paint.

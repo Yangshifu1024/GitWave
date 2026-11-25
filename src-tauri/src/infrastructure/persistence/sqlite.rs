@@ -27,6 +27,43 @@ pub fn state_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
+/// The transition build and the Go desktop app share this lifetime lock.
+pub fn lock_desktop_profile() -> std::io::Result<std::fs::File> {
+    use std::fs::{File, OpenOptions, TryLockError};
+    use std::io::{Error, ErrorKind};
+
+    let path = state_dir()
+        .map_err(Error::other)?
+        .join(".gitwave-profile.lock");
+    if std::fs::symlink_metadata(&path).is_ok_and(|info| !info.is_file()) {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "invalid GitWave profile lock",
+        ));
+    }
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true).truncate(false);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.share_mode(0x0000_0001 | 0x0000_0002);
+    }
+    let file: File = options.open(path)?;
+    file.try_lock().map_err(|error| match error {
+        TryLockError::WouldBlock => Error::new(
+            ErrorKind::WouldBlock,
+            "quit the other GitWave instance using this workspace profile",
+        ),
+        TryLockError::Error(error) => error,
+    })?;
+    Ok(file)
+}
+
 fn ensure_dir(dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir).map_err(|e| {
         AppError::permission_with(
