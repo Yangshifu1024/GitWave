@@ -1,6 +1,8 @@
 name: Tauri preference exporter release
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 concurrency:
