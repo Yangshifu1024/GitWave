@@ -35,6 +35,8 @@
       "description": "将移除该工作区及其在 GitWave 中的仓库引用；本地仓库本身不会被删除。"
     },
     "tabs": {
+      "none": "这个工作区里还没有仓库",
+      "missingName": "%{name}（%{status}）",
       "missing": "缺失",
       "missingTitle": "%{name} —— 路径缺失，右键可重新关联",
       "empty": "暂无仓库 —— 可通过「仓库」菜单 init、clone 或添加。"

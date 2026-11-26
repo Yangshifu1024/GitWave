@@ -1,5 +1,6 @@
 //! Process-wide logging: gitwave-core's tracing subscriber, started with the
-//! application, kept alive for as long as it runs and flushed when it quits.
+//! application, kept alive for as long as it runs, written into this build's
+//! own directory and flushed when it quits.
 
 use gitwave_core::infrastructure::observability::tracing as subscriber;
 use gitwave_core::infrastructure::observability::tracing::WorkerGuard;
@@ -15,10 +16,18 @@ struct LogGuard {
 
 impl Global for LogGuard {}
 
-/// Starts logging and keeps it running. When the log directory cannot be
-/// created the subscriber logs to stderr instead and says so there.
+/// Starts logging and keeps it running. This build's logs go under `logs` in
+/// its own directory, beside its copy of the state: not into the released
+/// application's directory, where they would mix with that application's.
+/// When the log directory cannot be created the subscriber logs to stderr
+/// instead and says so there.
 pub fn init(cx: &mut App) {
-    keep(subscriber::init(), cx);
+    let dir = crate::app_state::development_dir().map(|dir| dir.join("logs"));
+    let writer = match dir {
+        Some(dir) => subscriber::init_in(&dir),
+        None => subscriber::init(),
+    };
+    keep(writer, cx);
 }
 
 /// Keeps the writer until the application quits, and drops it then.

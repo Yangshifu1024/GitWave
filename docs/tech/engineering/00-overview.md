@@ -26,15 +26,24 @@
 
 | 层 | 范围 | 工具 | 现状 |
 |---|---|---|---|
-| **单元** | `gitwave-core` 的 domain / application | `cargo test` | 已落地（90 个，含内联测试） |
-| **集成** | infrastructure 适配（libgit2、SQLite、HTTP、代理、凭证） | 真实依赖 + 临时 Git fixture，同一套 `cargo test --all-targets` | 已落地（306 个；另有 `host` 3 个、`lib.rs` 的守卫测试 3 个） |
-| **界面** | `gitwave`（22 个）：语言文件的一致性与语言的选择（`locales.rs`，9 个）、tokio 桥接（`runtime.rs`，2 个）、窗口壳的交互（`workbench_tests.rs`，10 个）、日志（`logging.rs`，1 个） | gpui-kit 的 test-support：无头窗口渲染真实组件并模拟输入 | 已起步，随各里程碑补充 |
+| **单元** | `gitwave-core` 的 domain / application | `cargo test` | 已落地（92 个，含内联测试） |
+| **集成** | infrastructure 适配（libgit2、SQLite、HTTP、代理、凭证） | 真实依赖 + 临时 Git fixture，同一套 `cargo test --all-targets` | 已落地（316 个，另有 2 个忽略；`host` 3 个、`lib.rs` 的守卫测试 3 个） |
+| **界面** | `gitwave`（67 个）：语言文件的一致性与语言的选择（`locales.rs`，9 个）、tokio 桥接（`runtime.rs`，3 个）、窗口壳的交互（`workbench_tests.rs`，26 个）、提交历史的分页（`history.rs`，10 个）、显示什么（`session.rs`，8 个）、时间的措辞（`time_text.rs`，4 个）、状态的来源（`app_state.rs`，4 个）、错误的文案（`error_text.rs`，2 个）、日志（`logging.rs`，1 个） | gpui-kit 的 test-support：无头窗口渲染真实组件并模拟输入 | 已起步，随各里程碑补充 |
 | **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | 未定 | **未落地**。旧实现的 Playwright 也从未落地 |
 
 - 关键算法（diff、3-way merge、scrubber、credential callback）必须有专项单测
 - AI provider 有 mock / 错误映射测试；当前请求是非流式 `stream: false`，没有 SSE 中断用例
 - 界面测试不覆盖系统输入法组合、原生对话框与读屏器，这些在三端实机验收
 - rust-i18n 的语言是进程全局的，并行的测试会互相改语言。渲染窗口的测试在开头调用 `locales::take_language_turn(cx)`：锁由测试的应用持有，到应用销毁才释放，因为框架在测试函数返回后还会再画一帧。不渲染窗口的测试持有 `locales::lock_language()` 返回的 guard
+- **测试够不着用户的状态。** 应用启动时打开的是正式版状态的副本（见架构总览的「状态」），`app_state::init` 在测试构建里调用它会直接 panic。测试从 `app_state::init_in_memory` 开始，要仓库就用 `git2` 在临时目录里造一个。core 的 `sqlite::state_dir_path()` 只算路径、不建目录，也是为这个：起因是只读工作台的第一步里，一条语言测试调用了 `app_state::init`，往副本里写了一次
+- **异步的答案用代数丢弃。** 读 Git 的答案从 tokio 线程回到主线程，测试要等它：`cx.executor().allow_parking()` 之后轮询 `run_until_parked`。「迟到的答案」没法靠等待制造，测试直接把一个带旧代数的结果交给处理函数（`workbench_tests.rs` 的 `a_late_answer_for_an_earlier_visit_to_the_same_workspace_is_dropped`、`a_head_that_arrives_for_the_repository_shown_before_is_dropped`、`the_history_reads_on_near_its_end_and_drops_a_page_for_the_repository_before`）
+- **测试之间别共用临时目录。** 应用的测试用 `tempfile::tempdir()` 取各自的花名目录，用完即删。起因是手写的「进程号加毫秒」目录名：两条并行的测试在同一毫秒里拿到了同一个目录，互相改坏了对方的文件
+- **等待别用会报错的查找。** `window.find(id)` 找不到就 panic，轮询要用 `try_find`（`workbench_tests.rs` 的 `shown_now`）。要断言一个转瞬即逝的状态，把触发、渲染和读取放在同一次窗口更新里，后台的答案插不进来
+- **等的要是答案本身。** `run_until_parked` 不等后台的答案：前台没有可运行的任务它就返回，tokio 上的读取可能还在路上。实测过一次：点「重试」之后它返回时屏幕还是旧的，半秒后才变。所以等待的条件必须就是随后断言所依赖的那个答案带来的状态：
+  - 触发之后立刻成立的条件不能拿来等答案。失败提示在点「重试」的那一刻就没了，等它消失等于没等。
+  - 断言用到几个答案，就等齐几个。状态栏的「仓库 · 分支」里，分支名来自对 HEAD 的读取，和提交页是两个请求；只等了页就断言状态栏，是在赌 HEAD 先到。两个都等的写法是 `settled_on`。
+  - 打开窗口的测试要等启动读完。启动在后台读工作区列表，测试在它回来之前结束的话，调度器会报测试不确定。
+- **怀疑等待不可靠时，给读取加延迟。** 把 `app_state` 里的四个读取（工作区列表、仓库列表、提交页、HEAD）各延迟几百毫秒，跑一遍全量，等错的测试都会失败。起因是只读工作台第一步的一条测试：它在本机连跑 60 遍都通过，到 CI 的 macOS 与 Ubuntu 上才失败（见 `docs/tasks/refactor-gpui-kit-desktop/plan.md` 2026-11-27 的记录）；用延迟又查出 13 条有同样的窗口
 - 产品完成定义见 `docs/pm/core/02-scope.md` §3；E2E 自动化仍是缺口
 
 ## 错误处理与日志
@@ -54,7 +63,7 @@
 
 ### 日志
 
-- **Rust**：`tracing` + 结构化字段。`gitwave-core` 提供日志初始化（`infrastructure::observability::tracing::init`）：JSON 输出到 `dirs::data_dir()/GitWave/logs/`，每天一个文件 `app.log.YYYY-MM-DD`（日期按 UTC 算），保留 30 天，级别由 `RUST_LOG` 决定（默认 `info`）。GPUI Kit 应用在启动时调用它，并把写线程的 guard 存成全局状态（`crates/gitwave/src/logging.rs`）；guard 一旦被丢弃，日志就停，所以应用在退出时主动丢弃它，把缓冲里的日志写完。测试用 `tracing::init_in` 把日志写到临时目录，不碰用户真实的日志目录
+- **Rust**：`tracing` + 结构化字段。`gitwave-core` 提供日志初始化（`infrastructure::observability::tracing::init_in`）：JSON 输出到指定的目录，每天一个文件 `app.log.YYYY-MM-DD`（日期按 UTC 算），保留 30 天，级别由 `RUST_LOG` 决定（默认 `info`）。GPUI Kit 应用在启动时最先调用它，目录是它自己的 `GitWave-dev/logs/`，与它的状态副本放在一起，不写进正式版的 `GitWave/logs/`；写线程的 guard 存成全局状态（`crates/gitwave/src/logging.rs`）。guard 一旦被丢弃，日志就停，所以应用在退出时主动丢弃它，把缓冲里的日志写完。测试用 `tracing::init_in` 把日志写到临时目录
 - **崩溃**：无自动上报。不上传用户路径与仓库内容
 - **PII 过滤**：AI prompt 与部分错误日志过 scrubber；不是每一条 tracing 事件都经过同一套规则
 
@@ -62,7 +71,7 @@
 
 ### CI（GitHub Actions）
 
-工作流在 `.github/workflows/`。push/PR 到 `main` 时 `docs/**`、`site/**` 与 `**.md` 被 paths-ignore，**纯文档与官网变更不跑 CI**。
+工作流在 `.github/workflows/`。push/PR 到 `main` 时 `docs/**`、`site/**` 与 `**.md` 被 paths-ignore，**只改文档与官网的变更不跑 CI**。对 PR 判断的是整个 PR 的差异，不是这次推送新加的提交：PR 里已经有代码改动时，之后只加文档的推送照样会跑一遍（PR #246、#247 都实测过）。
 
 | Workflow / Job | Runner | 校验内容 |
 |---|---|---|

@@ -48,7 +48,7 @@ What v0.11.0 does. The rewrite on `main` brings the same scope to the new applic
 `main` no longer contains the Tauri application or the React frontend. Both were removed on 2026-11-25 and their source stays readable at commit `8466d55`. What remains is a Rust-only Cargo workspace:
 
 - **`crates/gitwave-core`** — the domain, use-case and infrastructure layers v0.11.0 ran on: libgit2, SQLite, credential and proxy handling, the AI providers. The new application calls it in process, with no IPC.
-- **`crates/gitwave`** — the new desktop application, built on [GPUI Kit](https://github.com/longbridge/gpui-kit). Today it is an application shell — a window with a self-drawn title bar, the application menus, English / Chinese switching and a light / dark appearance — that already runs gitwave-core's use cases against an in-memory state. It grows one milestone at a time.
+- **`crates/gitwave`** — the new desktop application, built on [GPUI Kit](https://github.com/longbridge/gpui-kit). Today it has the workbench shell — a title toolbar with the workspace switcher, a row of repository tabs, a navigator, a status bar, the application menus, English / Chinese switching and a light / dark appearance — and the first step of the read-only workbench: the commits of a repository, read a page at a time as you scroll. It runs gitwave-core's use cases against a copy of the released app's state, in `GitWave-dev/` beside it, and keeps everything of its own there; the released app's directory is only ever read. It grows one milestone at a time.
 
 Until the rewrite reaches parity there is nothing to download from `main`: no installer is built and no release is cut. The decision is recorded in [ADR 0007](./docs/tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit); milestones and the execution log are in the [migration plan](./docs/tasks/refactor-gpui-kit-desktop/plan.md).
 
@@ -72,7 +72,9 @@ Prerequisites:
 make dev      # cargo run -p gitwave
 ```
 
-The application writes a JSON log, one file per day, under `GitWave/logs/` in the platform's application-data directory (`~/Library/Application Support/GitWave/logs/` on macOS). `RUST_LOG` sets the level; the default is `info`.
+The application writes a JSON log, one file per day, under `logs/` in its own directory in the platform's application-data directory (`~/Library/Application Support/GitWave-dev/logs/` on macOS). `RUST_LOG` sets the level; the default is `info`.
+
+That directory holds a copy of the state of the released app, whose own directory beside it, `GitWave/`, this build leaves alone. On launch the build reads the released app's `state.db` through a read-only connection and copies it into `GitWave-dev/`, taking a new copy whenever the original changes; it then opens the copy, never the original. The copy is what this build changes: the language, the workspace and repository you were on. Two files of SQLite's own can appear beside the released app's database after it is read — its `-shm` index, and an empty `state.db-wal` when it had none — which hold nothing and which the released app removes when it next closes. Opening the original itself waits for the release pipeline, which decides how the upgrade from v0.11.0 goes.
 
 ## Make targets
 
@@ -92,7 +94,7 @@ A `pre-commit` hook runs rustfmt and clippy on `git commit` — see [CONTRIBUTIN
 
 Workflows live in `.github/workflows/`:
 
-- **ci** — on every push to `main` and every PR: rustfmt, clippy and the tests on a macOS / Ubuntu / Windows matrix, plus two assertions that vendored libgit2 keeps its TLS transport. Pure-documentation changes (`site/**`, `docs/**`, `**.md`) are skipped
+- **ci** — on every push to `main` and every PR: rustfmt, clippy and the tests on a macOS / Ubuntu / Windows matrix, plus two assertions that vendored libgit2 keeps its TLS transport. A pull request that changes only documentation or the website (`site/**`, `docs/**`, `**.md`) starts no run; the filter looks at the whole pull request, so a later push that adds only documentation to a pull request with code in it does start one
 - **pages** — deploys `site/` to GitHub Pages on push to `main`
 
 There is no build workflow. The tag-triggered pipeline that produced the v0.11.0 installers and the signed update manifest was removed together with the Tauri application.

@@ -58,6 +58,9 @@
       },
       "migration": {
         "failed": "数据库迁移失败：%{error}"
+      },
+      "snapshot": {
+        "failed": "无法复制状态数据库：%{error}"
       }
     },
     "ssh": {

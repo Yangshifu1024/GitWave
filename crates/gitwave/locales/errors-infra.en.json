@@ -58,6 +58,9 @@
       },
       "migration": {
         "failed": "Database migration failed: %{error}"
+      },
+      "snapshot": {
+        "failed": "The state database could not be copied: %{error}"
       }
     },
     "ssh": {

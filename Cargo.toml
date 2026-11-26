@@ -28,6 +28,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 sys-locale = "0.3"
 # What gitwave-core logs with; the application starts the subscriber and uses it for its own warnings.
 tracing = "0.1"
+# Dates in the interface, for commits older than a week. Already in the graph
+# with these features.
+chrono = "0.4"
 
 # GPUI lays out and rasterises text on the main thread, which is unusably slow without
 # optimisation. Dependencies are optimised while workspace crates stay fast to compile.

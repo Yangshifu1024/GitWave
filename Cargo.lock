@@ -2207,11 +2207,14 @@ dependencies = [
 name = "gitwave"
 version = "0.11.0"
 dependencies = [
+ "chrono",
+ "git2",
  "gitwave-core",
  "gpui-kit",
  "rust-i18n",
  "serde_json",
  "sys-locale",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -2229,6 +2232,7 @@ dependencies = [
  "serde",
  "serde_json",
  "system-configuration 0.8.0",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",

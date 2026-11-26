@@ -63,3 +63,7 @@ keyring = { version = "3", default-features = false, features = ["apple-native"]
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 # Secret Service (D-Bus) credential store for Linux/BSD only.
 keyring = { version = "3", default-features = false, features = ["sync-secret-service"] }
+
+[dev-dependencies]
+# Directories of the tests' own, removed when the test ends. Already in the graph.
+tempfile = "3"

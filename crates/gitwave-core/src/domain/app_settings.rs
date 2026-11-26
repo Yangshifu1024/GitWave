@@ -47,6 +47,15 @@ pub struct LanguageSettings {
     pub locale: Option<String>,
 }
 
+/// The `shell` entry of app settings: what the shell was showing when the
+/// application last closed, so that the next launch starts there.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ShellSettings {
+    /// The workspace that was shown; `None` until the user picks one.
+    #[serde(default)]
+    pub last_workspace_id: Option<String>,
+}
+
 /// Reads a language tag the way the settings accept it. Whitespace around the
 /// tag is dropped and a blank tag means "follow the system" (`Ok(None)`). Any
 /// other tag has to look like one: one to three subtags of one to eight ASCII

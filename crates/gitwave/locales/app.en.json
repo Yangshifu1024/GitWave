@@ -19,6 +19,12 @@
       "resizeInspector": "Resize inspector"
     },
     "workbench": {
+      "state": {
+        "memory": "In-memory state, nothing is saved",
+        "copy": "A copy of the released app's state",
+        "copyTaken": "A copy of the released app's state, taken %{ago}",
+        "copyStale": "A copy of the released app's state, not brought up to date"
+      },
       "history": "History",
       "changes": "Changes",
       "navigation": "Repository navigation",

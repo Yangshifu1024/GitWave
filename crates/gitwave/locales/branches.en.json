@@ -139,6 +139,7 @@
       "dirtyWarning_other": "Working copy has %{count} uncommitted files — commit or stash before rebasing"
     },
     "graph": {
+      "loadFailed": "The history could not be loaded: %{error}",
       "selectWorkspaceTitle": "Select a workspace",
       "selectWorkspaceDesc": "Choose a workspace in the toolbar to view commit history.",
       "selectRepoTitle": "Select a repository",
@@ -146,6 +147,8 @@
       "loading": "Loading history...",
       "empty": "No commits yet",
       "loadingOlder": "Loading older commits…",
+      "reloading": "The history changed while it was read. Reading it again…",
+      "noRepository": "No repository can be shown: its path is missing.",
       "endOfHistory": "End of history · %{total} commits",
       "snapshotLimited": "History is limited to the newest %{total} commits. Older commits are outside this search.",
       "endOfSnapshot": "End of loaded range · %{total} commits",

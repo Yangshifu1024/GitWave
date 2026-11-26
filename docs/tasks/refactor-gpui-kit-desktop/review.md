@@ -1004,3 +1004,298 @@
 `make check` 通过，`gitwave` 22 个测试、`gitwave-core` 400 个通过、2 个忽略。四个变异各自让对应的测试失败，每次都从备份还原文件并比对校验和。`ef0ef3a` 构建的二进制在 macOS 上又确认了一次：无障碍激活后打开、关闭对话框多次，日志零条；对话框打开时 ⌘Q 照常退出。推送后的 CI 一次通过：Ubuntu 1 分、Windows 3 分 10 秒、macOS 1 分 28 秒，新增的三个测试在三端都跑了，测试数与本地一致。实机补做的主题与快捷键检查记在任务计划同日的记录里。
 
 仍然没有验证的：⌥⌘H、剪切、复制、粘贴和「前置全部窗口」在实机上的效果；VoiceOver、Narrator、Orca 的实际朗读；Windows 与 Linux 上的实机表现。
+---
+
+# 代码审查：M3 切片一（只读工作台第一步）
+
+> **作者**：AI code-reviewer 子代理，未经人工复核
+> **状态**：草案
+> **最近更新**：2026-11-27
+
+| 项目 | 内容 |
+|---|---|
+| 分支 | `feature/gpui-kit-read-only-workbench`（自 `8578952` 切出），未提交的工作区改动：34 个已修改文件，5 个未跟踪文件 |
+| 环境 | macOS arm64；rusqlite 0.40.2 / SQLite 3.53.2（与 `Cargo.lock` 一致） |
+| 方式 | 只读。实验都在自建的临时目录里做，已清理；没有运行应用，没有访问 `~/Library/Application Support/` 下 GitWave 的目录 |
+
+下面是审查者的报告原文，行号对应审查时的工作区；之后是实现方的处理结果。
+
+**结论先行（针对第 1 条）**：没有找到让开发版改写正式版 `state.db` 或已存在的 `state.db-wal` 的路径，也没有找到会让正式版打不开它的路径。找到的是三件相关的事：只读连接会在原库目录里留下一个 0 字节的 `state.db-wal` 和一个 `state.db-shm`，与文档“只有 `-shm`”的说法不符（Y1）；开发版的日志仍写进正式版的 `GitWave/logs/`（Y2）；Windows 上这批改动编译不过（R1）。
+
+## ✅ 优点
+
+- **副本的读法是稳的。** 我独立复核了只读 `VACUUM INTO`：在写入方开着、崩溃后只剩 `-wal`、`-wal` 与 `-shm` 都在、已完全回填的 `-wal` 残留这四种状态下，原库的 `state.db` 和 `-wal` 的字节数与 mtime 都不变，变的只有 `-shm`。与实现方的结论一致。
+- **替换副本的顺序是对的。** 先删旧的 `-wal` / `-journal` 再 rename，注释解释了原因（旧 WAL 会被重放到新库上）；staging 加 rename 是原子替换；失败时保留上一次成功的副本，有测试。
+- **路径处理经得起特殊字符。** 引号翻倍正确；实测目标路径同时含 `'`、中文、`?`、`#` 时复制成功。
+- **没有引用环，`.detach()` 的任务无害。** `CommitList` 持的是 `WeakEntity<History>`，打断了 History → ListState → CommitList → History 的环。视图销毁或窗口关闭后，任务跑完 `await`，`let _ = this.update(..)` 吞掉错误就结束。第 3 条没有发现问题。
+- **代数判断有两道防线，补测的过程如实记录。** `repos_arrived` 既比代数，又拒绝别的 Workspace 的仓库列表；A → B → A 的场景有测试；变异暴露的两处缺口写进了执行记录。
+- **事故处理得诚实。** 测试往副本里写过一次这件事记在 plan 里，并加了守卫；`state_dir_path()` 只算路径、不建目录。
+- **`Pages` 是纯状态机。** 逐条核对了 `push` / `fail` / `retry` / `ask_for_more` / `clear` 的组合，没有走不通或自相矛盾的状态。
+- **错误码经桥接原样保留。** `runtime::use_case` 取代 `runtime::blocking`，`error_text::show` 按错误码取文案并填参数，两条路径都有测试。
+- **`ShellSettings` 的边界都考虑到了。** `#[serde(default)]`、空白 id 归一、损坏数据不报错，各有测试。
+- **文档里的数字全部属实。** 逐项核对见「验证记录」。
+
+## 🔴 严重问题（必须修复）
+
+### R1. Windows 上编译不过：`lock_down_db_files` 的非 unix 版本仍是私有的
+
+- **位置**：`crates/gitwave-core/src/infrastructure/persistence/sqlite.rs:100-101`（非 unix 版本）、`:81`（unix 版本）；`crates/gitwave-core/src/infrastructure/persistence/snapshot.rs:17`、`:142`；`.github/workflows/ci.yml:35`（`windows-latest`）
+- **描述**：这次只给 `#[cfg(unix)]` 版本加了 `pub(super)`。`snapshot` 是 `sqlite` 的兄弟模块，无条件 `use super::sqlite::lock_down_db_files` 并在 `:142` 调用。Windows 上解析到的是私有函数，报 `E0603`。
+- **为什么是问题**：CI 在 Windows 上跑 `cargo clippy --workspace --all-targets` 和 `cargo test --workspace --all-targets`，两者都会失败。`main` 的保护规则要求 CI 通过。`make check` 只在 macOS 上跑，发现不了。
+- **建议**：`sqlite.rs:101` 也加 `pub(super)`。修完先让三端 CI 跑一次再继续 M3：`snapshot.rs` 的 6 个测试和 `workbench_tests.rs` 的 git2 夹具都还没有在 Windows 上跑过。
+- **验证**：已验证。用同样的模块关系和 cfg 写了一个最小程序，`rustc` 在“非 unix”分支报 `error[E0603]: function 'lock_down_db_files' is private`，在"unix"分支通过。本机没有安装 Windows target，没有对仓库做交叉 `cargo check`。
+
+## 🟡 一般问题（建议修复）
+
+### Y1. 只读连接会在原库目录里留下 0 字节的 `state.db-wal` 和 32 KB 的 `state.db-shm`，文档说“只有 `-shm`”
+
+- **位置**：`snapshot.rs:5-9`（模块注释）、`:92`（`refresh` 的文档注释）、`:94-104`（`refresh`）；`README.md:51`、`:77`；`docs/tasks/refactor-gpui-kit-desktop/plan.md:111`；`docs/tech/tech-selection/00-overview.md:65`
+- **描述**：实测原库正常关闭后目录里只有 `state.db`。只读连接打开、`VACUUM INTO`、关闭之后，目录里多了 `state.db-wal`（0 字节）和 `state.db-shm`（32768 字节），关闭后不清理。
+- **对正式版无害**：随后打开、读、写、关闭都正常；关闭时它照常把两个文件删掉。
+- **副作用**：`Stamp::of` 把 `-wal` 算在内。`refresh` 在复制之前取 stamp（`wal: None`）并记录；复制之后原库目录里多了一个 `-wal`。下一次启动读到 `wal: Some(0 字节)`，与记录不等，于是再复制一次。正式版每运行一次（关闭时删掉这两个文件），开发版的下一次启动又多复制一次。与“原库变了才重新复制”不符，只是多做无用功。
+- **为什么是问题**：第 1 条的答案取决于这些表述准不准。README 同一段先说 "never opens the original"，两句之后又说 "the original is read through a read-only connection"，自相矛盾。实机验证记的是 `state.db` 和 `state.db-wal` 的哈希不变：当时正式版如果开着，就测不到这个状态；如果没开，`-wal` 是从不存在变成 0 字节，比哈希看不出来。
+- **建议**：
+  1. 四处表述改成与实测一致：只读连接不改 `state.db` 和已存在的 `-wal`；会读或创建 `-shm`；没有 `-wal` 时创建一个空的。
+  2. `Stamp` 把“长度为 0 的 `-wal`”与“没有 `-wal`”视为相同。
+  3. 补一条测试：原库的写入方关闭后连续 `refresh` 两次，断言第二次是 `Current`。现有 6 个 snapshot 测试里写入方都开着，没有覆盖这个最常见的状态。
+- **验证**：`-wal` 的出现是实测（下面实验的场景 2、6、8、9）。第二次 `refresh` 返回 `Taken` 是按 `snapshot.rs:94-104` 和实测结果推演的，没有直接调用 `refresh`。
+
+### Y2. 开发版的日志仍写进正式版的 `GitWave/logs/`
+
+- **位置**：`crates/gitwave/src/logging.rs:21`；`crates/gitwave-core/src/infrastructure/observability/tracing.rs:76-80`；`README.md:75`
+- **描述**：`logging::init` 调 `subscriber::init()`，日志落在 `dirs::data_dir()/GitWave/logs/app.log.<日期>`。副本方案只管了 `state.db`。两个进程往同一个按天滚动的文件追加写，日志里没有字段区分来源；开发版启动时还会对正式版的日志目录跑一遍 `prune_old_logs`。
+- **为什么是问题**：这是第 11 条要找的那类遗漏，同一类问题漏了一处。正式版的日志里混进开发版的行，排障时分不开。README:75 的描述是准确的，所以不算文档不实。
+- **建议**：core 已有 `init_in(dir)`（测试在用）。应用启动时把日志目录定在 `GitWave-dev/logs/`，日志字段带上 `build = "dev"`。
+- **验证**：已验证（读了调用链；按约束没有去看那个目录里的实际文件）。
+
+### Y3. 离开再回到同一个 Workspace，活动仓库回到启动时的值，并被写回副本
+
+- **位置**：`crates/gitwave/src/workbench.rs:237`（唯一设置 `session.workspaces` 的地方）、`:333-347`（`repos_arrived`）；`crates/gitwave/src/app_state.rs:211`（`remember_active_repo` 只写库）
+- **描述**：`repos_arrived` 用 `self.session.workspaces()` 里的 `last_active_repo_id` 恢复活动仓库，那是启动时读到的快照，之后不再更新。复现路径：Workspace 有仓库 [a, b]，启动时没有活动仓库，激活 a；用户点 b，库里写成 b；切到另一个 Workspace 再切回，`restore_active(None)` 选了第一个 a，并把 a 写回库。用户选的 b 这一次运行里丢了，下次启动也恢复不到。
+- **为什么是问题**：与 README:77 "the workspace and repository you were on stays in the copy" 的意图不符。两个切换 Workspace 的测试里每个 Workspace 只有一个仓库，测不出来。
+- **建议**：`remember_active_repo` 之后同步更新快照（`WorkspaceSummary` 的字段是 pub 的），或者让 `Session` 按 Workspace 记住最后激活的仓库。补一条两个仓库的往返测试。
+- **验证**：已验证（读代码；没有运行应用）。
+
+### Y4. `show_history` 的 HEAD 回调用的是仓库列表的代数，点标签换仓库时它不加一
+
+- **位置**：`workbench.rs:394-407`；`:302`（`generation` 唯一加一的地方）；`:364-378`（`repo_chosen` 不加一）；`:459-464`（`identity()` 的 `repo_id` 判断）
+- **描述**：第 2 条问“代数在哪里加、哪些路径漏了”，漏的是这一处。点 a 的标签发出 HEAD 请求（代数 G），结果回来之前点 b，又发出一个，仍是 G。a 的结果晚到时 `generation == this.generation` 成立，`this.head` 被写成 a 的。
+- **现状**：`identity()` 只在 `head.repo_id == repo.id` 时显示分支，串台的结果显示不出来。但同一个仓库 A → B → A 时，第一次的 HEAD（旧）可以盖掉第三次（新），因为 `repo_id` 相同。架构文档 `:59` 写的是“换了目标就加一”。
+- **其余几处的结论**：壳层的 `repos_arrived` 和历史的 `page_arrived` 是对的，都有测试；`History::head_arrived`（`history.rs:282-295`）也是对的，但没有测试。
+- **建议**：HEAD 请求用自己的代数（每次 `show_history` 加一），或者在回调里核对当前活动仓库的 id 与发起时的 `scope.repo_id` 相同。补一条测试：点 a、点 b，让 a 的 HEAD 晚到。
+- **验证**：已验证（读代码）。
+
+### Y5. 切换仓库后，列表的选中行和滚动位置没有重置
+
+- **位置**：`crates/gitwave/src/history.rs:176-184`（`show`）、`:298-314`（`sync_list`）、`:412`；gpui-component 0.11.0 `src/list/list.rs:576-597`
+- **描述**：`ListState` 自己管选中（`selected_index`），`render_list_item` 用它覆盖条目上的 `.selected(..)`。`sync_list` 只换 `commits`，不动它。用户在 a 里点过第 5 行，切到 b，第 5 行是高亮的。`show()` 里也没有回到顶部的调用；在 a 里滚到很深的位置再切到另一个大仓库，新仓库可能显示在历史中间，并且一上来就触发 `load_more`。
+- **建议**：`show()` 时清空选中并回到顶部（`scroll_to_item` 需要 `&mut Window`，`History::show` 现在没有这个参数）。`CommitList.selected` 字段和 `:412` 的 `.selected(..)` 没有效果，可以删掉。
+- **验证**：选中行不重置是读 gpui-component 源码确认的。滚动位置保留是推测，依据是没有任何重置调用，建议实机确认。
+
+### Y6. 仓库列表读不出来时，主区停在 "Loading…"，没有办法重试
+
+- **位置**：`workbench.rs:350-359`、`:288-290`、`:623-627`
+- **描述**：`repos_arrived` 的失败分支只设置 `notice`，`selected.repos` 仍是 `None`，`main_pane` 把 `None` 画成 "Loading…"。再选同一个 Workspace 会被 `:288` 的提前返回挡住。
+- **建议**：失败时把 `repos` 标成“已读、失败”，主区给出错误和重试（`History` 已经是这么做的）；或者让重选同一个 Workspace 也重新读。
+- **验证**：已验证（读代码）。
+
+### Y7. 游标过期时列表突然清空，界面没有说明；自动重试没有上限
+
+- **位置**：`history.rs:268-276`；`crates/gitwave-core/src/infrastructure/git/history.rs:486`
+- **描述**：过期分支 `pages.clear()` 后从头读，用户已滚到的位置没了，只有一条 `info` 日志。第一页也会过期（core 在建完快照后再比一次 fingerprint），所以这个分支是“立刻再发一个请求”，没有次数上限也没有退避。仓库的 ref 一直在变时，它会在后台循环做全量 revwalk，界面一直显示“正在加载历史”。
+- **建议**：保留已显示的提交，后台从头重读，回来后续接新的游标；至少在页眉说明“历史有更新，已重新加载”。给自动重试加上限（比如 2 次），超过后走 `Failed`，交给重试按钮。
+- **验证**：已验证（读代码；没有构造过期场景运行）。
+
+### Y8. 复制失败对用户不可见；含数据的 staging 文件权限是 0644，rename 失败时不清理
+
+- **位置**：`app_state.rs:106-117`；`snapshot.rs:122-142`；`locales/app.*.json` 的 `app.workbench.state.copy`
+- **描述**：
+  - `open_copy` 里 `refresh` 失败只写日志，照样打开目录里现有的库。从没复制成功过时，用户看到的是 "No workspaces / Create a workspace to get started."，状态栏写着“正式版状态的副本”。分不清是复制失败、没有正式版，还是真的没有 Workspace。
+  - `VACUUM INTO` 生成的 staging 文件权限跟随 umask（实测 0644），rename 之后才被 `lock_down_db_files` 改成 0600。rename 失败（Windows 上另一个实例开着副本时会这样，见 O8），或者进程在这两步之间被 kill，一个含 token 的完整副本就以 0644 留在 `GitWave-dev/` 里；下次启动 pid 不同，也不会被清掉。
+- **建议**：`Origin` 加一个“复制失败”的变体，状态栏用 `danger` 色说明，或把错误放进 `notice`；`vacuum_into` 之后立刻对 staging 收紧权限；rename 失败的分支也删除 staging。
+- **验证**：0644 是实测；其余是读代码。rename 失败的场景是推演。
+
+### Y9. 能直接打开正式库的 pub 入口没有守卫，测试守卫只盖住了一个
+
+- **位置**：`crates/gitwave-core/src/bootstrap.rs:30-38`（`open_app_context`）；`sqlite.rs:21-25`（`state_dir`）、`:49-51`（`open`）；`app_settings_repo.rs:31-36`（`SqliteAppSettingsRepo::open`）；`persistence/mod.rs:14`（再导出）；`app_state.rs:62-68`（现有守卫）
+- **描述**：`sqlite::state_dir()` 现在的调用者是 `sqlite::open()` 和 `bootstrap::open_app_context()`；`open()` 另外被 `SqliteAppSettingsRepo::open()` 调用。这四个都没有生产调用者了，但都是 pub 且被再导出。任何一个被调用，就会创建正式版的目录、打开正式库并跑迁移。
+- **关于第 4 条的守卫**：`app_state::init` 在测试构建里 panic 这个做法是合适的，运行时没有更简单的办法拦住误调用。问题是它只盖住这一个入口：`open_development(Some(原库路径))`、`open_copy`、core 的上面三个、`tracing::init()` 在测试里调用都不会被拦。
+- **一个事实**：现在两边的迁移相同（都是 0001–0004，`8466d55` 的 `src-tauri/migrations` 与 `crates/gitwave-core/migrations` 一致）。今天调用这些入口不会把正式库升到正式版不认识的架构。风险从开发版新增第一个迁移起才成立，而那正是最容易出事的时候。plan `:196` 把它写成了已经成立的事实。
+- **建议**：给这四个入口的文档写明“开发版不得调用，接管真实库的路径在 M7 定”，加 `#[deprecated]` 并在 note 里写明原因；或者把 panic 守卫下沉到 `state_dir()`，让所有真实目录入口共享。plan `:196` 改成条件句。
+- **验证**：已验证（grep 调用者；比对了迁移列表）。
+
+### Y10. 新应用没有关闭 libgit2 的所有权校验，与 v0.11.0 不同
+
+- **位置**：`crates/gitwave/src/main.rs:29-36`；`crates/gitwave-core/src/bootstrap.rs:22-25`；`8466d55:src-tauri/src/lib.rs:1670`
+- **描述**：v0.11.0 启动时调用 `disable_git_owner_validation()`，新应用的启动路径没有。捆绑的 libgit2 1.9.7 的默认值是 `git_repository__validate_ownership = true`（`repository.c:42`）。接入真实状态之前用的是测试仓库，所以现在才显现。
+- **影响**：所有者不是当前用户的仓库（v0.11.0 的注释举的例子是 Windows 上提权 clone 出来的目录）在新应用里 `ctx.open_repo` 会被拒绝，历史显示加载失败。实机上的 5 个仓库都是用户自己的，所以没遇到。
+- **建议**：启动时调用一次，与 v0.11.0 一致。Windows 实机验证时专门找一个所有者不同的仓库。
+- **验证**：默认值与调用差异已验证（读源码与 git 历史）。现象是推测，没有造一个所有者不同的仓库来跑。
+
+### Y11. 四条既有文案在新界面里说的是做不到的事
+
+- **位置**：`workbench.rs:572`（`workspace.tabs.empty`）、`:558-560`（`workspace.tabs.missingTitle`）、`:618-622`（`workspace.empty.description`）、`:633-637`（`branches.graph.selectRepoDesc`）
+- **描述**：只读切片一不能 init / clone / add，没有「仓库」菜单，没有右键菜单和重新关联，不能创建 Workspace；仓库在标签行，不在侧边栏。这几条是从旧实现原样带来的，这次是第一次显示给用户。`missingTitle` 还被用作缺失仓库标签的 `aria_label`，读屏器会告诉用户“右键可重新关联”。
+- **新增的 6 条没有问题**：键集合、占位符、数量都核对过（见 O9）；`app.workbench.history` 在 zh-CN 里本来就是 "History"，照用没问题。
+- **建议**：换成只读版的说法，或者等对应功能进来之前先不用（比如缺失仓库的标签只说“路径缺失”）。
+- **验证**：已验证（读了两种语言的文案与调用点）。
+
+### Y12. 测试缺口与清理
+
+- **位置**：`crates/gitwave/src/workbench_tests.rs:82-93`（`wait_for`）、`:96-107`（`temp_dir`）、`:128-174`（`git_repo`）、`:483-534`；`history.rs:194-208`
+- **描述**：
+  - “滚到末尾附近取下一页”这条真实的链路没有测试。测试窗口只显示前二十几行，300 条时 `visible_end >= 300 - 20` 不成立，所以测试直接调 `ask_for_more`，绕过了 `CommitList::has_more`、`load_more` 和 `cx.defer_in`。这三个里任何一个写错，测试照样通过；测试名里的 "reads on near its end" 名不副实。把列表的滚动 offset 设到底再 `render_frame`，就能走真实的触发。
+  - 没有测试的路径：游标过期分支；行上的 HEAD 标记（`history-head` 没有被任何测试找过）和 `head_arrived`；视图层的失败与重试（`history-failure`、`history-retry`）；`repos_arrived` 的失败分支；多仓库 Workspace 的往返（Y3）；原库没有 `-wal` 时连续 `refresh`（Y1）。
+  - `wait_for` 本身没有问题：`allow_parking` 加轮询 `run_until_parked`，20 秒上限；18 个窗口测试单次 0.93 秒。要注意 `allow_parking` 是执行器全局的，打开之后测试里任何意外的主线程阻塞都不再 panic。
+  - `git_repo` 夹具没有发现依赖机器 Git 配置的地方：签名是显式的，libgit2 不跑 hooks，提交时间固定，`set_head` 不受 `init.defaultBranch` 影响。全局 `core.autocrlf` 只会改变 blob 的内容，断言用的是实际返回的 SHA。
+  - 临时目录不删。`temp_dir()` 每次调用建一个新目录，从不删除；本机 `$TMPDIR` 里现在有 2999 个 `gitwave-shell-test-*`，每个约 52 KB，合计约 150 MB。core 里的 `temp_dir` 用 `let _ = remove_dir_all`，断言失败时也不执行。
+- **建议**：补上面几条测试；用一个 RAII 的临时目录（`tempfile` 已经在 `Cargo.lock` 里，core 里五处手写的 `temp_dir` 可以合并）。
+- **验证**：已验证（读了测试与 gpui-component 的触发条件；目录数量是本机实测）。60 遍连跑和六个变异没有重复。
+
+### Y13. History 顶部多了一条 32px 的 "Commit history" 标题，与基线不符
+
+- **位置**：`history.rs:337`、`:345-368`；`docs/design/09-workbench-redesign.md:7`
+- **描述**：基线写的是“History 不再有重复标题栏和紧凑图切换”，M3 设计输入里主区是“上「分支图 + 提交表」”。现在 navigator 里已有高亮的 "History"，主区顶上又有一条标题。它存在的理由是放失败信息和重试按钮。
+- **建议**：失败信息放进列表的空状态区域，或者主区顶部只在失败时出现的一条细提示，去掉常驻的标题。外观还没有实机看过，建议一并核对。
+- **验证**：已验证（对照文档与代码；没有看实际界面）。
+
+## 🟢 优化建议（可选）
+
+- **O1. HEAD 读取跑了两次完整的工作副本 status**（`workbench.rs:395`、`history.rs:247`；`crates/gitwave-core/src/application/use_cases.rs:2656-2660`；`crates/gitwave-core/src/infrastructure/git/working_copy.rs:24-52`）
+  - 第 6 条问的性能里，这一项比 `sync_list` 的克隆和每行的 `time_text` 重得多。`get_working_copy` 带着未跟踪文件、递归未跟踪目录、两处 rename 检测和 `ahead_behind`，只为取 `sha` 和 `branch`。每次切换仓库对同一个仓库跑两遍。都在后台线程上，不卡界面，但大仓库里 HEAD 标记和状态栏的分支名要等它跑完。
+  - `sync_list`（`history.rs:299`）每页克隆全部提交两遍。10k 提交约 34 页，累计约 36 万次 `CommitSummary` 克隆，摊在主线程上估计每页 2–5 ms，低于一帧，随提交总数线性增长。
+  - `row()`（`history.rs:483-560`）每行每帧一次 `time_text::ago` 和一次 `SystemTime::now()`。`List` 只渲染可见的行，按 28 行算是每帧几十微秒。对 10k 的列表不构成问题。
+  - 另有一处不在本次改动里、但直接决定分页成本：`infrastructure/git/history.rs:554` 每取一页都把已解码的全部提交克隆一遍并重新分配 lane。10k 提交累计约 18 万行，后台线程上可接受；100k 提交（`SNAPSHOT_LIMIT`）累计约 1600 万行。
+  - **建议**：给 HEAD 元数据单独一个轻量用例（`repo.head()` 加 peel），Workbench 读一次，把 sha 交给 History；`sync_list` 改成共享 `Arc<Vec<CommitSummary>>`。测性能预算时把 core 的分页成本单独量。耗时都是按代码估算的，没有测量。
+
+- **O2. 相对时间不会随时间刷新**（`history.rs:417`、`workbench.rs:537`）
+  - 行里的 "5m ago" 和状态栏的 "taken 5m ago" 只在重绘时重算，列表不动就一直不变。**建议**每分钟 `cx.notify()` 一次。
+
+- **O3. 提交行（第 7 条）**
+  - 主 ref 的选择（tag、本地分支、远端分支）与基线一致，有测试。HEAD 标记按 `working_copy.sha` 在已加载的提交里找，HEAD 不在已加载的页里时没有标记，合理。
+  - 建议实机核对三处：ref 标签（`history.rs:508-518`）没有宽度上限也不截断，长分支名会挤压标题列；sha 列宽 46px（`:537`），7 个等宽字符在 12px 下约 50px，取决于主题的 mono 字体；日期列 64px（`:554`），`2026-11-20` 刚好放下。
+  - 窗口最小 1024px、navigator 208–240px 时标题列约 400px，固定列不会出问题。更窄的情况要靠“窄面板下隐藏列”，计划里已经列为没做。
+  - 无障碍标签（`row_label`，`:476-478`）只有标题和短 SHA，没有 HEAD、ref、作者和时间。
+  - `CommitList` 为了 `Default` 让 `history` 可以是 `None`（`:382`、`:392`），这是一个表达不出来也不会发生的状态，显式构造即可。
+
+- **O4. `Pages::push` 的“空的一页就算到底”现在对，加了搜索就不对**（`history.rs:66-73`）
+  - 没有 filter 时每页都是 300 条，只有空仓库才会给出空页。带搜索之后，空页只是这一段扫描窗口里没有匹配，core 的游标会往前走，按现在的规则搜索结果会被截断。“无限取同一页”只在游标不前进时发生，更准确的判据是“空页且游标与上一页相同”。至少在注释和测试名里写明前提。
+
+- **O5. 已翻译的字符串存进了状态**（`workbench.rs:245-248`、`:351-358`；`history.rs:277`）
+  - `notice` 和 `Status::Failed { message }` 存的是翻译后的字符串，语言切换后重绘，这两处还是旧语言。**建议**存 `AppError`（实现了 `Clone`），渲染时再 `error_text::show`。
+
+- **O6. 测试接口可以再收一收（第 4 条）**
+  - `commits()` 是普通的只读访问器，合理。`generation()`、`ask_for_more`、`page_arrived_for_test` 是为了从 `workbench_tests.rs` 调到私有方法。把 History 的迟到测试挪进 `history.rs` 自己的 `mod tests`（用 `#[gpui_kit::test]` 开窗口），这三个 `pub(crate)` 都能去掉。给 `History` 注入数据源更彻底，但改动大，现在不值得。`app_state::init` 的守卫见 Y9。
+
+- **O7. 小处**
+  - `repo_chosen`（`workbench.rs:364-378`）点已经激活的标签也会重新加载历史并写一次库。
+  - 没有 Workspace 时，"No workspaces" 在标签行（`:569`）和主区（`:618-622`）各出现一次。
+  - `codes::usecases::BACKGROUND_JOB_FAILED` 放在语言设置的分节里（`error_codes/usecases.rs:65-66`），没有自己的标题。
+  - `branches.graph.loading` 用 "..."，`loadingOlder` 和 `common.loading` 用 "…"。
+
+- **O8. 两个开发版实例同时启动（第 1 条，推演）**（`snapshot.rs:119-158`）
+  - staging 文件名带 pid，两个实例互不覆盖；但删除旧 sidecar 和 rename 是交错执行的。最坏的情况是 A 刚打开副本，B 删掉 A 正在用的 `-wal`、`-shm` 并替换 `state.db`。在 macOS / Linux 上 A 的文件描述符仍指向旧的 inode，自洽，不会损坏，只是 A 之后的写入落在已经 unlink 的文件上。record 与副本也可能各来自一个实例，下次启动会漏掉一次重新复制。
+  - Windows 上删除或替换被占用的文件会失败，`copy` 返回错误，那个实例退回旧副本，staging 文件留下（Y8）。
+  - 路径里的非 ASCII 和引号没问题。`to_string_lossy`（`:169`）遇到非 UTF-8 的目录名会把文件写到另一个路径，随后 rename 失败，属于降级。
+  - **建议**在 plan 的“风险与未决项”里记一句“同时只运行一个开发版实例”，或者给副本目录加一个锁文件。
+
+- **O9. 文档里会过期或说过头的地方（第 10 条）**
+  - `docs/tech/architecture/00-overview.md:3`：“对照 `main` 当前的代码（2026-11-26）”，这批改动还没有提交，更不在 `main` 上。合并时改成提交号，或者现在写成分支名。
+  - 同文件 `:59`：“换了目标就加一”对 HEAD 回调不成立（Y4），也没有提到 `head_arrived`。
+  - `plan.md:196`：条件句写成了事实（Y9）。`plan.md:111`：三种状态之外还应该有“正常关闭、只读复制之后再启动一次”（Y1）。
+  - 其余核对属实，见「验证记录」。
+
+## 📝 总体评价
+
+副本方案的核心是对的：只读 `VACUUM INTO` 不改正式版的 `state.db` 和已存在的 `-wal`，替换副本的顺序和失败处理都经得起推敲。需要处理的是三件事：Windows 上编译不过（R1，一行就能修，但不修 CI 必红）；“原库目录只被动了 `-shm`”这个说法与实测不符，连带 README 的承诺和 `Stamp` 的判定（Y1）；以及几处迟到结果和状态恢复的逻辑缺口（Y3、Y4、Y5、Y6）。日志写进正式版目录（Y2）和四个没有守卫的入口（Y9）是同一类问题里漏掉的部分，建议在开发版新增第一个迁移之前补上。
+
+## 验证记录
+
+### 验证过的
+
+- **`cargo fmt --all -- --check`**：通过，无输出。
+- **`cargo clippy --workspace --all-targets --locked -- -D warnings`**：`Finished`，无告警。
+- **`cargo test --workspace --all-targets --locked`**：`gitwave` 53 passed；`gitwave-core` 409 passed、2 ignored。与实现方一致。
+- **`cargo test -p gitwave-core -- --list`**：411 个测试。`domain` 29 + `application` 63 = 92；`infrastructure` 313；`host` 3；`lib.rs` 的守卫 3。与 engineering 文档的分类一致，92 + 313 + 3 + 3 = 409 + 2。
+- **文案**（脚本比对 `crates/gitwave/locales/` 的 50 个文件）：每种语言 25 个文件、1133 条，中英键集合相同；占位符 349 处，没有不匹配；新增 6 条、新增占位符 4 处。与 tech-selection 文档一致。
+- **plan 的接口事实**：`load_more_threshold` 默认 20，触发条件是 `visible_end >= entities_count.saturating_sub(threshold)` 且 `has_more`；`ListState::set_selected_index` / `scroll_to_item` 需要 `&mut Window`。均读自 gpui-component 0.11.0 源码。
+- **只读复制实验**（临时 Rust 程序，rusqlite `=0.40.2` bundled，SQLite 3.53.2，与仓库锁定版本相同；照 `snapshot.rs:161-173` 的 `vacuum_into` 写了同样的三步，没有调用仓库里的代码）。原库目录每个场景前后比对文件名、字节数、mtime、摘要：
+  - 场景 1 写入方开着、日志未回填：只有 `-shm` 变。
+  - 场景 2 正常关闭后、无写入方：`state.db` 不变；**新增 `state.db-wal`（0 字节）和 `state.db-shm`（32768 字节）**。
+  - 场景 3 崩溃后只剩 `-wal`：`state.db`、`-wal` 不变，新增 `-shm`。
+  - 场景 4 崩溃后 `-wal` 与 `-shm` 都在：只有 `-shm` 变。
+  - 场景 5 已完全回填的 `-wal` 残留：只有 `-shm` 变，`-wal` 没被删。
+  - 场景 6 目标路径含 `'`、中文、`?`、`#`：成功。
+  - 场景 8 连续两次只读复制：第一次之后 `-wal` 从不存在变为 0 字节；第二次之后它的字节数和 mtime 都不变。
+  - 场景 9 只读复制留下文件后，一个读写连接打开、读到数据、写入、关闭都正常，关闭时删掉 `-wal` 和 `-shm`；之后再只读复制一次，两个文件又出现。
+  - 场景 7 目标已存在且非空：`VACUUM INTO` 报 "file is not a database"。`snapshot.rs:123` 在复制前先删 staging，所以不受影响。
+- **`VACUUM INTO` 输出文件的权限**：实测 0644（umask 022）。
+- **用系统 Python 的 SQLite 3.54.0 重做了场景 2–5**：结论相同。
+- **捆绑的 `sqlite3.c`（3.53.2）**：`pagerOpenWalIfPresent` 在主库 0 字节且 `-wal` 存在时会删除 `-wal`（`:62960-62961`，没有只读判断）。Python 实测 WAL 模式下第一次写入之后主库就是 4096 字节，所以有效的 WAL 不会遇到这个分支。
+- **R1 的最小复现**：`rustc` 在“非 unix”分支报 `E0603`，在"unix"分支通过。
+- **正式版的版本**：`8466d55` 的 `Cargo.lock` 里 `libsqlite3-sys 0.38.2` / `rusqlite 0.40.2`，与现在相同；迁移都是 0001–0004。
+- **libgit2 1.9.7**（`libgit2-sys-0.18.8+1.9.7/libgit2/src/libgit2/repository.c:42`）：`git_repository__validate_ownership` 默认为 `true`。
+- **调用者**（全仓 grep）：`state_dir()` 的调用者只有 `bootstrap::open_app_context()` 和 `sqlite::open()`；`open()` 只被 `SqliteAppSettingsRepo::open()` 调用；这三者没有生产调用者；`tracing::init()` 的调用者只有 `logging.rs:21`。
+- **临时目录**：本机 `$TMPDIR` 里有 2999 个 `gitwave-shell-test-*`，抽样的一个 52 KB。
+- **仓库状态**：结束时 `git status --short` 仍是 39 行（34 个已修改，5 个未跟踪），与开始时相同。`/tmp` 下原有的 `gw-*.txt` 和 `gw-review-tools` 没有动。
+
+### 没有验证的
+
+- 没有运行应用。界面外观、窄面板下各列的表现、选中样式、读屏器的朗读都没有看。
+- Windows 与 Linux。本机只装了 `aarch64-apple-darwin` 和 `wasm32-unknown-unknown`，R1 是按代码加最小复现判断的，没有对仓库做交叉 `cargo check`。
+- `refresh` 第二次返回 `Taken`：是按 `snapshot.rs:94-104` 和场景 8 的实测推演的，没有直接调用 `refresh`。
+- 两个实例同时启动、Windows 上 rename 或删除被占用的文件、非 UTF-8 的目录名：都是读代码的推演。
+- 跨 SQLite 版本的兼容。“留下文件之后正式版仍可读写”只用同版本验证过；正式版与开发版现在恰好是同一个版本。
+- 性能预算（冷启动、10k commit）：O1 里的耗时都是估算。
+- 切换仓库后滚动位置的实际表现（Y5 的一半）。
+- 六个变异、测试程序连跑 60 遍：没有重复。
+- 游标过期、仓库列表读取失败、所有者不同的仓库：没有构造这些场景运行。
+- 实机上正式版目录的状态：按约束没有访问。
+
+
+## 处理结果：M3 切片一
+
+| 编号 | 发现 | 处理 | 核实 |
+|---|---|---|---|
+| 🔴 R1 Windows 上编译不过 | `lock_down_db_files` 的非 Unix 版本仍是私有的 | 两个版本都 `pub(super)` | 本机没有 Windows 的目标，没法交叉编译。PR #247 首轮 CI 的 Windows 任务通过 |
+| Y1 留下空的 `-wal`，文档不符，每次多复制 | 空日志不算变化（`Stamp::of`）；四处文档改成与实测一致。补了两条测试：原库正常关闭后连续刷新两次，第二次是「没变」；原库被复制之后还能照常打开、读写、关闭 | 新测试第一次运行就证实了审查者的实测和推演。变异「空日志算变化」被抓住 |
+| Y2 日志写进正式版目录 | 日志改到 `GitWave-dev/logs/`；应用启动时最先初始化日志 | 实机：修好之后的两次启动只写进开发版自己的目录。没有加 `build` 字段，文件分开了就够了 |
+| Y3 回到同一个 Workspace 时活动仓库退回 | `Session::keep_active` 记下激活的仓库；只有变了才写库 | 模型和壳层各一条测试；两条变异都被抓住 |
+| Y4 HEAD 的回调用错了代数 | HEAD 有自己的代数。HEAD 由壳层读一次，交给历史（`History::head_is`），历史不再自己读 | 测试 `a_head_that_arrives_for_the_repository_shown_before_is_dropped`；变异被抓住 |
+| Y5 选中与滚动不重置 | `History::show` 在这次更新结束后重置列表的选中并回到顶部；删掉不起作用的 `CommitList.selected` | 测试 `choosing_another_repository_clears_the_selection`；变异被抓住。「回到顶部」没有单独的断言，实机截图里新仓库的列表从第一行开始 |
+| Y6 读不出仓库列表时停在「加载中」 | 提示改成一个小枚举（工作区、仓库列表、副本），各带错误对象；仓库列表失败时主区显示原因和「重试」，不再显示「加载中」 | 测试 `repositories_that_cannot_be_read_are_said_of_and_can_be_read_again` |
+| Y7 游标过期时突然清空、重试没有上限 | 保留已显示的提交，后台从头重读并给一条提示；最多两次，之后走失败和重试按钮 | `Pages` 的四条测试和壳层的一条；变异「无限重读」被抓住 |
+| Y8 复制失败不可见；中间文件权限 0644、放不下时不清理 | 复制失败的原因进主区顶部的提示，状态栏用警示色写「没有更新到最新」；`VACUUM INTO` 之后立刻收紧权限；之后任何一步失败都删掉中间文件 | 应用和 core 各一条测试；变异「放不下时留文件」被抓住。权限本身没有测试 |
+| Y9 四个能打开正式库的入口没有守卫 | 四个入口的文档写明开发版不得调用；计划里的说法改成条件句 | 核对过现在两边的迁移相同。没有加 `#[deprecated]`：它们是将来正式版的入口，不该标成弃用。守卫也只盖住应用这一层，core 的入口靠文档 |
+| Y10 没有关闭 libgit2 的所有权校验 | 启动时调用 `disable_git_owner_validation`，放在日志初始化之后，它那一行日志不会丢 | 没有所有者不同的仓库可试。Windows 实机验证时专门找一个 |
+| Y11 四条旧文案说的是做不到的事 | 另加三条只读版的说法；缺失仓库的无障碍标签只说「路径缺失」；没有工作区时标签行不再重复「暂无工作区」。四条旧文案原样保留，记在技术选型里 | 四条旧文案不再被这一步引用 |
+| Y12 测试缺口与清理 | 取页改走真实的滚动路径，并因此发现列表的回调里不能更新历史，改成派发任务。补了游标过期、HEAD 标记与迟到的 HEAD、失败与重试（历史、仓库列表各一条）、两个仓库的往返、重选当前标签、清掉选中。应用测试改用 `tempfile`，删掉了此前留下的三千多个目录 | 15 个变异全部被抓住。core 里更早的三处手写临时目录没有改，这一步加的两处改用了 `tempfile`。没有覆盖的：所有者不同的仓库、Windows 上的文件占用、两个实例同时启动 |
+| Y13 常驻的「提交历史」标题 | 去掉；失败和重读时才有一条提示 | 实机截图 |
+| O1 HEAD 读两遍、每次克隆全部提交、每帧算相对时间 | HEAD 只读一次。其余没做，记在计划的风险里 | — |
+| O2 相对时间不随时间刷新 | 没做，记在计划的风险里 | — |
+| O3 提交行 | ref 标签限宽并截断，SHA 列 56px，日期列 96px，三列都禁止换行；无障碍标签带上 HEAD、ref、作者、时间；`CommitList` 改成显式构造 | 日期列是实机看出来的：80px 时最后一个字符掉到第二行，被行高切掉。审查者估计 64px「刚好放下」，实际不够 |
+| O4 空页就算到底 | 改成「空页且游标不前进」才算到底 | 测试两条；变异被抓住 |
+| O5 翻译后的字符串存进状态 | 改存错误对象，显示时再翻译 | 测试断言的是当前语言下的文字 |
+| O6 测试接口 | 去掉了一个（`ask_for_more`），加了两个观察用的（滚到末尾、读选中行）。其余留着：把迟到的测试挪进历史模块要连窗口夹具一起搬，这一步不值得 | — |
+| O7 小处 | 重选当前标签不再重读、不再写库；没有工作区时标签行不再重复；错误码挪到自己的分节。`branches.graph.loading` 的三个点是旧实现带来的文字，没改 | 测试 `choosing_the_tab_of_the_repository_already_shown_changes_nothing`；变异被抓住 |
+| O8 两个实例同时启动 | 没做，记在计划的风险里 | — |
+| O9 文档 | 架构总览的日期、迟到的结果（三处）、状态的说法；计划的四处；README 的承诺与实现一致，不再自相矛盾 | — |
+
+### 处理过程中另外发现并更正的
+
+- 启动顺序：关闭所有权校验原来放在日志初始化之前，它那一行日志会丢。调成日志最先。
+- 走真实的滚动路径后，gpui 报「正在更新的实体不能再次更新」：列表的 `load_more` 在列表自己的更新里被调用，这次更新的延迟回调里列表还在绘制。改成用 `cx.spawn_in` 派发任务。
+- 测试的临时目录名用「进程号加毫秒」，两条并行的测试拿到同一个目录、互相改坏对方的文件。改用 `tempfile`。
+- 实机：满一周后显示成日期的那一列太窄（见 O3）。
+- 「失败与重试」的壳层测试（Y12 里补的那一条）等错了条件：它在本机连跑 60 遍都通过，到 PR #247 的 CI 上，macOS 与 Ubuntu 才失败。改走真实路径，等到重试的那一页出现在屏幕上为止。顺着用「给读取加延迟」又查出 13 条同样在赌时序的测试，一并改了。经过见[计划](./plan.md) 2026-11-27 的记录，约定见[工程约定](../../tech/engineering/00-overview.md#测试策略测试金字塔)。
+
+### 修复后的验证
+
+`make check` 通过，`gitwave` 67 个测试、`gitwave-core` 412 个通过、2 个忽略；应用的测试程序连跑 60 遍全部通过，跑前跑后比对，副本和正式版的库都没有被改动（其中那条「失败与重试」当时是靠断言抢在答案之前通过的，见上一节末条，已重写）。十五个变异各自让对应的测试失败。实机（macOS）：启动后正式版的 `state.db` 和 `state.db-wal` 哈希与启动前一致；窗口截图按原始分辨率核对了布局和各列；开发版的日志只写进自己的目录。
+
+### 仍然没有验证的
+
+- Windows 与 Linux 的实机。R1 的修复、`snapshot` 的十条测试和 `git2` 的夹具在这两端的 CI 上跑过了（PR #247，提交 `24d85ca`），没有在真实的桌面上试过。
+- 所有者不是当前用户的仓库（Y10）；两个开发版实例同时启动（O8）；非 UTF-8 的目录名。
+- 读屏器的朗读：提交行在无障碍树里是没有名字的组，`ListItem::access_label` 给的名字读屏接口读不到，原因没有查。
+- 性能预算（冷启动、10k commit）；窄窗口下各列的表现。
