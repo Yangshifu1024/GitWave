@@ -1,6 +1,6 @@
 # GitWave 桌面界面迁移到 GPUI Kit
 
-状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`（PR #246）：切片一、切片二，加实机验证后的一处无障碍修复（`ef0ef3a`），三端 CI 通过。macOS 上做过实机验证（见 2026-11-26 的记录）：M2 退出标准里的菜单、快捷键、主题、语言切换和中文输入法都通过；没在实机上试的是 ⌥⌘H、剪贴板三项、「前置全部窗口」和读屏器的朗读。M3 在 `feature/gpui-kit-read-only-workbench`，进行中：切片一（接入真实状态、壳层按基线布局重排、提交历史列表）已实现，经过独立审查并在 macOS 上实机看过，开在 PR #247，三端 CI 通过，还没有合并。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
+状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`（PR #246）：切片一、切片二，加实机验证后的一处无障碍修复（`ef0ef3a`），三端 CI 通过。macOS 上做过实机验证（见 2026-11-26 的记录）：M2 退出标准里的菜单、快捷键、主题、语言切换和中文输入法都通过；没在实机上试的是 ⌥⌘H、剪贴板三项、「前置全部窗口」和读屏器的朗读。M3 在 `feature/gpui-kit-read-only-workbench`，进行中：切片一（接入真实状态、壳层按基线布局重排、提交历史列表）已实现，经过独立审查并在 macOS 上实机看过，开在 PR #247，三端 CI 通过。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
 
 ## 目标与验收基线
 
@@ -226,5 +226,5 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
     - 给四个读取都加延迟跑全部 67 条，又有九条失败，都是 M2 的测试（语言、外观、设置对话框、侧栏、无障碍）。启动现在要在后台读工作区列表，这是切片一带来的；它们打开窗口后不等启动就做自己的事，测试结束时读取还在路上，调度器报「不确定」。共用的 `open` 现在打开窗口后等到启动读完，九条不用各自改。
     - 两轮修完，加着延迟 67 条全部通过；去掉延迟 `make check` 通过，测试数不变；应用的测试程序连跑 60 遍全部通过。约定记在[工程约定](../../tech/engineering/00-overview.md#测试策略测试金字塔)。
   - 修复提交 `24d85ca` 推送后的 CI 一次通过：Ubuntu 1 分 21 秒、macOS 2 分 50 秒、Windows 3 分 20 秒。三端的测试数都与本地一致：`gitwave` 67 个，`gitwave-core` 412 个通过、2 个忽略。`24d85ca` 单独检出也通过格式检查、clippy 和测试（479 个）。到这里，R1 的修复、`snapshot` 的十条测试和 `git2` 的夹具在三端的 CI 上都跑过了。
-  - 没有合并：等用户确认。
+  - 用户确认合并，方式选了 squash（AGENTS.md 写的是 merge commit、不 squash；这一个 PR 按用户的决定）。`main` 上是合并后的一个提交，上面引的逐个提交不在 `main` 的历史里：它们列在 PR #247 的提交页，`git fetch origin refs/pull/247/head` 可以取回。
   - 文档提交 `0965dc2` 推送后又跑了一轮 CI：`paths-ignore` 对 PR 看的是整个 PR 的差异，PR 里有代码改动时，只加文档的推送也跑（PR #246 的两次文档推送也是）。工程约定和 README 原先写成「纯文档变更不跑 CI」，已更正。
