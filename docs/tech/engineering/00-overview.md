@@ -28,7 +28,7 @@
 |---|---|---|---|
 | **单元** | `gitwave-core` 的 domain / application | `cargo test` | 已落地（92 个，含内联测试） |
 | **集成** | infrastructure 适配（libgit2、SQLite、HTTP、代理、凭证） | 真实依赖 + 临时 Git fixture，同一套 `cargo test --all-targets` | 已落地（316 个，另有 2 个忽略；`host` 3 个、`lib.rs` 的守卫测试 3 个） |
-| **界面** | `gitwave`（67 个）：语言文件的一致性与语言的选择（`locales.rs`，9 个）、tokio 桥接（`runtime.rs`，3 个）、窗口壳的交互（`workbench_tests.rs`，26 个）、提交历史的分页（`history.rs`，10 个）、显示什么（`session.rs`，8 个）、时间的措辞（`time_text.rs`，4 个）、状态的来源（`app_state.rs`，4 个）、错误的文案（`error_text.rs`，2 个）、日志（`logging.rs`，1 个） | gpui-kit 的 test-support：无头窗口渲染真实组件并模拟输入 | 已起步，随各里程碑补充 |
+| **界面** | `gitwave`（69 个）：语言文件的一致性与语言的选择（`locales.rs`，9 个）、tokio 桥接（`runtime.rs`，3 个）、窗口壳的交互（`workbench_tests.rs`，28 个）、提交历史的分页（`history.rs`，10 个）、显示什么（`session.rs`，8 个）、时间的措辞（`time_text.rs`，4 个）、状态的来源（`app_state.rs`，4 个）、错误的文案（`error_text.rs`，2 个）、日志（`logging.rs`，1 个） | gpui-kit 的 test-support：无头窗口渲染真实组件并模拟输入 | 已起步，随各里程碑补充 |
 | **E2E** | 三个核心场景：commit→push / conflict 解决 / workspace 切换 | 未定 | **未落地**。旧实现的 Playwright 也从未落地 |
 
 - 关键算法（diff、3-way merge、scrubber、credential callback）必须有专项单测

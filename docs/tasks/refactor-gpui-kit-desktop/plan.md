@@ -1,6 +1,6 @@
 # GitWave 桌面界面迁移到 GPUI Kit
 
-状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`（PR #246）：切片一、切片二，加实机验证后的一处无障碍修复（`ef0ef3a`），三端 CI 通过。macOS 上做过实机验证（见 2026-11-26 的记录）：M2 退出标准里的菜单、快捷键、主题、语言切换和中文输入法都通过；没在实机上试的是 ⌥⌘H、剪贴板三项、「前置全部窗口」和读屏器的朗读。M3 在 `feature/gpui-kit-read-only-workbench`，进行中：切片一（接入真实状态、壳层按基线布局重排、提交历史列表）已实现，经过独立审查并在 macOS 上实机看过，开在 PR #247，三端 CI 通过。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
+状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`（PR #246）：切片一、切片二，加实机验证后的一处无障碍修复（`ef0ef3a`），三端 CI 通过。macOS 上做过实机验证（见 2026-11-26 的记录）：M2 退出标准里的菜单、快捷键、主题、语言切换和中文输入法都通过；没在实机上试的是 ⌥⌘H、剪贴板三项、「前置全部窗口」和读屏器的朗读。M3 进行中：切片一（接入真实状态、壳层按基线布局重排、提交历史列表）已实现，经过独立审查并在 macOS 上实机看过，经 PR #247 以 squash 合并（`main` 上的 `af7a305`）；合并后发现换 Workspace 时没有作废在途的提交页与 HEAD，修复在 PR #248（分支 `fix/late-answers-after-a-workspace-switch`，见 2026-11-27 的记录）。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
 
 ## 目标与验收基线
 
@@ -226,5 +226,13 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
     - 给四个读取都加延迟跑全部 67 条，又有九条失败，都是 M2 的测试（语言、外观、设置对话框、侧栏、无障碍）。启动现在要在后台读工作区列表，这是切片一带来的；它们打开窗口后不等启动就做自己的事，测试结束时读取还在路上，调度器报「不确定」。共用的 `open` 现在打开窗口后等到启动读完，九条不用各自改。
     - 两轮修完，加着延迟 67 条全部通过；去掉延迟 `make check` 通过，测试数不变；应用的测试程序连跑 60 遍全部通过。约定记在[工程约定](../../tech/engineering/00-overview.md#测试策略测试金字塔)。
   - 修复提交 `24d85ca` 推送后的 CI 一次通过：Ubuntu 1 分 21 秒、macOS 2 分 50 秒、Windows 3 分 20 秒。三端的测试数都与本地一致：`gitwave` 67 个，`gitwave-core` 412 个通过、2 个忽略。`24d85ca` 单独检出也通过格式检查、clippy 和测试（479 个）。到这里，R1 的修复、`snapshot` 的十条测试和 `git2` 的夹具在三端的 CI 上都跑过了。
-  - 用户确认合并，方式选了 squash（AGENTS.md 写的是 merge commit、不 squash；这一个 PR 按用户的决定）。`main` 上是合并后的一个提交，上面引的逐个提交不在 `main` 的历史里：它们列在 PR #247 的提交页，`git fetch origin refs/pull/247/head` 可以取回。
+  - 用户确认合并，方式选了 squash；合并约定随之改为 squash（见下一条）。`main` 上是合并后的一个提交，上面引的逐个提交不在 `main` 的历史里：它们列在 PR #247 的提交页，`git fetch origin refs/pull/247/head` 可以取回。
   - 文档提交 `0965dc2` 推送后又跑了一轮 CI：`paths-ignore` 对 PR 看的是整个 PR 的差异，PR 里有代码改动时，只加文档的推送也跑（PR #246 的两次文档推送也是）。工程约定和 README 原先写成「纯文档变更不跑 CI」，已更正。
+- 2026-11-27 · PR #247 以 squash 合并（`main` 上的 `af7a305`）。合并后 `main` 上的 CI 在 macOS 失败一条，修复在分支 `fix/late-answers-after-a-workspace-switch`（PR #248，CI 的结果见它的检查页）：
+  - 失败的是 `a_late_answer_for_an_earlier_visit_to_the_same_workspace_is_dropped`，最后的断言找不到仓库标签栏。这条测试在 PR #247 的每一轮 CI 里都通过，本机连跑 60 遍也通过；`main` 上这一轮的 Ubuntu 与 Windows 照常通过。
+  - 用一条临时探针复现（没有保留）：启动后离开 Workspace 再回来，提交页的代数和 HEAD 的代数都没变（1 → 1），上一次访问迟到的页被收下（同一个提交出现两次），迟到的 HEAD 也被收下。原因是换 Workspace 时只有仓库列表的代数加了（`load_repos`），提交页和 HEAD 的要等新 Workspace 的仓库列表到了、`show_history` 跑过才加。那条测试等的是「历史里出现 alpha 的提交」，被迟到的页满足；它断言的标签栏却要等新一次读取。
+  - 屏幕上看不出这个漏洞：仓库列表读到之前主区画的是「加载中」，不画历史；迟到的 HEAD 要等有活动仓库才显示，那时新一次读取已经把它作废。但「换了目标就加代数」在换 Workspace 这一刻对这两处没有成立，架构总览原先写的规则与代码不完全相符。这是独立审查没有查到的一处：审查补了 HEAD 的代数，也写了「离开再回来答案不能混」，但只盯住了仓库列表。
+  - 修法：换 Workspace 时三处一起作废。`History::forget` 清空历史并加代数（`History::show` 现在是它加上一次读取），HEAD 的代数在 `show_workspace` 里加一。那条测试改为等「回来之后」的状态（`settled_on`）。
+  - 新加两条测试，都在修复前失败：`a_page_and_a_head_that_arrive_after_the_workspace_was_left_and_shown_again_are_dropped`（离开再回来）、`a_page_and_a_head_that_arrive_after_another_workspace_was_shown_are_dropped`（切到另一个）。去掉对 `History::forget` 的调用，两条都因页被收下而失败；去掉 HEAD 的代数加一，两条都因 HEAD 被收下而失败。
+  - 验证：`make check` 通过，`gitwave` 69 个测试、`gitwave-core` 412 个通过、2 个忽略；四个后台读取各延迟 400 毫秒跑全量，69 条全部通过；应用的测试程序连跑 60 遍全部通过。
+  - 合并约定按用户的决定改为 squash（`AGENTS.md`、`CONTRIBUTING.md`）：PR 以一个 squash 提交合入 `main`，提交取 PR 的标题，所以标题也要符合 Conventional Commits；分支上的逐个提交留在 PR 的提交页，不在 `main` 的历史里。这是用户 2026-11-27 定的，不是实现方的建议。
