@@ -236,13 +236,21 @@ impl History {
 
     /// Shows the history of a repository, from its newest commit.
     pub fn show(&mut self, scope: Scope, cx: &mut Context<Self>) {
-        self.generation += 1;
+        self.forget(cx);
         self.scope = Some(scope);
+        self.fetch(None, cx);
+    }
+
+    /// Shows nothing, for a workspace whose repositories are still being
+    /// read. What was shown is gone, and what is on its way for it is dropped
+    /// when it comes: the workspace shown now is not the one it was asked for.
+    pub fn forget(&mut self, cx: &mut Context<Self>) {
+        self.generation += 1;
+        self.scope = None;
         self.pages.clear();
         self.head = None;
         self.sync_list(cx);
         self.reset_list(cx);
-        self.fetch(None, cx);
     }
 
     /// Tells the history where the head of its repository is, `None` when it

@@ -324,7 +324,13 @@ impl Workbench {
         }
         // One small local write, done before the interface goes on.
         app_state::remember_workspace(cx, Some(&workspace_id));
+        // What was shown belongs to the workspace before, and so does
+        // whatever is on its way for it. It is dropped now, and not once the
+        // repositories of this workspace have been read: until then they
+        // would still be taken.
         self.head = None;
+        self.head_generation += 1;
+        self.history.update(cx, |history, cx| history.forget(cx));
         self.load_repos(workspace_id, cx);
         cx.notify();
     }

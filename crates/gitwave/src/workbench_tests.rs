@@ -18,6 +18,7 @@ use gitwave_core::application::use_cases::{
 };
 use gitwave_core::domain::error::AppError;
 use gitwave_core::domain::error_codes as codes;
+use gitwave_core::domain::history::CommitPage;
 use gitwave_core::domain::working_copy::WorkingCopy;
 use gitwave_core::domain::workspace::RepoRef;
 
@@ -484,9 +485,9 @@ fn a_late_answer_for_an_earlier_visit_to_the_same_workspace_is_dropped(cx: &mut 
         after_the_late_answer, None,
         "the answer to the visit before is dropped, the repositories are still awaited"
     );
-    wait_for(cx, "the history after coming back", |cx| {
-        shown(cx, &workbench) == alpha.commits
-    });
+    // What is shown is what the visit that counts read, and its head: the
+    // history on screen alone would not say which visit read it.
+    settled_on(cx, window, &workbench, &alpha);
     cx.update_window(window, |_, window, cx| {
         window.render_frame(cx);
         assert_eq!(
@@ -496,6 +497,101 @@ fn a_late_answer_for_an_earlier_visit_to_the_same_workspace_is_dropped(cx: &mut 
         );
     })
     .unwrap();
+}
+
+/// The page and the head of a workspace's repository are asked for when the
+/// workspace is shown. Another one is shown before they come, and the first
+/// one again: they arrive late, and are dropped. What comes on screen is
+/// what the visit that counts reads.
+#[gpui_kit::test]
+fn a_page_and_a_head_that_arrive_after_the_workspace_was_left_and_shown_again_are_dropped(
+    cx: &mut TestAppContext,
+) {
+    locales::take_language_turn(cx);
+    let alpha = git_repo("alpha", &["first", "second"]);
+    let bar = prepare(cx);
+    let first = workspace(cx, "First", &[&alpha.path]);
+    let second = workspace(cx, "Second", &[]);
+    let (window, workbench) = show(bar, cx);
+    settled_on(cx, window, &workbench, &alpha);
+    let alpha_id = repo_id(cx, &first, &alpha.path);
+    let (page_visit, head_visit) = cx.read(|cx| {
+        let workbench = workbench.read(cx);
+        (
+            workbench.history.read(cx).generation(),
+            workbench.head_generation(),
+        )
+    });
+    let late = page_of(cx, &first, &alpha_id);
+
+    workbench.update(cx, |this, cx| {
+        this.show_workspace(second.clone(), cx);
+        this.show_workspace(first.clone(), cx);
+        // The page and the head of the visit before, arriving only now.
+        this.history.update(cx, |history, cx| {
+            history.page_arrived_for_test(page_visit, Ok(late), cx)
+        });
+        this.head_arrived_for_test(head_visit, Ok(head_of(&alpha, &alpha_id)), cx);
+    });
+
+    assert!(
+        shown(cx, &workbench).is_empty(),
+        "the page of the visit before is not taken"
+    );
+    assert!(
+        cx.read(|cx| workbench.read(cx).head.is_none()),
+        "nor is its head"
+    );
+    settled_on(cx, window, &workbench, &alpha);
+    assert_eq!(
+        shown(cx, &workbench),
+        alpha.commits,
+        "what is shown is what the visit that counts read"
+    );
+}
+
+/// The same when the other workspace stays shown: what was on its way for
+/// the one before is dropped, and the other one's history comes on screen.
+#[gpui_kit::test]
+fn a_page_and_a_head_that_arrive_after_another_workspace_was_shown_are_dropped(
+    cx: &mut TestAppContext,
+) {
+    locales::take_language_turn(cx);
+    let alpha = git_repo("alpha", &["first"]);
+    let beta = git_repo("beta", &["other"]);
+    let bar = prepare(cx);
+    let first = workspace(cx, "First", &[&alpha.path]);
+    let second = workspace(cx, "Second", &[&beta.path]);
+    let (window, workbench) = show(bar, cx);
+    settled_on(cx, window, &workbench, &alpha);
+    let alpha_id = repo_id(cx, &first, &alpha.path);
+    let (page_visit, head_visit) = cx.read(|cx| {
+        let workbench = workbench.read(cx);
+        (
+            workbench.history.read(cx).generation(),
+            workbench.head_generation(),
+        )
+    });
+    let late = page_of(cx, &first, &alpha_id);
+
+    workbench.update(cx, |this, cx| {
+        this.show_workspace(second.clone(), cx);
+        // The page and the head of the workspace before, arriving only now.
+        this.history.update(cx, |history, cx| {
+            history.page_arrived_for_test(page_visit, Ok(late), cx)
+        });
+        this.head_arrived_for_test(head_visit, Ok(head_of(&alpha, &alpha_id)), cx);
+    });
+
+    assert!(
+        shown(cx, &workbench).is_empty(),
+        "the page of the workspace before is not taken"
+    );
+    assert!(
+        cx.read(|cx| workbench.read(cx).head.is_none()),
+        "nor is its head"
+    );
+    settled_on(cx, window, &workbench, &beta);
 }
 
 /// The history reads the page after the last one near its end, and a page
@@ -556,6 +652,21 @@ fn the_history_reads_on_near_its_end_and_drops_a_page_for_the_repository_before(
         small.commits,
         "a page for the repository before changes nothing"
     );
+}
+
+/// A page of the repository's history, as a visit to its workspace reads it.
+fn page_of(cx: &mut TestAppContext, workspace_id: &str, repo_id: &str) -> CommitPage {
+    cx.update(|cx| {
+        get_commit_page(
+            &app_state::context(cx),
+            workspace_id,
+            repo_id,
+            10,
+            None,
+            None,
+        )
+        .expect("a page of the repository")
+    })
 }
 
 /// A head as the shell reads it, for a repository.
