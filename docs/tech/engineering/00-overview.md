@@ -39,6 +39,11 @@
 - **异步的答案用代数丢弃。** 读 Git 的答案从 tokio 线程回到主线程，测试要等它：`cx.executor().allow_parking()` 之后轮询 `run_until_parked`。「迟到的答案」没法靠等待制造，测试直接把一个带旧代数的结果交给处理函数（`workbench_tests.rs` 的 `a_late_answer_for_an_earlier_visit_to_the_same_workspace_is_dropped`、`a_head_that_arrives_for_the_repository_shown_before_is_dropped`、`the_history_reads_on_near_its_end_and_drops_a_page_for_the_repository_before`）
 - **测试之间别共用临时目录。** 应用的测试用 `tempfile::tempdir()` 取各自的花名目录，用完即删。起因是手写的「进程号加毫秒」目录名：两条并行的测试在同一毫秒里拿到了同一个目录，互相改坏了对方的文件
 - **等待别用会报错的查找。** `window.find(id)` 找不到就 panic，轮询要用 `try_find`（`workbench_tests.rs` 的 `shown_now`）。要断言一个转瞬即逝的状态，把触发、渲染和读取放在同一次窗口更新里，后台的答案插不进来
+- **等的要是答案本身。** `run_until_parked` 不等后台的答案：前台没有可运行的任务它就返回，tokio 上的读取可能还在路上。实测过一次：点「重试」之后它返回时屏幕还是旧的，半秒后才变。所以等待的条件必须就是随后断言所依赖的那个答案带来的状态：
+  - 触发之后立刻成立的条件不能拿来等答案。失败提示在点「重试」的那一刻就没了，等它消失等于没等。
+  - 断言用到几个答案，就等齐几个。状态栏的「仓库 · 分支」里，分支名来自对 HEAD 的读取，和提交页是两个请求；只等了页就断言状态栏，是在赌 HEAD 先到。两个都等的写法是 `settled_on`。
+  - 打开窗口的测试要等启动读完。启动在后台读工作区列表，测试在它回来之前结束的话，调度器会报测试不确定。
+- **怀疑等待不可靠时，给读取加延迟。** 把 `app_state` 里的四个读取（工作区列表、仓库列表、提交页、HEAD）各延迟几百毫秒，跑一遍全量，等错的测试都会失败。起因是只读工作台第一步的一条测试：它在本机连跑 60 遍都通过，到 CI 的 macOS 与 Ubuntu 上才失败（见 `docs/tasks/refactor-gpui-kit-desktop/plan.md` 2026-11-27 的记录）；用延迟又查出 13 条有同样的窗口
 - 产品完成定义见 `docs/pm/core/02-scope.md` §3；E2E 自动化仍是缺口
 
 ## 错误处理与日志
