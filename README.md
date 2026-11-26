@@ -94,7 +94,7 @@ A `pre-commit` hook runs rustfmt and clippy on `git commit` — see [CONTRIBUTIN
 
 Workflows live in `.github/workflows/`:
 
-- **ci** — on every push to `main` and every PR: rustfmt, clippy and the tests on a macOS / Ubuntu / Windows matrix, plus two assertions that vendored libgit2 keeps its TLS transport. Pure-documentation changes (`site/**`, `docs/**`, `**.md`) are skipped
+- **ci** — on every push to `main` and every PR: rustfmt, clippy and the tests on a macOS / Ubuntu / Windows matrix, plus two assertions that vendored libgit2 keeps its TLS transport. A pull request that changes only documentation or the website (`site/**`, `docs/**`, `**.md`) starts no run; the filter looks at the whole pull request, so a later push that adds only documentation to a pull request with code in it does start one
 - **pages** — deploys `site/` to GitHub Pages on push to `main`
 
 There is no build workflow. The tag-triggered pipeline that produced the v0.11.0 installers and the signed update manifest was removed together with the Tauri application.

@@ -227,3 +227,4 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
     - 两轮修完，加着延迟 67 条全部通过；去掉延迟 `make check` 通过，测试数不变；应用的测试程序连跑 60 遍全部通过。约定记在[工程约定](../../tech/engineering/00-overview.md#测试策略测试金字塔)。
   - 修复提交 `24d85ca` 推送后的 CI 一次通过：Ubuntu 1 分 21 秒、macOS 2 分 50 秒、Windows 3 分 20 秒。三端的测试数都与本地一致：`gitwave` 67 个，`gitwave-core` 412 个通过、2 个忽略。`24d85ca` 单独检出也通过格式检查、clippy 和测试（479 个）。到这里，R1 的修复、`snapshot` 的十条测试和 `git2` 的夹具在三端的 CI 上都跑过了。
   - 没有合并：等用户确认。
+  - 文档提交 `0965dc2` 推送后又跑了一轮 CI：`paths-ignore` 对 PR 看的是整个 PR 的差异，PR 里有代码改动时，只加文档的推送也跑（PR #246 的两次文档推送也是）。工程约定和 README 原先写成「纯文档变更不跑 CI」，已更正。

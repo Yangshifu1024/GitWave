@@ -71,7 +71,7 @@
 
 ### CI（GitHub Actions）
 
-工作流在 `.github/workflows/`。push/PR 到 `main` 时 `docs/**`、`site/**` 与 `**.md` 被 paths-ignore，**纯文档与官网变更不跑 CI**。
+工作流在 `.github/workflows/`。push/PR 到 `main` 时 `docs/**`、`site/**` 与 `**.md` 被 paths-ignore，**只改文档与官网的变更不跑 CI**。对 PR 判断的是整个 PR 的差异，不是这次推送新加的提交：PR 里已经有代码改动时，之后只加文档的推送照样会跑一遍（PR #246、#247 都实测过）。
 
 | Workflow / Job | Runner | 校验内容 |
 |---|---|---|
