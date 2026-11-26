@@ -61,7 +61,10 @@ enum Status {
     /// The history moved on under the cursor. What was shown still is, while
     /// it is read again from the newest commit.
     ReadingAgain,
-    /// A page did not come. What was shown before still is.
+    /// A page did not come. What was shown before still is. `first` when it
+    /// was the first page. Otherwise it was the page after the last one,
+    /// which is where `next_cursor` points: asking again reads that page,
+    /// and only it.
     Failed { first: bool },
 }
 
@@ -350,6 +353,18 @@ impl History {
         cx: &mut Context<Self>,
     ) {
         self.page_arrived(generation, result, cx);
+    }
+
+    /// Takes the history to the moment the page after the last one is on its
+    /// way, without reading it: the test says what came of it. `false` when
+    /// there is no such page.
+    #[cfg(test)]
+    pub(crate) fn page_on_its_way_for_test(&mut self, cx: &mut Context<Self>) -> bool {
+        if !self.pages.ask_for_more() {
+            return false;
+        }
+        self.sync_list(cx);
+        true
     }
 
     /// Hands the list what it shows.

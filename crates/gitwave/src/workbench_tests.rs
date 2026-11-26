@@ -45,9 +45,16 @@ fn prepare(cx: &mut TestAppContext) -> Entity<AppMenuBar> {
 }
 
 /// Opens the workbench the way `main` does, with a test window in place of the
-/// real one, on an empty state.
+/// real one, on an empty state, and waits until it has started. The state is
+/// read on the background, and a test that ends while it is still being read
+/// is not deterministic.
 fn open(cx: &mut TestAppContext) -> (AnyWindowHandle, Entity<Workbench>) {
-    show(prepare(cx), cx)
+    let opened = show(prepare(cx), cx);
+    // With nothing in the state, the shell says so once it has read it.
+    wait_for(cx, "the shell to start", |cx| {
+        shown_now(cx, opened.0, "empty-workspaces").is_some()
+    });
+    opened
 }
 
 /// Opens the workbench in a test window.
@@ -262,10 +269,9 @@ fn the_shell_shows_the_workspace_its_repositories_and_the_history_of_the_active_
     let bar = prepare(cx);
     let id = workspace(cx, "Projects", &[&alpha.path, &beta.path]);
     let (window, workbench) = show(bar, cx);
-
-    wait_for(cx, "the history of the first repository", |cx| {
-        shown(cx, &workbench) == alpha.commits
-    });
+    // The history and the head are two reads: the status bar names the
+    // branch only once the head has come.
+    settled_on(cx, window, &workbench, &alpha);
 
     cx.update_window(window, |_, window, cx| {
         window.render_frame(cx);
@@ -320,11 +326,15 @@ fn choosing_a_tab_shows_that_repositorys_history(cx: &mut TestAppContext) {
         window.within("repo-tabs").click(1, cx)
     })
     .unwrap();
-    wait_for(cx, "the history of the second repository", |cx| {
-        shown(cx, &workbench) == beta.commits
-    });
+    // The history and the head are two reads: the status bar names the
+    // branch only once the head has come.
+    settled_on(cx, window, &workbench, &beta);
 
-    assert_eq!(says(cx, window, "status-identity"), Some(beta.identity()));
+    assert_eq!(
+        says(cx, window, "status-identity"),
+        Some(beta.identity()),
+        "the status bar names the repository and its branch"
+    );
 }
 
 /// A repository whose path is gone is marked on its tab and is not shown.
@@ -515,10 +525,12 @@ fn the_history_reads_on_near_its_end_and_drops_a_page_for_the_repository_before(
             .update(cx, |history, cx| history.scroll_to_end(cx))
     });
     render(cx, window);
-    wait_for(cx, "the rest of the history", |cx| {
-        shown(cx, &workbench) == big.commits
-    });
-    assert_eq!(says(cx, window, "status-identity"), Some(big.identity()));
+    settled_on(cx, window, &workbench, &big);
+    assert_eq!(
+        says(cx, window, "status-identity"),
+        Some(big.identity()),
+        "the status bar names the repository and its branch"
+    );
 
     cx.update_window(window, |_, window, cx| {
         window.within("repo-tabs").click(1, cx)
@@ -704,28 +716,41 @@ fn a_cursor_that_went_stale_is_read_again_while_what_was_shown_stays(cx: &mut Te
     );
 }
 
-/// A page does not come: why is said of, what was shown stays, and asking
-/// again reads it.
+/// The page after the last one does not come: why is said of, what was shown
+/// stays, and asking again reads that page.
 #[gpui_kit::test]
 fn a_page_that_does_not_come_is_said_of_and_can_be_asked_for_again(cx: &mut TestAppContext) {
     locales::take_language_turn(cx);
-    let alpha = git_repo("alpha", &["first", "second"]);
+    let messages: Vec<String> = (0..app_state::PAGE_SIZE as usize + 1)
+        .map(|number| format!("commit {number}"))
+        .collect();
+    let messages: Vec<&str> = messages.iter().map(String::as_str).collect();
+    let big = git_repo("big", &messages);
     let bar = prepare(cx);
-    workspace(cx, "Projects", &[&alpha.path]);
+    workspace(cx, "Projects", &[&big.path]);
     let (window, workbench) = show(bar, cx);
-    settled_on(cx, window, &workbench, &alpha);
+    wait_for(cx, "the first page", |cx| {
+        shown(cx, &workbench).len() == app_state::PAGE_SIZE as usize
+    });
+    let first = &big.commits[..app_state::PAGE_SIZE as usize];
 
+    // The page after the first is on its way, and does not come. Only a page
+    // on its way can fail: after the end of the history there is no page to
+    // ask for again.
     let gone = AppError::unknown_with(
         codes::git::GIT_ERROR,
         "the repository went away",
         &[("error", "the repository went away".to_string())],
     );
     let generation = cx.read(|cx| workbench.read(cx).history.read(cx).generation());
-    workbench.update(cx, |this, cx| {
+    let on_its_way = workbench.update(cx, |this, cx| {
         this.history.update(cx, |history, cx| {
-            history.page_arrived_for_test(generation, Err(gone.clone()), cx)
+            let on_its_way = history.page_on_its_way_for_test(cx);
+            history.page_arrived_for_test(generation, Err(gone.clone()), cx);
+            on_its_way
         })
     });
+    assert!(on_its_way, "the history has a page after the first");
     assert_eq!(
         says(cx, window, "history-failure").as_deref(),
         Some(
@@ -737,15 +762,24 @@ fn a_page_that_does_not_come_is_said_of_and_can_be_asked_for_again(cx: &mut Test
         ),
         "why is said of, in the language in force"
     );
-    assert_eq!(shown(cx, &workbench), alpha.commits, "what was shown stays");
+    assert_eq!(
+        shown(cx, &workbench),
+        first.to_vec(),
+        "what was shown stays"
+    );
 
-    // As there is something shown, the page after it is what is asked for again.
+    // Asking again reads the page that did not come. What says so is that
+    // page on screen: the failure is gone the moment the button is pressed.
     cx.update_window(window, |_, window, cx| window.click("history-retry", cx))
         .unwrap();
     wait_for(cx, "the page asked for again", |cx| {
-        shown_now(cx, window, "history-failure").is_none()
+        shown(cx, &workbench) == big.commits
     });
-    assert_eq!(shown(cx, &workbench), alpha.commits);
+    assert_eq!(
+        shown_now(cx, window, "history-failure"),
+        None,
+        "and nothing is said of the failure any more"
+    );
 }
 
 /// The repositories of a workspace cannot be read: why is said of in the
@@ -917,8 +951,16 @@ fn the_shell_starts_where_it_was_left(cx: &mut TestAppContext) {
     cx.update(|cx| app_state::remember_workspace(cx, Some(&second)));
     let (window, workbench) = show(bar, cx);
 
-    wait_for(cx, "the workspace", |cx| {
-        cx.read(|cx| workbench.read(cx).session.selected_id().is_some())
+    // Waited for is the workspace's repositories having been read: that is
+    // when the row of tabs says the workspace has none.
+    wait_for(cx, "the workspace's repositories", |cx| {
+        cx.read(|cx| {
+            workbench
+                .read(cx)
+                .session
+                .selected()
+                .is_some_and(|selected| selected.repos.is_some())
+        })
     });
 
     assert_eq!(
