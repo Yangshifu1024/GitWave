@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::domain::app_settings::{
-    normalize_language_tag, LanguageSettings, ProxyMode, ProxySettings,
+    normalize_language_tag, LanguageSettings, ProxyMode, ProxySettings, ShellSettings,
 };
 use crate::domain::blame::BlameLine;
 use crate::domain::branch::{BranchInfo, CheckoutRemoteOutcome};
@@ -454,6 +454,55 @@ pub fn set_language_settings(
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .set(LANGUAGE_SETTINGS_KEY, &json)?;
     Ok(settings)
+}
+
+// ─── Shell settings ─────────────────────────────────────────────────────────
+
+/// The `app_settings` key holding what the shell was showing when the
+/// application last closed.
+const SHELL_SETTINGS_KEY: &str = "shell";
+
+/// Read the shell settings; an unset or unreadable entry means nothing is
+/// remembered.
+pub fn get_shell_settings(ctx: &AppContext) -> Result<ShellSettings> {
+    let raw = ctx
+        .app_settings
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(SHELL_SETTINGS_KEY)?;
+    let Some(raw) = raw else {
+        return Ok(ShellSettings::default());
+    };
+    match serde_json::from_str(&raw) {
+        Ok(settings) => Ok(settings),
+        Err(e) => {
+            tracing::warn!(
+                "stored shell settings unreadable, starting with nothing remembered: {e}"
+            );
+            Ok(ShellSettings::default())
+        }
+    }
+}
+
+/// Persist the shell settings. A blank workspace id means none.
+pub fn set_shell_settings(ctx: &AppContext, settings: ShellSettings) -> Result<()> {
+    let settings = ShellSettings {
+        last_workspace_id: settings
+            .last_workspace_id
+            .filter(|id| !id.trim().is_empty()),
+    };
+    let json = serde_json::to_string(&settings).map_err(|e| {
+        AppError::unknown_with(
+            codes::infra::SERDE_ERROR,
+            format!("serialize shell settings: {e}"),
+            &[("error", e.to_string())],
+        )
+    })?;
+    ctx.app_settings
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .set(SHELL_SETTINGS_KEY, &json)?;
+    Ok(())
 }
 
 pub fn set_active_repo(
@@ -3362,6 +3411,58 @@ mod tests {
         .expect("a blank tag follows the system");
         assert_eq!(stored.locale, None);
         assert_eq!(get_language_settings(&ctx).expect("get").locale, None);
+    }
+
+    #[test]
+    fn shell_settings_remember_the_workspace_and_blank_means_none() {
+        let ctx = fresh_ctx();
+        assert_eq!(
+            get_shell_settings(&ctx).expect("get"),
+            ShellSettings::default(),
+            "nothing is remembered at first"
+        );
+
+        set_shell_settings(
+            &ctx,
+            ShellSettings {
+                last_workspace_id: Some("ws-1".to_string()),
+            },
+        )
+        .expect("remember a workspace");
+        assert_eq!(
+            get_shell_settings(&ctx)
+                .expect("get")
+                .last_workspace_id
+                .as_deref(),
+            Some("ws-1")
+        );
+
+        set_shell_settings(
+            &ctx,
+            ShellSettings {
+                last_workspace_id: Some("  ".to_string()),
+            },
+        )
+        .expect("a blank id forgets the workspace");
+        assert_eq!(
+            get_shell_settings(&ctx).expect("get").last_workspace_id,
+            None
+        );
+    }
+
+    #[test]
+    fn unreadable_shell_settings_mean_nothing_is_remembered() {
+        let ctx = fresh_ctx();
+        ctx.app_settings
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .set(SHELL_SETTINGS_KEY, "{ not settings")
+            .expect("store something unreadable");
+
+        assert_eq!(
+            get_shell_settings(&ctx).expect("unreadable settings are not an error"),
+            ShellSettings::default()
+        );
     }
 
     #[test]

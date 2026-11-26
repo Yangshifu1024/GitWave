@@ -10,24 +10,43 @@ use rusqlite::Connection;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
-/// Resolve the platform-specific state directory for GitWave.
+/// The file name of the state database, inside the state directory.
+pub const STATE_DB_FILE: &str = "state.db";
+
+/// Where GitWave keeps its state, created when it does not exist yet.
 ///
 /// macOS: `~/Library/Application Support/GitWave`
 /// Linux: `$XDG_DATA_HOME/GitWave` (or `~/.local/share/GitWave`)
 /// Windows: `%APPDATA%/GitWave`
+///
+/// This is the released application's directory.
+///
+/// # The rewrite under development does not call this
+///
+/// It opens the released application's own database, and runs this
+/// version's migrations on it: as soon as the two differ, the released
+/// version is left with a database it does not understand. The development
+/// build opens a copy instead, see [`crate::infrastructure::persistence::snapshot`].
+/// Opening the original comes with the release pipeline, which decides how
+/// the upgrade goes.
 pub fn state_dir() -> Result<PathBuf> {
+    let dir = state_dir_path()?;
+    ensure_dir(&dir)?;
+    Ok(dir)
+}
+
+/// Where GitWave keeps its state, without touching the file system.
+pub fn state_dir_path() -> Result<PathBuf> {
     let base = dirs::data_dir().ok_or_else(|| {
         AppError::permission(
             codes::infra::DATA_DIR_RESOLVE,
             "could not resolve user data directory",
         )
     })?;
-    let dir = base.join("GitWave");
-    ensure_dir(&dir)?;
-    Ok(dir)
+    Ok(base.join("GitWave"))
 }
 
-fn ensure_dir(dir: &Path) -> Result<()> {
+pub(super) fn ensure_dir(dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir).map_err(|e| {
         AppError::permission_with(
             codes::infra::DATA_DIR_CREATE,
@@ -37,10 +56,26 @@ fn ensure_dir(dir: &Path) -> Result<()> {
     })
 }
 
-/// Open the SQLite database at `<state_dir>/state.db`, configuring WAL
-/// journal mode and foreign keys. Migrations are applied automatically.
+/// Open the SQLite database in the user's state directory. See [`open_in`].
+///
+/// # The rewrite under development does not call this
+///
+/// It opens the released application's own database, and runs this
+/// version's migrations on it: as soon as the two differ, the released
+/// version is left with a database it does not understand. The development
+/// build opens a copy instead, see [`crate::infrastructure::persistence::snapshot`].
+/// Opening the original comes with the release pipeline, which decides how
+/// the upgrade goes.
 pub fn open() -> Result<Connection> {
-    let path = state_dir()?.join("state.db");
+    open_in(&state_dir()?)
+}
+
+/// Open the SQLite database `state.db` in `dir`, creating the directory and
+/// the database when they are missing, and configuring WAL journal mode and
+/// foreign keys. Migrations are applied automatically.
+pub fn open_in(dir: &Path) -> Result<Connection> {
+    ensure_dir(dir)?;
+    let path = dir.join(STATE_DB_FILE);
     let conn = Connection::open(&path).map_err(map_sqlite_err)?;
     // WAL allows multiple readers + one writer concurrently — important
     // for multi-Workspace scenarios where the SQLite connection may be
@@ -63,7 +98,7 @@ pub fn open() -> Result<Connection> {
 /// present) to owner-only access on Unix — the DB stores tokens. Best
 /// effort: failures only warn, the DB works fine with looser permissions.
 #[cfg(unix)]
-fn lock_down_db_files(path: &Path) {
+pub(super) fn lock_down_db_files(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
     let mut targets = vec![path.to_path_buf()];
     for suffix in ["-wal", "-shm", "-journal"] {
@@ -81,9 +116,10 @@ fn lock_down_db_files(path: &Path) {
     }
 }
 
-/// Windows keeps default ACLs (no Unix permission bits).
+/// Windows keeps default ACLs (no Unix permission bits). The copy of the
+/// state database calls this too, so both versions are visible to it.
 #[cfg(not(unix))]
-fn lock_down_db_files(_path: &Path) {}
+pub(super) fn lock_down_db_files(_path: &Path) {}
 
 fn map_sqlite_err(e: rusqlite::Error) -> AppError {
     AppError::unknown_with(
@@ -141,9 +177,28 @@ mod tests {
     }
 
     #[test]
-    fn state_dir_resolves_under_home() {
-        let dir = state_dir().expect("state dir");
+    fn state_dir_resolves_under_home_without_creating_it() {
+        // Only the path: creating the directory is left to whoever opens it.
+        let dir = state_dir_path().expect("state dir");
         assert!(dir.ends_with("GitWave"));
-        assert!(dir.exists(), "state dir should exist after resolve");
+        assert_eq!(state_dir_path().expect("state dir again"), dir);
+    }
+
+    #[test]
+    fn open_in_creates_the_directory_and_migrates_the_database() {
+        let tmp = tempfile::tempdir().expect("a directory of the test's own");
+        let dir = tmp.path().join("state");
+
+        let conn = open_in(&dir).expect("open in a new directory");
+
+        let tables: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'workspaces'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count tables");
+        assert_eq!(tables, 1, "the migrations ran on the new database");
+        assert!(dir.join(STATE_DB_FILE).exists());
     }
 }

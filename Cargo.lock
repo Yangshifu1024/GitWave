@@ -2229,6 +2229,7 @@ dependencies = [
  "serde",
  "serde_json",
  "system-configuration 0.8.0",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",

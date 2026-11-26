@@ -87,6 +87,9 @@
         "credential": "凭证错误（测试）",
         "unknown": "未知错误（测试）",
         "keychain_unavailable": "钥匙串不可用"
+      },
+      "background_job": {
+        "failed": "后台任务没有正常结束：%{error}"
       }
     }
   }

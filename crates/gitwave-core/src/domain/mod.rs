@@ -18,13 +18,16 @@ pub mod working_copy;
 pub mod workspace;
 pub mod worktree;
 
-pub use app_settings::{normalize_language_tag, LanguageSettings, ProxyMode, ProxySettings};
+pub use app_settings::{
+    normalize_language_tag, LanguageSettings, ProxyMode, ProxySettings, ShellSettings,
+};
 pub use blame::BlameLine;
 pub use branch::{BranchInfo, BranchKind};
 pub use diff::{DiffHunk, DiffLine, DiffLineKind, FileDiff};
 pub use error::{AppError, Result};
 pub use history::{
-    CommitDetails, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary, PrCommit,
+    CommitDetails, CommitPage, CommitRef, CommitRefKind, CommitSummary, FileStatus, FileSummary,
+    PrCommit,
 };
 pub use hooks::HookInfo;
 pub use lfs::LfsStatus;

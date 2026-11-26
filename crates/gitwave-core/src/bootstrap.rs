@@ -2,11 +2,12 @@
 //! first use case: the state stores, libgit2 owner validation and the proxy
 //! environment bridge.
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::application::use_cases::{get_proxy_settings, AppContext};
 use crate::infrastructure::persistence::{
-    migrations, open as open_state, SqliteAppSettingsRepo, SqliteWorkspaceRepo,
+    migrations, open_in as open_state_in, state_dir, SqliteAppSettingsRepo, SqliteWorkspaceRepo,
 };
 use crate::infrastructure::proxy;
 
@@ -23,12 +24,35 @@ pub fn disable_git_owner_validation() {
     tracing::info!("libgit2 owner validation disabled");
 }
 
-/// Opens the app-level settings and the workspace state. Each falls back to
-/// an in-memory store when its on-disk database is unusable, so the UI stays
-/// fully functional.
+/// Opens the app-level settings and the workspace state in the user's state
+/// directory. See [`open_app_context_in`].
+///
+/// # The rewrite under development does not call this
+///
+/// It opens the released application's own database, and runs this
+/// version's migrations on it: as soon as the two differ, the released
+/// version is left with a database it does not understand. The development
+/// build opens a copy instead, see [`crate::infrastructure::persistence::snapshot`].
+/// Opening the original comes with the release pipeline, which decides how
+/// the upgrade goes.
 #[must_use]
 pub fn open_app_context() -> AppContext {
-    let app_settings = match SqliteAppSettingsRepo::open() {
+    match state_dir() {
+        Ok(dir) => open_app_context_in(&dir),
+        Err(e) => {
+            tracing::error!("failed to locate the state directory, falling back to in-memory: {e}");
+            AppContext::in_memory().expect("in-memory fallback")
+        }
+    }
+}
+
+/// Opens the app-level settings and the workspace state in `dir`, running the
+/// migrations on a database that is new or behind. Each store falls back to
+/// an in-memory one when its on-disk database is unusable, so the UI stays
+/// fully functional.
+#[must_use]
+pub fn open_app_context_in(dir: &Path) -> AppContext {
+    let app_settings = match SqliteAppSettingsRepo::open_in(dir) {
         Ok(repo) => Arc::new(Mutex::new(repo)),
         Err(e) => {
             tracing::error!("failed to open app settings store, falling back to in-memory: {e}");
@@ -38,7 +62,7 @@ pub fn open_app_context() -> AppContext {
         }
     };
 
-    match open_state() {
+    match open_state_in(dir) {
         Ok(conn) => AppContext::new(
             Arc::new(Mutex::new(SqliteWorkspaceRepo::new(conn))),
             Arc::clone(&app_settings),

@@ -25,11 +25,21 @@ pub struct SqliteAppSettingsRepo {
 }
 
 impl SqliteAppSettingsRepo {
-    /// Open a second connection to `<state_dir>/state.db` (WAL makes this
-    /// safe alongside the workspace repo's connection).
+    /// Open a second connection to `state.db` in the user's state directory
+    /// (WAL makes this safe alongside the workspace repo's connection).
+    ///
+    /// The rewrite under development does not call this: it opens the
+    /// released application's own database. See [`crate::infrastructure::persistence::sqlite::state_dir`].
     pub fn open() -> Result<Self> {
         Ok(Self {
             conn: super::sqlite::open()?,
+        })
+    }
+
+    /// Open a second connection to `state.db` in `dir`.
+    pub fn open_in(dir: &std::path::Path) -> Result<Self> {
+        Ok(Self {
+            conn: super::sqlite::open_in(dir)?,
         })
     }
 

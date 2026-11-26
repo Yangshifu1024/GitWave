@@ -87,6 +87,9 @@
         "credential": "Credential error (test)",
         "unknown": "Unknown error (test)",
         "keychain_unavailable": "Keychain unavailable"
+      },
+      "background_job": {
+        "failed": "The work did not finish: %{error}"
       }
     }
   }

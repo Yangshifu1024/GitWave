@@ -103,6 +103,9 @@ pub const DATA_DIR_CREATE: &str = "persist.data_dir.create";
 /// 数据库迁移失败。
 pub const MIGRATION_FAILED: &str = "persist.migration.failed";
 
+/// 状态数据库复制失败。
+pub const STATE_SNAPSHOT_FAILED: &str = "persist.snapshot.failed";
+
 // ─── ssh（ssh/keys.rs） ───────────────────────────────────────────────
 
 /// ssh-add 命令启动失败。

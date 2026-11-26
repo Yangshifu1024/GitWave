@@ -219,6 +219,20 @@ impl AppError {
         self.to_string()
     }
 
+    /// The details of the error, by name, to fill the message of its code
+    /// with.
+    #[must_use]
+    pub fn params(&self) -> &ErrorParams {
+        match self {
+            Self::Network { params, .. }
+            | Self::Credential { params, .. }
+            | Self::Permission { params, .. }
+            | Self::VersionConflict { params, .. }
+            | Self::Protocol { params, .. }
+            | Self::Unknown { params, .. } => params,
+        }
+    }
+
     /// Short trace id for log ↔ UI correlation.
     #[must_use]
     pub fn trace_id(&self) -> String {

@@ -62,6 +62,11 @@ pub const LANGUAGE_INVALID: &str = "usecases.language.invalid";
 /// 语言设置序列化失败。
 pub const LANGUAGE_SERIALIZE_FAILED: &str = "usecases.language.serialize_failed";
 
+// ─── 后台任务 ────────────────────────────────────────────────────────────
+
+/// 后台任务没有正常结束。
+pub const BACKGROUND_JOB_FAILED: &str = "usecases.background_job.failed";
+
 // ─── Commit / diff ──────────────────────────────────────────────────────────
 
 /// 生成 commit message 前没有已暂存的变更。
