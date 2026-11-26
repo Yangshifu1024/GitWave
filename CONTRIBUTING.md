@@ -12,7 +12,7 @@
 
 - Branch from `main`: `feature/<name>` or `fix/<name>`
 - Commit messages: [Conventional Commits](https://www.conventionalcommits.org/). Nothing enforces them automatically any more — `commitlint` left with the Node.js toolchain — so follow them by hand
-- Merge into `main` with a merge commit (no squash); branch commits follow Conventional Commits
+- Merge into `main` as one squash commit that takes the PR's title, so the title follows Conventional Commits; so does every commit of the branch
 - AI agents must not commit / push / merge without explicit user instruction
 
 ## Local quality gates
@@ -48,7 +48,7 @@ No formatter or linter covers Markdown, YAML or JSON, so documentation, workflow
 ## PR checklist
 
 - [ ] Branch is `feature/<name>` or `fix/<name>` (not `main`)
-- [ ] Commit messages follow Conventional Commits
+- [ ] Commit messages and the PR title follow Conventional Commits
 - [ ] `make check` passes locally
 - [ ] All CI jobs pass on the PR
 - [ ] PR description references the proposal (`docs/pm/features/F<编号>.md`) or task (`docs/tasks/<任务名>/plan.md`)

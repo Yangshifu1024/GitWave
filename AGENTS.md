@@ -62,9 +62,11 @@ When `docs/tasks/<task-name>/plan.md` references an existing technical decision,
 
 Example: `feat(workspace): add lastActiveRepo persistence on workspace switch`
 
-### PR merging (merge commit)
+### PR merging (squash)
 
-All PRs merge into `main` with a merge commit — branch history is preserved, no squash. **PR titles and descriptions (summary, change list, test plan) must be written in English** — they are the public face of the repository history.
+All PRs merge into `main` as one squash commit. It takes the PR's title, so the title follows Conventional Commits like a commit message does, and its body summarises the change and names the proposal or task. **PR titles and descriptions (summary, change list, test plan) must be written in English** — they are the public face of the repository history.
+
+The commits of the branch stay on the PR's page, not in the history of `main`: `git fetch origin refs/pull/<number>/head` brings them back. A document that names such a commit says so.
 
 ### Key constraints
 
