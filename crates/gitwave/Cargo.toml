@@ -20,7 +20,12 @@ rust-i18n.workspace = true
 sys-locale.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 gpui-kit = { workspace = true, features = ["test-support"] }
 serde_json = "1"
+# Repositories of the tests' own. Already in the graph: gitwave-core reads Git with it.
+git2 = "0.21"
+# Directories of the tests' own, removed when the test ends. Already in the graph.
+tempfile = "3"

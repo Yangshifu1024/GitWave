@@ -139,6 +139,7 @@
       "dirtyWarning_other": "工作副本中有 %{count} 个未提交文件——变基前请先提交或贮藏"
     },
     "graph": {
+      "loadFailed": "加载历史失败：%{error}",
       "selectWorkspaceTitle": "选择工作区",
       "selectWorkspaceDesc": "在工具栏中选择一个工作区以查看提交历史。",
       "selectRepoTitle": "选择仓库",
@@ -146,6 +147,8 @@
       "loading": "正在加载历史…",
       "empty": "暂无提交",
       "loadingOlder": "正在加载更早的提交…",
+      "reloading": "读取期间历史有更新，正在重新读取…",
+      "noRepository": "没有可以显示的仓库：路径缺失。",
       "endOfHistory": "已到历史末尾 · 共 %{total} 个提交",
       "snapshotLimited": "历史范围限于最近 %{total} 个提交，更早的提交不在此次搜索范围内。",
       "endOfSnapshot": "已到加载范围末尾 · 共 %{total} 个提交",

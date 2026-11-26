@@ -2,10 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_state;
+mod error_text;
+mod history;
 mod locales;
 mod logging;
 mod menus;
 mod runtime;
+mod session;
+mod time_text;
 mod workbench;
 
 // rust-i18n reads `locales/<domain>.<locale>.json` at compile time. `t!` forwards
@@ -21,9 +25,14 @@ fn main() {
     gpui_kit::application()
         .with_assets(gpui_kit::assets::Assets)
         .run(|cx| {
+            // First, so that everything the startup has to say is written.
+            logging::init(cx);
+            // libgit2 refuses repositories owned by another account, such as
+            // one cloned from an elevated prompt. Every path comes from the
+            // user's own list, so the check is off, as v0.11.0 had it.
+            gitwave_core::bootstrap::disable_git_owner_validation();
             // This must be called before using any GPUI Component features.
             gpui_kit::init(cx);
-            logging::init(cx);
             runtime::init(cx);
             app_state::init(cx);
             // Before the first window opens, so that no window shows in the wrong language first.

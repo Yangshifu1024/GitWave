@@ -632,7 +632,7 @@ mod tests {
         // Nothing stored: the system decides.
         cx.update(|cx| {
             gpui_kit::init(cx);
-            app_state::init(cx);
+            app_state::init_in_memory(cx);
             init(
                 &app_state::context(cx),
                 languages(&["zh-Hans-CN", "en-GB"]),

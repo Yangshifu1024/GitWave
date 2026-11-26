@@ -2207,11 +2207,14 @@ dependencies = [
 name = "gitwave"
 version = "0.11.0"
 dependencies = [
+ "chrono",
+ "git2",
  "gitwave-core",
  "gpui-kit",
  "rust-i18n",
  "serde_json",
  "sys-locale",
+ "tempfile",
  "tokio",
  "tracing",
 ]

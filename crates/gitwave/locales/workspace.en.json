@@ -35,6 +35,8 @@
       "description": "This removes the workspace and its repo references from GitWave. It does not delete the local repositories themselves."
     },
     "tabs": {
+      "none": "No repositories in this workspace",
+      "missingName": "%{name} (%{status})",
       "missing": "missing",
       "missingTitle": "%{name} — missing, right-click to relink",
       "empty": "No repositories — init, clone, or add from the Repository menu."

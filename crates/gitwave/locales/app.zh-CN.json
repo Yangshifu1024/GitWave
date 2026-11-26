@@ -19,6 +19,12 @@
       "resizeInspector": "调整详情栏宽度"
     },
     "workbench": {
+      "state": {
+        "memory": "内存中的状态，不会保存",
+        "copy": "正式版状态的副本",
+        "copyTaken": "正式版状态的副本，%{ago}复制",
+        "copyStale": "正式版状态的副本，没有更新到最新"
+      },
       "history": "History",
       "changes": "Changes",
       "navigation": "仓库导航",
