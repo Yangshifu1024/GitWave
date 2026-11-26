@@ -1,6 +1,6 @@
 # GitWave 桌面界面迁移到 GPUI Kit
 
-状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`（PR #246）：切片一、切片二，加实机验证后的一处无障碍修复（`ef0ef3a`），三端 CI 通过。macOS 上做过实机验证（见 2026-11-26 的记录）：M2 退出标准里的菜单、快捷键、主题、语言切换和中文输入法都通过；没在实机上试的是 ⌥⌘H、剪贴板三项、「前置全部窗口」和读屏器的朗读。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
+状态：进行中。基线 `004c9f4`（v0.11.0 发布后的 `main`）。M0、M1 经 `feature/gpui-kit-desktop` 合并（PR #243）；移除旧应用在 `chore/remove-tauri-app`；M2 在 `feature/gpui-kit-app-shell`（PR #246）：切片一、切片二，加实机验证后的一处无障碍修复（`ef0ef3a`），三端 CI 通过。macOS 上做过实机验证（见 2026-11-26 的记录）：M2 退出标准里的菜单、快捷键、主题、语言切换和中文输入法都通过；没在实机上试的是 ⌥⌘H、剪贴板三项、「前置全部窗口」和读屏器的朗读。M3 在 `feature/gpui-kit-read-only-workbench`，进行中：切片一（接入真实状态、壳层按基线布局重排、提交历史列表）已实现，经过独立审查并在 macOS 上实机看过。决策见 [ADR 0007](../../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)，选型依据见 [调研笔记](../../tech/tech-selection/gpui-kit-research.md)。
 
 ## 目标与验收基线
 
@@ -73,6 +73,9 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
 - 「短小的本地写入在主线程同步做」换成磁盘数据库之后要实测一次写入耗时（`app_settings` 的连接是 WAL、5 秒 `busy_timeout`），再决定这条约定要不要加时长上限。
 - `keyring` 的 4.x 改了 feature 名，清单里的 `apple-native` 等写法在 4.x 下解析不了。dependabot 配置忽略它的大版本升级；当前清单要求的是 `3`，所以这条忽略只是声明意图。升到 4.x 时要一起改 feature 名。
 - dependabot 是否忽略 `gpui-kit` 的升级 PR。当前配置为忽略，理由与 ADR 0007 的「升级是独立任务」一致，代价是它的安全更新也不会自动提 PR。
+- 一次只运行一个开发版实例。两个同时启动时，后启动的会替换先启动的正开着的副本：在 macOS 和 Linux 上先启动的那份自洽、不会损坏，但之后的写入落在已经被 unlink 的文件上；在 Windows 上后启动的替换失败，退回旧副本。这是推演，没有实测。要么接受这个约定，要么给副本目录加一把锁。
+- 读 HEAD 用的是 `get_working_copy`，它带着整个工作副本的 status（未跟踪文件、重命名检测、ahead / behind），只为取分支名和 SHA。现在每次切换仓库读一次，在后台线程上，不卡界面；大仓库里 HEAD 标记和状态栏的分支名要等它跑完。M3 第三步量性能预算时，考虑给 HEAD 元数据单独一个轻量的用例。
+- 相对时间（「5 分钟前」）只在重绘时重算，列表不动就一直不变。可以每分钟通知一次，这一步没做。
 
 ## M2 设计输入
 
@@ -94,6 +97,25 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
   - `window.open_dialog` 的构造闭包每帧重新调用，第三个参数是 `&mut App`；在里面读全局状态，打开着的对话框就会跟随切换。
   - `RadioGroup` 渲染时把子项的 id 改成序号。测试用 `window.within("<组的 id>").find(序号)` 和 `.click(序号, cx)` 在组的作用域里查找和点击，不必为了可测而放弃 `RadioGroup` 给读屏软件的语义。
   - `sys_locale::get_locales()` 返回迭代器；`MenuItem` 没有实现 `Debug`；`AsyncApp::update` 直接返回结果，不包 `Result`。
+
+## M3 设计输入
+
+实现 M3 之前对照 gpui-kit 0.11.0 源码核实过的接口与约束：
+
+- **基线布局**：v0.11.0 交付的是 [09-workbench-redesign.md](../../design/09-workbench-redesign.md) 的已实施范围，不是三纵栏。壳层自上而下：标题工具栏（Workspace）、32px 的仓库标签行、navigator｜主区、状态栏（左边仓库与分支，中间操作进度，右边近期操作）。History 主区上「分支图 + 提交表」、下「提交信息 + 文件列表 | diff」，初始 42/58。普通列表行高 28px，选中是整行浅底加左侧 3px 竖线，HEAD 另有标记。
+- **仓库标签不是可开关的标签页**：它是当前 Workspace 的仓库列表。点一下激活；移除标签等于把仓库移出 Workspace，是写操作；路径缺失的仓库变暗、不激活。
+- **启动时显示什么**：旧实现把上次所在的 Workspace 和仓库记在 WebView 的 localStorage 里，新应用读不到。现在上次所在的 Workspace 记在 `app_settings` 的 `shell` 键，每个仓库的活动仓库仍是 `last_active_repo_id`。恢复时目标仓库缺失或不存在，就退到第一个没缺失的。
+- **列表**：提交列表用组件库的 `List` + `ListDelegate`（`gpui_kit::component::list`）。它只渲染可见的行，每一行的内容由委托的 `render_item` 自己排版，带选中、键盘与无障碍；滚到距末尾 `load_more_threshold` 行（默认 20）以内时调用委托的 `load_more`，`has_more` 为真才会。`DataTable` 不合适：它的列是固定像素宽，没有占满剩余宽度的一列。`Table` 没有虚拟化。上游对「上万行」没有基准，只测到 2000 行。
+- **标签行**：`TabBar` + `Tab`，不需要实现 trait。标签没有自己的 id，标签栏在渲染时按序号给它们编号，测试用 `window.within("<标签栏的 id>").find(序号)` 和 `.click(序号, cx)`。`TabBar::selected_index` 要一个 `usize`，给了就一定有高亮，所以只在有活动仓库时才给它。拖拽排序要上 `DockArea`，这一步没做。
+- **Workspace 切换**：`Select` + `SelectState` + `SearchableVec<T>`。列表项自己实现 `SearchableListItem`，`Value` 是 Workspace 的 id，两个 Workspace 可以同名。`SelectState::set_items` 和 `set_selected_value` 要 `&mut Window`，所以读完工作区列表后的更新要在窗口的更新里做（`cx.update_window`）。
+- **在后台线程上完成的更新**：`Context::spawn_in` 要 `&Window`，存不下来。不碰窗口的用 `cx.spawn` 加 `this.update`；碰窗口的存 `AnyWindowHandle`，在任务里 `cx.update_window(handle, ..)`。视图派发的任务用 `.detach()`，不存句柄：任务是弱引用回到视图的，视图没了也无害，存起来反而只增不减。
+- **`Context` 上的 `App` 方法**：`defer` 等是 `App` 的，`Context<V>` 没有解引用，要写 `let app: &mut App = cx;` 再调用。
+- **观察元素**：`window.find(id)` 只找得到叶子上的登记。组件库内部元素的 id（比如 `Sidebar` 的 `navigator`）不是叶子，找不到；要观察就自己套一层 `div().id(..).test_support()`。被隐藏的可调面板不再布局，里面的元素不存在，用 `try_find(..).is_some_and(|x| x.visible())`。
+- **时间的措辞**：沿用旧实现的阈值。不到一分钟「刚刚」，然后是分钟、小时、天，满一周显示本地日期（`chrono`）。
+- **复制状态库**：见技术选型的「本地存储」。只读的 `VACUUM INTO` 不改原库的 `state.db` 和它已有的 `-wal`，只读或创建 `-shm` 索引；原库正常关闭、没有 `-wal` 时，还会留下一个空的 `-wal`。正常关闭、崩溃后只剩 `-wal`、写入方开着，三种状态都实测过，第四种（正常关闭之后复制、再启动一次）由 core 的测试盯着：空日志不算变化。
+- **列表自己管选中**：`ListState` 有自己的 `selected_index`，渲染时覆盖条目上的 `.selected(..)`。换了仓库要清掉选中、回到顶部，得调用 `set_selected_index` 和 `scroll_to_item`，它们要 `&mut Window`：在没有窗口的更新里（后台答案回来的那条路径），用 `App::defer` 等这次更新结束，再 `window_handle.update`。
+- **列表的 `load_more` 在列表自己的更新里被调用**：那时不能更新历史，连这次更新的延迟回调里也不行（列表还在绘制，gpui 会报「正在更新的实体不能再次更新」）。要用 `cx.spawn_in` 派发一个任务，等调度器下一轮。
+- **固定宽度的列**：宽度要按界面的字体留够，并禁止换行（`truncate`）。日期十个字符在默认字体下占 80px 出头，列宽 80px 时最后一个字符掉到第二行，被 28px 的行高切掉。
 
 ## 执行记录
 
@@ -177,3 +199,20 @@ scripts/bump-version.sh    # 改 workspace 版本并刷新 Cargo.lock
     - 「前置全部窗口」：没有可以读出来的结果。
     - 读屏器的实际朗读（VoiceOver），以及工作台的 group 在 Windows 与 Linux 上映射成什么。
     - Windows 与 Linux，没有机器；审查者那次标题栏菜单读到英文的现象。macOS 用原生菜单栏，不显示标题栏里的菜单，在这里看不出来。
+- 2026-11-26 · M3 切片一（分支 `feature/gpui-kit-read-only-workbench`）：接入真实状态、壳层按基线布局重排、提交历史列表。
+  - 真实状态：用户选定「用副本」。core 新增 `sqlite::open_in(dir)`、`bootstrap::open_app_context_in(dir)` 和 `persistence::snapshot`：用只读的 `VACUUM INTO` 复制，旁边留一份记录，原库变了才重新复制。应用启动时把正式版的状态复制到 `GitWave-dev/`，只打开副本。现在两边的迁移相同，直接打开还不会出事；从开发版新增第一个迁移起，直接打开就会把正式版的库升级到它不认识的架构。
+  - 壳层：标题工具栏里是 Workspace 切换，下面一行仓库标签，再往下是 navigator｜主区；状态栏左边是「仓库 · 分支」，右边写明状态来自副本。上次所在的 Workspace 记在 `app_settings` 的 `shell` 键，启动时回到那里。
+  - 提交历史（`crates/gitwave/src/history.rs`）：分页的状态机是纯逻辑，每页 300 条，空的一页就算到底；列表滚到末尾附近取下一页；迟到的结果按代数丢弃；游标过期时从头重读；失败时留着已显示的，给出重试。每行是分支图的占位、主 ref（tag 优先，其次本地分支、远端分支）、标题、短 SHA、作者、相对时间，HEAD 有标记。
+  - 没做的：分支图的线、提交详情、文件列表与 diff、Blame、搜索；标签的拖拽、移除、重新关联；标题工具栏里的分支名和 Fetch / Pull / Push；窄面板下隐藏列。
+  - 独立审查（[报告](./review.md#代码审查m3-切片一只读工作台第一步)，[处理结果](./review.md#处理结果m3-切片一)）：code-reviewer 子代理只读审查，🔴 一条、🟡 十三条、🟢 九条。除两条有意不做、几条留到后面之外全部处理，要点见下。
+  - 审查抓住的严重问题：`lock_down_db_files` 只给 Unix 版本加了可见性，快照模块在 Windows 上编译不过，而本机的 `make check` 发现不了。本机没有 Windows 的目标，没法交叉编译验证，以三端 CI 为准。
+  - 审查纠正的一处说法：文档里写「只读连接只动 `-shm`」，实测原库正常关闭、没有 `-wal` 时，只读连接会留下一个空的 `-wal`。它不含数据，正式版下次关闭时会删掉，但「原库变了才重新复制」的判断会因此每次误判。现在空日志不算变化，文档四处都改成了与实测一致。
+  - 审查指出的逻辑缺口，都已改并各补了测试：离开再回到同一个 Workspace，活动仓库退回启动时的值；读 HEAD 的回调用错了代数，迟到的结果可能盖掉新的；切换仓库后列表的选中行没有清掉；仓库列表读不出来时主区停在「加载中」，没有办法重试；游标过期时列表突然清空、自动重试没有上限（现在保留已显示的提交，后台从头重读，最多两次，并给出提示）；复制失败对用户不可见；新应用没有像 v0.11.0 那样关闭 libgit2 的所有权校验；开发版的日志写进了正式版的目录；四条旧文案在只读版里说的是做不到的事。
+  - 审查的优化建议里做了的：HEAD 只读一次，由壳层交给历史（原来各读一次）；错误存对象而不是翻译后的字符串，语言切换后提示跟着变；空的一页只有在游标也不前进时才算到底（为搜索留的余地）；迟到的结果多补了一处测试；列宽与无障碍标签；去掉常驻的「提交历史」标题，失败和重读时才出现一条提示。没做的记在「风险与未决项」里。
+  - 变异实验暴露的两处：去掉壳层的代数判断，测试照样通过，因为那个场景被另一道防线挡住了（拒绝别的 Workspace 的仓库列表）。补了「离开再回到同一个 Workspace」的场景，迟到的答案是给同一个 Workspace 的。允许激活缺失的仓库，壳层的测试也照样通过，因为没有真的去选它。补上之后两条都能抓住。
+  - 自己出过的问题，共三个。一是一条语言测试调用 `app_state::init`，测试于是往副本里写了一次，没有碰到正式版的库：现在 `app_state::init` 在测试构建里直接 panic，那条测试改用内存状态，测试创建的副本已删除。二是测试的临时目录名用「进程号加毫秒」，两条并行的测试拿到同一个目录、互相改坏对方的文件，跑一次还留下三千个目录不删：应用测试和这一步在 core 里加的两处都改用 `tempfile`。三是测试没有走真实的滚动路径，直接调了内部的「取下一页」，改走真实路径后才暴露出列表的回调里不能更新历史（见「M3 设计输入」）。
+  - 验证：`make check` 通过，`gitwave` 67 个测试、`gitwave-core` 412 个通过、2 个忽略；应用的测试程序连跑 60 遍全部通过。十五个变异各自让对应的测试失败：壳层、历史、HEAD 三处的代数判断，取下一页的锁、空页到底的两种情形，缺失的仓库不激活，副本不重复复制、空日志不算变化、放不下时不留中间文件，记住上次的 Workspace、记住激活的仓库（模型和壳层各一条），切换后清掉选中，重选当前标签不重读。
+  - 实机（macOS）：启动后正式版的 `state.db` 和 `state.db-wal` 哈希与启动前一致，目录里没有多出文件；副本里是 3 个 Workspace、5 个仓库；修好日志目录之后，开发版的日志只写进 `GitWave-dev/logs/`。窗口截图按原始分辨率核对：标题工具栏里是 Workspace 切换器，下面一行仓库标签，左边 navigator，主区的提交列表第一行带 `HEAD`、`main` 和「+1」，各列对齐，状态栏左边是「仓库 · 分支」、右边是副本说明。第二次启动落在第一次离开时的 Workspace 和仓库上。
+  - 实机看出来的一个缺陷：满一周后显示成日期的那一列太窄，最后一个字符掉到第二行，被行高切掉。加宽并禁止换行后重新截图确认。
+  - 验证时自己弄错的两次，都不是应用的缺陷。一是截图按屏幕区域截，截到了别的前台窗口；之后改成按窗口编号只截 GitWave 自己的窗口，截到别的那张没有保留。二是裁图时偏移给了 (0, 0)，工具当作未指定而按居中裁，看起来像提交行盖住了标题栏；改用整窗的缩略图核对后否定。
+  - 还没有做的：Windows 与 Linux（没有机器，以三端 CI 为准）；性能预算。

@@ -1,6 +1,6 @@
 # GitWave · UI/UX 设计总览
 
-> 2026-11-25：Tauri 2 + React 的实现已从 `main` 移除（[ADR 0007](../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)）。本目录各篇里指向 `src/`、`src-tauri/` 的路径，以及 HeroUI / Tailwind / React Aria 的组件栈，记录的都是 v0.11.0，源码读提交 `8466d55`。信息架构、token 与交互规格仍是 GPUI Kit 重写的基线；新应用的组件栈另行记录。
+> 2026-11-25：Tauri 2 + React 的实现已从 `main` 移除（[ADR 0007](../tech/decisions/00-overview.md#0007--桌面界面迁移到-gpui-kit)）。本目录各篇里指向 `src/`、`src-tauri/` 的路径，以及 HeroUI / Tailwind / React Aria 的组件栈，记录的都是 v0.11.0，源码读提交 `8466d55`。信息架构、token 与交互规格仍是 GPUI Kit 重写的基线；新应用的组件栈另行记录。新应用的壳层按 [09-workbench-redesign.md](./09-workbench-redesign.md) 的已实施范围搭建：标题工具栏里是 Workspace，下面一行仓库标签，再往下是 navigator｜主区。`03-layout.md` 的三纵栏不是它的布局。
 
 > 2026-10-15：用户接受 [Tide Workbench](./09-workbench-redesign.md) 第一阶段。当前分支的主布局改为 History / Changes 双工作区，详见该文档开头的已实施范围；其余章节仍是后续提案。下方三纵栏说明保留为发布版本的历史规范。
 
