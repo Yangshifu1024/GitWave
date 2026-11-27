@@ -202,6 +202,10 @@ export function Workbench({
                   }
                   second={
                     <HistoryDetails
+                      onLocate={(oid) => {
+                        setFocused(false);
+                        onLocate(oid);
+                      }}
                       workspaceId={workspaceId}
                       repoId={repoId}
                       scope={scope}

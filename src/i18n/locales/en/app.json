@@ -1,5 +1,13 @@
 {
   "app": {
+    "revisions": {
+      "setBase": "Use as comparison base",
+      "compare": "Compare to selected commit",
+      "path": "Path history",
+      "file": "Changed file",
+      "pathHint": "Exact path along first parents from this commit. Earlier names are separate.",
+      "noEntries": "No matches in the scanned commits."
+    },
     "sidebar": {
       "health": "Health",
       "recovery": "Recovery"

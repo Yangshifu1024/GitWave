@@ -813,6 +813,26 @@ async fn cmd_get_file_diff(
     local_git_task(move || get_file_diff(&ctx, &workspace_id, &from_oid, &to_oid)).await
 }
 
+#[tauri::command]
+async fn cmd_path_history(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+    start: String,
+    path: String,
+) -> Result<infrastructure::git::path_history::Page, AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        let root = application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+        infrastructure::git::path_history::page(
+            &ctx.open_repo(&root)?,
+            git2::Oid::from_str(&start)?,
+            std::path::Path::new(&path),
+        )
+    })
+    .await
+}
+
 /// Raw bytes of one file version for the image diff view (F016), base64.
 #[tauri::command]
 async fn cmd_get_image_content(
@@ -2145,6 +2165,7 @@ pub fn run() {
             cmd_get_commit_details,
             cmd_get_workdir_diff,
             cmd_get_commit_diff,
+            cmd_path_history,
             cmd_get_file_diff,
             cmd_get_image_content,
             cmd_get_blame,

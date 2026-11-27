@@ -51,6 +51,7 @@ function view(sha: string | null = "abc", repoId = "r", workspaceId = "ws") {
   return (
     <QueryClientProvider client={client}>
       <HistoryDetails
+        onLocate={vi.fn()}
         workspaceId={workspaceId}
         repoId={repoId}
         scope={workbenchKey(workspaceId, repoId)}

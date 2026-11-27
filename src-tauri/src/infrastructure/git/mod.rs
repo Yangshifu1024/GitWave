@@ -17,6 +17,7 @@ pub mod hooks;
 pub mod interactive_rebase;
 pub mod lfs;
 pub mod merge;
+pub mod path_history;
 pub mod rebase;
 pub mod reflog;
 pub mod remote;

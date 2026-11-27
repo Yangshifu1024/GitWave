@@ -1,3 +1,4 @@
+import { RevisionTools } from "./RevisionTools";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -15,11 +16,13 @@ export function HistoryDetails({
   workspaceId,
   repoId,
   scope,
+  onLocate,
   sha,
 }: {
   workspaceId: string;
   repoId: string;
   scope: string;
+  onLocate: (oid: string) => void;
   sha: string | null;
 }): React.JSX.Element {
   const { t } = useTranslation();
@@ -47,6 +50,14 @@ export function HistoryDetails({
   const path = remembered && tree.filePaths.has(remembered) ? remembered : tree.firstPath;
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-panel">
+      <RevisionTools
+        key={scope}
+        workspaceId={workspaceId}
+        repoId={repoId}
+        sha={sha}
+        path={path ?? null}
+        onLocate={onLocate}
+      />
       <CommitInfoHeader workspaceId={workspaceId} sha={sha} />
       <div className="min-h-0 flex-1">
         <WorkbenchSplit

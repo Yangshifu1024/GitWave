@@ -3046,6 +3046,15 @@ pub fn get_diff_preview(
     request: &DiffPreviewRequest,
 ) -> Result<crate::infrastructure::git::diff_preview::DiffPreview> {
     let repo = ctx.open_repo(&selected_repo_path(ctx, workspace_id, repo_id)?)?;
+    if let Some([base, tip]) = &request.compare {
+        return crate::infrastructure::git::diff_preview::compare(
+            &repo,
+            git2::Oid::from_str(base)?,
+            git2::Oid::from_str(tip)?,
+            request.path.as_deref(),
+            request.expanded,
+        );
+    }
     crate::infrastructure::git::diff_preview::preview(
         &repo,
         request.path.as_deref(),
@@ -3058,6 +3067,7 @@ pub fn get_diff_preview(
 
 #[derive(serde::Deserialize)]
 pub struct DiffPreviewRequest {
+    pub compare: Option<[String; 2]>,
     pub path: Option<String>,
     pub staged: Option<bool>,
     pub commit_oid: Option<String>,
