@@ -11,6 +11,28 @@ use crate::domain::branch::CheckoutRemoteOutcome;
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
 
+/// Prefer the remote's advertised default branch when the clone recorded it.
+pub fn pr_base(repo: &Repository) -> Option<String> {
+    let advertised = repo
+        .find_reference("refs/remotes/origin/HEAD")
+        .ok()
+        .and_then(|reference| {
+            let full_name = reference.symbolic_target().ok().flatten()?;
+            full_name
+                .strip_prefix("refs/remotes/origin/")
+                .map(|branch| format!("origin/{branch}"))
+        });
+    if let Some(base) =
+        advertised.filter(|name| super::history::resolve_ref_oid(repo, name).is_ok())
+    {
+        return Some(base);
+    }
+    ["origin/main", "origin/master", "main", "master"]
+        .into_iter()
+        .find(|name| super::history::resolve_ref_oid(repo, name).is_ok())
+        .map(str::to_owned)
+}
+
 /// Create a new branch pointing at `from_sha`. The branch is local and
 /// not checked out — call `checkout_branch` separately if you want to
 /// switch to it.

@@ -1517,14 +1517,9 @@ paragraph, bullet points for the notable changes, and a short 'Testing' section.
 Base everything strictly on the provided commits and diff — do not invent changes. \
 Do not wrap the output in markdown fences.";
 
-/// Default base candidates for PR description generation, in order.
-const PR_BASE_CANDIDATES: [&str; 4] = ["origin/main", "origin/master", "main", "master"];
-
 fn default_pr_base(repo: &git2::Repository) -> Result<String> {
-    for candidate in PR_BASE_CANDIDATES {
-        if infra_resolve_ref_oid(repo, candidate).is_ok() {
-            return Ok(candidate.to_string());
-        }
+    if let Some(base) = crate::infrastructure::git::branch::pr_base(repo) {
+        return Ok(base);
     }
     Err(AppError::protocol(
         codes::usecases::PR_NO_BASE_BRANCH,

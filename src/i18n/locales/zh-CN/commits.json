@@ -83,7 +83,7 @@
     },
     "pr": {
       "title": "AI PR 描述",
-      "description": "基于当前分支与默认基础分支的差异生成。可自由编辑后复制——不会在远端创建任何内容。",
+      "description": "编辑标题与正文，可复制文案，或核对目标分支后在 GitHub 创建 PR。",
       "titleLabel": "标题",
       "descriptionLabel": "描述",
       "descriptionMarkdown": "描述（markdown）",
@@ -92,7 +92,10 @@
       "bodyPlaceholder": "PR 描述正文",
       "generating": "正在使用 AI 生成…",
       "copied": "{{label}}已复制到剪贴板",
-      "clipboardUnavailable": "剪贴板不可用"
+      "clipboardUnavailable": "剪贴板不可用",
+      "review": "核对 GitHub PR",
+      "base": "目标分支",
+      "publish": "在 GitHub 上创建"
     },
     "ai": {
       "fallbackNotice": "主 AI 服务商请求失败——响应由 {{provider}} 提供"

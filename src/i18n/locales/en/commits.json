@@ -83,7 +83,7 @@
     },
     "pr": {
       "title": "AI PR description",
-      "description": "Generated for the active branch vs the default base. Edit freely, then copy — nothing is created remotely.",
+      "description": "Edit the title and description, then copy or review the target branches to create a GitHub pull request.",
       "titleLabel": "Title",
       "descriptionLabel": "Description",
       "descriptionMarkdown": "Description (markdown)",
@@ -92,7 +92,10 @@
       "bodyPlaceholder": "PR description body",
       "generating": "Generating with AI…",
       "copied": "{{label}} copied to clipboard",
-      "clipboardUnavailable": "Clipboard unavailable"
+      "clipboardUnavailable": "Clipboard unavailable",
+      "review": "Review GitHub PR",
+      "base": "Base branch",
+      "publish": "Create on GitHub"
     },
     "ai": {
       "fallbackNotice": "Primary AI provider failed — response served by {{provider}}"

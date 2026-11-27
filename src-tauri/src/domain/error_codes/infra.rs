@@ -128,3 +128,14 @@ pub const SSH_DELETE_FAILED: &str = "ssh.delete_failed";
 
 /// ssh 命令启动失败。
 pub const SSH_SPAWN_FAILED: &str = "ssh.spawn_failed";
+
+// GitHub pull request publishing.
+pub const GITHUB_ORIGIN: &str = "github.origin";
+pub const GITHUB_DETACHED: &str = "github.detached";
+pub const GITHUB_TIMED_OUT: &str = "github.timed_out";
+pub const GITHUB_CHANGED: &str = "github.changed";
+pub const GITHUB_INVALID_DRAFT: &str = "github.invalid_draft";
+pub const GITHUB_PUSH_FIRST: &str = "github.push_first";
+pub const GITHUB_UNEXPECTED: &str = "github.unexpected";
+pub const GITHUB_CLI_START: &str = "github.cli_start";
+pub const GITHUB_CLI_ERROR: &str = "github.cli_error";

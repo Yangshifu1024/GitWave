@@ -518,6 +518,48 @@ fn cmd_get_repo_ai_rules(
     get_repo_ai_rules(&ctx, &workspace_id)
 }
 
+use infrastructure::github_pr;
+#[tauri::command]
+async fn cmd_github_pr_target(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+) -> Result<github_pr::Target, AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        let path = application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+        github_pr::target(&ctx.open_repo(&path)?)
+    })
+    .await
+}
+#[derive(serde::Deserialize)]
+struct GithubDraft {
+    target: github_pr::Target,
+    base: String,
+    title: String,
+    body: String,
+}
+#[tauri::command]
+async fn cmd_create_github_pr(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+    draft: GithubDraft,
+) -> Result<String, AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        let path = application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+        github_pr::create(
+            &ctx.open_repo(&path)?,
+            &draft.target,
+            &draft.base,
+            &draft.title,
+            &draft.body,
+        )
+    })
+    .await
+}
+
 #[tauri::command]
 async fn cmd_generate_pr_description(
     ctx: tauri::State<'_, AppContext>,
@@ -2088,6 +2130,8 @@ pub fn run() {
             cmd_discard_ai_preview,
             cmd_send_ai_preview,
             cmd_generate_commit_message,
+            cmd_github_pr_target,
+            cmd_create_github_pr,
             cmd_generate_pr_description,
             cmd_explain_commit,
             cmd_ai_palette_intent,
