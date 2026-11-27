@@ -54,6 +54,14 @@
       "manualUrlPlaceholder": "http://127.0.0.1:7890",
       "saved": "已保存——立即生效",
       "loopbackHint": "GitWave 应用的代理始终跳过本地地址（localhost / 127.0.0.1）。"
+    },
+    "scoped": {
+      "chord": "命令面板快捷键",
+      "offline": "仓库 AI 策略",
+      "inherit": "继承 Workspace 设置",
+      "force": "强制离线 AI",
+      "local": "生效策略：仅离线 AI",
+      "online": "生效策略：使用 Workspace 的服务商设置"
     }
   }
 }

@@ -418,6 +418,20 @@ fn cmd_get_workspace(ctx: tauri::State<'_, AppContext>, id: String) -> Result<Wo
 }
 
 #[tauri::command]
+async fn cmd_set_repo_offline(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+    offline: bool,
+) -> Result<(), AppError> {
+    use infrastructure::persistence::workspace_repo::WorkspaceRepository;
+    ctx.workspaces
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .set_repo_offline(&workspace_id, &repo_id, offline)
+}
+
+#[tauri::command]
 fn cmd_update_workspace_settings(
     ctx: tauri::State<'_, AppContext>,
     id: String,
@@ -2077,6 +2091,7 @@ pub fn run() {
             cmd_delete_workspace,
             cmd_set_active_repo,
             cmd_get_workspace,
+            cmd_set_repo_offline,
             cmd_update_workspace_settings,
             cmd_get_proxy_settings,
             cmd_set_proxy_settings,

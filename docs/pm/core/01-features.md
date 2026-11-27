@@ -60,8 +60,10 @@ RepoRef { id, path, nickname?, settingsOverride? }
 - 仓库标签栏在标签溢出时可用鼠标滚轮横向滚动，并把激活标签带回视野
 - 多 Workspace 同时打开，状态并行
 - 自动刷新：按可配置间隔刷新全部仓库的状态（一次刷新工作区里的每个仓库，默认 5 分钟，间隔可在设置里配置）
-- Workspace-scoped 配置：AI provider / prompt 模板 / commit 规范 / 主题 / key binding profile（**schema 有字段，快捷键配置 UI 未交付**）
-- Per-repo 覆盖 Workspace 配置（**repos.settings_override 列存在，无 UI**）
+- Workspace-scoped 配置：AI provider / prompt 模板 / commit 规范 / 主题 / key binding profile（schema 有字段；开发版命令面板快捷键保存在本机）
+- Per-repo 覆盖 Workspace 配置：开发版可为当前仓库单独启用 AI 离线模式
+
+本次迭代为仓库提供 AI 离线偏好。Workspace 强制离线时所有仓库均离线；允许联网时，单个仓库仍可选择离线。可在常规设置中为命令面板选择本机快捷键，适用于所有仓库。[任务计划](../../tasks/feat-workspace-preferences/plan.md)
 
 **用户旅程**：
 

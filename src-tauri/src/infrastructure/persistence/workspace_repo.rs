@@ -22,6 +22,8 @@ pub trait WorkspaceRepository: Send {
     fn set_active_repo(&self, workspace_id: &str, repo_id: Option<&str>) -> Result<()>;
     fn update_settings(&self, id: &str, settings: &WorkspaceSettings) -> Result<()>;
 
+    fn set_repo_offline(&self, workspace_id: &str, repo_id: &str, offline: bool) -> Result<()>;
+
     // Repo CRUD (Sprint 2)
     fn add_repo(&self, repo: &RepoRef) -> Result<()>;
     fn remove_repo(&self, workspace_id: &str, repo_id: &str) -> Result<()>;
@@ -212,6 +214,36 @@ impl WorkspaceRepository for SqliteWorkspaceRepo {
                     ],
             )
             .map_err(map_sqlite_err)?;
+        Ok(())
+    }
+
+    fn set_repo_offline(&self, workspace_id: &str, repo_id: &str, offline: bool) -> Result<()> {
+        let defaults =
+            serde_json::to_string(&WorkspaceSettings::default()).map_err(map_serde_err)?;
+        let affected = self
+            .conn
+            .execute(
+                "UPDATE repos SET settings_override_json = NULLIF(
+                json_set(COALESCE(settings_override_json, ?4), '$.ai_offline', json(?3)), ?4
+             ) WHERE workspace_id = ?1 AND id = ?2",
+                params![
+                    workspace_id,
+                    repo_id,
+                    if offline { "true" } else { "false" },
+                    defaults
+                ],
+            )
+            .map_err(map_sqlite_err)?;
+        if affected == 0 {
+            return Err(AppError::protocol_with(
+                codes::infra::REPO_NOT_FOUND_IN_WS,
+                "Repository not found",
+                &[
+                    ("repo_id", repo_id.to_owned()),
+                    ("workspace_id", workspace_id.to_owned()),
+                ],
+            ));
+        }
         Ok(())
     }
 
@@ -567,6 +599,53 @@ mod tests {
         repo.add_repo(&sample_repo("ws-1", "r-1", "/tmp")).unwrap();
         repo.remove_repo("ws-1", "r-1").expect("remove");
         assert_eq!(repo.list_repos("ws-1").unwrap().len(), 0);
+    }
+
+    #[test]
+    fn repository_offline_override_can_be_cleared_without_replacing_other_settings() {
+        let db = fresh_repo();
+        db.create(&sample_ws("one", "One")).unwrap();
+        db.create(&sample_ws("two", "Two")).unwrap();
+        let mut custom = sample_repo("one", "custom", "/custom");
+        custom.settings_override = Some(WorkspaceSettings {
+            theme_override: Some("dark".into()),
+            ..WorkspaceSettings::default()
+        });
+        db.add_repo(&custom).unwrap();
+        db.add_repo(&sample_repo("one", "plain", "/plain")).unwrap();
+        db.conn.execute("UPDATE repos SET settings_override_json = json_set(settings_override_json, '$.future_preference', 42) WHERE id = 'custom'", []).unwrap();
+        assert!(db.set_repo_offline("two", "custom", true).is_err());
+        for id in ["custom", "plain"] {
+            db.set_repo_offline("one", id, true).unwrap();
+        }
+        let loaded = db.get("one").unwrap().unwrap();
+        assert!(loaded
+            .repos
+            .iter()
+            .all(|r| r.settings_override.as_ref().unwrap().ai_offline));
+        assert!(!loaded.settings.ai_offline);
+        for id in ["custom", "plain"] {
+            db.set_repo_offline("one", id, false).unwrap();
+        }
+        let loaded = db.get("one").unwrap().unwrap();
+        let preserved: i64 = db.conn.query_row("SELECT json_extract(settings_override_json, '$.future_preference') FROM repos WHERE id = 'custom'", [], |row| row.get(0)).unwrap();
+        assert_eq!(preserved, 42);
+        assert_eq!(
+            loaded
+                .repos
+                .iter()
+                .find(|r| r.id == "custom")
+                .unwrap()
+                .settings_override,
+            custom.settings_override
+        );
+        assert!(loaded
+            .repos
+            .iter()
+            .find(|r| r.id == "plain")
+            .unwrap()
+            .settings_override
+            .is_none());
     }
 
     #[test]

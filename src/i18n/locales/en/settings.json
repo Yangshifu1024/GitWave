@@ -54,6 +54,14 @@
       "manualUrlPlaceholder": "http://127.0.0.1:7890",
       "saved": "Saved — effective immediately",
       "loopbackHint": "The proxy GitWave applies always skips local addresses (localhost / 127.0.0.1)."
+    },
+    "scoped": {
+      "chord": "Command palette shortcut",
+      "offline": "Repository AI policy",
+      "inherit": "Use workspace setting",
+      "force": "Require offline AI",
+      "local": "Effective policy: offline AI only",
+      "online": "Effective policy: workspace provider settings"
     }
   }
 }
