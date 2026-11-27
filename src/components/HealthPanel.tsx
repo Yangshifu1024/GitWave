@@ -1,10 +1,17 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Activity, ChevronDown, Loader2, Sparkles } from "lucide-react";
 
-import { explainHealth, formatAppError, getHealth, type HealthReport } from "@/lib/api";
+import {
+  sendAiPreview,
+  explainHealth,
+  formatAppError,
+  getHealth,
+  type HealthReport,
+} from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -118,10 +125,14 @@ export function HealthPanel(): React.JSX.Element {
     return <p className="px-2 py-1 text-xs text-danger">{formatAppError(error)}</p>;
   }
 
-  const runSummary = (): void => {
+  const task = { kind: "health" } as const;
+  const runSummary = (previewId?: number): void => {
     if (aiBusy) return;
     setAiBusy(true);
-    explainHealth(workspaceId)
+    (previewId === undefined
+      ? explainHealth(workspaceId)
+      : sendAiPreview(workspaceId, task, previewId)
+    )
       .then(setAiText)
       .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setAiBusy(false));
@@ -158,13 +169,19 @@ export function HealthPanel(): React.JSX.Element {
           <div className="flex flex-col">{renderReport(report, t)}</div>
         ) : null}
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap gap-1">
+          <AiPreviewButton
+            workspaceId={workspaceId}
+            task={task}
+            disabled={aiBusy || !report}
+            onSend={runSummary}
+          />
           <Button
             variant="ghost"
             size="sm"
             className="self-start px-2 text-[11px]"
             disabled={aiBusy || !report}
-            onClick={runSummary}
+            onClick={() => runSummary()}
           >
             {aiBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
             {aiBusy ? t("health.summarizing") : t("health.aiSummary")}

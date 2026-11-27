@@ -23,6 +23,8 @@
       "changes": "Changes",
       "navigation": "仓库导航",
       "files": "变更文件",
+      "expandFolders": "全部展开目录",
+      "collapseFolders": "全部收起目录",
       "noFiles": "此 commit 没有文件变更",
       "resizeFiles": "调整文件列表宽度",
       "resizeHistory": "调整历史与详情高度",

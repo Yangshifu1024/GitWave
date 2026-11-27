@@ -35,6 +35,8 @@ pub const AI_PROVIDER_UNSUPPORTED: &str = "usecases.ai.provider_unsupported";
 /// AI 故障转移列表中的提供商不受支持。
 pub const AI_FAILOVER_PROVIDER_UNSUPPORTED: &str = "usecases.ai.failover_provider_unsupported";
 
+pub const AI_PREVIEW_EXPIRED: &str = "usecases.ai.preview_expired";
+
 /// Workspace 未配置 AI 提供商。
 pub const AI_PROVIDER_NOT_CONFIGURED: &str = "usecases.ai.provider_not_configured";
 

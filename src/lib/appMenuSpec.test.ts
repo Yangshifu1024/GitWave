@@ -84,6 +84,7 @@ describe("buildAppMenuSpec", () => {
       "branch:pull": false,
       "branch:push": false,
       "branch:pr": true,
+      "branch:pr-preview": true,
     });
   });
 
@@ -100,6 +101,7 @@ describe("buildAppMenuSpec", () => {
       "branch:pull": true,
       "branch:push": true,
       "branch:pr": true,
+      "branch:pr-preview": true,
     });
   });
 
@@ -151,12 +153,8 @@ describe("dispatchAppMenuItem", () => {
 
   it("routes every spec id somewhere without throwing", () => {
     const { routed, handler } = recordingHandler();
-    for (const menu of buildAppMenuSpec(ACTIVE)) {
-      for (const item of items(menu)) {
-        dispatchAppMenuItem(item.id, handler);
-      }
-    }
-    // Every entry produced exactly one route (17 actions + 4 File specials).
-    expect(routed).toHaveLength(21);
+    const entries = buildAppMenuSpec(ACTIVE).flatMap(items);
+    for (const item of entries) dispatchAppMenuItem(item.id, handler);
+    expect(routed).toEqual(entries.map((item) => item.id));
   });
 });

@@ -1,9 +1,11 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { History, RotateCcw, Sparkles, Undo2 } from "lucide-react";
 
 import {
+  sendAiPreview,
   createBranch,
   explainReflog,
   formatAppError,
@@ -66,7 +68,7 @@ export function ReflogPanel(): React.JSX.Element {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["reflog", workspaceId, reference],
+    queryKey: ["reflog", workspaceId, repoId, reference],
     queryFn: () => listReflog(workspaceId!, reference),
     enabled: Boolean(workspaceId && repoId),
   });
@@ -76,7 +78,8 @@ export function ReflogPanel(): React.JSX.Element {
   const [branchModal, setBranchModal] = useState<RecoveryTarget | null>(null);
   const [branchName_, setBranchName_] = useState("");
   const [resetModal, setResetModal] = useState<RecoveryTarget | null>(null);
-  const [aiText, setAiText] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<{ entry: ReflogEntry; text: string } | null>(null);
+  const aiText = aiResult?.entry === selected ? aiResult?.text : null;
   const [aiBusy, setAiBusy] = useState(false);
 
   if (!workspaceId || !repoId) return <></>;
@@ -123,12 +126,17 @@ export function ReflogPanel(): React.JSX.Element {
       .finally(() => setBusy(false));
   };
 
-  const runExplain = (entry: ReflogEntry): void => {
+  const taskFor = ({ old_oid, new_oid, action, message }: ReflogEntry) =>
+    ({ kind: "reflog", old_oid, new_oid, action, message }) as const;
+  const runExplain = (entry: ReflogEntry, previewId?: number): void => {
     if (aiBusy) return;
     setAiBusy(true);
-    setAiText(null);
-    explainReflog(workspaceId, entry)
-      .then(setAiText)
+    setAiResult(null);
+    (previewId === undefined
+      ? explainReflog(workspaceId, entry)
+      : sendAiPreview(workspaceId, taskFor(entry), previewId)
+    )
+      .then((text) => setAiResult({ entry, text }))
       .catch((e) => setStatus(formatAppError(e), "danger"))
       .finally(() => setAiBusy(false));
   };
@@ -151,7 +159,7 @@ export function ReflogPanel(): React.JSX.Element {
               onClick={() => {
                 setScope(s);
                 setSelected(null);
-                setAiText(null);
+                setAiResult(null);
               }}
             >
               {s === "HEAD" ? "HEAD" : branchName}
@@ -172,7 +180,7 @@ export function ReflogPanel(): React.JSX.Element {
               type="button"
               onClick={() => {
                 setSelected(selected === e ? null : e);
-                setAiText(null);
+                setAiResult(null);
               }}
               className={
                 "flex min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-bg-elevated " +
@@ -228,6 +236,12 @@ export function ReflogPanel(): React.JSX.Element {
               <RotateCcw size={12} />
               {recoversOld ? t("repo.reflog.resetBackHere") : t("repo.reflog.resetHere")}
             </Button>
+            <AiPreviewButton
+              workspaceId={workspaceId}
+              task={taskFor(selected)}
+              disabled={aiBusy}
+              onSend={(id) => runExplain(selected, id)}
+            />
             <Button
               variant="secondary"
               size="sm"

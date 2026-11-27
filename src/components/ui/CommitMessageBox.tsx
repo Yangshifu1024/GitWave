@@ -9,6 +9,7 @@ export interface CommitMessageBoxProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  previewAction?: React.ReactNode;
   onAiGenerate?: () => void;
   /** True while AI message generation is in flight — the Generate button
    *  shows a spinner and locks. */
@@ -47,6 +48,7 @@ export function CommitMessageBox({
   onChange,
   onSubmit,
   onAiGenerate,
+  previewAction,
   aiLoading = false,
   amendMessage = null,
   onAmend,
@@ -165,6 +167,7 @@ export function CommitMessageBox({
             {t("changes.messageBox.amend")}
           </Button>
         )}
+        {previewAction}
         {onAiGenerate ? (
           <Button
             variant="ghost"

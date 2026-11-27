@@ -23,7 +23,8 @@ export type AppMenuAction =
   | "branch:new"
   | "branch:pull"
   | "branch:push"
-  | "branch:pr";
+  | "branch:pr"
+  | "branch:pr-preview";
 
 interface MenuActionRequest {
   /** Monotonic id so repeating the same action re-triggers the consumer. */

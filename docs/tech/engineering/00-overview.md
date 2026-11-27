@@ -128,8 +128,8 @@ gitwave/
 ## 安全
 
 - **API key**：仅 OS Keychain；内存中按需解密使用，不落盘
-- **diff scrubber**：发送 AI 前 regex + token 扫描（GitHub token / AWS key / 私钥 / 常见 PII）
-- **上传前必经 scrubber**；scrubber 可被用户显式禁用，但每次禁用需用户确认
+- **AI prompt 脱敏**：对系统提示和用户内容先按凭证标记、token 前缀和私钥特征遮盖整行，再遮盖常见邮箱与可识别的电话号码。预览与 provider 故障转移复用同一份脱敏文本；完整 blob 的私钥筛查发生在选择 diff hunk 之前。覆盖示例见 [F019](../../pm/features/F019-ai-redaction-preview.md)。
+- **发送路径**：直接生成和预览后发送都使用经过本地脱敏的消息。
 - **不收集**任何用户代码、提交内容、commit message 至服务端（除非用户主动通过 AI 调用上传）
 - **本地优先**：diff 默认不离开本机；所有网络调用显式列出
 

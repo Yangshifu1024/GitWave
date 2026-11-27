@@ -1,3 +1,4 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 // AI PR description modal — generates a copy-ready title + markdown body
 // for the active branch vs the default base branch. Nothing is pushed or
@@ -7,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Copy, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatAppError, generatePrDescription } from "@/lib/api";
+import { sendAiPreview, formatAppError, generatePrDescription } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -29,10 +30,12 @@ export function PrDescriptionModal(
 function PrDescriptionModalContent({
   workspaceId,
   open,
+  previewFirst = false,
   onClose,
 }: {
   workspaceId: string;
   open: boolean;
+  previewFirst?: boolean;
   onClose: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
@@ -46,8 +49,13 @@ function PrDescriptionModalContent({
   // request is in flight must not let the stale response overwrite fresh
   // content. The session rides the mutation context.
   const sessionRef = useRef(0);
+  const started = useRef(false);
+  const task = { kind: "pr" } as const;
   const genMut = useMutation({
-    mutationFn: () => generatePrDescription(workspaceId),
+    mutationFn: (previewId: number | void) =>
+      previewId === undefined
+        ? generatePrDescription(workspaceId)
+        : sendAiPreview(workspaceId, task, previewId),
     onMutate: () => ({ session: sessionRef.current }),
     onSuccess: (res, _variables, context) => {
       if (!context || context.session !== sessionRef.current) return;
@@ -69,7 +77,10 @@ function PrDescriptionModalContent({
   useEffect(() => {
     if (!open) return;
     sessionRef.current += 1;
-    genMut.mutate();
+    if (!previewFirst && !started.current) {
+      started.current = true;
+      genMut.mutate();
+    }
     return () => {
       sessionRef.current += 1;
     };
@@ -96,6 +107,16 @@ function PrDescriptionModalContent({
       size="lg"
       footer={
         <>
+          <AiPreviewButton
+            workspaceId={workspaceId}
+            task={task}
+            initiallyOpen={previewFirst}
+            disabled={genMut.isPending}
+            onSend={(id) => {
+              sessionRef.current += 1;
+              genMut.mutate(id);
+            }}
+          />
           <Button
             variant="ghost"
             size="sm"
@@ -106,7 +127,7 @@ function PrDescriptionModalContent({
             }}
           >
             <RefreshCw size={13} />
-            {t("commits.action.regenerate")}
+            {previewFirst && !provider ? t("ai.preview.direct") : t("commits.action.regenerate")}
           </Button>
           <Button
             variant="secondary"

@@ -4,6 +4,12 @@
 
 **Status:** v0.11.0 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
+### Unreleased
+
+All seven AI actions offer a local preview of the system and user messages. The preview counts credential lines, email addresses and phone numbers masked across both messages. Choose **Send and generate** to use that text, including when a backup provider takes over, or generate directly with the same filters.
+
+GitWave masks recognized credential lines, common email addresses including plus tags, international numbers with a leading `+`, mainland Chinese mobile numbers, and formatted North American phone numbers. Other personal details, such as names and postal addresses, can still appear in the text. [Examples and coverage](./docs/pm/features/F019-ai-redaction-preview.md)
+
 ### What's new in v0.11.x
 
 - **v0.11.0** — Tide Workbench phase 1: peer History / Changes workspaces, a resizable history pane above a wide file/diff inspector, repository-scoped selections and drafts, a full-size working-copy editor with a compact commit composer, virtualized diff content, reliable dialog dismissal, readable Blame columns at narrow widths, and working-copy writes pinned to their originating repository with errors retained across navigation; updated @tanstack/react-query, i18next, @tauri-apps/cli, serde_json and development dependencies
@@ -17,9 +23,9 @@
 
 Older releases are in the [release notes](https://github.com/Yangshifu1024/GitWave/releases).
 
-![Earlier-release GitWave window: a self-drawn title bar carrying the app menu, workspace selector and sync actions, a commit graph with ref badges in the centre, the selected commit's details in the right pane, and a working copy bar along the bottom.](./assets/gitwave-screenshot.png)
+![GitWave v0.11.0 window: the History workspace shows a full branch graph with ref badges, aligned SHA / author / time columns and commit search on the left, the selected commit's details and changed files on the right, and its diff below. A sidebar switches between History and Changes, lists branches, tags, stashes, worktrees, submodules and remotes, while the self-drawn title bar carries the app menu, workspace selector and sync actions.](./assets/gitwave-screenshot.png)
 
-The screenshot shows an earlier release. The history-first layout is documented in the [v0.10.3 specification](./docs/design/08-history-first.md); the Tide Workbench is documented in [Tide Workbench](./docs/design/09-workbench-redesign.md).
+The screenshot shows v0.11.0 with the Tide Workbench. Its design is documented in [Tide Workbench](./docs/design/09-workbench-redesign.md); the earlier history-first layout it replaces is documented in the [v0.10.3 specification](./docs/design/08-history-first.md).
 
 ## Download
 
@@ -40,6 +46,8 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **Proxy-aware networking** — AI requests, sync, LFS and update checks follow the OS system proxy (Windows / macOS) or a manual proxy URL you set in Settings → Network, effective immediately; loopback addresses (local Ollama etc.) always bypass it
 - **SSH key management** — generate / import keys, per-repo SSH configuration
 - **Platform UX** — a compact source-list sidebar with expandable health metrics, keyboard-resizable panes, a bottom operation-status bar, command palette, menu bar app mode, themes plus UI / monospace font family and size settings, one-click open of the active repo in the system file manager, a detected terminal, or a detected code editor (VS Code / Zed / VSCodium), Chinese / English interface with instant switching, and a self-drawn title bar that merges the app menu and the operation bar into a single row (traffic lights / window controls kept clear)
+
+On the development branch, History groups the selected commit’s changed files by directory. Select a file to read its diff. You can collapse its folder and keep reading the same diff. [Task plan](./docs/tasks/feat-history-file-tree/plan.md)
 
 ## Tech stack
 

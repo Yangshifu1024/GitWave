@@ -148,7 +148,10 @@ export function RemotesPanel(): React.JSX.Element {
       `edit-${name}`,
       async () => {
         if (editFetchUrl.trim()) await setRemoteUrl(workspaceId, name, editFetchUrl.trim());
-        await setRemotePushUrl(workspaceId, name, editPushUrl.trim() || null);
+        const pushUrl = editPushUrl.trim();
+        if (pushUrl !== (edit.push_url ?? "")) {
+          await setRemotePushUrl(workspaceId, name, pushUrl || null);
+        }
         if (editNewName.trim() && editNewName.trim() !== name) {
           await renameRemote(workspaceId, name, editNewName.trim());
         }
