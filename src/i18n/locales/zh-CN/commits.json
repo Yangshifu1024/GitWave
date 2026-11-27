@@ -101,6 +101,7 @@
       "fallbackNotice": "主 AI 服务商请求失败——响应由 {{provider}} 提供"
     },
     "sync": {
+      "group": "远端同步",
       "fetch": "获取",
       "pull": "拉取",
       "pullTitle": "拉取",

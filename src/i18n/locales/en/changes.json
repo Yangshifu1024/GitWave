@@ -123,10 +123,6 @@
       "stageNewFilesHint": "By default stash ignores new files until you stage them",
       "saved": "Saved stash"
     },
-    "actionBar": {
-      "changes": "Changes",
-      "localChangesTitle": "Local changes"
-    },
     "panel": {
       "title": "Local Changes",
       "statusSummary": "{{unstaged}} unstaged · {{staged}} staged",

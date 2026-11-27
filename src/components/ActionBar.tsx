@@ -1,6 +1,6 @@
 // Operation controls on the custom titlebar (TitleBar): the workspace
-// selector, external-tool shortcuts, the Local Changes trigger, and the sync
-// actions that deserve persistent buttons (Fetch / Pull / Push).
+// selector, external-tool shortcuts, Stash, and the sync actions
+// that deserve persistent buttons (Fetch / Pull / Push).
 // Workspace / repository / branch management lives in the app menu
 // (AppMenuBar / native menu), which dispatches `AppMenuAction` requests that
 // this component consumes (see uiStore.menuAction) — every dialog and
@@ -17,7 +17,6 @@ import {
   ArrowUp,
   Archive,
   ChevronDown,
-  FileDiff,
   FolderOpen,
   SquareCode,
   SquareTerminal,
@@ -63,8 +62,6 @@ import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { stashesQueryKey } from "@/hooks/useStashes";
 import { useSeedRepos } from "@/hooks/useSeedRepos";
 import { useValidatedWorkspaceSwitch } from "@/hooks/useValidatedWorkspaceSwitch";
-import { cn } from "@/lib/utils";
-import { Separator } from "@heroui/react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -95,65 +92,38 @@ function ActionBarButton({
   icon,
   label,
   count,
-  title,
+  ariaLabel = label,
   onClick,
   disabled = false,
-  danger = false,
-  tone,
   collapseLabel = false,
 }: {
   icon: React.ReactNode;
-  /** Visible button text (short — the tooltip carries the full description). */
   label: string;
-  /** Hide the text below the `@6xl` container width, leaving the icon. Used
-   *  for secondary actions on the shared titlebar row where the in-app menu
-   *  (Windows / Linux) competes for horizontal space. */
+  ariaLabel?: string;
   collapseLabel?: boolean;
-  /** Reserved fixed-width count slot: a positive count renders "(N)", 0 or
-   * null leaves the slot empty, and undefined omits it (no-count buttons).
-   * The width is reserved either way so repo switches never shift layout. */
+  /** Keep the counter slot when zero or loading so repo switches do not shift the buttons. */
   count?: number | null;
-  /** Full description for tooltip / aria-label; defaults to `label`. */
-  title?: string;
   onClick: () => void;
   disabled?: boolean;
-  danger?: boolean;
-  /** Text color override for stateful actions (e.g. clean vs dirty). */
-  tone?: "accent" | "danger";
 }): React.JSX.Element {
-  const hint = title ?? label;
-  const toneClass =
-    tone === "accent"
-      ? "text-accent hover:bg-accent/10"
-      : tone === "danger"
-        ? "text-danger hover:bg-danger/10"
-        : danger
-          ? "hover:text-danger"
-          : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary";
   return (
-    <Tooltip content={hint}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={disabled}
-        aria-label={hint}
-        onClick={onClick}
-        className={cn(
-          "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs",
-          toneClass,
-          "disabled:opacity-40 disabled:pointer-events-none",
-        )}
-      >
-        {icon}
-        {collapseLabel ? <span className="hidden @6xl:inline">{label}</span> : label}
-        {count !== undefined && (
-          <span className="tabular-nums inline-block min-w-9 text-center">
-            {count ? `(${count})` : ""}
-          </span>
-        )}
-      </Button>
-    </Tooltip>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={disabled}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary disabled:pointer-events-none disabled:opacity-40"
+    >
+      {icon}
+      {collapseLabel ? <span className="hidden @6xl:inline">{label}</span> : label}
+      {count !== undefined && (
+        <span className="inline-block min-w-9 text-center tabular-nums">
+          {count ? `(${count})` : ""}
+        </span>
+      )}
+    </Button>
   );
 }
 
@@ -167,13 +137,7 @@ function deriveDestName(url: string): string {
   return (noProto.split("/").pop() ?? "repo").replace(/\.git$/, "");
 }
 
-export function ActionBar({
-  conflictCount,
-  onOpenChanges,
-}: {
-  onOpenChanges: () => void;
-  conflictCount: number;
-}): React.JSX.Element {
+export function ActionBar({ conflictCount }: { conflictCount: number }): React.JSX.Element {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const setStatus = useStatusAreaStore((s) => s.setStatus);
@@ -647,10 +611,6 @@ export function ActionBar({
     return names;
   })();
 
-  // ── Local Changes ──────────────────────────────────────────────────────
-  const changeCount = (wc.data?.files.length ?? 0) + conflictCount;
-  const localChangesDisabled = !activeRepoId;
-
   const noRepo = !activeRepoId;
 
   // External-tool buttons (F014) act on the active repo; a missing path would
@@ -765,22 +725,26 @@ export function ActionBar({
             icon on narrow bars — on Windows / Linux the in-app menu shares
             this row, so the text would otherwise be clipped. */}
         <div className="pointer-events-auto flex items-center gap-1">
-          <ActionBarButton
-            icon={<FolderOpen size={14} />}
-            label={t("workspace.openFileManager.label")}
-            title={t("workspace.openFileManager.title")}
-            collapseLabel
-            disabled={!externalRepo}
-            onClick={() => openExternal(openInFileManager)}
-          />
-          <ActionBarButton
-            icon={<SquareTerminal size={14} />}
-            label={t("workspace.openTerminal.label")}
-            title={t("workspace.openTerminal.title")}
-            collapseLabel
-            disabled={!externalRepo}
-            onClick={() => openExternal(openInTerminal)}
-          />
+          <Tooltip content={t("workspace.openFileManager.title")}>
+            <ActionBarButton
+              icon={<FolderOpen size={14} />}
+              label={t("workspace.openFileManager.label")}
+              ariaLabel={t("workspace.openFileManager.title")}
+              collapseLabel
+              disabled={!externalRepo}
+              onClick={() => openExternal(openInFileManager)}
+            />
+          </Tooltip>
+          <Tooltip content={t("workspace.openTerminal.title")}>
+            <ActionBarButton
+              icon={<SquareTerminal size={14} />}
+              label={t("workspace.openTerminal.label")}
+              ariaLabel={t("workspace.openTerminal.title")}
+              collapseLabel
+              disabled={!externalRepo}
+              onClick={() => openExternal(openInTerminal)}
+            />
+          </Tooltip>
           {/* F015: dropdown of locally installed editors (VS Code / Zed /
               VSCodium), first detected leading as the default. The Button
               must stay the dropdown's direct child (trigger wiring), so the
@@ -822,37 +786,26 @@ export function ActionBar({
         {/* Reserved middle zone between the selector and the ops. */}
         <div className="flex-1" />
 
-        <div className="pointer-events-auto flex items-center gap-1">
-          <ActionBarButton
-            icon={<FileDiff size={14} />}
-            label={t("changes.actionBar.changes")}
-            count={changeCount}
-            title={t("changes.actionBar.localChangesTitle")}
-            tone={conflictCount > 0 ? "danger" : changeCount > 0 ? "accent" : undefined}
-            disabled={localChangesDisabled}
-            onClick={onOpenChanges}
-          />
+        <div className="repo-action-group">
           <ActionBarButton
             icon={<Archive size={14} />}
             label={t("changes.stash.title")}
-            title={t("changes.stash.buttonTitle")}
-            disabled={localChangesDisabled || changeCount === 0 || conflictCount > 0}
+            ariaLabel={t("changes.stash.buttonTitle")}
+            disabled={noRepo || !wc.data?.files.length || conflictCount > 0}
             onClick={() => setStashOpen(true)}
           />
+        </div>
+        <div className="repo-action-group" role="group" aria-label={t("commits.sync.group")}>
           <ActionBarButton
             icon={<ArrowDownUp size={14} />}
             label={t("commits.sync.fetch")}
             disabled={noRepo || wc.isSyncBusy}
             onClick={() => useUiStore.getState().requestMenuAction("repo:fetch")}
           />
-        </div>
-        <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
-        <div className="pointer-events-auto flex items-center gap-1">
           <ActionBarButton
             icon={<ArrowDown size={14} />}
             label={t("commits.sync.pull")}
             count={wc.data ? wc.data.behind : null}
-            title={t("commits.sync.pullTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={() => useUiStore.getState().requestMenuAction("branch:pull")}
           />
@@ -860,7 +813,6 @@ export function ActionBar({
             icon={<ArrowUp size={14} />}
             label={t("commits.sync.push")}
             count={wc.data ? wc.data.ahead : null}
-            title={t("commits.sync.pushTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
             onClick={() => useUiStore.getState().requestMenuAction("branch:push")}
           />

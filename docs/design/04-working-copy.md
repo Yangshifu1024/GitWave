@@ -2,9 +2,8 @@
 
 > Sprint 4 的实施依据：覆盖 working copy 状态、文件 stage/unstage、commit message、push/pull/fetch。
 >
-> 状态：**历史设计稿**（Sprint 4 已交付）。此后有两处变化，下文保留当时的规格、未逐条改写：
-> 底部常驻的 Working Copy Bar 已改为弹窗（`src/components/ui/WorkingCopyModal.tsx`，见 `03-layout.md` §6）；
-> 同步按钮 Fetch / Pull / Push 已移入标题栏右侧（见 `03-layout.md` §2.2）。
+> 状态：**历史设计稿**（Sprint 4 已交付）。当前界面从左侧「变更」进入工作区，收起侧栏时从工作区顶部切换。
+> 右上角提供独立的 Stash 按钮和 Fetch / Pull / Push 按钮组，见 [布局规格](03-layout.md#61-actionbar标题栏右侧操作组)。
 
 ## 1. 目标
 
