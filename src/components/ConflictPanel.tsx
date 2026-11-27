@@ -50,6 +50,7 @@ export function ConflictPanel({
   const bumpHistory = useWorkspaceUiStore((s) => s.bumpHistoryEpoch);
   const { active, mergeInProgress, files, refresh, abort } = merge;
 
+  const [resolvedPaths, setResolvedPaths] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sides, setSides] = useState<ConflictSides | null>(null);
   const [editor, setEditor] = useState("");
@@ -68,15 +69,36 @@ export function ConflictPanel({
   useLayoutEffect(() => {
     scopeRef.current = scope;
   }, [scope]);
-  const draftsRef = useRef(
-    new Map<string, { sides: ConflictSides; seed: string; editor: string }>(),
+  const [drafts, setDrafts] = useState(
+    () => new Map<string, { scope: string; sides: ConflictSides; seed: string; editor: string }>(),
   );
   const bufferKey = (path: string) => JSON.stringify([scope, path]);
+  const clearDrafts = () =>
+    setDrafts((old) => new Map([...old].filter(([, d]) => d.scope !== scope)));
   const updateEditor = (value: string) => {
     setEditor(value);
-    if (selected && sides)
-      draftsRef.current.set(bufferKey(selected), { sides, seed: seedRef.current, editor: value });
+    if (!selected || !sides) return;
+    const seed = seedRef.current;
+    setDrafts((old) => {
+      const next = new Map(old);
+      if (value === seed) next.delete(bufferKey(selected));
+      else next.set(bufferKey(selected), { scope, sides, seed, editor: value });
+      return next;
+    });
   };
+  // A freshly loaded index owns the lifetime of each conflict. An unpolled
+  // repository temporarily reports an empty list and must keep its buffers.
+  if (merge.loaded) {
+    const paths = new Set(files.map((file) => file.path));
+    const stale = ([, draft]: [string, { scope: string; sides: ConflictSides }]) =>
+      draft.scope === scope && (!active || !paths.has(draft.sides.path));
+    if ([...drafts].some(stale)) setDrafts(new Map([...drafts].filter((entry) => !stale(entry))));
+    if (selected && !paths.has(selected)) {
+      setSelected(null);
+      setSides(null);
+      setEditor("");
+    }
+  }
   const setStatus = useStatusAreaStore((s) => s.setStatus);
 
   // The highlight backdrop derives from a deferred copy of the editor so a
@@ -105,21 +127,26 @@ export function ConflictPanel({
     setSides(null);
     setEditor("");
     seedRef.current = "";
-    const draft = draftsRef.current.get(bufferKey(path));
-    if (draft) {
-      setSides(draft.sides);
-      setEditor(draft.editor);
-      seedRef.current = draft.seed;
-      return;
-    }
+    const draft = drafts.get(bufferKey(path));
     try {
       const s = await getConflictSides(workspaceId, path);
       if (!openRef.current || seqRef.current !== my || scopeRef.current !== scope) return; // closed or superseded
       setSides(s);
       const seed = s.working ?? s.ours ?? s.theirs ?? "";
       seedRef.current = seed;
-      setEditor(seed);
-      draftsRef.current.set(bufferKey(path), { sides: s, seed, editor: seed });
+      const matches =
+        draft &&
+        draft.seed === seed &&
+        draft.sides.base === s.base &&
+        draft.sides.ours === s.ours &&
+        draft.sides.theirs === s.theirs;
+      setEditor(matches ? draft.editor : seed);
+      if (draft && !matches)
+        setDrafts((old) => {
+          const next = new Map(old);
+          next.delete(bufferKey(path));
+          return next;
+        });
     } catch (e) {
       if (openRef.current && seqRef.current === my && scopeRef.current === scope)
         setError(formatAppError(e));
@@ -130,6 +157,8 @@ export function ConflictPanel({
   const [previousScope, setPreviousScope] = useState(scopeKey);
   if (previousScope !== scopeKey) {
     setPreviousScope(scopeKey);
+    setDiscardPrompt(false);
+    setResolvedPaths([]);
     setSelected(null);
     setSides(null);
     setEditor("");
@@ -155,6 +184,7 @@ export function ConflictPanel({
   if (previousVisibility !== visibilityKey) {
     setPreviousVisibility(visibilityKey);
     if (!open) {
+      setResolvedPaths([]);
       setBusy(false);
       setSelected(null);
       setSides(null);
@@ -167,22 +197,17 @@ export function ConflictPanel({
   useLayoutEffect(() => {
     if (!open) {
       seqRef.current += 1;
-      draftsRef.current.clear();
       seedRef.current = "";
     }
   }, [open]);
 
-  // Resolving the last conflict returns to the main window; a merge that
-  // ends underneath us (e.g. committed in a terminal) does the same, so a
-  // stale editor can never be carried into the next merge.
+  // A resolved merge stays open until the Git operation itself ends.
   useEffect(() => {
-    if (open && active && files.length === 0) onClose();
-    if (open && !active) onClose();
-  }, [open, active, files.length, onClose]);
+    if (open && !active && merge.loaded) onClose();
+  }, [open, active, merge.loaded, onClose]);
 
   const requestClose = () => {
-    if ([...draftsRef.current.values()].some((draft) => draft.editor !== draft.seed))
-      setDiscardPrompt(true);
+    if ([...drafts.values()].some((draft) => draft.scope === scope)) setDiscardPrompt(true);
     else onClose();
   };
   // Keep the Escape listener free of per-render re-subscription.
@@ -291,9 +316,8 @@ export function ConflictPanel({
     }
   };
   return (
-    <div className="fixed inset-0 z-modal flex items-center justify-center">
-      <div className="fixed inset-0 bg-bg-overlay backdrop-blur-sm" />
-      <div className="relative z-10 w-[min(1100px,95vw)] h-[min(720px,90vh)] rounded-xl bg-bg-elevated shadow-modal flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 bg-bg-panel">
+      <div className="h-full flex flex-col overflow-hidden">
         <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border-subtle">
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} className="text-warning" />
@@ -331,9 +355,14 @@ export function ConflictPanel({
             aria-label={t("conflicts.fileListAria")}
             className="w-64 shrink-0 border-r border-border-subtle overflow-auto select-none px-1 py-1"
           >
+            {resolvedPaths
+              .filter((path) => !files.some((file) => file.path === path))
+              .map((path) => (
+                <p key={path} className="p-2 text-xs text-text-muted">
+                  {t("conflicts.marked", { path })}
+                </p>
+              ))}
             {files.length === 0 ? (
-              // Transient only — the auto-close effect hides the panel right
-              // after the list empties; kept as a defensive empty state.
               <p className="p-3 text-xs text-text-muted">{t("conflicts.emptyList")}</p>
             ) : (
               files.map((f) => {
@@ -357,7 +386,10 @@ export function ConflictPanel({
                       selected === f.path ? "bg-accent/10" : "hover:bg-bg-secondary",
                     )}
                   >
-                    <span className="flex-1 min-w-0 truncate text-text-primary">{name}</span>
+                    <span className="flex-1 min-w-0 truncate text-text-primary">
+                      {name}
+                      {drafts.has(bufferKey(f.path)) && " · " + t("conflicts.unsaved")}
+                    </span>
                   </div>
                 );
               })
@@ -367,7 +399,11 @@ export function ConflictPanel({
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
             {!sides ? (
               <div className="flex-1 flex items-center justify-center text-sm text-text-muted">
-                {t("conflicts.selectFile")}
+                {t(
+                  mergeInProgress && files.length === 0
+                    ? "conflicts.banner.mergeResolved"
+                    : "conflicts.selectFile",
+                )}
               </div>
             ) : (
               <>
@@ -461,7 +497,9 @@ export function ConflictPanel({
                         setBusy(true);
                         try {
                           await resolveConflict(workspaceId, sides.path, editor);
-                          draftsRef.current.delete(bufferKey(sides.path));
+                          if (openRef.current && scopeRef.current === scope)
+                            setResolvedPaths((paths) => [...new Set([...paths, sides.path])]);
+
                           bumpHistory();
                           await refresh();
                           if (
@@ -570,6 +608,7 @@ export function ConflictPanel({
             size="sm"
             onClick={() => {
               setDiscardPrompt(false);
+              clearDrafts();
               onClose();
             }}
           >

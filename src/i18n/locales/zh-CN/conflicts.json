@@ -37,6 +37,10 @@
       "description": "编辑器中的内容与初始载入的版本不一致。现在关闭将丢弃手动编辑——如需保留，请使用「标记为已解决」。",
       "keepEditing": "继续编辑",
       "confirm": "丢弃编辑"
-    }
+    },
+    "marked": "已标记解决：{{path}}",
+    "unsaved": "未保存",
+    "rebasePaused": "交互式 rebase 已暂停，等待编辑",
+    "reorderHint": "按 Alt + ↑ / ↓ 调整顺序"
   }
 }

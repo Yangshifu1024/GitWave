@@ -37,6 +37,10 @@
       "description": "The editor content differs from the version it was seeded with. Closing now discards manual edits — use Mark resolved to keep them.",
       "keepEditing": "Keep editing",
       "confirm": "Discard edits"
-    }
+    },
+    "marked": "Marked resolved: {{path}}",
+    "unsaved": "Unsaved",
+    "rebasePaused": "Interactive rebase paused for edit",
+    "reorderHint": "Alt + ↑ / ↓ to reorder"
   }
 }

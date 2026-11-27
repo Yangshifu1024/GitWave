@@ -34,6 +34,7 @@ const sides = (path: string): ConflictSides => ({
   working: `working ${path}`,
 });
 const merge = {
+  loaded: true,
   active: true,
   mergeInProgress: false,
   files: ["a.ts", "b.ts"].map((path) => ({
@@ -48,7 +49,7 @@ const merge = {
 const editor = () => screen.getByRole<HTMLTextAreaElement>("textbox");
 async function openFile(path: string) {
   await flushAct(() => {
-    fireEvent.click(screen.getByRole("option", { name: path }));
+    fireEvent.click(screen.getByTitle(path));
   });
 }
 beforeEach(() => {
@@ -130,3 +131,59 @@ async function flushAct(action: () => void) {
     await Promise.resolve();
   });
 }
+
+it("shows outstanding merge state inline after saving the last conflict", async () => {
+  const close = vi.fn();
+  const operation = { ...merge, mergeInProgress: true, files: merge.files.slice(0, 1) };
+  vi.mocked(resolveConflict).mockResolvedValueOnce(undefined);
+  const panel = render(<ConflictPanel open merge={operation} onClose={close} />);
+  expect(screen.getByRole("heading", { name: "conflicts.title" }).closest(".fixed")).toBeNull();
+  await openFile("a.ts");
+  fireEvent.change(editor(), { target: { value: "merged lines" } });
+  expect(screen.getByRole("option", { name: /conflicts.unsaved/ })).toBeTruthy();
+  await flushAct(() =>
+    fireEvent.click(screen.getByRole("button", { name: "conflicts.markResolved" })),
+  );
+  expect(resolveConflict).toHaveBeenCalledExactlyOnceWith("ws", "a.ts", "merged lines");
+  panel.rerender(<ConflictPanel open merge={{ ...operation, files: [] }} onClose={close} />);
+  expect(screen.getByText("conflicts.marked")).toBeTruthy();
+  expect(screen.getByText("conflicts.banner.mergeResolved")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "conflicts.abortMerge" })).toBeTruthy();
+  expect(close).not.toHaveBeenCalled();
+  panel.rerender(
+    <ConflictPanel open merge={{ ...operation, files: [], active: false }} onClose={close} />,
+  );
+  expect(close).toHaveBeenCalled();
+});
+
+it("shows an orphaned index conflict without offering merge-only actions", () => {
+  render(<ConflictPanel open merge={merge} onClose={vi.fn()} />);
+  expect(screen.getByRole("heading", { name: "conflicts.indexTitle" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "conflicts.abortMerge" })).toBeNull();
+});
+
+it("restores an unsaved buffer after visiting a clean repository and expires it when its conflict ends", async () => {
+  const close = vi.fn();
+  const clean = { ...merge, files: [], active: false };
+  const panel = render(<ConflictPanel open merge={merge} onClose={close} />);
+  await openFile("a.ts");
+  fireEvent.change(editor(), { target: { value: "draft for A" } });
+  act(() => {
+    useWorkspaceUiStore.setState({ activeRepoId: "other" });
+    panel.rerender(<ConflictPanel open merge={clean} onClose={close} />);
+  });
+  panel.rerender(<ConflictPanel open={false} merge={clean} onClose={close} />);
+  act(() => {
+    useWorkspaceUiStore.setState({ activeRepoId: "repo" });
+    panel.rerender(
+      <ConflictPanel open={false} merge={{ ...clean, loaded: false }} onClose={close} />,
+    );
+  });
+  panel.rerender(<ConflictPanel open merge={merge} onClose={close} />);
+  await openFile("a.ts");
+  expect(editor().value).toBe("draft for A");
+  panel.rerender(<ConflictPanel open merge={clean} onClose={close} />);
+  panel.rerender(<ConflictPanel open merge={merge} onClose={close} />);
+  await openFile("a.ts");
+  expect(editor().value).toBe("working a.ts");
+});
