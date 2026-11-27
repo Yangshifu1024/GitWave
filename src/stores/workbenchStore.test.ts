@@ -40,4 +40,22 @@ describe("workbench sessions", () => {
     ).toEqual(selection);
     expect(reconcileChangeSelection(selection, [{ path: "other.ts", staged: false }])).toBeNull();
   });
+  it.each([true, false])(
+    "selects a surviving sibling on the original side (staged=%s)",
+    (staged) => {
+      const row = (path: string) => ({ path, staged });
+      const a = row("a.ts"),
+        b = row("b.ts"),
+        c = row("c.ts"),
+        d = row("d.ts");
+      const previous = [a, b, c, d];
+      const moved = { ...b, staged: !staged };
+      expect(reconcileChangeSelection(b, [a, moved, d], previous)).toEqual(d);
+      expect(reconcileChangeSelection(d, [a, b, c], previous)).toEqual(c);
+      expect(reconcileChangeSelection(a, [b, c, d], previous)).toEqual(b);
+      expect(reconcileChangeSelection(b, [a, b, moved, d], previous)).toEqual(b);
+      expect(reconcileChangeSelection(b, [moved], previous)).toEqual(moved);
+      expect(reconcileChangeSelection(b, [], previous)).toBeNull();
+    },
+  );
 });

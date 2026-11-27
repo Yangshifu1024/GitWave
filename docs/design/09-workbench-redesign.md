@@ -6,7 +6,7 @@
 
 本轮实测修订：History 不再有重复标题栏和紧凑图切换，固定完整分支图（18px lane）；refs/SHA/作者/时间按固定列对齐；同一 commit 的 tag 优先展示，其次本地分支、远端分支，展开列表同序。单文件文本 diff 填满剩余高度且继续虚拟滚动。Changes 分组标题、计数和操作保持同一行，极窄面板横向滚动。Blame 的归属、行号和代码分列，长作者省略、完整归属保留，代码横向滚动，文件路径只显示一次。受控弹窗关闭立即卸载，避免退出动画被取消后残留遮罩。列表高亮统一为分支样式（直角、整行浅色底、左侧3px竖线）；文件多选底色与仅预览标线可区分。工具栏分支名使用剩余空间，空间足够时不截断。Blame 小于512px时缩减归属列并取消固定列，日期保留在完整信息提示。详见 [修复验证](../tasks/fix-workbench-interactions/plan.md)。
 
-后文是完整目标设计，**不代表全部已实现**：命令 registry/本地独立搜索、操作记录、布局备选、composer 内部可调高、commit 成功跳转、stash/recovery/tools/AI/conflict 容器迁移均待后续。第一阶段 History 搜索打开现有命令面板，stage 后追随同 path，文件消失清空选择；面板比例按设备保存，会话选择按 Workspace+repo 内存保存。
+后文是完整目标设计，**不代表全部已实现**：命令 registry/本地独立搜索、操作记录、布局备选、stash/recovery/tools/AI/conflict 容器迁移均待后续。开发版 Changes 已支持调整提交编辑区高度，提交成功后可选择在 History 查看。stage 或 unstage 后优先保留原侧同路径，其次选原侧邻项，最后才跟随原路径到另一侧。v0.11.0 的 History 搜索入口打开命令面板；面板比例按设备保存，会话选择按 Workspace+repo 内存保存。
 
 关联：[F018](../pm/features/F018-workbench-redesign.md) · [工程计划](../tasks/feat-workbench-redesign/plan.md)。
 
@@ -129,7 +129,8 @@
 - AI 生成前标明 staged 范围及 provider；生成后可编辑、恢复原稿。生成不是 commit。
 - Commit 按钮注明 staged 文件数量；未 stage 时说明原因。clean 状态提供查看 History、打开编辑器、message-only amend（符合条件时），不靠十余个禁用按钮表达空态。
 - commit 成功后留在 Changes，显示新 SHA 与「在 History 中查看」；余下 unstaged 继续保留。Push 始终是另一次明确操作。
-- stage 后尽量跟随同一文件到 staged 侧；若文件消失，选原位置邻项。外部更改导致内容失效时重新读取并说明，不显示过期 diff。
+- 本次 Changes 迭代把提交后查看、文件邻项选择和提交编辑区调高放在同一个审阅流程中。[任务计划](../tasks/feat-changes-flow/plan.md)
+- stage 或 unstage 后先保留同路径、同侧的选择，其次选原侧邻项，最后才跟随原路径到另一侧。外部更改导致内容失效时重新读取并说明，不显示过期 diff。
 
 ### 5.4 尺寸策略
 

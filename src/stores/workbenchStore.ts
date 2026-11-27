@@ -8,12 +8,14 @@ export interface ChangeSelection {
 export interface WorkbenchSession {
   mode: WorkbenchMode;
   commit: string | null;
+  lastCreatedCommit: string | null;
   historyFile: { commit: string; path: string } | null;
   change: ChangeSelection | null;
 }
 export const EMPTY_SESSION: WorkbenchSession = {
   mode: "history",
   commit: null,
+  lastCreatedCommit: null,
   historyFile: null,
   change: null,
 };
@@ -35,15 +37,30 @@ export const useWorkbenchStore = create<{
     })),
 }));
 
-/** Follow a stage/unstage to its other side; preserve the side for partially staged files. */
+/** Keep the current side, then its surviving neighbours, then the file's other side. */
 export function reconcileChangeSelection(
   selected: ChangeSelection | null,
   files: readonly ChangeSelection[],
+  previous: readonly ChangeSelection[] = [],
 ): ChangeSelection | null {
   if (!selected) return null;
-  return (
-    files.find((file) => file.path === selected.path && file.staged === selected.staged) ??
-    files.find((file) => file.path === selected.path) ??
-    null
+  const unchanged = files.find(
+    (file) => file.path === selected.path && file.staged === selected.staged,
   );
+  if (unchanged) return unchanged;
+  const group = previous.filter((file) => file.staged === selected.staged);
+  const index = group.findIndex((file) => file.path === selected.path);
+  if (index >= 0) {
+    const remaining = new Set(
+      files.filter((file) => file.staged === selected.staged).map((file) => file.path),
+    );
+    const next = group.slice(index + 1).find((file) => remaining.has(file.path));
+    if (next) return next;
+    const previousFile = group
+      .slice(0, index)
+      .reverse()
+      .find((file) => remaining.has(file.path));
+    if (previousFile) return previousFile;
+  }
+  return files.find((file) => file.path === selected.path) ?? null;
 }
