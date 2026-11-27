@@ -1,3 +1,4 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 // Global command palette (Cmd+K / Ctrl+K). Three layers:
 //  1. Static commands — navigation and quick ops, no AI needed.
 //  2. Commit search — the typed query also matches commit message/author
@@ -8,7 +9,7 @@
 //     before executing; commit / push / merge / rebase are rejected
 //     server-side and never executable from here (P1).
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,6 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import {
+  sendAiPreview,
   aiPaletteIntent,
   checkoutBranch,
   createBranch,
@@ -54,11 +56,17 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   none: "palette.action.none",
 };
 
-export function CommandPalette({
-  requestLocate,
-}: {
+interface PaletteProps {
   requestLocate: (sha: string) => void;
-}): React.JSX.Element | null {
+}
+
+export function CommandPalette(props: PaletteProps) {
+  const workspace = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const repo = useWorkspaceUiStore((s) => s.activeRepoId);
+  return <ScopedPalette key={JSON.stringify([workspace, repo])} {...props} />;
+}
+
+function ScopedPalette({ requestLocate }: PaletteProps): React.JSX.Element | null {
   const { t } = useTranslation();
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
@@ -73,7 +81,7 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [intent, setIntent] = useState<PaletteIntent | null>(null);
   const [intentError, setIntentError] = useState<string | null>(null);
-  const [explain, setExplain] = useState<{ sha: string } | null>(null);
+  const [explain, setExplain] = useState<{ sha: string; previewFirst: boolean } | null>(null);
   const {
     commits: commitResults,
     loading: commitsLoading,
@@ -93,7 +101,7 @@ export function CommandPalette({
     pageSize: 10,
     debounceMs: 300,
   });
-  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // App-standard global shortcut, same modifier check as Toolbar's Ctrl+,.
@@ -113,10 +121,11 @@ export function CommandPalette({
   if (previousVisibility !== visibilityKey) {
     setPreviousVisibility(visibilityKey);
     if (open) {
+      setExplain(null);
       setQuery("");
       setIntent(null);
       setIntentError(null);
-      setSelectedIndex(-1);
+      setSelectedId(null);
     }
   }
   useEffect(() => {
@@ -166,7 +175,7 @@ export function CommandPalette({
   const [previousScope, setPreviousScope] = useState(scopeKey);
   if (previousScope !== scopeKey) {
     setPreviousScope(scopeKey);
-    setSelectedIndex(-1);
+    setSelectedId(null);
   }
 
   const locateCommit = (sha: string): void => {
@@ -174,38 +183,63 @@ export function CommandPalette({
     requestLocate(sha);
   };
 
-  // Arrow keys walk commands and commit results as one list; Enter on an
-  // unselected input falls through to the form submit (Ask AI).
+  // Keep explicit selection by identity as paginated search results change.
   type PaletteRow =
     { kind: "command"; id: string; run: () => void } | { kind: "commit"; id: string; sha: string };
   const rows: PaletteRow[] = [
     ...filtered.map((c) => ({ kind: "command" as const, id: c.id, run: c.run })),
     ...commitResults.map((c) => ({ kind: "commit" as const, id: c.sha, sha: c.sha })),
   ];
-  const clampSelection = (next: number): void => {
-    setSelectedIndex(rows.length === 0 ? -1 : Math.min(Math.max(next, 0), rows.length - 1));
+  const selectedIndex = rows.length
+    ? Math.max(
+        0,
+        rows.findIndex((row) => row.id === selectedId),
+      )
+    : -1;
+  const moveSelection = (offset: number): void => {
+    const next = Math.min(Math.max(selectedIndex + offset, 0), rows.length - 1);
+    setSelectedId(rows[next]?.id ?? null);
   };
   const runRow = (row: PaletteRow): void => {
     if (row.kind === "command") row.run();
     else locateCommit(row.sha);
   };
 
-  const askAi = useMutation({
-    mutationFn: () => {
-      if (!workspaceId) throw new Error(t("palette.noWorkspace"));
-      return aiPaletteIntent(workspaceId, query);
+  // A late proposal may contain a write action. Invalidate it even when
+  // the user closes and reopens the palette with the same query.
+  const session = useRef(0);
+  useLayoutEffect(
+    () => () => {
+      session.current += 1;
     },
-    onSuccess: (res) => {
+    [query, open],
+  );
+  const askAi = useMutation({
+    mutationFn: ({ previewId }: { previewId?: number; session: number }) => {
+      if (!workspaceId) throw new Error(t("palette.noWorkspace"));
+      return previewId === undefined
+        ? aiPaletteIntent(workspaceId, query)
+        : sendAiPreview(workspaceId, { kind: "palette", query }, previewId);
+    },
+    onSuccess: (res, request) => {
+      if (request.session !== session.current) return;
       setIntent(res);
       setIntentError(null);
     },
-    onError: (e) => {
+    onError: (e, request) => {
+      if (request.session !== session.current) return;
       setIntent(null);
       setIntentError(formatAppError(e));
     },
   });
 
-  const execute = (next: PaletteIntent): void => {
+  const ask = (previewId?: number) => {
+    setIntent(null);
+    setIntentError(null);
+    askAi.mutate({ previewId, session: session.current });
+  };
+
+  const execute = (next: PaletteIntent, previewFirst = false): void => {
     if (!workspaceId) return;
     const params = next.params as Record<string, string | undefined>;
     void (async () => {
@@ -213,7 +247,7 @@ export function CommandPalette({
         switch (next.action) {
           case "explain_commit": {
             setOpen(false);
-            setExplain({ sha: params.sha ?? "" });
+            setExplain({ sha: params.sha ?? "", previewFirst });
             return;
           }
           case "locate_commit": {
@@ -299,7 +333,16 @@ export function CommandPalette({
     })();
   };
 
-  if (!open) return null;
+  if (!open)
+    return explain && workspaceId ? (
+      <CommitExplainModal
+        workspaceId={workspaceId}
+        sha={explain.sha}
+        previewFirst={explain.previewFirst}
+        open
+        onClose={() => setExplain(null)}
+      />
+    ) : null;
 
   const actionLabelKey = ACTION_LABEL_KEYS[intent?.action ?? ""];
 
@@ -312,61 +355,60 @@ export function CommandPalette({
         className="w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-default bg-bg-elevated shadow-modal animate-in zoom-in-95"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (query.trim() && !askAi.isPending) {
-              setIntent(null);
-              setIntentError(null);
-              askAi.mutate();
-            }
-          }}
-        >
-          <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            {/* flex-1 makes the field span the row: the TextField is a plain
+        <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+          {/* flex-1 makes the field span the row: the TextField is a plain
                 flex child and would otherwise shrink to content width,
                 stopping short of the Ask AI button's edge. */}
-            <div className="min-w-0 flex-1">
-              <Input
-                ref={inputRef}
-                value={query}
-                onChange={(v) => {
-                  setQuery(v);
-                  setIntent(null);
-                  setIntentError(null);
-                  setSelectedIndex(-1);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.stopPropagation();
-                    setOpen(false);
-                  } else if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    clampSelection(selectedIndex + 1);
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    clampSelection(selectedIndex - 1);
-                  } else if (e.key === "Enter" && selectedIndex >= 0 && rows[selectedIndex]) {
-                    e.preventDefault();
-                    runRow(rows[selectedIndex]);
-                  }
-                }}
-                placeholder={t("palette.placeholder")}
-                variant="search"
-                /* Borderless transparent field: the palette header row is the
+          <div className="min-w-0 flex-1">
+            <Input
+              ref={inputRef}
+              value={query}
+              onChange={(v) => {
+                setQuery(v);
+                setIntent(null);
+                setIntentError(null);
+                setSelectedId(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  setOpen(false);
+                } else if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  moveSelection(1);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  moveSelection(-1);
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  const selected = rows[selectedIndex];
+                  if (!askAi.isPending && selected) runRow(selected);
+                }
+              }}
+              placeholder={t("palette.placeholder")}
+              variant="search"
+              /* Borderless transparent field: the palette header row is the
                    field — a filled InputGroup inside the elevated panel reads
                    as a glaring white box (and doubles the prefix search icon). */
-                className="border-0 bg-transparent shadow-none hover:bg-transparent focus-within:bg-transparent focus-visible:bg-transparent"
-              />
-            </div>
-            {query.trim() ? (
-              <Button type="submit" variant="primary" size="sm" disabled={askAi.isPending}>
-                <Sparkles size={13} />
-                {askAi.isPending ? t("palette.thinking") : t("palette.askAi")}
-              </Button>
-            ) : null}
+              className="border-0 bg-transparent shadow-none hover:bg-transparent focus-within:bg-transparent focus-visible:bg-transparent"
+            />
           </div>
-        </form>
+          {query.trim() && workspaceId ? (
+            <AiPreviewButton
+              workspaceId={workspaceId}
+              task={{ kind: "palette", query }}
+              disabled={askAi.isPending}
+              onSend={ask}
+            />
+          ) : null}
+          {query.trim() ? (
+            <Button variant="primary" size="sm" disabled={askAi.isPending} onClick={() => ask()}>
+              <Sparkles size={13} />
+              {askAi.isPending ? t("palette.thinking") : t("palette.askAi")}
+            </Button>
+          ) : null}
+        </div>
 
         <div className="max-h-[46vh] overflow-y-auto">
           {askAi.isPending ? (
@@ -398,6 +440,11 @@ export function CommandPalette({
                 <Button variant="secondary" size="sm" onClick={() => setIntent(null)}>
                   {t("common.cancel")}
                 </Button>
+                {intent.action === "explain_commit" && (
+                  <Button variant="ghost" size="sm" onClick={() => execute(intent, true)}>
+                    {t("ai.preview.open")}
+                  </Button>
+                )}
                 <Button variant="primary" size="sm" onClick={() => execute(intent)}>
                   {intent.requires_confirm ? t("common.confirm") : t("palette.run")}
                 </Button>
@@ -414,7 +461,8 @@ export function CommandPalette({
                   key={c.id}
                   type="button"
                   onClick={c.run}
-                  onMouseEnter={() => setSelectedIndex(i)}
+                  aria-current={selectedIndex === i || undefined}
+                  onMouseEnter={() => setSelectedId(c.id)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
                     "hover:bg-bg-secondary hover:text-text-primary",
@@ -477,7 +525,8 @@ export function CommandPalette({
                         key={c.sha}
                         type="button"
                         onClick={() => locateCommit(c.sha)}
-                        onMouseEnter={() => setSelectedIndex(rowIndex)}
+                        aria-current={selectedIndex === rowIndex || undefined}
+                        onMouseEnter={() => setSelectedId(c.sha)}
                         className={cn(
                           "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
                           "hover:bg-bg-secondary hover:text-text-primary",
@@ -505,24 +554,15 @@ export function CommandPalette({
                   {t("palette.askHint")}
                 </p>
               ) : null}
-              {query.trim() ? (
+              {rows.length > 0 ? (
                 <p className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-text-muted">
                   <CornerDownLeft size={11} />
-                  {t("palette.enterAsks")}
+                  {t("palette.enterRuns")}
                 </p>
               ) : null}
             </div>
           ) : null}
         </div>
-
-        {explain && workspaceId ? (
-          <CommitExplainModal
-            workspaceId={workspaceId}
-            sha={explain.sha}
-            open
-            onClose={() => setExplain(null)}
-          />
-        ) : null}
       </div>
     </div>
   );

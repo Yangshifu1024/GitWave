@@ -222,6 +222,7 @@ export function buildAppMenuSpec(gating: MenuGating): AppMenuSpec[] {
           t("menu.branch.push.label"),
           !noRepo && !syncBusy && !detached,
         ),
+        item("branch:pr-preview", t("ai.preview.pr"), t("ai.preview.pr"), !noRepo && !detached),
         item(
           "branch:pr",
           t("menu.branch.pr.text"),

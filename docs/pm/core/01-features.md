@@ -90,13 +90,14 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 ### 1.6 AI Provider 集成
 
-**原则**：本地优先 + 隐私可控 + 可配置。diff 默认不离开本机；云端 provider 走 BYOK（API key 不上传至服务端）；提供 diff scrubber（扫描凭证 / secret / PII 后再发送）；完全离线模式一键禁用所有云端调用；AI provider / prompt 模板 / commit 规范 / 主题 / 快捷键均可自定义。
+**原则**：本地优先 + 隐私可控 + 可配置。diff 默认不离开本机；云端 provider 走 BYOK（API key 不上传至服务端）；在本机筛查 AI prompt 后再发送；完全离线模式一键禁用所有云端调用；AI provider / prompt 模板 / commit 规范 / 主题 / 快捷键均可自定义。
 
 - BYOK：OpenAI / Anthropic / Gemini / DeepSeek / Qwen / Azure OpenAI / 自定义 endpoint
 - 本地：Ollama 一键检测 + LM Studio 兼容 endpoint
 - Prompt 模板管理（commit / conflict / PR / reflog / health；后两套随 v0.3 恢复与 health 接入）
 - Per-repo AI rules（从 `.gitwave/` 目录读取）
 - Provider 故障转移
+- 发送前预览（待发布）：七个 AI 入口均可先查看脱敏后的系统提示、用户内容和替换计数，再决定是否发送；也支持直接生成。筛查范围包括已识别的凭证行、常见邮箱和电话号码。详见 [F019](../features/F019-ai-redaction-preview.md)。
 
 ### 1.7 Repo 添加 UX
 

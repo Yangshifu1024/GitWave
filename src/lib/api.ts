@@ -312,6 +312,61 @@ export function probeOllama(baseUrl?: string): Promise<string[]> {
   return invoke<string[]>("cmd_probe_ollama", { baseUrl: baseUrl ?? null });
 }
 
+export type AiTask =
+  | { kind: "commit_message"; repo_id?: string | null }
+  | { kind: "pr"; base?: string }
+  | { kind: "commit"; sha: string }
+  | { kind: "conflict"; path: string }
+  | { kind: "palette"; query: string }
+  | { kind: "health" }
+  | ({ kind: "reflog" } & Pick<ReflogEntry, "old_oid" | "new_oid" | "action" | "message">);
+
+export interface AiPreview {
+  id: number;
+  prompt: {
+    system: string;
+    user: string;
+    counts: { secret_lines: number; emails: number; phones: number };
+  };
+}
+
+export function previewAi(
+  workspaceId: string,
+  task: AiTask,
+  repoId: string | null,
+): Promise<AiPreview> {
+  return invoke("cmd_preview_ai", {
+    workspaceId,
+    repoId,
+    task,
+    language: task.kind === "palette" ? null : aiLanguage(),
+  });
+}
+
+export function discardAiPreview(id: number): Promise<void> {
+  return invoke("cmd_discard_ai_preview", { id });
+}
+
+type AiResult<T extends AiTask> = T["kind"] extends "pr"
+  ? PrDescriptionOutcome
+  : T["kind"] extends "palette"
+    ? PaletteIntent
+    : T["kind"] extends "reflog" | "health"
+      ? string
+      : AiGenerateOutcome;
+export function sendAiPreview<T extends AiTask>(
+  workspaceId: string,
+  task: T,
+  id: number,
+): Promise<AiResult<T>> {
+  return invoke("cmd_send_ai_preview", {
+    workspaceId,
+    task,
+    id,
+    language: task.kind === "palette" ? null : aiLanguage(),
+  });
+}
+
 export function generateCommitMessage(
   workspaceId: string,
   repoId?: string,

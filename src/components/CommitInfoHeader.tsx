@@ -48,7 +48,7 @@ export function CommitInfoHeader({
   const [pending, setPending] = useState<CommitAction | null>(null);
   const [busy, setBusy] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
-  const [explainOpen, setExplainOpen] = useState(false);
+  const [explainMode, setExplainMode] = useState<"generate" | "preview" | null>(null);
   // Collapsed state survives commit switches (no remount on sha change) but
   // resets when the repo tab changes (wrapper key); session-scoped, not
   // persisted across restarts.
@@ -156,12 +156,15 @@ export function CommitInfoHeader({
           </span>
         </Button>
         <div className="shrink-0 flex flex-wrap items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setExplainMode("preview")}>
+            {t("ai.preview.open")}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             aria-label={t("commits.header.explainAria")}
             title={t("commits.header.explainTitle")}
-            onClick={() => setExplainOpen(true)}
+            onClick={() => setExplainMode("generate")}
           >
             <Sparkles size={13} />
             {t("commits.header.explain")}
@@ -221,13 +224,14 @@ export function CommitInfoHeader({
         ) : null}
       </div>
 
-      {explainOpen ? (
+      {explainMode ? (
         <CommitExplainModal
           workspaceId={workspaceId}
+          previewFirst={explainMode === "preview"}
           sha={data.sha}
           subject={subject}
           open
-          onClose={() => setExplainOpen(false)}
+          onClose={() => setExplainMode(null)}
         />
       ) : null}
 

@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 use crate::domain::error::{AppError, Result};
 use crate::domain::error_codes as codes;
-use crate::infrastructure::ai::scrubber::scrub_secrets;
+use crate::infrastructure::ai::scrubber::PreparedPrompt;
 
 /// Hand-rolled `Debug`: `api_key` must never hit logs even if a future
 /// `{:?}` sneaks in (cf. credentials.rs `InlineAuth` masking).
@@ -17,8 +17,7 @@ pub struct AiGenerateRequest {
     pub model: String,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
-    pub system: String,
-    pub user: String,
+    pub prompt: PreparedPrompt,
     /// Ordered fallback providers tried after `provider` fails. Empty = no
     /// failover. Base URLs/keys are per attempt (resolved by the caller).
     pub fallbacks: Vec<ProviderAttempt>,
@@ -250,9 +249,6 @@ pub fn rebuild_http_client() {
 /// straight to the next provider. When every attempt fails, the LAST error
 /// is returned.
 pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
-    let user = scrub_secrets(&req.user);
-    let system = scrub_secrets(&req.system);
-
     let mut attempts: Vec<ProviderAttempt> = vec![ProviderAttempt {
         provider: req.provider.clone(),
         base_url: req.base_url.clone(),
@@ -281,7 +277,8 @@ pub async fn generate_text(req: AiGenerateRequest) -> Result<String> {
     };
     for attempt in attempts {
         for pass in 0..2 {
-            let result = attempt_chat(&client, &attempt, &system, &user).await;
+            let result =
+                attempt_chat(&client, &attempt, &req.prompt.system, &req.prompt.user).await;
             match result {
                 Ok(text) => return Ok(text),
                 Err(e) => {
@@ -736,8 +733,7 @@ mod tests {
                 model: "m".into(),
                 base_url: Some("http://192.0.2.1:11434".into()),
                 api_key: None,
-                system: "s".into(),
-                user: "private diff".into(),
+                prompt: PreparedPrompt::new("s", "private diff"),
                 fallbacks: vec![],
             };
             let error = generate_text(request).await.unwrap_err();
@@ -749,8 +745,7 @@ mod tests {
             model: "m".into(),
             base_url: None,
             api_key: None,
-            system: "s".into(),
-            user: "u".into(),
+            prompt: PreparedPrompt::new("s", "u"),
             fallbacks: vec![ProviderAttempt {
                 provider: "ollama".into(),
                 model: "m".into(),
@@ -772,8 +767,7 @@ mod tests {
             model: "m".into(),
             base_url: None,
             api_key: None,
-            system: "s".into(),
-            user: "u".into(),
+            prompt: PreparedPrompt::new("s", "u"),
             fallbacks: vec![ProviderAttempt {
                 provider: "acme2".into(),
                 base_url: None,
@@ -922,8 +916,7 @@ mod tests {
             model: "m".into(),
             base_url: None,
             api_key: Some("sk-secret".into()),
-            system: "s".into(),
-            user: "u".into(),
+            prompt: PreparedPrompt::new("s", "u"),
             fallbacks: vec![],
         };
         let dbg = format!("{req:?}");

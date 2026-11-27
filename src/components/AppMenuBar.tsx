@@ -81,6 +81,7 @@ const ITEM_ICONS: Record<AppMenuItemId, LucideIcon> = {
   "branch:pull": ArrowDown,
   "branch:push": ArrowUp,
   "branch:pr": GitPullRequest,
+  "branch:pr-preview": GitPullRequest,
 };
 
 function MenuItemIcon({ id }: { id: AppMenuItemId }): React.JSX.Element {

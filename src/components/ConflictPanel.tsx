@@ -1,3 +1,4 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 import {
   Fragment,
   useDeferredValue,
@@ -9,7 +10,13 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { ConflictSides } from "@/lib/api";
-import { explainConflict, formatAppError, getConflictSides, resolveConflict } from "@/lib/api";
+import {
+  sendAiPreview,
+  explainConflict,
+  formatAppError,
+  getConflictSides,
+  resolveConflict,
+} from "@/lib/api";
 import { classifyConflictLine, findConflictRegions, lineStartOffsets } from "@/lib/conflictMarkers";
 import type { MergeConflictsState } from "@/hooks/useMergeConflicts";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -263,6 +270,26 @@ export function ConflictPanel({
     })();
   };
 
+  const runExplain = async (path: string, previewId?: number) => {
+    const request = seqRef.current;
+    setBusy(true);
+    setExplain(null);
+    try {
+      const res = await (previewId === undefined
+        ? explainConflict(workspaceId, path)
+        : sendAiPreview(workspaceId, { kind: "conflict", path }, previewId));
+      if (!openRef.current || scopeRef.current !== scope || seqRef.current !== request) return;
+      setExplain(res.text);
+      if (res.used_fallback) {
+        setStatus(t("conflicts.explainFallback", { provider: res.provider_used }), "info");
+      }
+    } catch (e) {
+      if (openRef.current && scopeRef.current === scope && seqRef.current === request)
+        setError(formatAppError(e));
+    } finally {
+      if (scopeRef.current === scope && seqRef.current === request) setBusy(false);
+    }
+  };
   return (
     <div className="fixed inset-0 z-modal flex items-center justify-center">
       <div className="fixed inset-0 bg-bg-overlay backdrop-blur-sm" />
@@ -408,43 +435,17 @@ export function ConflictPanel({
                   >
                     {t("conflicts.useTheirs")}
                   </Button>
+                  <AiPreviewButton
+                    workspaceId={workspaceId}
+                    task={{ kind: "conflict", path: sides.path }}
+                    disabled={busy}
+                    onSend={(id) => void runExplain(sides.path, id)}
+                  />
                   <Button
                     variant="ghost"
                     size="sm"
                     disabled={busy}
-                    onClick={() => {
-                      void (async () => {
-                        const request = seqRef.current;
-                        setBusy(true);
-                        setExplain(null);
-                        try {
-                          const res = await explainConflict(workspaceId, sides.path);
-                          if (
-                            !openRef.current ||
-                            scopeRef.current !== scope ||
-                            seqRef.current !== request
-                          )
-                            return;
-                          setExplain(res.text);
-                          if (res.used_fallback) {
-                            setStatus(
-                              t("conflicts.explainFallback", { provider: res.provider_used }),
-                              "info",
-                            );
-                          }
-                        } catch (e) {
-                          if (
-                            openRef.current &&
-                            scopeRef.current === scope &&
-                            seqRef.current === request
-                          )
-                            setError(formatAppError(e));
-                        } finally {
-                          if (scopeRef.current === scope && seqRef.current === request)
-                            setBusy(false);
-                        }
-                      })();
-                    }}
+                    onClick={() => void runExplain(sides.path)}
                     title={t("conflicts.explainTitle")}
                   >
                     <Sparkles size={14} />

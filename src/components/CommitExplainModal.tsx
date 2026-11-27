@@ -1,3 +1,4 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 // AI commit explanation modal — asks the provider to explain what a commit
 // changed and why it matters. Read-only: the output is advice, nothing is
@@ -8,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Copy, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { explainCommit, formatAppError } from "@/lib/api";
+import { sendAiPreview, explainCommit, formatAppError } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
@@ -30,6 +31,7 @@ function CommitExplainModalContent({
   sha,
   subject,
   open,
+  previewFirst = false,
   onClose,
 }: {
   workspaceId: string;
@@ -37,6 +39,7 @@ function CommitExplainModalContent({
   /** Commit subject for the dialog title (short text from the caller). */
   subject?: string;
   open: boolean;
+  previewFirst?: boolean;
   onClose: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
@@ -48,8 +51,13 @@ function CommitExplainModalContent({
   // Same generation-session guard as PrDescriptionModal: a stale response
   // must not overwrite content from a newer open/regeneration.
   const sessionRef = useRef(0);
+  const started = useRef(false);
+  const task = { kind: "commit", sha } as const;
   const genMut = useMutation({
-    mutationFn: () => explainCommit(workspaceId, sha),
+    mutationFn: (previewId: number | void) =>
+      previewId === undefined
+        ? explainCommit(workspaceId, sha)
+        : sendAiPreview(workspaceId, task, previewId),
     onMutate: () => ({ session: sessionRef.current }),
     onSuccess: (res, _variables, context) => {
       if (!context || context.session !== sessionRef.current) return;
@@ -70,7 +78,10 @@ function CommitExplainModalContent({
   useEffect(() => {
     if (!open) return;
     sessionRef.current += 1;
-    genMut.mutate();
+    if (!previewFirst && !started.current) {
+      started.current = true;
+      genMut.mutate();
+    }
     return () => {
       sessionRef.current += 1;
     };
@@ -106,6 +117,16 @@ function CommitExplainModalContent({
               {t("commits.explain.generatedBy", { provider })}
             </span>
           ) : null}
+          <AiPreviewButton
+            workspaceId={workspaceId}
+            task={task}
+            initiallyOpen={previewFirst}
+            disabled={genMut.isPending}
+            onSend={(id) => {
+              sessionRef.current += 1;
+              genMut.mutate(id);
+            }}
+          />
           <Button
             variant="ghost"
             size="sm"
@@ -116,7 +137,7 @@ function CommitExplainModalContent({
             }}
           >
             <RefreshCw size={13} />
-            {t("commits.action.regenerate")}
+            {previewFirst && !provider ? t("ai.preview.direct") : t("commits.action.regenerate")}
           </Button>
           <Button
             variant="secondary"

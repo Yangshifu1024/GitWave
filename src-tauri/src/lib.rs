@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use crate::domain::error_codes as codes;
 use application::sync_ops;
+use application::use_cases::ai_preview::{self, AiReply, AiTask, Preview};
 use application::{
     abort_interactive_rebase_pause, abort_merge, add_local_repo, add_remote, add_ssh_key,
     add_submodule, add_worktree, ai_palette_intent, amend_commit, apply_stash, checkout_branch,
@@ -466,6 +467,37 @@ async fn cmd_probe_ollama(base_url: Option<String>) -> Result<Vec<String>, AppEr
     // Loopback restriction is enforced inside `use_cases::probe_ollama` so
     // every entry point is covered, not just this command.
     probe_ollama(base_url).await
+}
+
+#[tauri::command]
+async fn cmd_preview_ai(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    task: AiTask,
+    language: Option<String>,
+    repo_id: Option<String>,
+) -> Result<Preview, AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        ai_preview::preview(&ctx, &workspace_id, &task, language, repo_id.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
+fn cmd_discard_ai_preview(ctx: tauri::State<'_, AppContext>, id: u64) {
+    ai_preview::discard(&ctx, id);
+}
+
+#[tauri::command]
+async fn cmd_send_ai_preview(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    task: AiTask,
+    language: Option<String>,
+    id: u64,
+) -> Result<AiReply, AppError> {
+    ai_preview::send_preview(&ctx, &workspace_id, &task, language, id).await
 }
 
 #[tauri::command]
@@ -2052,6 +2084,9 @@ pub fn run() {
             cmd_clear_ai_api_key,
             cmd_get_ai_key_status,
             cmd_probe_ollama,
+            cmd_preview_ai,
+            cmd_discard_ai_preview,
+            cmd_send_ai_preview,
             cmd_generate_commit_message,
             cmd_generate_pr_description,
             cmd_explain_commit,
