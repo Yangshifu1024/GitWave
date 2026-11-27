@@ -1,3 +1,4 @@
+import { operationTarget, trackFetch } from "@/stores/operationHistory";
 // User preference + global timer for auto-refreshing repository data.
 // The preference lives in the autoRefreshStore so the settings modal
 // (writer) and the App-level loop (reader) observe one shared value.
@@ -62,7 +63,7 @@ export function useRefreshRepo(): () => void {
     void (async () => {
       try {
         await refreshLocalCaches(queryClient);
-        const { activeWorkspaceId } = useWorkspaceUiStore.getState();
+        const { activeWorkspaceId, activeRepoId } = useWorkspaceUiStore.getState();
         const sync = useSyncStore.getState();
         if (!activeWorkspaceId || sync.isBusy()) {
           setStatus(t("status.sync.refreshed"));
@@ -71,7 +72,9 @@ export function useRefreshRepo(): () => void {
         const requestId = nextSyncRequestId("fetch");
         sync.startOp("fetch", null, requestId);
         try {
-          await fetchRemote(activeWorkspaceId, { requestId });
+          await trackFetch(operationTarget(queryClient, activeWorkspaceId, activeRepoId), () =>
+            fetchRemote(activeWorkspaceId, { requestId }),
+          );
           // Fetched tips landed in the repo — re-read so they show up now.
           await refreshLocalCaches(queryClient);
           setStatus(t("status.sync.refreshed"));

@@ -1,3 +1,9 @@
+import {
+  isCurrentTarget,
+  operationTarget,
+  recordOperation,
+  type OperationTarget,
+} from "@/stores/operationHistory";
 import { useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
@@ -138,6 +144,7 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
     e: unknown,
     op: "fetch" | "pull" | "push",
     retry: (auth: InlineAuth) => void,
+    target: OperationTarget | null | undefined,
     remote?: string,
     canPrompt = true,
     requestId: string | null = null,
@@ -149,7 +156,18 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       return;
     }
     if (isAuthError(e) && canPrompt) {
-      useAuthPromptStore.getState().show(remote ?? "origin", retry);
+      const cancel = () => recordOperation(target, op, "cancelled");
+      useAuthPromptStore.getState().show(
+        remote ?? "origin",
+        (auth) => {
+          if (!isCurrentTarget(target)) {
+            cancel();
+            return;
+          }
+          retry(auth);
+        },
+        cancel,
+      );
       return;
     }
     useStatusAreaStore.getState().setStatus(t(FAILURE_KEYS[op]), "danger");
@@ -158,14 +176,16 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
 
   const fetchMut = useMutation({
     mutationFn: (options: FetchOptions | undefined) => fetchRemote(workspaceId!, options),
-    onMutate: (options) =>
-      useSyncStore.getState().startOp("fetch", options?.remote, options?.requestId ?? null),
+    onMutate: (options) => {
+      useSyncStore.getState().startOp("fetch", options?.remote, options?.requestId ?? null);
+      return operationTarget(queryClient, workspaceId, repoId);
+    },
     onSuccess: () => {
       useStatusAreaStore.getState().setStatus(t(SUCCESS_KEYS.fetch), "success");
       invalidate();
       bumpHistory();
     },
-    onError: (e, variables) => {
+    onError: (e, variables, target) => {
       // Fetch-all fans out over every remote: credentials are host-scoped,
       // so a retry must target only the remote that actually challenged
       // (the backend names it in the error params).
@@ -177,19 +197,29 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
           fetchMut.mutate(
             failedRemote ? { ...variables, remote: failedRemote, auth } : { ...variables, auth },
           ),
+        target,
         variables?.remote ?? failedRemote,
         variables?.auth === undefined,
         variables?.requestId ?? null,
       );
     },
-    onSettled: (_d, _e, variables) =>
-      useSyncStore.getState().endOp("fetch", variables?.requestId ?? null),
+    onSettled: (_data, error, variables, target) => {
+      if (!(isAuthError(error) && variables?.auth === undefined))
+        recordOperation(
+          target,
+          "fetch",
+          error ? (isCancelledSyncError(error) ? "cancelled" : "failed") : "success",
+        );
+      useSyncStore.getState().endOp("fetch", variables?.requestId ?? null);
+    },
   });
 
   const pullMut = useMutation({
     mutationFn: (options: PullOptions | undefined) => pullRemote(workspaceId!, options),
-    onMutate: (options) =>
-      useSyncStore.getState().startOp("pull", options?.remote, options?.requestId ?? null),
+    onMutate: (options) => {
+      useSyncStore.getState().startOp("pull", options?.remote, options?.requestId ?? null);
+      return operationTarget(queryClient, workspaceId, repoId);
+    },
     onSuccess: (_data, options) => {
       useStatusAreaStore
         .getState()
@@ -197,23 +227,33 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       invalidate();
       bumpHistory();
     },
-    onError: (e, variables) =>
+    onError: (e, variables, target) =>
       handleError(
         e,
         "pull",
         (auth) => pullMut.mutate({ ...(variables ?? {}), auth }),
+        target,
         variables?.remote,
         variables?.auth === undefined,
         variables?.requestId ?? null,
       ),
-    onSettled: (_d, _e, variables) =>
-      useSyncStore.getState().endOp("pull", variables?.requestId ?? null),
+    onSettled: (_data, error, variables, target) => {
+      if (!(isAuthError(error) && variables?.auth === undefined))
+        recordOperation(
+          target,
+          "pull",
+          error ? (isCancelledSyncError(error) ? "cancelled" : "failed") : "success",
+        );
+      useSyncStore.getState().endOp("pull", variables?.requestId ?? null);
+    },
   });
 
   const pushMut = useMutation({
     mutationFn: (options: PushOptions | undefined) => pushRemote(workspaceId!, options),
-    onMutate: (options) =>
-      useSyncStore.getState().startOp("push", options?.remote, options?.requestId ?? null),
+    onMutate: (options) => {
+      useSyncStore.getState().startOp("push", options?.remote, options?.requestId ?? null);
+      return operationTarget(queryClient, workspaceId, repoId);
+    },
     onSuccess: (summary, options) => {
       if (summary.skippedTags.length > 0) {
         // Tag recovery pushed the branch and the non-conflicting tags; the
@@ -233,17 +273,31 @@ export function useRemoteSync(onError?: (message: string) => void): UseRemoteSyn
       invalidate();
       bumpHistory();
     },
-    onError: (e, variables) =>
+    onError: (e, variables, target) =>
       handleError(
         e,
         "push",
         (auth) => pushMut.mutate({ ...(variables ?? {}), auth }),
+        target,
         variables?.remote,
         variables?.auth === undefined,
         variables?.requestId ?? null,
       ),
-    onSettled: (_d, _e, variables) =>
-      useSyncStore.getState().endOp("push", variables?.requestId ?? null),
+    onSettled: (data, error, variables, target) => {
+      if (!(isAuthError(error) && variables?.auth === undefined))
+        recordOperation(
+          target,
+          "push",
+          error
+            ? isCancelledSyncError(error)
+              ? "cancelled"
+              : "failed"
+            : data?.skippedTags.length
+              ? "partial"
+              : "success",
+        );
+      useSyncStore.getState().endOp("push", variables?.requestId ?? null);
+    },
   });
 
   const isSyncBusy = activeOp !== null && !fading;

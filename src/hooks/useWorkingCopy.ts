@@ -1,3 +1,4 @@
+import { operationTarget, recordOperation } from "@/stores/operationHistory";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useWorkingCopyErrorStore } from "@/stores/workingCopyErrorStore";
@@ -101,6 +102,9 @@ export function useWorkingCopy({
           return (request.amend ? amendCommit : commit)(ws, request.message, repo);
       }
     },
+    onMutate: (request) => operationTarget(queryClient, request.workspaceId, request.repoId),
+    onSettled: (_result, error, request, target) =>
+      recordOperation(target, request.op, error ? "failed" : "success"),
     onSuccess: (_result, request) => {
       setWriteError(JSON.stringify([request.workspaceId, request.repoId]), null);
       void queryClient.invalidateQueries({

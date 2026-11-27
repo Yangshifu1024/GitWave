@@ -37,6 +37,14 @@
       "refreshedAllPartial": "已刷新 {{ok}}/{{total}} 个仓库（{{failed}} 个失败）",
       "credentialFallback": "凭据已保存到应用钥匙串（系统 credential helper 未确认），GitWave 将自动复用",
       "credentialSaveFailed": "凭据暂未能保存——下次操作可能需要重新输入"
+    },
+    "log": {
+      "title": "操作记录",
+      "empty": "本次会话还没有操作。",
+      "success": "成功",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "partial": "部分完成"
     }
   }
 }

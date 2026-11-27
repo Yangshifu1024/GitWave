@@ -26,7 +26,7 @@ function openPalette() {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  useUiStore.setState({ paletteOpen: true, settingsOpen: false });
+  useUiStore.setState({ paletteOpen: true, settingsOpen: false, menuAction: null });
   useWorkspaceUiStore.setState({ activeWorkspaceId: "ws", activeRepoId: "repo" });
 });
 afterEach(cleanup);
@@ -143,4 +143,17 @@ it("does not send another explanation after reopening and dismissing the palette
 
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(explainCommit).toHaveBeenCalledExactlyOnceWith("ws", "abcdef0");
+});
+
+it.each([
+  ["palette.command.fetchRemote", "repo:fetch"],
+  ["menu.branch.pull.label", "branch:pull"],
+  ["menu.branch.push.label", "branch:push"],
+])("routes %s to the same command as the corresponding application menu", (label, action) => {
+  const { input } = openPalette();
+  fireEvent.change(input, { target: { value: label } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(useUiStore.getState().menuAction?.action).toBe(action);
+  expect(useUiStore.getState().paletteOpen).toBe(false);
+  expect(aiPaletteIntent).not.toHaveBeenCalled();
 });

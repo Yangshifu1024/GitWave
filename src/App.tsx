@@ -1,3 +1,4 @@
+import { OperationHistory } from "@/components/OperationHistory";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -208,6 +209,7 @@ function App(): React.JSX.Element {
 
       <footer className="flex h-8 shrink-0 min-w-0 items-center border-t border-border-subtle bg-bg-primary px-2">
         <SyncStatusArea />
+        <OperationHistory />
       </footer>
 
       <CommandPalette requestLocate={handlePaletteLocate} />

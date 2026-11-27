@@ -205,6 +205,7 @@
 - 导航、数据选择、正在执行的 Git 操作分开；每个异步结果带 workspace/repo/request 身份，不更新另一仓库的画面。
 - 同一会话内按 repo 记忆 mode、commit/file、筛选、滚动锚点、Changes 草稿和 AI 结果所属对象；切走再回来恢复。
 - 重启恢复 repo、mode、布局等轻量偏好；**本次不承诺把代码/AI 输出/冲突内容写入磁盘**。commit 草稿目前仅会话保留，跨重启持久化需单独设计隐私及失效规则。
+- 首批会话记录覆盖 fetch、pull、push、stage、unstage、discard、ignore 和 commit。用户可以回看操作发生在哪个仓库及其结果。工具栏与命令面板通过已有菜单动作执行 fetch、pull 和 push。[操作记录与命令入口](../tasks/feat-operation-history/plan.md)
 - 需要用户处理的错误留到用户处理/关闭；可打开本机会话操作记录，显示对象、时间、结果、重试条件。重试前重读当前 Git 状态，不盲目重放。
 - 普通成功短反馈；操作记录不是 reflog，不冒充 Git 可恢复历史。取消请求与已取消分开显示。
 - 导航离开冲突/文本编辑器保留缓冲或提示；刷新与删除对象导致 selection 失效时选择邻项并说明。

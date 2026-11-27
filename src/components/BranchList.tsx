@@ -4,7 +4,7 @@
 
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { BranchInfo, InlineAuth } from "@/lib/api";
 import {
@@ -35,6 +35,7 @@ import { onBranchRevealed, useBranchCheckout } from "@/hooks/useBranchCheckout";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/lib/commitMenu";
 import { formatAbsoluteTime, formatCommitTime } from "@/lib/commitTime";
+import { isCurrentTarget, operationTarget, recordOperation } from "@/stores/operationHistory";
 import { withAuthRetry } from "@/lib/authRetry";
 import {
   allRemoteBranches,
@@ -341,6 +342,7 @@ export function BranchList({ onBranchSelect, operationHost }: BranchListProps): 
   const { data: tags = [], invalidate: invalidateTags } = useTags();
   // Configured remotes for the branch-menu push entry (flat item vs Fork-style
   // submenu on multi-remote). Shares the ActionBar dialogs' cache.
+  const queryClient = useQueryClient();
   const remotesQuery = useQuery({
     queryKey: ["remotes", activeWorkspaceId],
     queryFn: () => listRemotes(activeWorkspaceId!),
@@ -591,6 +593,7 @@ export function BranchList({ onBranchSelect, operationHost }: BranchListProps): 
     // the "push" status slot and can double-prompt for credentials.
     if (!activeWorkspaceId || !target || busy || useSyncStore.getState().isBusy()) return;
     const { branch, remote } = target;
+    const owner = operationTarget(queryClient, activeWorkspaceId, activeRepoId);
     const run = (auth?: InlineAuth): void => {
       setBusy(true);
       // One instance id for the slot and the invoke: progress events from a
@@ -599,15 +602,23 @@ export function BranchList({ onBranchSelect, operationHost }: BranchListProps): 
       const requestId = nextSyncRequestId("push");
       startOp("push", remote, requestId);
       pushRemote(activeWorkspaceId, { remote, branch: branch.name, auth, requestId })
-        .then(() => showNotice(t("branches.push.done", { name: branch.name, remote })))
+        .then((summary) => {
+          recordOperation(owner, "push", summary.skippedTags.length ? "partial" : "success");
+          showNotice(t("branches.push.done", { name: branch.name, remote }));
+        })
         .catch((e) => {
           if (isCancelledSyncError(e)) {
+            recordOperation(owner, "push", "cancelled");
             showNotice(t("status.sync.cancelled"));
           } else if (isAuthError(e) && auth === undefined) {
             // F012: collect credentials in-app and retry once; a second
             // auth failure surfaces as a plain error (no prompt loop).
-            useAuthPromptStore.getState().show(remote, (a) => run(a));
+            const cancel = () => recordOperation(owner, "push", "cancelled");
+            useAuthPromptStore
+              .getState()
+              .show(remote, (a) => (isCurrentTarget(owner) ? run(a) : cancel()), cancel);
           } else {
+            recordOperation(owner, "push", "failed");
             showNotice(formatAppError(e), "danger");
           }
         })

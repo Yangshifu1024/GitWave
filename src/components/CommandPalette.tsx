@@ -26,7 +26,6 @@ import {
   checkoutBranch,
   createBranch,
   createTag,
-  fetchRemote,
   formatAppError,
   getWorkingCopy,
   interactiveRebasePaused,
@@ -40,7 +39,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
-import { nextSyncRequestId, useSyncStore } from "@/stores/syncStore";
+import { useSyncStore } from "@/stores/syncStore";
 import { CommitExplainModal } from "@/components/CommitExplainModal";
 import { cn } from "@/lib/utils";
 import { useCommitPages } from "@/hooks/useCommitPages";
@@ -152,19 +151,22 @@ function ScopedPalette({ requestLocate }: PaletteProps): React.JSX.Element | nul
         run: () => {
           if (!workspaceId || useSyncStore.getState().isBusy()) return;
           setOpen(false);
-          // Own lifecycle: the backend emits sync-progress for any fetch, so
-          // startOp/endOp here keep the status area from sticking in "sync".
-          const sync = useSyncStore.getState();
-          const requestId = nextSyncRequestId("fetch");
-          sync.startOp("fetch", null, requestId);
-          fetchRemote(workspaceId, { requestId })
-            .then(() => setStatus(t("status.fetchComplete")))
-            .catch((e) => setStatus(formatAppError(e), "danger"))
-            .finally(() => sync.endOp("fetch", requestId));
+          useUiStore.getState().requestMenuAction("repo:fetch");
         },
       },
+      ...(["pull", "push"] as const).map((op) => ({
+        id: op,
+        label: t("menu.branch." + op + ".label"),
+        icon: <ArrowRight size={14} />,
+        hint: "",
+        run: () => {
+          if (!workspaceId || useSyncStore.getState().isBusy()) return;
+          setOpen(false);
+          useUiStore.getState().requestMenuAction(op === "pull" ? "branch:pull" : "branch:push");
+        },
+      })),
     ],
-    [workspaceId, setOpen, setSettingsOpen, setStatus, t],
+    [workspaceId, setOpen, setSettingsOpen, t],
   );
 
   const filtered = staticCommands.filter((c) =>
@@ -308,15 +310,7 @@ function ScopedPalette({ requestLocate }: PaletteProps): React.JSX.Element | nul
           }
           case "fetch_remotes": {
             if (!useSyncStore.getState().isBusy()) {
-              const sync = useSyncStore.getState();
-              const requestId = nextSyncRequestId("fetch");
-              sync.startOp("fetch", null, requestId);
-              try {
-                await fetchRemote(workspaceId, { requestId });
-                setStatus(t("status.fetchComplete"));
-              } finally {
-                sync.endOp("fetch", requestId);
-              }
+              useUiStore.getState().requestMenuAction("repo:fetch");
             }
             break;
           }
