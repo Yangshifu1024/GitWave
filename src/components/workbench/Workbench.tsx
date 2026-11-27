@@ -29,6 +29,7 @@ export function Workbench({
   repoId,
   sidebar,
   onCommitSelect,
+  onLocate,
   locateRequest,
   conflictCount,
   onResolveConflicts,
@@ -38,6 +39,7 @@ export function Workbench({
   repoId: string | null;
   sidebar: ReactNode;
   onCommitSelect: (sha: string) => void;
+  onLocate: (sha: string) => void;
   locateRequest: LocateRequest | null;
   conflictCount: number;
   onResolveConflicts: () => void;
@@ -199,6 +201,10 @@ export function Workbench({
                   }
                   second={
                     <HistoryDetails
+                      onLocate={(oid) => {
+                        setFocused(false);
+                        onLocate(oid);
+                      }}
                       workspaceId={workspaceId}
                       repoId={repoId}
                       scope={scope}

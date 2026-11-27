@@ -27,6 +27,8 @@ stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应�
 
 History graph（commit DAG，筛选 / 搜索；紧凑模式保持圆形节点与 merge 曲线几何，支持横向平移并对齐 refs / SHA / 作者 / 时间列）· 文件 diff（split / unified，character-level 高亮；Shiki 按需加载语言资源并高亮，小文件支持语法着色）· blame / annotate · file tree（**未交付**）· branch tree
 
+开发版 History 可先将当前选中的提交设为基点，再与另一提交比较。路径历史从选中提交沿第一父提交回溯，按仓库相对路径精确匹配，每页最多扫描 128 个提交。[任务计划](../../tasks/feat-compare-path-history/plan.md)
+
 ### 1.3 Advanced Git
 
 - Worktree UI

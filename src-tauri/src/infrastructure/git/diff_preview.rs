@@ -30,7 +30,7 @@ fn collect(
     diff: &Diff<'_>,
     staged: Option<bool>,
     untracked: bool,
-    summary: bool,
+    only_path: Option<&str>,
     expanded: bool,
 ) -> Result<DiffPreview> {
     let mut files = Vec::new();
@@ -48,6 +48,9 @@ fn collect(
             .path()
             .or_else(|| delta.old_file().path())
             .unwrap_or_else(|| std::path::Path::new(""));
+        if only_path.is_some_and(|selected| std::path::Path::new(selected) != path) {
+            continue;
+        }
         let mut file = FileDiff {
             path: path.to_string_lossy().into_owned(),
             old_sha: oid(delta.old_file().id()),
@@ -58,7 +61,7 @@ fn collect(
             staged,
             untracked: untracked.then_some(true),
         };
-        if !summary {
+        if only_path.is_some() {
             let work_size = if staged == Some(false) {
                 repo.workdir()
                     .and_then(|wd| std::fs::symlink_metadata(wd.join(path)).ok())
@@ -142,6 +145,26 @@ fn collect(
     })
 }
 
+/// Compare arbitrary commit trees without constructing patches for the file list.
+pub fn compare(
+    repo: &Repository,
+    base: Oid,
+    tip: Oid,
+    path: Option<&str>,
+    expanded: bool,
+) -> Result<DiffPreview> {
+    let mut opts = DiffOptions::new();
+    opts.disable_pathspec_match(true);
+    if let Some(path) = path {
+        reject_escaping_syntax(path)?;
+        opts.pathspec(path);
+    }
+    let base = repo.find_commit(base)?.tree()?;
+    let tip = repo.find_commit(tip)?.tree()?;
+    let diff = repo.diff_tree_to_tree(Some(&base), Some(&tip), Some(&mut opts))?;
+    collect(repo, &diff, None, false, path, expanded)
+}
+
 /// `path == None` returns metadata only; content always requires one literal path.
 pub fn preview(
     repo: &Repository,
@@ -161,7 +184,6 @@ pub fn preview(
         reject_escaping_syntax(path)?;
         opts.pathspec(path);
     }
-    let summary = path.is_none();
     if let Some(id) = stash_oid.or(commit_oid) {
         let commit = repo
             .find_commit(Oid::from_str(id).map_err(err)?)
@@ -175,13 +197,13 @@ pub fn preview(
         let diff = repo
             .diff_tree_to_tree(parent.as_ref(), Some(&tree), Some(&mut opts))
             .map_err(err)?;
-        let mut result = collect(repo, &diff, None, false, summary, expanded)?;
+        let mut result = collect(repo, &diff, None, false, path, expanded)?;
         if stash_oid.is_some() && commit.parent_count() >= 3 {
             let untracked = commit.parent(2).map_err(err)?.tree().map_err(err)?;
             let diff = repo
                 .diff_tree_to_tree(None, Some(&untracked), Some(&mut opts))
                 .map_err(err)?;
-            let extra = collect(repo, &diff, None, true, summary, expanded)?;
+            let extra = collect(repo, &diff, None, true, path, expanded)?;
             result.diff = result.diff.merge_dedup_by_path(extra.diff);
             result.truncated |= extra.truncated;
             result.too_large |= extra.too_large;
@@ -202,13 +224,13 @@ pub fn preview(
         let diff = repo
             .diff_tree_to_index(tree.as_ref(), None, Some(&mut opts))
             .map_err(err)?;
-        result = collect(repo, &diff, Some(true), false, summary, expanded)?;
+        result = collect(repo, &diff, Some(true), false, path, expanded)?;
     }
     if staged != Some(true) {
         let diff = repo
             .diff_index_to_workdir(None, Some(&mut opts))
             .map_err(err)?;
-        let other = collect(repo, &diff, Some(false), false, summary, expanded)?;
+        let other = collect(repo, &diff, Some(false), false, path, expanded)?;
         result.diff = result.diff.merge(other.diff);
         result.truncated |= other.truncated;
         result.too_large |= other.too_large;
@@ -220,6 +242,29 @@ pub fn preview(
 mod tests {
     use super::*;
     use crate::infrastructure::git::test_helpers::build_linear_repo;
+    #[test]
+    fn compares_divergent_trees_in_order_and_only_loads_the_chosen_file() {
+        let (dir, repo) = crate::infrastructure::git::test_helpers::build_merge_repo();
+        let commit = repo.head().unwrap().peel_to_commit().unwrap();
+        let (main, feature) = (commit.parent_id(0).unwrap(), commit.parent_id(1).unwrap());
+        let summary = compare(&repo, main, feature, None, false).unwrap();
+        assert_eq!(summary.diff.files.len(), 2);
+        assert!(summary.diff.files.iter().all(|file| file.hunks.is_empty()));
+        for (base, tip, kind) in [
+            (main, feature, DiffLineKind::Added),
+            (feature, main, DiffLineKind::Removed),
+        ] {
+            let data = compare(&repo, base, tip, Some("b.txt"), false).unwrap();
+            assert_eq!(data.diff.files.len(), 1);
+            let line = &data.diff.files[0].hunks[0].lines[0];
+            assert_eq!(line.kind, kind);
+            assert_eq!(line.content, "b2");
+        }
+        drop(commit);
+        drop(repo);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     #[test]
     fn preview_is_literal_scoped_and_refreshes_same_length_edits() {
         let (dir, repo) = build_linear_repo(1);

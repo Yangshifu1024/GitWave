@@ -1520,6 +1520,7 @@ export interface DiffPreview {
   too_large: boolean;
 }
 export interface DiffPreviewRequest {
+  compare?: [string, string];
   path?: string;
   staged?: boolean | null;
   commit_oid?: string;

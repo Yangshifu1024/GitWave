@@ -1,5 +1,13 @@
 {
   "app": {
+    "revisions": {
+      "setBase": "设为比较起点",
+      "compare": "与选中提交比较",
+      "path": "路径历史",
+      "file": "变更文件",
+      "pathHint": "从当前提交沿第一父提交按完整路径查找；重命名前的路径单独查看。",
+      "noEntries": "已扫描的提交中没有匹配项。"
+    },
     "sidebar": {
       "health": "健康",
       "recovery": "恢复"
