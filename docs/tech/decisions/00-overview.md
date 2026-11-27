@@ -12,6 +12,7 @@
 | 0004 | AI 双轨：写 = 确定性，建议 = AI | 已采纳 |
 | 0005 | 前端 UI 库栈：Tailwind v4 + HeroUI v3 + Lucide（原 Radix，见修订） | 已采纳 |
 | 0006 | i18n 架构：react-i18next + 错误 key 化 | 已采纳 |
+| 0007 | [仓库 PR 统一使用 Squash and merge](./0007-squash-merge.md) | 已采纳 |
 
 ---
 

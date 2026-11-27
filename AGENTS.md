@@ -62,9 +62,9 @@ When `docs/tasks/<task-name>/plan.md` references an existing technical decision,
 
 Example: `feat(workspace): add lastActiveRepo persistence on workspace switch`
 
-### PR merging (merge commit)
+### PR merging (squash)
 
-All PRs merge into `main` with a merge commit — branch history is preserved, no squash. **PR titles and descriptions (summary, change list, test plan) must be written in English** — they are the public face of the repository history.
+Use **Squash and merge** for every PR into `main`. Write the squash commit message in English using Conventional Commits. **PR titles and descriptions (summary, change list, test plan) must be written in English.** See [ADR 0007](docs/tech/decisions/0007-squash-merge.md).
 
 ### Key constraints
 
