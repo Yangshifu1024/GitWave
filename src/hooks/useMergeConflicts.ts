@@ -6,6 +6,7 @@ import { useWorkspaceUiStore } from "@/stores/workspaceStore";
 export interface MergeConflictsState {
   /** A merge is in progress or unresolved index entries need attention. */
   active: boolean;
+  loaded: boolean;
   /** MERGE_HEAD exists; only then is abort merge available. */
   mergeInProgress: boolean;
   /** Paths still conflicted in the index. Empty during a merge = all resolved. */
@@ -32,11 +33,12 @@ export function useMergeConflicts(): MergeConflictsState {
   const requestSeq = useRef(0);
   const [snapshot, setSnapshot] = useState<{
     repoKey: string;
+    loaded: boolean;
     mergeInProgress: boolean;
     files: ConflictFile[];
-  }>({ repoKey: "", mergeInProgress: false, files: [] });
+  }>({ repoKey: "", loaded: false, mergeInProgress: false, files: [] });
   if (snapshot.repoKey !== repoKey) {
-    setSnapshot({ repoKey, mergeInProgress: false, files: [] });
+    setSnapshot({ repoKey, loaded: false, mergeInProgress: false, files: [] });
   }
   // Never expose another repository's conflicts during a tab switch.
   const current = snapshot.repoKey === repoKey ? snapshot : null;
@@ -54,7 +56,7 @@ export function useMergeConflicts(): MergeConflictsState {
       listConflicts(workspaceId),
     ]);
     if (seq === requestSeq.current) {
-      setSnapshot({ repoKey, mergeInProgress: inProgress, files: conflicts });
+      setSnapshot({ repoKey, loaded: true, mergeInProgress: inProgress, files: conflicts });
     }
   }, [workspaceId, repoId, repoKey]);
 
@@ -75,5 +77,12 @@ export function useMergeConflicts(): MergeConflictsState {
     await refresh();
   }, [workspaceId, refresh]);
 
-  return { active, mergeInProgress: mergeActive, files, refresh, abort };
+  return {
+    active,
+    loaded: current?.loaded ?? false,
+    mergeInProgress: mergeActive,
+    files,
+    refresh,
+    abort,
+  };
 }

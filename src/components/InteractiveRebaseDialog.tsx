@@ -84,7 +84,7 @@ function InteractiveRebaseDialogContent({
   const dirtyCount = workingCopy?.files.length ?? 0;
 
   const move = (from: number, to: number) => {
-    if (to < 0 || to >= todos.length || from === to) return;
+    if (busy || to < 0 || to >= todos.length || from === to) return;
     setTodos((prev) => {
       const next = [...prev];
       const [item] = next.splice(from, 1);
@@ -188,7 +188,20 @@ function InteractiveRebaseDialogContent({
             {todos.map((todo, index) => (
               <li
                 key={todo.oid}
-                draggable
+                tabIndex={0}
+                title={t("conflicts.reorderHint")}
+                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                onKeyDown={(event) => {
+                  if (
+                    event.target !== event.currentTarget ||
+                    !event.altKey ||
+                    !["ArrowUp", "ArrowDown"].includes(event.key)
+                  )
+                    return;
+                  event.preventDefault();
+                  move(index, index + (event.key === "ArrowUp" ? -1 : 1));
+                }}
+                draggable={!busy}
                 onDragStart={() => setDragIndex(index)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => {

@@ -40,6 +40,7 @@ import { QuitConfirmModal } from "@/components/QuitConfirmModal";
 function App(): React.JSX.Element {
   const { t } = useTranslation();
   /** One-shot request for CommitGraph to center a commit; `seq` re-fires on repeated clicks. */
+  const [operationHost, setOperationHost] = useState<HTMLDivElement | null>(null);
   const [locateRequest, setLocateRequest] = useState<LocateRequest | null>(null);
   const locateSeq = useRef(0);
   /** Conflict panel is opened on demand (Merge banner's Resolve button). */
@@ -152,7 +153,21 @@ function App(): React.JSX.Element {
 
       <WorkspaceRepoTabs />
 
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+      <div ref={setOperationHost} />
+      <div
+        className="flex-1 min-h-0 min-w-0 overflow-hidden"
+        hidden={!conflictPanelOpen || !mergeConflicts.active}
+      >
+        <ConflictPanel
+          open={conflictPanelOpen}
+          onClose={() => setConflictPanelOpen(false)}
+          merge={mergeConflicts}
+        />
+      </div>
+      <div
+        className="flex-1 min-h-0 min-w-0 overflow-hidden"
+        hidden={conflictPanelOpen && mergeConflicts.active}
+      >
         <Workbench
           onViewCommit={handlePaletteLocate}
           scope={scope}
@@ -168,7 +183,7 @@ function App(): React.JSX.Element {
               {activeWorkspaceId ? (
                 <>
                   <HealthPanel key={`${activeWorkspaceId}:${activeRepoId}`} />
-                  <BranchList onBranchSelect={handleBranchSelect} />
+                  <BranchList operationHost={operationHost} onBranchSelect={handleBranchSelect} />
                   <StashPanel />
                   <TagsPanel onSelect={handleTagSelect} selectedSha={selectedCommitOid} />
                   <RemotesPanel />
@@ -194,12 +209,6 @@ function App(): React.JSX.Element {
       <footer className="flex h-8 shrink-0 min-w-0 items-center border-t border-border-subtle bg-bg-primary px-2">
         <SyncStatusArea />
       </footer>
-
-      <ConflictPanel
-        open={conflictPanelOpen}
-        onClose={() => setConflictPanelOpen(false)}
-        merge={mergeConflicts}
-      />
 
       <CommandPalette requestLocate={handlePaletteLocate} />
 

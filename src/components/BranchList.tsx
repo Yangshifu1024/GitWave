@@ -2,6 +2,7 @@
 // double-click, merge / rebase / delete via context menu). Toolbar-scoped
 // branch ops (new branch / pull / push) live in the ActionBar.
 
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -326,11 +327,12 @@ function BranchRow({
 }
 
 interface BranchListProps {
+  operationHost?: HTMLElement | null;
   /** Fired when the user clicks a branch row, with the full branch (name + tip sha). */
   onBranchSelect?: (branch: BranchInfo) => void;
 }
 
-export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Element {
+export function BranchList({ onBranchSelect, operationHost }: BranchListProps): React.JSX.Element {
   const { t } = useTranslation();
   const activeWorkspaceId = useWorkspaceUiStore((s) => s.activeWorkspaceId);
   const activeRepoId = useWorkspaceUiStore((s) => s.activeRepoId);
@@ -885,19 +887,22 @@ export function BranchList({ onBranchSelect }: BranchListProps): React.JSX.Eleme
     );
   };
 
+  const pauseControls = (
+    <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
+      <span className="text-xs">{t("conflicts.rebasePaused")}</span>
+      <Button variant="primary" size="sm" disabled={busy} onClick={handleContinueIrebase}>
+        {t("branches.irebase.continue")}
+      </Button>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={handleAbortIrebasePause}>
+        {t("branches.irebase.discardPause")}
+      </Button>
+    </div>
+  );
   return (
     <>
+      {irebasePaused && operationHost && createPortal(pauseControls, operationHost)}
       <SidebarSection title={t("branches.title")}>
-        {irebasePaused ? (
-          <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
-            <Button variant="primary" size="sm" disabled={busy} onClick={handleContinueIrebase}>
-              {t("branches.irebase.continue")}
-            </Button>
-            <Button variant="ghost" size="sm" disabled={busy} onClick={handleAbortIrebasePause}>
-              {t("branches.irebase.discardPause")}
-            </Button>
-          </div>
-        ) : null}
+        {irebasePaused && !operationHost && pauseControls}
 
         <div>{renderBody()}</div>
       </SidebarSection>

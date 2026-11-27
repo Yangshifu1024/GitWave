@@ -196,6 +196,8 @@
 
 ### 冲突过程的能力边界
 
+冲突编辑器直接显示在工作台内，标出未保存文件与已标记解决的路径。交互式 rebase 的 todo 对话框支持键盘排序，暂停编辑时在工作台显示继续或放弃暂停的入口。[实施与验收](../tasks/feat-conflict-rebase-workspace/plan.md)
+
 现有 resolveConflict 将写结果与 stage 组合为「标记解决」；本轮首先保留明确的原子动作。若后续增加「仅保存文件」需独立后端用例，不可只增加按钮。Continue/Abort 依据实际操作类型提供：merge 最终需显式 commit；interactive rebase 有 edit pause；auto_aborted 没有继续入口；孤立 index 冲突不能显示不存在的 merge Continue。完整统一的操作状态 API 是工程核查项。
 
 ### 状态、恢复与反馈
