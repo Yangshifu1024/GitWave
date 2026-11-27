@@ -27,6 +27,7 @@ export function Workbench({
   workspaceId,
   repoId,
   sidebar,
+  onViewCommit,
   onCommitSelect,
   onLocate,
   locateRequest,
@@ -37,6 +38,7 @@ export function Workbench({
   workspaceId: string | null;
   repoId: string | null;
   sidebar: ReactNode;
+  onViewCommit: (oid: string) => void;
   onCommitSelect: (sha: string) => void;
   onLocate: (sha: string) => void;
   locateRequest: LocateRequest | null;
@@ -214,6 +216,7 @@ export function Workbench({
                 aria-label={t("app.workbench.changes")}
               >
                 <ChangesWorkspace
+                  onViewCommit={onViewCommit}
                   scope={scope}
                   active={session.mode === "changes"}
                   conflictCount={conflictCount}

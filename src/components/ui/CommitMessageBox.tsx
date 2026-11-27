@@ -23,6 +23,8 @@ export interface CommitMessageBoxProps {
   submitDisabled?: boolean;
   aiDisabled?: boolean;
   onRestoreDraft?: () => void;
+  /** Use the available space in the resizable Changes pane for message text. */
+  fillHeight?: boolean;
   className?: string;
 }
 
@@ -56,6 +58,7 @@ export function CommitMessageBox({
   submitDisabled = false,
   aiDisabled = false,
   onRestoreDraft,
+  fillHeight = false,
   className,
 }: CommitMessageBoxProps): React.JSX.Element {
   const { t } = useTranslation();
@@ -89,7 +92,7 @@ export function CommitMessageBox({
   const firstLineLength = (value.split("\n", 1)[0] ?? "").length;
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("flex flex-col gap-2", fillHeight && "flex-auto", className)}>
       <select
         aria-label={t("app.workbench.commitType")}
         value=""
@@ -110,19 +113,23 @@ export function CommitMessageBox({
         value={value}
         onChange={onChange}
         isDisabled={disabled}
-        className="w-full"
+        className={cn("w-full", fillHeight && "flex-auto")}
         aria-label={t("changes.messageBox.ariaLabel")}
       >
         <InputGroup
           fullWidth
-          className={cn("rounded-md", amendMessage != null && "border-warning/50")}
+          className={cn(
+            "rounded-md",
+            fillHeight && "flex-auto",
+            amendMessage != null && "border-warning/50",
+          )}
         >
           <InputGroup.TextArea
             ref={textareaRef}
             onKeyDown={handleKeyDown}
             placeholder={t("changes.messageBox.placeholder")}
             rows={4}
-            className="w-full resize-none px-3 py-2 text-sm"
+            className={cn("w-full resize-none px-3 py-2 text-sm", fillHeight && "self-stretch")}
           />
         </InputGroup>
       </TextField>

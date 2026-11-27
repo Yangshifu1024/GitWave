@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChangesPanel } from "@/components/ChangesPanel";
 import { DiffViewer } from "@/components/DiffViewer";
@@ -16,11 +16,13 @@ import { useLayoutStore } from "@/stores/layoutStore";
 export function ChangesWorkspace({
   scope,
   active,
+  onViewCommit,
   conflictCount,
   onResolveConflicts,
 }: {
   scope: string;
   active: boolean;
+  onViewCommit: (oid: string) => void;
   conflictCount: number;
   onResolveConflicts: () => void;
 }): React.JSX.Element {
@@ -29,7 +31,19 @@ export function ChangesWorkspace({
   const selected = useWorkbenchStore((s) => (s.sessions[scope] ?? EMPTY_SESSION).change);
   const update = useWorkbenchStore((s) => s.update);
   const focused = useLayoutStore((s) => s.inspectorMaximized);
-  const current = wc.data ? reconcileChangeSelection(selected, wc.data.files) : null;
+  const files = wc.data?.files;
+  const [lists, setLists] = useState<{
+    scope: string;
+    files: typeof files;
+    previous?: typeof files;
+  }>({
+    scope,
+    files,
+  });
+  if (lists.scope !== scope || lists.files !== files) {
+    setLists({ scope, files, previous: lists.scope === scope ? lists.files : undefined });
+  }
+  const current = files ? reconcileChangeSelection(selected, files, lists.previous) : null;
   useEffect(() => {
     if (wc.data && (selected?.path !== current?.path || selected?.staged !== current?.staged))
       update(scope, { change: current ? { path: current.path, staged: current.staged } : null });
@@ -61,6 +75,7 @@ export function ChangesWorkspace({
               selectedStaged={current?.staged ?? null}
               onSelectFile={(path, staged) => update(scope, { change: { path, staged } })}
               layout="modal"
+              onViewCommit={onViewCommit}
             />
           }
           second={

@@ -22,6 +22,7 @@ import { ErrorAlert } from "@/components/ui/ErrorAlert";
 import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { GitignoreEditor } from "@/components/GitignoreEditor";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
+import { useWorkbenchStore, workbenchKey } from "@/stores/workbenchStore";
 import { Radio, RadioGroup } from "@heroui/react";
 import {
   sendAiPreview,
@@ -35,12 +36,16 @@ import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { deriveIgnorePatterns } from "@/lib/ignorePattern";
 import { modifierFromPointerEvent, nextFileSelection } from "@/lib/fileSelection";
 
+import { WorkbenchSplit } from "@/components/ui/WorkbenchSplit";
+
 export interface ChangesPanelProps {
   selectedPath: string | null;
   selectedStaged: boolean | null;
   onSelectFile: (path: string, staged: boolean) => void;
   /** `bar` = horizontal 3-column grid; `modal` = single column inside WorkingCopyModal */
   layout?: "stacked" | "bar" | "modal";
+  /** Explicit navigation from Changes to the commit created in this repository. */
+  onViewCommit?: (oid: string) => void;
   /** Fired after a successful commit (the hosting modal closes itself). */
   onCommitted?: () => void;
 }
@@ -347,6 +352,7 @@ export function ChangesPanel({
   selectedStaged,
   onSelectFile,
   layout = "stacked",
+  onViewCommit,
   onCommitted,
 }: ChangesPanelProps): React.JSX.Element {
   const { t } = useTranslation();
@@ -370,6 +376,8 @@ export function ChangesPanel({
     commitMessage,
     commitPending,
   } = useWorkingCopy();
+  const sessionKey = workbenchKey(workspaceId, repoId);
+  const lastCommit = useWorkbenchStore((s) => s.sessions[sessionKey]?.lastCreatedCommit);
   const draftKey = commitDraftKey(workspaceId, repoId);
   const draft = useCommitDraftStore((state) => getCommitDraft(state.drafts, draftKey));
   const updateDraft = useCommitDraftStore((state) => state.update);
@@ -537,11 +545,24 @@ export function ChangesPanel({
         bar
           ? "flex flex-col min-h-0 p-2"
           : modal
-            ? "max-h-[52%] overflow-y-auto border-t border-border-subtle p-2"
+            ? onViewCommit
+              ? "flex h-full flex-col items-stretch overflow-y-auto p-2"
+              : "max-h-[52%] overflow-y-auto border-t border-border-subtle p-2"
             : "border-t border-border-subtle p-3",
       )}
     >
+      {onViewCommit && lastCommit && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="shrink-0 self-start"
+          onClick={() => onViewCommit(lastCommit)}
+        >
+          {t("app.workbench.viewCommit")} {lastCommit.slice(0, 7)}
+        </Button>
+      )}
       <CommitMessageBox
+        fillHeight={Boolean(onViewCommit)}
         value={message}
         onChange={setMessage}
         onSubmit={() => {
@@ -551,11 +572,13 @@ export function ChangesPanel({
           const hasLeftoverUnstaged = unstagedFiles.length > 0;
           commitMessage(message, {
             amend: amendMode,
-            onSuccess: () => {
+            onSuccess: (oid) => {
               if (
                 getCommitDraft(useCommitDraftStore.getState().drafts, draftKey).message === message
               )
                 clearDraft(draftKey);
+              if (onViewCommit && oid)
+                useWorkbenchStore.getState().update(sessionKey, { lastCreatedCommit: oid });
               if (scopeRef.current !== draftKey || !mountedRef.current) return;
               if (!hasLeftoverUnstaged) onCommitted?.();
             },
@@ -700,10 +723,31 @@ export function ChangesPanel({
 
   return (
     <div className={cn("flex flex-col h-full min-h-0", bar && "grid grid-cols-[1fr_1fr_280px]")}>
-      {unstagedSection}
-      {stagedSection}
-      {gitignoreEntry}
-      {commitBox}
+      {onViewCommit ? (
+        <WorkbenchSplit
+          id="changes-editor"
+          direction="vertical"
+          label={t("app.workbench.resizeComposer")}
+          initial={65}
+          min={25}
+          max={80}
+          first={
+            <div className="flex h-full min-h-0 flex-col">
+              {unstagedSection}
+              {stagedSection}
+              {gitignoreEntry}
+            </div>
+          }
+          second={commitBox}
+        />
+      ) : (
+        <>
+          {unstagedSection}
+          {stagedSection}
+          {gitignoreEntry}
+          {commitBox}
+        </>
+      )}
       {aiDialogs}
       {amendConfirm}
       {confirmDialogs}

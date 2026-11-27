@@ -154,6 +154,7 @@ function App(): React.JSX.Element {
 
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
         <Workbench
+          onViewCommit={handlePaletteLocate}
           scope={scope}
           workspaceId={activeWorkspaceId}
           repoId={activeRepoId}

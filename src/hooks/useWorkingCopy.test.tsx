@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useWorkingCopyErrorStore } from "@/stores/workingCopyErrorStore";
 import { useWorkingCopy } from "./useWorkingCopy";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-import { commit, stageFiles } from "@/lib/api";
+import { amendCommit, commit, stageFiles } from "@/lib/api";
 vi.mock("@/hooks/useRemoteSync", () => ({
   useRemoteSync: () => ({ syncPending: {}, isSyncBusy: false }),
 }));
@@ -63,7 +63,7 @@ it("finishes the original draft callback even when the view unmounts", async () 
     finish("sha");
     await Promise.resolve();
   });
-  expect(onSuccess).toHaveBeenCalledOnce();
+  expect(onSuccess).toHaveBeenCalledExactlyOnceWith("sha");
   expect(hook.invalidate).toHaveBeenCalledWith({ queryKey: ["working-copy", "ws", "a"] });
 });
 
@@ -76,7 +76,8 @@ it("retains a late write failure for the original repo after unmount", async () 
       }),
   );
   const original = setup();
-  act(() => original.result.current.commitMessage("draft"));
+  const onSuccess = vi.fn();
+  act(() => original.result.current.commitMessage("draft", { onSuccess }));
   await waitFor(() => expect(commit).toHaveBeenCalled());
   original.unmount();
   act(() => useWorkspaceUiStore.getState().setActiveRepoId("b"));
@@ -88,6 +89,18 @@ it("retains a late write failure for the original repo after unmount", async () 
   expect(other.result.current.actionError).toBeNull();
   act(() => useWorkspaceUiStore.getState().setActiveRepoId("a"));
   expect(other.result.current.actionError).toBe("Error: commit failed");
+  expect(onSuccess).not.toHaveBeenCalled();
   act(() => other.result.current.setActionError(null));
   expect(other.result.current.actionError).toBeNull();
+});
+
+it("returns the replacement OID when amending", async () => {
+  const oid = "8".repeat(40);
+  vi.mocked(amendCommit).mockResolvedValueOnce(oid);
+  const onSuccess = vi.fn();
+  const hook = setup();
+  act(() => hook.result.current.commitMessage("amended message", { amend: true, onSuccess }));
+  await waitFor(() => expect(onSuccess).toHaveBeenCalledExactlyOnceWith(oid));
+  expect(amendCommit).toHaveBeenCalledExactlyOnceWith("ws", "amended message", "a");
+  expect(commit).not.toHaveBeenCalled();
 });

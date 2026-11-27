@@ -5,6 +5,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { ChangesPanel } from "./ChangesPanel";
 import type { CommitMessageBoxProps } from "./ui/CommitMessageBox";
 import { commitDraftKey, useCommitDraftStore } from "@/stores/commitDraftStore";
+import { useWorkbenchStore } from "@/stores/workbenchStore";
 import type { FileChange } from "@/lib/api";
 import { generateCommitMessage } from "@/lib/api";
 
@@ -25,7 +26,9 @@ const fixtures = vi.hoisted(() => ({
     discard: vi.fn(),
     ignore: vi.fn(),
     commitMessage:
-      vi.fn<(message: string, options: { onSuccess?: () => void; amend?: boolean }) => void>(),
+      vi.fn<
+        (message: string, options: { onSuccess?: (oid: string) => void; amend?: boolean }) => void
+      >(),
     commitPending: false,
   },
 }));
@@ -38,11 +41,6 @@ vi.mock("@/lib/api", () => ({
   generateCommitMessage: vi.fn(),
   getWorkspace: vi.fn(),
   formatAppError: String,
-}));
-vi.mock("@heroui/react", () => ({
-  Radio: () => null,
-  RadioGroup: () => null,
-  Surface: (props: ComponentProps<"div">) => <div {...props} />,
 }));
 vi.mock("@/components/ui/StatusIcon", () => ({ StatusIcon: () => null }));
 vi.mock("@/components/AiProviderSettings", () => ({ AiProviderSettings: () => null }));
@@ -89,7 +87,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixtures.wc.repoId = "a";
   fixtures.wc.stagedFiles = [];
+  fixtures.wc.unstagedFiles = [];
   useCommitDraftStore.setState({ drafts: {} });
+  useWorkbenchStore.setState({ sessions: {} });
 });
 afterEach(cleanup);
 
@@ -124,7 +124,7 @@ describe("commit draft workflow", () => {
     );
     expect(editor().value).toBe("corrected HEAD");
     act(() => {
-      fixtures.wc.commitMessage.mock.calls[0]?.[1].onSuccess?.();
+      fixtures.wc.commitMessage.mock.calls[0]?.[1].onSuccess?.("new-amended-sha");
     });
     expect(editor().value).toBe("");
     expect(useCommitDraftStore.getState().drafts[commitDraftKey("ws", "b")]?.message).toBe(
@@ -212,3 +212,42 @@ vi.mock("@/components/ui/DropdownMenu", () => ({
     </button>
   ),
 }));
+
+it("resizes the workbench editor and offers an explicit link to the completed commit, scoped to its repo", () => {
+  const file: FileChange = {
+    path: "done.ts",
+    kind: "modified",
+    staged: true,
+    additions: 1,
+    deletions: 0,
+  };
+  fixtures.wc.stagedFiles = [file];
+  fixtures.wc.unstagedFiles = [{ ...file, path: "later.ts", staged: false }];
+  const oid = "1234567890abcdef1234567890abcdef12345678";
+  const onViewCommit = vi.fn();
+  const onCommitted = vi.fn();
+  const show = () => (
+    <ChangesPanel {...props} layout="modal" onViewCommit={onViewCommit} onCommitted={onCommitted} />
+  );
+  const panel = render(show());
+  const splitter = screen.getByRole("separator", { name: "app.workbench.resizeComposer" });
+  const before = Number(splitter.getAttribute("aria-valuenow"));
+  fireEvent.keyDown(splitter, { key: "ArrowUp" });
+  expect(Number(splitter.getAttribute("aria-valuenow"))).toBeLessThan(before);
+  fireEvent.change(editor(), { target: { value: "commit staged file" } });
+  fireEvent.click(screen.getByText("submit"));
+  expect(screen.queryByRole("button", { name: /app.workbench.viewCommit/ })).toBeNull();
+  panel.unmount();
+  fixtures.wc.repoId = "b";
+  const otherRepo = render(show());
+  act(() => fixtures.wc.commitMessage.mock.calls[0]?.[1].onSuccess?.(oid));
+  expect(screen.queryByRole("button", { name: /app.workbench.viewCommit/ })).toBeNull();
+  otherRepo.unmount();
+  fixtures.wc.repoId = "a";
+  render(show());
+  const link = screen.getByRole("button", { name: /app.workbench.viewCommit 1234567/ });
+  expect(onViewCommit).not.toHaveBeenCalled();
+  expect(onCommitted).not.toHaveBeenCalled();
+  fireEvent.click(link);
+  expect(onViewCommit).toHaveBeenCalledExactlyOnceWith(oid);
+});

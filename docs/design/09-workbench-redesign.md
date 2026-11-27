@@ -129,7 +129,8 @@
 - AI 生成前标明 staged 范围及 provider；生成后可编辑、恢复原稿。生成不是 commit。
 - Commit 按钮注明 staged 文件数量；未 stage 时说明原因。clean 状态提供查看 History、打开编辑器、message-only amend（符合条件时），不靠十余个禁用按钮表达空态。
 - commit 成功后留在 Changes，显示新 SHA 与「在 History 中查看」；余下 unstaged 继续保留。Push 始终是另一次明确操作。
-- stage 后尽量跟随同一文件到 staged 侧；若文件消失，选原位置邻项。外部更改导致内容失效时重新读取并说明，不显示过期 diff。
+- 本次 Changes 迭代把提交后查看、文件邻项选择和提交编辑区调高放在同一个审阅流程中。[任务计划](../tasks/feat-changes-flow/plan.md)
+- stage 或 unstage 后先保留同路径、同侧的选择，其次选原侧邻项，最后才跟随原路径到另一侧。外部更改导致内容失效时重新读取并说明，不显示过期 diff。
 
 ### 5.4 尺寸策略
 
