@@ -477,7 +477,7 @@ export function ActionBar({
     tags: boolean;
     force: boolean;
   } | null>(null);
-  const [prOpen, setPrOpen] = useState(false);
+  const [prMode, setPrMode] = useState<"generate" | "preview" | null>(null);
   const [lfsOpen, setLfsOpen] = useState(false);
   const [hooksOpen, setHooksOpen] = useState(false);
 
@@ -734,7 +734,10 @@ export function ActionBar({
           openPushDialog();
           break;
         case "branch:pr":
-          setPrOpen(true);
+          setPrMode("generate");
+          break;
+        case "branch:pr-preview":
+          setPrMode("preview");
           break;
         default: {
           // Compile error when a new AppMenuAction member misses its routing.
@@ -1061,8 +1064,13 @@ export function ActionBar({
         onOpenChange={setAiOpen}
       />
 
-      {prOpen && activeWorkspaceId ? (
-        <PrDescriptionModal workspaceId={activeWorkspaceId} open onClose={() => setPrOpen(false)} />
+      {prMode && activeWorkspaceId ? (
+        <PrDescriptionModal
+          workspaceId={activeWorkspaceId}
+          open
+          previewFirst={prMode === "preview"}
+          onClose={() => setPrMode(null)}
+        />
       ) : null}
 
       {lfsOpen && activeWorkspaceId ? (

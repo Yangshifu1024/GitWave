@@ -173,7 +173,7 @@ function App(): React.JSX.Element {
                   <WorktreePanel compact />
                   <SubmodulesPanel />
                   <SidebarSection title={t("app.sidebar.recovery")} defaultOpen={false}>
-                    <ReflogPanel />
+                    <ReflogPanel key={`${activeWorkspaceId}:${activeRepoId}`} />
                   </SidebarSection>
                 </>
               ) : (

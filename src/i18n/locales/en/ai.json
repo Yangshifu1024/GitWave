@@ -58,6 +58,17 @@
     "actions": {
       "close": "Close",
       "save": "Save"
+    },
+    "preview": {
+      "direct": "Generate directly",
+      "open": "Preview prompt",
+      "send": "Send and generate",
+      "description": "Prepared on this device. Your provider receives the two messages shown below.",
+      "system": "System message",
+      "user": "User message",
+      "counts": "Emails: {{emails}} · Phone numbers: {{phones}} · Credential lines: {{secret_lines}}",
+      "loading": "Preparing preview…",
+      "pr": "Preview PR description prompt"
     }
   }
 }

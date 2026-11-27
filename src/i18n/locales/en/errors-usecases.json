@@ -15,6 +15,7 @@
         "dest_not_empty": "Clone destination is not empty: {{path}}"
       },
       "ai": {
+        "preview_expired": "This preview expired. Open the preview again.",
         "provider_unsupported": "Unsupported AI provider: {{provider}}",
         "failover_provider_unsupported": "Unsupported AI failover provider: {{provider}}",
         "provider_not_configured": "No AI provider is configured for this workspace",

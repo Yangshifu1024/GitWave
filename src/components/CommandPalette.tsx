@@ -1,3 +1,4 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 // Global command palette (Cmd+K / Ctrl+K). Three layers:
 //  1. Static commands — navigation and quick ops, no AI needed.
 //  2. Commit search — the typed query also matches commit message/author
@@ -8,7 +9,7 @@
 //     before executing; commit / push / merge / rebase are rejected
 //     server-side and never executable from here (P1).
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,6 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import {
+  sendAiPreview,
   aiPaletteIntent,
   checkoutBranch,
   createBranch,
@@ -54,11 +56,17 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   none: "palette.action.none",
 };
 
-export function CommandPalette({
-  requestLocate,
-}: {
+interface PaletteProps {
   requestLocate: (sha: string) => void;
-}): React.JSX.Element | null {
+}
+
+export function CommandPalette(props: PaletteProps) {
+  const workspace = useWorkspaceUiStore((s) => s.activeWorkspaceId);
+  const repo = useWorkspaceUiStore((s) => s.activeRepoId);
+  return <ScopedPalette key={JSON.stringify([workspace, repo])} {...props} />;
+}
+
+function ScopedPalette({ requestLocate }: PaletteProps): React.JSX.Element | null {
   const { t } = useTranslation();
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
@@ -73,7 +81,7 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [intent, setIntent] = useState<PaletteIntent | null>(null);
   const [intentError, setIntentError] = useState<string | null>(null);
-  const [explain, setExplain] = useState<{ sha: string } | null>(null);
+  const [explain, setExplain] = useState<{ sha: string; previewFirst: boolean } | null>(null);
   const {
     commits: commitResults,
     loading: commitsLoading,
@@ -196,22 +204,41 @@ export function CommandPalette({
     else locateCommit(row.sha);
   };
 
-  const askAi = useMutation({
-    mutationFn: () => {
-      if (!workspaceId) throw new Error(t("palette.noWorkspace"));
-      return aiPaletteIntent(workspaceId, query);
+  // A late proposal may contain a write action. Invalidate it even when
+  // the user closes and reopens the palette with the same query.
+  const session = useRef(0);
+  useLayoutEffect(
+    () => () => {
+      session.current += 1;
     },
-    onSuccess: (res) => {
+    [query, open],
+  );
+  const askAi = useMutation({
+    mutationFn: ({ previewId }: { previewId?: number; session: number }) => {
+      if (!workspaceId) throw new Error(t("palette.noWorkspace"));
+      return previewId === undefined
+        ? aiPaletteIntent(workspaceId, query)
+        : sendAiPreview(workspaceId, { kind: "palette", query }, previewId);
+    },
+    onSuccess: (res, request) => {
+      if (request.session !== session.current) return;
       setIntent(res);
       setIntentError(null);
     },
-    onError: (e) => {
+    onError: (e, request) => {
+      if (request.session !== session.current) return;
       setIntent(null);
       setIntentError(formatAppError(e));
     },
   });
 
-  const execute = (next: PaletteIntent): void => {
+  const ask = (previewId?: number) => {
+    setIntent(null);
+    setIntentError(null);
+    askAi.mutate({ previewId, session: session.current });
+  };
+
+  const execute = (next: PaletteIntent, previewFirst = false): void => {
     if (!workspaceId) return;
     const params = next.params as Record<string, string | undefined>;
     void (async () => {
@@ -219,7 +246,7 @@ export function CommandPalette({
         switch (next.action) {
           case "explain_commit": {
             setOpen(false);
-            setExplain({ sha: params.sha ?? "" });
+            setExplain({ sha: params.sha ?? "", previewFirst });
             return;
           }
           case "locate_commit": {
@@ -305,7 +332,16 @@ export function CommandPalette({
     })();
   };
 
-  if (!open) return null;
+  if (!open)
+    return explain && workspaceId ? (
+      <CommitExplainModal
+        workspaceId={workspaceId}
+        sha={explain.sha}
+        previewFirst={explain.previewFirst}
+        open
+        onClose={() => setExplain(null)}
+      />
+    ) : null;
 
   const actionLabelKey = ACTION_LABEL_KEYS[intent?.action ?? ""];
 
@@ -357,17 +393,16 @@ export function CommandPalette({
               className="border-0 bg-transparent shadow-none hover:bg-transparent focus-within:bg-transparent focus-visible:bg-transparent"
             />
           </div>
-          {query.trim() ? (
-            <Button
-              variant="primary"
-              size="sm"
+          {query.trim() && workspaceId ? (
+            <AiPreviewButton
+              workspaceId={workspaceId}
+              task={{ kind: "palette", query }}
               disabled={askAi.isPending}
-              onClick={() => {
-                setIntent(null);
-                setIntentError(null);
-                askAi.mutate();
-              }}
-            >
+              onSend={ask}
+            />
+          ) : null}
+          {query.trim() ? (
+            <Button variant="primary" size="sm" disabled={askAi.isPending} onClick={() => ask()}>
               <Sparkles size={13} />
               {askAi.isPending ? t("palette.thinking") : t("palette.askAi")}
             </Button>
@@ -404,6 +439,11 @@ export function CommandPalette({
                 <Button variant="secondary" size="sm" onClick={() => setIntent(null)}>
                   {t("common.cancel")}
                 </Button>
+                {intent.action === "explain_commit" && (
+                  <Button variant="ghost" size="sm" onClick={() => execute(intent, true)}>
+                    {t("ai.preview.open")}
+                  </Button>
+                )}
                 <Button variant="primary" size="sm" onClick={() => execute(intent)}>
                   {intent.requires_confirm ? t("common.confirm") : t("palette.run")}
                 </Button>
@@ -522,15 +562,6 @@ export function CommandPalette({
             </div>
           ) : null}
         </div>
-
-        {explain && workspaceId ? (
-          <CommitExplainModal
-            workspaceId={workspaceId}
-            sha={explain.sha}
-            open
-            onClose={() => setExplain(null)}
-          />
-        ) : null}
       </div>
     </div>
   );
