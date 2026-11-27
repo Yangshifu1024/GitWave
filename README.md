@@ -4,6 +4,12 @@
 
 **Status:** v0.11.0 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
+### Unreleased
+
+All seven AI actions offer a local preview of the system and user messages. The preview counts credential lines, email addresses and phone numbers masked across both messages. Choose **Send and generate** to use that text, including when a backup provider takes over, or generate directly with the same filters.
+
+GitWave masks recognized credential lines, common email addresses including plus tags, international numbers with a leading `+`, mainland Chinese mobile numbers, and formatted North American phone numbers. Other personal details, such as names and postal addresses, can still appear in the text. [Examples and coverage](./docs/pm/features/F019-ai-redaction-preview.md)
+
 ### What's new in v0.11.x
 
 - **v0.11.0** — Tide Workbench phase 1: peer History / Changes workspaces, a resizable history pane above a wide file/diff inspector, repository-scoped selections and drafts, a full-size working-copy editor with a compact commit composer, virtualized diff content, reliable dialog dismissal, readable Blame columns at narrow widths, and working-copy writes pinned to their originating repository with errors retained across navigation; updated @tanstack/react-query, i18next, @tauri-apps/cli, serde_json and development dependencies

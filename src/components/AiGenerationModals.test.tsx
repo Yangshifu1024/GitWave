@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { explainCommit, generatePrDescription } from "@/lib/api";
+import { explainCommit, generatePrDescription, previewAi, sendAiPreview } from "@/lib/api";
 import type { InputProps } from "@/components/ui/Input";
 import type { TextareaProps } from "@/components/ui/Textarea";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
@@ -15,6 +15,9 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => k
 vi.mock("@/lib/api", () => ({
   explainCommit: vi.fn(),
   generatePrDescription: vi.fn(),
+  previewAi: vi.fn(),
+  sendAiPreview: vi.fn(),
+  discardAiPreview: vi.fn(),
   formatAppError: String,
 }));
 vi.mock("@/components/ui/Button", () => ({
@@ -81,11 +84,22 @@ afterEach(() => {
 });
 
 describe.each(["explanation", "pr"] as const)("%s generation session", (kind) => {
-  const show = (open: boolean) =>
+  const show = (open: boolean, previewFirst = false) =>
     kind === "explanation" ? (
-      <CommitExplainModal workspaceId="ws" sha="commit" open={open} onClose={() => undefined} />
+      <CommitExplainModal
+        workspaceId="ws"
+        sha="commit"
+        open={open}
+        previewFirst={previewFirst}
+        onClose={() => undefined}
+      />
     ) : (
-      <PrDescriptionModal workspaceId="ws" open={open} onClose={() => undefined} />
+      <PrDescriptionModal
+        workspaceId="ws"
+        open={open}
+        previewFirst={previewFirst}
+        onClose={() => undefined}
+      />
     );
   const contents = () =>
     kind === "explanation"
@@ -93,14 +107,36 @@ describe.each(["explanation", "pr"] as const)("%s generation session", (kind) =>
       : screen.getByPlaceholderText<HTMLInputElement>("commits.pr.titlePlaceholder").value;
   const request = () =>
     kind === "explanation" ? vi.mocked(explainCommit) : vi.mocked(generatePrDescription);
-  const mount = () => {
+  const mount = (previewFirst = false) => {
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-    return render(show(true), {
+    return render(show(true, previewFirst), {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
       ),
     });
   };
+
+  it("opens in preview mode without generating and sends only the reviewed snapshot", async () => {
+    vi.mocked(previewAi).mockResolvedValue({
+      id: 24,
+      prompt: {
+        system: "Review rules.",
+        user: "Reach [EMAIL].",
+        counts: { secret_lines: 0, emails: 1, phones: 0 },
+      },
+    });
+    vi.mocked(sendAiPreview).mockResolvedValue(outcome("fresh"));
+    const task = kind === "explanation" ? { kind: "commit", sha: "commit" } : { kind: "pr" };
+    mount(true);
+    await screen.findByText("Reach [EMAIL].");
+    expect(previewAi).toHaveBeenCalledExactlyOnceWith("ws", task, "a");
+    expect(request()).not.toHaveBeenCalled();
+    expect(sendAiPreview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "ai.preview.send" }));
+    await waitFor(() => expect(contents()).toBe("fresh"));
+    expect(sendAiPreview).toHaveBeenCalledExactlyOnceWith("ws", task, 24);
+    expect(request()).not.toHaveBeenCalled();
+  });
 
   it.each(["reopen", "repository switch"])("ignores stale results after %s", async (transition) => {
     const old = deferred();

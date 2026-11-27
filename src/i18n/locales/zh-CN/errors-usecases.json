@@ -15,6 +15,7 @@
         "dest_not_empty": "克隆目标目录非空：{{path}}"
       },
       "ai": {
+        "preview_expired": "此预览已失效，请重新打开预览。",
         "provider_unsupported": "不支持的 AI 提供商：{{provider}}",
         "failover_provider_unsupported": "不支持的 AI 故障转移提供商：{{provider}}",
         "provider_not_configured": "此工作区未配置 AI 提供商",

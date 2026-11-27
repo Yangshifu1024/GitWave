@@ -24,7 +24,8 @@ use crate::domain::workspace::{
 use crate::domain::worktree::WorktreeInfo;
 use crate::infrastructure::ai::read_ai_rules as infra_read_ai_rules;
 use crate::infrastructure::ai::rebuild_http_client as infra_rebuild_http_client;
-use crate::infrastructure::ai::with_reply_language;
+use crate::infrastructure::ai::{with_reply_language, PreparedPrompt};
+
 use crate::infrastructure::git::blame::blame_file as infra_blame_file;
 use crate::infrastructure::git::branch::{
     checkout_branch as infra_checkout_branch, checkout_commit as infra_checkout_commit,
@@ -124,6 +125,8 @@ use crate::infrastructure::proxy::{
     apply_to_env as infra_apply_proxy_to_env, normalize_manual_url as infra_normalize_proxy_url,
 };
 use crate::infrastructure::ssh::keys::{expand_tilde, SshKey, SshKeyList, SshTestResult};
+pub mod ai_preview;
+use ai_preview::AiTask;
 
 // ─── AppContext ──────────────────────────────────────────────────────────────
 
@@ -132,6 +135,7 @@ use crate::infrastructure::ssh::keys::{expand_tilde, SshKey, SshKeyList, SshTest
 #[derive(Clone)]
 pub struct AppContext {
     pub workspaces: Arc<Mutex<SqliteWorkspaceRepo>>,
+    previews: Arc<Mutex<ai_preview::PreviewStore>>,
     /// App-level global settings (`app_settings` table, F013). Own SQLite
     /// connection — see `SqliteAppSettingsRepo`.
     pub app_settings: Arc<Mutex<SqliteAppSettingsRepo>>,
@@ -145,6 +149,7 @@ impl AppContext {
     ) -> Self {
         Self {
             workspaces,
+            previews: Default::default(),
             app_settings,
         }
     }
@@ -893,8 +898,7 @@ fn resolve_ai_chain(
 /// error is raised, with a per-provider summary when several failed.
 async fn generate_with_failover(
     chain: Vec<ResolvedAiProvider>,
-    system: String,
-    user: String,
+    prompt: PreparedPrompt,
 ) -> Result<AiGenerateOutcome> {
     let total = chain.len();
     let mut failures: Vec<String> = Vec::new();
@@ -913,8 +917,7 @@ async fn generate_with_failover(
             model: entry.model,
             base_url: entry.base_url,
             api_key: entry.api_key,
-            system: system.clone(),
-            user: user.clone(),
+            prompt: prompt.clone(),
             // The chain loop above IS the failover — per-request fallbacks
             // stay empty (v0.3's in-request fallback field is unused here).
             fallbacks: Vec::new(),
@@ -958,25 +961,23 @@ pub async fn generate_commit_message(
     repo_id: Option<String>,
     language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
-    let ws = get_workspace(ctx, workspace_id.clone())?;
-    let settings = ws.settings;
-    let key_lookup =
-        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
-    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+    let task = AiTask::CommitMessage { repo_id };
+    ai_preview::direct(ctx, &workspace_id, &task, language).await
+}
 
-    let repo_path = match repo_id {
-        Some(id) => selected_repo_path(ctx, &workspace_id, &id)?,
-        None => active_repo_path(ctx, &workspace_id)?,
-    };
-    let repo = ctx.open_repo(&repo_path)?;
-    let staged = infra_diff_index_to_head(&repo)?;
+fn prepare_commit_message(
+    repo: &git2::Repository,
+    settings: WorkspaceSettings,
+    language: Option<String>,
+) -> Result<PreparedPrompt> {
+    let staged = infra_diff_index_to_head(repo)?;
     if staged.files.is_empty() {
         return Err(AppError::protocol(
             codes::usecases::COMMIT_NO_STAGED,
             "no staged changes — stage files before generating a commit message",
         ));
     }
-    let recent = infra_commit_log(&repo, 8, None)?;
+    let recent = infra_commit_log(repo, 8, None)?;
 
     let mut user = String::new();
     user.push_str("Recent commits (newest first):\n");
@@ -986,7 +987,7 @@ pub async fn generate_commit_message(
     // Full messages of the branch's last 3 commits so the model can mirror
     // the repo's actual style (language, body formatting).
     user.push_str("\nLast 3 commit messages on this branch (style reference):\n");
-    for msg in infra_commit_recent_messages(&repo, 3)? {
+    for msg in infra_commit_recent_messages(repo, 3)? {
         user.push_str("---\n");
         user.push_str(&msg);
         user.push_str("\n---\n");
@@ -998,7 +999,7 @@ pub async fn generate_commit_message(
     // alone make it hallucinate plausible-sounding but wrong subjects (the
     // Aug 2026 "word wrap toggle" incident). Capped so huge diffs cannot
     // blow the context.
-    let staged_files = ai_safe_diff_files(&repo, infra_diff_index_to_head_files(&repo)?);
+    let staged_files = ai_safe_diff_files(repo, infra_diff_index_to_head_files(repo)?);
     user.push_str("\nStaged diff (unified format, may be truncated):\n");
     append_diff_patch(&mut user, &staged_files, 12_000);
 
@@ -1016,8 +1017,7 @@ pub async fn generate_commit_message(
         ),
         language.as_deref(),
     );
-
-    generate_with_failover(chain, system, user).await
+    Ok(PreparedPrompt::new(&system, &user))
 }
 
 /// Append the repo's `.gitwave/AI.md` (when present) to a system prompt so
@@ -1464,14 +1464,17 @@ pub async fn explain_conflict(
     path: String,
     language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
-    let ws = get_workspace(ctx, workspace_id.clone())?;
-    let settings = ws.settings;
-    let key_lookup =
-        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
-    let chain = resolve_ai_chain(&settings, &key_lookup)?;
-    let sides = get_conflict_sides(ctx, &workspace_id, path.clone())?;
-    let repo_path = active_repo_path(ctx, &workspace_id)?;
-    let repo = ctx.open_repo(&repo_path)?;
+    let task = AiTask::Conflict { path };
+    ai_preview::direct(ctx, &workspace_id, &task, language).await
+}
+
+fn prepare_conflict(
+    repo: &git2::Repository,
+    settings: WorkspaceSettings,
+    path: String,
+    language: Option<String>,
+) -> Result<PreparedPrompt> {
+    let sides = infra_get_conflict_sides(repo, &path)?;
     let rules = repo.workdir().and_then(infra_read_ai_rules);
     let system = with_reply_language(
         with_repo_rules(
@@ -1492,7 +1495,7 @@ pub async fn explain_conflict(
         sides.ours.as_deref().unwrap_or("(missing)"),
         sides.theirs.as_deref().unwrap_or("(missing)"),
     );
-    generate_with_failover(chain, system, user).await
+    Ok(PreparedPrompt::new(&system, &user))
 }
 
 // ─── AI PR description ──────────────────────────────────────────────────────
@@ -1574,17 +1577,28 @@ pub async fn generate_pr_description(
     base: Option<String>,
     language: Option<String>,
 ) -> Result<PrDescriptionOutcome> {
-    let ws = get_workspace(ctx, workspace_id.clone())?;
-    let settings = ws.settings;
-    let key_lookup =
-        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
-    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+    let task = AiTask::Pr { base };
+    let outcome = ai_preview::direct(ctx, &workspace_id, &task, language).await?;
+    Ok(pr_description(outcome))
+}
 
-    // Scoped so the !Send git2 handles (Repository / Commit) drop before
-    // the await — the command future must stay Send.
+fn pr_description(outcome: AiGenerateOutcome) -> PrDescriptionOutcome {
+    let (title, body) = split_pr_text(&outcome.text);
+    PrDescriptionOutcome {
+        title,
+        body,
+        provider_used: outcome.provider_used,
+        used_fallback: outcome.used_fallback,
+    }
+}
+
+fn prepare_pr(
+    repo: &git2::Repository,
+    settings: WorkspaceSettings,
+    base: Option<String>,
+    language: Option<String>,
+) -> Result<PreparedPrompt> {
     let (user, system) = {
-        let repo_path = active_repo_path(ctx, &workspace_id)?;
-        let repo = ctx.open_repo(&repo_path)?;
         let head = match repo.head() {
             Ok(head) => head.peel_to_commit().map_err(AppError::from)?,
             Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
@@ -1603,9 +1617,9 @@ pub async fn generate_pr_description(
 
         let base_name = match base.filter(|b| !b.trim().is_empty()) {
             Some(b) => b,
-            None => default_pr_base(&repo)?,
+            None => default_pr_base(repo)?,
         };
-        let base_oid = infra_resolve_ref_oid(&repo, &base_name)?;
+        let base_oid = infra_resolve_ref_oid(repo, &base_name)?;
         let merge_base = repo.merge_base(base_oid, head.id()).map_err(|_| {
             AppError::protocol_with(
                 codes::usecases::PR_NO_COMMON_ANCESTOR,
@@ -1613,7 +1627,7 @@ pub async fn generate_pr_description(
                 &[("base_name", base_name.clone())],
             )
         })?;
-        let commits = infra_commits_ahead_of(&repo, merge_base, head.id(), 30)?;
+        let commits = infra_commits_ahead_of(repo, merge_base, head.id(), 30)?;
         if commits.is_empty() {
             return Err(AppError::protocol_with(
                 codes::usecases::PR_NO_COMMITS_AHEAD,
@@ -1621,7 +1635,7 @@ pub async fn generate_pr_description(
                 &[("base_name", base_name.clone())],
             ));
         }
-        let files = ai_safe_diff_files(&repo, infra_diff_paths(&repo, merge_base, head.id())?);
+        let files = ai_safe_diff_files(repo, infra_diff_paths(repo, merge_base, head.id())?);
 
         let user = build_pr_user_prompt(&branch, &base_name, &commits, &files);
         let system = with_reply_language(
@@ -1638,15 +1652,7 @@ pub async fn generate_pr_description(
         );
         (user, system)
     };
-
-    let outcome = generate_with_failover(chain, system, user).await?;
-    let (title, body) = split_pr_text(&outcome.text);
-    Ok(PrDescriptionOutcome {
-        title,
-        body,
-        provider_used: outcome.provider_used,
-        used_fallback: outcome.used_fallback,
-    })
+    Ok(PreparedPrompt::new(&system, &user))
 }
 
 // ─── AI history explain ─────────────────────────────────────────────────────
@@ -1677,20 +1683,20 @@ pub async fn explain_commit(
     sha: String,
     language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
-    let ws = get_workspace(ctx, workspace_id.clone())?;
-    let settings = ws.settings;
-    let key_lookup =
-        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
-    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+    let task = AiTask::Commit { sha };
+    ai_preview::direct(ctx, &workspace_id, &task, language).await
+}
 
-    // Scoped so the !Send git2 handle drops before the await.
+fn prepare_commit(
+    repo: &git2::Repository,
+    sha: String,
+    language: Option<String>,
+) -> Result<PreparedPrompt> {
     let (user, system) = {
-        let repo_path = active_repo_path(ctx, &workspace_id)?;
-        let repo = ctx.open_repo(&repo_path)?;
-        let oid = infra_resolve_ref_oid(&repo, &sha)?;
-        let details = infra_commit_details(&repo, &sha)?;
-        let summary = infra_diff_commit_vs_parent(&repo, oid)?;
-        let files = ai_safe_diff_files(&repo, infra_diff_commit_vs_parent_files(&repo, oid)?);
+        let oid = infra_resolve_ref_oid(repo, &sha)?;
+        let details = infra_commit_details(repo, &sha)?;
+        let summary = infra_diff_commit_vs_parent(repo, oid)?;
+        let files = ai_safe_diff_files(repo, infra_diff_commit_vs_parent_files(repo, oid)?);
         let user = build_explain_user_prompt(&details.message_full, &summary, &files);
         let system = with_reply_language(
             with_repo_rules(
@@ -1701,7 +1707,7 @@ pub async fn explain_commit(
         );
         (user, system)
     };
-    generate_with_failover(chain, system, user).await
+    Ok(PreparedPrompt::new(&system, &user))
 }
 
 // ─── AI command palette (Cmd+K) ─────────────────────────────────────────────
@@ -1879,35 +1885,37 @@ pub async fn ai_palette_intent(
     workspace_id: String,
     query: String,
 ) -> Result<PaletteIntent> {
+    let task = AiTask::Palette { query };
+    let outcome = ai_preview::direct(ctx, &workspace_id, &task, None).await?;
+    parse_palette_intent(&outcome.text)
+}
+
+fn prepare_palette(
+    repo: &git2::Repository,
+    repos: Vec<RepoRef>,
+    query: String,
+) -> Result<PreparedPrompt> {
     if query.trim().is_empty() {
         return Err(AppError::protocol(
             codes::usecases::PALETTE_EMPTY_REQUEST,
             "empty palette request",
         ));
     }
-    let ws = get_workspace(ctx, workspace_id.clone())?;
-    let settings = ws.settings;
-    let key_lookup =
-        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
-    let chain = resolve_ai_chain(&settings, &key_lookup)?;
 
-    let repos = list_repos(ctx, workspace_id.clone())?
+    let repos = repos
         .into_iter()
         .map(|r| PaletteRepo {
             id: r.id,
             name: r.nickname.unwrap_or(r.path),
         })
         .collect();
-    let tags = list_tags(ctx, &workspace_id)?
+    let tags = infra_list_tags(repo)?
         .into_iter()
         .take(20)
         .map(|t| t.name)
         .collect();
 
-    // Scoped so the !Send git2 handle drops before the await.
     let (current_branch, local_branches, remote_branches, recent_commits, rules) = {
-        let repo_path = active_repo_path(ctx, &workspace_id)?;
-        let repo = ctx.open_repo(&repo_path)?;
         let current_branch = repo
             .head()
             .ok()
@@ -1931,7 +1939,7 @@ pub async fn ai_palette_intent(
                 }
             }
         }
-        let recent_commits = infra_commit_log(&repo, 15, None)?
+        let recent_commits = infra_commit_log(repo, 15, None)?
             .into_iter()
             .map(|c| PaletteCommit {
                 sha: c.sha,
@@ -1962,9 +1970,7 @@ pub async fn ai_palette_intent(
         query.trim()
     );
     let system = with_repo_rules(PALETTE_SYSTEM.to_string(), rules);
-
-    let outcome = generate_with_failover(chain, system, user).await?;
-    parse_palette_intent(&outcome.text)
+    Ok(PreparedPrompt::new(&system, &user))
 }
 
 /// Commit subject for a reflog position, or a placeholder when the oid
@@ -2098,13 +2104,17 @@ pub async fn explain_health(
     workspace_id: String,
     language: Option<String>,
 ) -> Result<String> {
-    let ws = get_workspace(ctx, workspace_id.clone())?;
-    let settings = ws.settings;
-    let key_lookup =
-        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
-    let chain = resolve_ai_chain(&settings, &key_lookup)?;
+    let task = AiTask::Health;
+    let outcome = ai_preview::direct(ctx, &workspace_id, &task, language).await?;
+    Ok(outcome.text)
+}
 
-    let report = get_health(ctx, &workspace_id)?;
+fn prepare_health(
+    repo: &git2::Repository,
+    settings: WorkspaceSettings,
+    language: Option<String>,
+) -> Result<PreparedPrompt> {
+    let report = infra_collect_health(repo, 30)?;
     let user = format!(
         "Repo health metrics (JSON):
 {}
@@ -2125,9 +2135,7 @@ Write a short health assessment:          what looks fine, what needs attention,
         }),
         language.as_deref(),
     );
-
-    let outcome = generate_with_failover(chain, system, user).await?;
-    Ok(outcome.text)
+    Ok(PreparedPrompt::new(&system, &user))
 }
 
 /// `git reset --hard <oid>` on the current branch — M2 recovery action,
@@ -2148,19 +2156,27 @@ pub async fn explain_reflog(
     message: String,
     language: Option<String>,
 ) -> Result<String> {
-    let ws = get_workspace(ctx, workspace_id.clone())?;
-    let settings = ws.settings;
-    let key_lookup =
-        |provider: &str| crate::infrastructure::ai::get_api_key(&workspace_id, provider);
-    let chain = resolve_ai_chain(&settings, &key_lookup)?;
-
-    let repo_path = active_repo_path(ctx, &workspace_id)?;
-    // git2::Repository is !Send — resolve subjects inside a scope so it is
-    // dropped before the network await.
-    let (old_subject, new_subject) = {
-        let repo = ctx.open_repo(&repo_path)?;
-        (subject_of(&repo, &old_oid), subject_of(&repo, &new_oid))
+    let task = AiTask::Reflog {
+        old_oid,
+        new_oid,
+        action,
+        message,
     };
+    let outcome = ai_preview::direct(ctx, &workspace_id, &task, language).await?;
+    Ok(outcome.text)
+}
+
+fn prepare_reflog(
+    repo: &git2::Repository,
+    settings: WorkspaceSettings,
+    old_oid: String,
+    new_oid: String,
+    action: String,
+    message: String,
+    language: Option<String>,
+) -> Result<PreparedPrompt> {
+    let old_subject = subject_of(repo, &old_oid);
+    let new_subject = subject_of(repo, &new_oid);
 
     let system = with_reply_language(
         settings.prompt_templates.reflog.clone().unwrap_or_else(|| {
@@ -2174,9 +2190,7 @@ pub async fn explain_reflog(
         old = old_oid,
         new = new_oid,
     );
-
-    let outcome = generate_with_failover(chain, system, user).await?;
-    Ok(outcome.text)
+    Ok(PreparedPrompt::new(&system, &user))
 }
 
 /// All tags in the active repo (S3).
@@ -3101,6 +3115,8 @@ fn active_repo_path(ctx: &AppContext, workspace_id: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    mod preview_transport;
+
     use super::*;
     use crate::domain::diff::{DiffHunk, DiffLine};
     use crate::infrastructure::persistence::migrations;

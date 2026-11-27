@@ -1,3 +1,4 @@
+import { AiPreviewButton } from "@/components/AiPreviewButton";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, EyeOff, FolderOpen, Trash2 } from "lucide-react";
@@ -22,7 +23,13 @@ import { AiProviderSettings } from "@/components/AiProviderSettings";
 import { GitignoreEditor } from "@/components/GitignoreEditor";
 import { useStatusAreaStore } from "@/stores/statusAreaStore";
 import { Radio, RadioGroup } from "@heroui/react";
-import { formatAppError, generateCommitMessage, getWorkspace, type FileChange } from "@/lib/api";
+import {
+  sendAiPreview,
+  formatAppError,
+  generateCommitMessage,
+  getWorkspace,
+  type FileChange,
+} from "@/lib/api";
 import { commitDraftKey, getCommitDraft, useCommitDraftStore } from "@/stores/commitDraftStore";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { deriveIgnorePatterns } from "@/lib/ignorePattern";
@@ -419,7 +426,8 @@ export function ChangesPanel({
     setPendingAction(null);
   }
 
-  const handleAiGenerate = () => {
+  const task = { kind: "commit_message", repo_id: repoId } as const;
+  const handleAiGenerate = (previewId?: number) => {
     if (!workspaceId || aiBusy) return;
     const request = ++aiRequestRef.current;
     const isCurrent = () =>
@@ -428,13 +436,17 @@ export function ChangesPanel({
     setActionError(null);
     void (async () => {
       try {
-        const currentWorkspace = workspace ?? (await getWorkspace(workspaceId));
-        if (!isCurrent()) return;
-        if (!currentWorkspace.settings.ai_provider?.trim()) {
-          setAiPromptOpen(true);
-          return;
+        if (previewId === undefined) {
+          const currentWorkspace = workspace ?? (await getWorkspace(workspaceId));
+          if (!isCurrent()) return;
+          if (!currentWorkspace.settings.ai_provider?.trim()) {
+            setAiPromptOpen(true);
+            return;
+          }
         }
-        const res = await generateCommitMessage(workspaceId, repoId ?? undefined);
+        const res = await (previewId === undefined
+          ? generateCommitMessage(workspaceId, repoId ?? undefined)
+          : sendAiPreview(workspaceId, task, previewId));
         if (!isCurrent()) return;
         updateDraft(draftKey, { message: res.text, previousMessage: message });
         if (res.used_fallback) {
@@ -549,7 +561,18 @@ export function ChangesPanel({
             },
           });
         }}
-        onAiGenerate={handleAiGenerate}
+        onAiGenerate={() => handleAiGenerate()}
+        previewAction={
+          workspaceId && (
+            <AiPreviewButton
+              workspaceId={workspaceId}
+              task={task}
+              disabled={commitPending || aiBusy || stagedFiles.length === 0}
+              sendDisabled={commitPending || aiBusy}
+              onSend={handleAiGenerate}
+            />
+          )
+        }
         aiLoading={aiBusy}
         amendMessage={amendMode ? headMessage : null}
         onAmend={canAmend ? () => setAmendConfirmOpen(true) : undefined}

@@ -70,6 +70,6 @@
   - Ollama（本机探测，限回环）
 - **请求**：HTTP JSON，`stream: false`（**不是** SSE → Tauri event 流式渲染）
 - **BYOK 存储**：OS Keychain（macOS Keychain / Win Credential Manager / Linux Secret Service），内存中按需解密使用，不落盘
-- **scrubber**：diff 发送前跑 secret scanner；可被用户显式禁用但需确认
+- **scrubber**：发送前在本机遮盖系统提示和用户内容中的凭证、常见邮箱及电话号码。所有 AI 入口都可预览脱敏后的文本。
 - **离线模式**：所有云端 provider 一键禁用，仅本地 Ollama 可用
 - **Provider 故障转移**：已落地。`ai_failover` 有序链；网络 / 5xx / 429 切下一个，401/403 停链

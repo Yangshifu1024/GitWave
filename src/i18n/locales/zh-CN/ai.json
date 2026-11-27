@@ -58,6 +58,17 @@
     "actions": {
       "close": "关闭",
       "save": "保存"
+    },
+    "preview": {
+      "direct": "直接生成",
+      "open": "预览发送内容",
+      "send": "发送并生成",
+      "description": "预览在本机生成。发送时，提供商将收到以下两段内容。",
+      "system": "系统提示",
+      "user": "用户内容",
+      "counts": "邮箱 {{emails}} 处 · 电话 {{phones}} 处 · 凭证 {{secret_lines}} 行",
+      "loading": "正在准备预览…",
+      "pr": "预览 PR 描述的发送内容"
     }
   }
 }

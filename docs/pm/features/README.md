@@ -72,10 +72,12 @@
 | [F015](./F015-open-in-editor.md) | ActionBar 编辑器按钮（VS Code / Zed / VSCodium） | 已合并 | v0.7.x |
 | [F016](./F016-image-diff.md) | DiffView 图片 diff（左右分栏对比） | 已合并 | v0.7.x |
 | [F017](./F017-repo-tab-wheel-scroll.md) | Repository Tab 溢出时滚轮横向滚动 + 激活 tab 入视野 | 已合并 | v0.9.x |
+| [F018](./F018-workbench-redesign.md) | 工作台与界面语言重设计 | 第一阶段已合并 | v0.11.0 |
+| [F019](./F019-ai-redaction-preview.md) | AI 发送前脱敏与本地预览 | 已接受 | 路线图 P0 |
 
 ## v0.8.8 起的登记方式
 
-新提案：[F018 · 工作台与界面语言重设计](./F018-workbench-redesign.md)（2026-10-15，第一阶段 accepted，已随 v0.11.0 发布）。本次遵循 AGENTS.md 的新需求登记要求；下方保留历史登记方式说明。
+F018 和 F019 按 AGENTS.md 的新需求流程登记。以下为此前采用的登记方式。
 
 从 v0.8.8 起，新增功能直接落在 `docs/tasks/<feat-任务名>/plan.md`，不再为每个功能单独开提案文件；本目录保留 F001–F017 的历史提案，作为早期评审与追溯的记录。
 
