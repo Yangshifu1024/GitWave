@@ -135,6 +135,12 @@
       "resize": "调整文件列表与 diff 宽度",
       "expandDiff": "展开 diff",
       "restoreLayout": "显示文件列表"
+    },
+    "partial": {
+      "stage": "部分暂存",
+      "unstage": "部分取消暂存",
+      "hunk": "应用整个 hunk",
+      "lines": "应用所选行（{{count}}）"
     }
   }
 }

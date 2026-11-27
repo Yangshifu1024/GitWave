@@ -13,6 +13,8 @@ import {
 } from "@/stores/workbenchStore";
 import { useLayoutStore } from "@/stores/layoutStore";
 
+import { PartialStaging } from "./PartialStaging";
+
 export function ChangesWorkspace({
   scope,
   active,
@@ -65,14 +67,27 @@ export function ChangesWorkspace({
           }
           second={
             active && current ? (
-              <DiffViewer
-                compact
-                workdir
-                path={current.path}
-                staged={current.staged}
-                workdirKind={kind}
-                hideMaximize
-              />
+              <div className="flex h-full min-h-0 flex-col">
+                {kind === "modified" && wc.workspaceId && wc.repoId && (
+                  <PartialStaging
+                    key={JSON.stringify([scope, current.path, current.staged])}
+                    workspaceId={wc.workspaceId}
+                    repoId={wc.repoId}
+                    path={current.path}
+                    staged={current.staged}
+                  />
+                )}
+                <div className="flex-1 min-h-0">
+                  <DiffViewer
+                    compact
+                    workdir
+                    path={current.path}
+                    staged={current.staged}
+                    workdirKind={kind}
+                    hideMaximize
+                  />
+                </div>
+              </div>
             ) : (
               <EmptyState
                 title={t("changes.panel.noFileSelected")}

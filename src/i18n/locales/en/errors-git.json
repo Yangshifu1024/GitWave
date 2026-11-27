@@ -1,6 +1,7 @@
 {
   "errors": {
     "git": {
+      "partial_unavailable": "Refresh the preview. If partial staging is unavailable for this change, use the whole-file action.",
       "history_cursor_expired": "History changed or its cached page expired. Reload history to continue.",
       "raw": "Git error: {{detail}}",
       "error": "Git operation failed: {{error}}",
