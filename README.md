@@ -2,10 +2,11 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.12.0 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
+**Status:** v0.12.1 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
 ### What's new in v0.12.x
 
+- **v0.12.1** — History and Changes now use Chinese labels in the Chinese interface. The title bar groups Fetch, Pull and Push beside Stash, and hovering over these buttons no longer interferes with clicks.
 - **v0.12.0** — Stage or unstage individual hunks and lines, search and compare commits, browse a file's history, and create a GitHub pull request from a reviewed draft.
 
 History groups changed files by directory and can locate a search result in the commit graph. Changes keeps the next file selected as you stage, lets you resize the commit editor, and offers a link to the resulting commit in History. Resolve conflicts in the workbench and reorder interactive rebase steps with the keyboard.
