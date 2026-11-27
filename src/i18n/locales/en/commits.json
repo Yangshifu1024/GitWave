@@ -101,6 +101,7 @@
       "fallbackNotice": "Primary AI provider failed — response served by {{provider}}"
     },
     "sync": {
+      "group": "Remote sync",
       "fetch": "Fetch",
       "pull": "Pull",
       "pullTitle": "Pull",

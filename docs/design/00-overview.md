@@ -81,11 +81,11 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **TitleBar**：自绘标题栏（40px，唯一顶栏）。左侧应用菜单 + 工作区选择器 + 外部工具快捷入口；右侧 Local Changes / Stash / Fetch / Pull / Push；同步状态区位于底栏。详见 `03-layout.md` §2。
+- **TitleBar**：自绘标题栏（40px，唯一顶栏）。左侧应用菜单 + 工作区选择器 + 外部工具快捷入口；右侧为独立的 Stash 按钮与 Fetch / Pull / Push 同步按钮组；同步状态区位于底栏。详见 `03-layout.md` §2。
 - **Sidebar（Source List）**：branches + stash / tags / remotes / worktrees / submodules 等 sections（同步按钮不在侧栏）。Mist 底，与 Foam 画布有材质差。
 - **History graph**：永远是中栏主角，不是 Tab。
 - **Inspector**：选中 commit 或 working-copy 文件的详情 / diff。
-- **Status Bar / Working Copy**：底栏 32px 显示当前分支与操作状态；Working Copy 从标题栏 Local Changes 打开独立 modal。
+- **Status Bar / Working Copy**：底栏 32px 显示当前分支与操作状态；从左侧导航的「变更」进入工作区，收起侧栏时可从工作区顶部切换。
 
 详见 `03-layout.md` / `04-working-copy.md`。
 

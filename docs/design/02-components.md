@@ -435,43 +435,15 @@ status 字符：M（modified） / A（added） / D（deleted） / ?（untracked�
 
 **目的**：同步操作按钮组——`Fetch`（repository 级）、`Pull` / `Push`（branch 级）。**2026-09 起三者都挂在标题栏右侧**（`ActionBar`，见 `03-layout.md` §2.2 / §3.4），不再出现在侧栏 section 标题栏。
 
-**API**：
-
-```tsx
-// 标题栏右侧（repository 级）
-<FetchButton onFetch={() => fetch()} disabled={!repoId} inProgress={sync.fetch} />
-
-// 标题栏右侧（branch 级）
-<BranchSyncButtons
-  ahead={2}
-  behind={3}
-  onPull={() => pull()}
-  onPush={() => push()}
-  pullDisabled={behind === 0 || detached}
-  pushDisabled={ahead === 0 || detached}
-  inProgress={{ pull: false, push: true }}
-/>
-```
-
-也可合并为单个 `SyncButtons` 组件，通过 `variant="repo" | "branch"` 或拆成两个 slot 导出。
-
-**Props（BranchSyncButtons）**：
-
-| 字段 | 类型 | 默认 | 备注 |
-|---|---|---|---|
-| ahead | number | 0 | Push 按钮显示 `↑N` badge |
-| behind | number | 0 | Pull 按钮显示 `↓N` badge |
-| onPull / onPush | () => void | | 回调 |
-| pullDisabled / pushDisabled | boolean | | ahead/behind = 0 或 detached |
-| inProgress | object | {} | spinner 状态 |
+无活动仓库或同步进行中时禁用三个同步按钮。detached HEAD 时还会禁用 Pull 和 Push。计数为零时保留空槽，用户仍可在当前分支主动同步。
 
 **样式**：
 
 ```
-标题栏右侧   Changes (5)  Stash  Fetch │ Pull (3)  Push (2)
+标题栏右侧   [Stash]  [Fetch │ Pull (3) │ Push (2)]
 ```
 
-标题栏按钮为图标 + 短标签的 ghost Button（`size="sm"`、`text-xs`），tooltip 承载完整描述；ahead / behind 计数渲染在固定宽度的 `(N)` 槽位里，disabled 时按钮灰显。侧栏 branch 行上的 ahead / behind 仍用 `StatusBadge` 的 `↑N`（绿）/ `↓N`（橙）。
+标题栏按钮为图标 + 短标签的 ghost Button（`size="sm"`、`text-xs`），同步按钮共用边框，以细线分隔，直接接收点击，保留键盘焦点与无障碍名称；ahead / behind 计数渲染在固定宽度的 `(N)` 槽位里，disabled 时按钮灰显。侧栏 branch 行上的 ahead / behind 仍用 `StatusBadge` 的 `↑N`（绿）/ `↓N`（橙）。
 
 实现：`ActionBarButton`（`src/components/ActionBar.tsx`）。`SectionAction` + `FetchButton` + `BranchSyncButtons`（`src/components/ui/SectionAction.tsx`）仍保留，但当前没有任何组件引用。
 

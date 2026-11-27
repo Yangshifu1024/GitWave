@@ -777,6 +777,14 @@
 }
 
 /* Tide Workbench geometry, shared by both palettes and both color schemes. */
+.repo-action-group {
+  @apply pointer-events-auto inline-flex shrink-0 items-center divide-x divide-border-subtle rounded-md border border-border-subtle;
+}
+
+.repo-action-group > button {
+  @apply rounded-none first:rounded-l-md last:rounded-r-md focus-visible:z-10;
+}
+
 .workbench-toolbar {
   display: flex;
   align-items: center;

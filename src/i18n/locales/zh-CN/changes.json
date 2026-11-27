@@ -123,10 +123,6 @@
       "stageNewFilesHint": "默认情况下，stash 会忽略新文件，直到你暂存它们",
       "saved": "已保存贮藏"
     },
-    "actionBar": {
-      "changes": "变更",
-      "localChangesTitle": "本地变更"
-    },
     "panel": {
       "title": "本地变更",
       "statusSummary": "未暂存 {{unstaged}} 项 · 已暂存 {{staged}} 项",

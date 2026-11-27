@@ -33,7 +33,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ File Workspace Repository Branch  [Workspace▾][📁][⌨][</>]  …  [Changes] [Stash] [Fetch] │ [Pull] [Push] │
+│ File Workspace Repository Branch  [Workspace▾][📁][⌨][</>]  …  [Stash]  [Fetch │ Pull │ Push] │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,8 +61,8 @@
 | App 菜单（File / Workspace / Repository / Branch） | 左 | Windows / Linux 栏内；macOS 为原生菜单 |
 | Workspace 下拉 | 左 | 切换工作区（恢复其 last active repo） |
 | 外部工具（文件管理器 / 终端 / 编辑器） | 左 | macOS 无菜单，空间充足；窄栏时文字折叠为图标 |
-| Local Changes / Stash / Fetch | 右 | 见 §6.1 |
-| Pull / Push | 右 | 带 ahead/behind 计数 |
+| Stash | 右 | 打开贮藏对话框 |
+| Fetch / Pull / Push | 右 | 同步按钮共用外框，Pull 显示 behind，Push 显示 ahead |
 | 同步状态区 | 底栏 | Fetch / Pull / Push 进度与最近一次操作结果 |
 
 **Sync 不在侧栏标题栏**（与旧稿相反）：Fetch / Pull / Push 已收进标题栏右侧，
@@ -73,7 +73,7 @@ ahead/behind 数字显示在 Pull / Push 按钮上。
 ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上，形如 `Pull (3)` / `Push (2)`：按钮内有一个固定宽度的 `(N)` 计数槽位，计数为 0 时留空（`ActionBarButton`，`src/components/ActionBar.tsx`）。
 
 示例：
-- `Pull` / `Push`（计数 0，按钮灰显）
+- `Pull` / `Push`（计数为 0 时留空，仍可主动同步）
 - `Pull (3)`（behind 3，可 Pull）
 - `Push (2)`（ahead 2，可 Push）
 - detached HEAD 时 Pull/Push 均灰显
@@ -141,8 +141,8 @@ ahead/behind 数字显示在**标题栏右侧 Pull / Push 按钮**上，形如 `
 | 操作 | 作用域 | 禁用 |
 |---|---|---|
 | Fetch | 当前 active repo 的全部 remote | 无 active repo |
-| Pull | 当前 HEAD branch | behind = 0 或 detached |
-| Push | 当前 HEAD branch | ahead = 0 或 detached |
+| Pull | 当前 HEAD branch | 无 active repo 或 detached |
+| Push | 当前 HEAD branch | 无 active repo 或 detached |
 
 同步进行中按钮 disabled，进度与取消入口在底栏状态区（§2.5）。
 
@@ -167,7 +167,7 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 | Remotes | remote + tracking | 折叠 |
 | Worktrees | worktree 列表 | 折叠 |
 
-变更文件列表在 WorkingCopyModal 内（工具条 Local Changes 打开），不占用三栏。
+从左侧导航打开「变更」工作区，查看变更文件列表。
 
 ## 5. Main
 
@@ -189,8 +189,8 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 | 选择 | Inspector |
 |---|---|
 | History 中的 commit | commit details + diff |
-| WorkingCopyModal 中的 Unstaged 文件 | 仅 worktree vs index（unstaged）diff |
-| WorkingCopyModal 中的 Staged 文件 | 仅 index vs HEAD（staged）diff |
+| 变更工作区中的 Unstaged 文件 | 仅 worktree vs index（unstaged）diff |
+| 变更工作区中的 Staged 文件 | 仅 index vs HEAD（staged）diff |
 | 无选择 | 空状态提示（选 commit 看 diff） |
 
 ### 5.3 空状态
@@ -199,7 +199,7 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 无 commit（empty repo）：commit graph 显示空状态 + "Create your first commit" 按钮。
 
-## 6. ActionBar + Working Copy Modal（原 Working Copy Bar，已重构）
+## 6. ActionBar 与变更工作区
 
 > 2026-08 重构：底部常驻 WorkingCopyBar 移除，变更操作通过 Local Changes 打开的
 > WorkingCopyModal 完成。2026-09：ActionBar 不再独占一行，作为内容渲染在 §2 的
@@ -209,20 +209,20 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ [Workspace▾] [📁][⌨][</>]  ······  [Changes(n)] [Stash] [Fetch] │ [Pull] [Push] │
+│ [Workspace▾] [📁][⌨][</>]  ······  [Stash]  [Fetch │ Pull │ Push] │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - 左起：Workspace 下拉（切换工作区），外部工具（文件管理器 / 终端 / 编辑器）
-- 右端：Local Changes（打开 WorkingCopyModal）——干净时绿色 `Changes`，有变更时黄色 `Changes(n)`（n 为变更文件数）；无活动仓库时禁用
+- 「变更」及变更文件数显示在左侧导航，收起侧栏后由工作区顶部切换视图。
 - Stash（保存贮藏）/ Fetch / Pull（Fork 式对话框：Remote / Branch / Into + rebase + stash）/ Push
 - Workspace 新建 / 重命名 / AI Provider / 删除、Repository Init / Clone / Add Local 等低频操作在 App 菜单（F 组）
 - 窄栏时外部工具文字折叠为图标（`@6xl` 容器查询）；同步状态区位于底栏
 - 背景：`bg-bg-primary`。fetch / pull / push 错误经标题栏下方 ErrorAlert 呈现
 
-### 6.2 WorkingCopyModal
+### 6.2 WorkingCopyModal（历史布局）
 
-点击 Local Changes（n ≠ 0）弹出的模态（size xl）：
+当前工作区设计见 [工作台设计](09-workbench-redesign.md)。下图记录旧版弹窗布局。
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -246,8 +246,8 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 | 子组件 | 用途 | 文档 |
 |---|---|---|
-| `ActionBar` | TopBar 下方操作条 | 本节 |
-| `WorkingCopyModal` | 变更模态（双列） | 本节 |
+| `ActionBar` | 自绘标题栏内的操作按钮 | 本节 |
+| `WorkingCopyModal` | 旧版变更模态（双列） | 本节 |
 | `ChangesPanel` | unstaged/staged 列表 + commit box（layout: stacked/bar/modal） | `04-working-copy.md` |
 | `BranchIndicator` | 当前 branch 名 + ahead/behind | `02-components.md` §3.1 |
 | `FileListItem` | 单个文件行（M/A/D/?/R/C + 路径 + +/-） | `02-components.md` §3.2 |
