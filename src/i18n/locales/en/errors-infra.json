@@ -1,5 +1,16 @@
 {
   "errors": {
+    "github": {
+      "origin": "A github.com origin remote is required.",
+      "detached": "Check out a branch before creating a pull request.",
+      "timed_out": "GitHub CLI timed out. Check open pull requests before retrying.",
+      "changed": "The repository or branch changed. Review the target again.",
+      "invalid_draft": "Check the title, description and base branch.",
+      "push_first": "Push the reviewed branch to origin before creating its pull request.",
+      "unexpected": "Unexpected GitHub response. Check open pull requests.",
+      "cli_start": "Could not start GitHub CLI (gh): {{detail}}",
+      "cli_error": "GitHub CLI: {{detail}}"
+    },
     "ai": {
       "provider_http": "Provider {{provider}} returned HTTP {{status}}: {{detail}}",
       "all_attempts_failed": "All {{total}} AI provider attempt(s) failed with no error captured",

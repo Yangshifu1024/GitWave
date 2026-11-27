@@ -189,7 +189,7 @@
 | remotes/submodules/LFS | 工具区完整表格与详情，短表单仍 modal | URL/credential 来源明确；init/update/deinit、track/untrack 保留 |
 | hooks/.gitignore | 工具区编辑器，保存状态与离开保护 | hooks 仅编辑不执行；明确 hooksPath/common dir；ignore 模式范围确认 |
 | Health | Tools 下的检查结果；仅待处理项可进入状态提示 | 不用常驻大仪表盘；AI 报告与确定性扫描分开 |
-| AI 历史/冲突/PR/恢复 | 同一任务助手容器、对象作用域、provider、生成/失败/采用/复制状态 | PR 仍只生成 title/body 文本；offline/local、scrubber、fallback 语义保留 |
+| AI 历史/冲突/PR/恢复 | 同一任务助手容器、对象作用域、provider、生成/失败/采用/复制状态 | PR 草稿可复制，也可在核对分支后由用户发布到 GitHub；offline/local、scrubber、fallback 语义保留 |
 | Command palette | 本地命令/branch/repo/commit 分组；Enter 执行当前本地选择；Ask AI 独立按钮 | 所有 Git 写操作走同一 gate；macOS/Windows 键位正确；无匹配不自动发送网络 |
 | Settings | 应用与 Workspace 两个明确 scope；分组搜索可后续补 | 当前语言/字体/主题/代理/SSH/更新全部保留；key 不显示在操作记录 |
 | 凭证/更新/About/退出 | 继续短 dialog；标准间距/按钮/焦点；更新进度与重启重试明确 | 不破坏 quit guard；关闭焦点回触发项；凭证不持久到前端草稿 |

@@ -9,3 +9,5 @@ pub mod persistence;
 pub mod process;
 pub mod proxy;
 pub mod ssh;
+
+pub mod github_pr;

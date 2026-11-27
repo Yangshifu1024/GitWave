@@ -119,7 +119,9 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 ### 1.9 Collaboration
 
-Remote 管理（GitHub / GitLab / Gitea / 自建）— **已交付** · PR / MR 创建 · Lightweight code review · Issue 链接 — **未交付**（AI PR 描述只生成文本）
+Remote 管理支持 GitHub、GitLab、Gitea 和自建服务器。GitLab MR、lightweight code review 和 Issue 链接仍待后续。
+
+开发版支持用已登录的 GitHub CLI 在 github.com 的 origin 仓库创建 PR。先推送当前分支，确认远端同名分支与本地 SHA 一致；在 PR 描述窗口核对目标分支、标题和正文后发起创建，成功后可打开 PR 链接。[任务计划](../../tasks/feat-github-pr/plan.md)
 
 ### 1.10 Platform & UX
 

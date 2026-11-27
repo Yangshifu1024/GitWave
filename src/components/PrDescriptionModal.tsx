@@ -1,8 +1,7 @@
+import { PublishPr } from "./PublishPr";
 import { AiPreviewButton } from "@/components/AiPreviewButton";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-// AI PR description modal — generates a copy-ready title + markdown body
-// for the active branch vs the default base branch. Nothing is pushed or
-// created remotely (P1): the user copies the text into their PR tool.
+// Users can copy the edited draft or review its target before publishing on GitHub.
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -39,6 +38,7 @@ function PrDescriptionModalContent({
   onClose: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation();
+  const repoId = useWorkspaceUiStore((s) => s.activeRepoId);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +184,15 @@ function PrDescriptionModalContent({
           </label>
         </div>
 
+        {repoId && (
+          <PublishPr
+            workspaceId={workspaceId}
+            repoId={repoId}
+            title={title}
+            body={body}
+            disabled={genMut.isPending}
+          />
+        )}
         {genMut.isPending ? (
           <p className="text-xs text-text-muted">{t("commits.pr.generating")}</p>
         ) : error ? (

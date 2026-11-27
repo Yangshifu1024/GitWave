@@ -1,5 +1,16 @@
 {
   "errors": {
+    "github": {
+      "origin": "请为 origin 配置 github.com 上的仓库。",
+      "detached": "请先检出一个本地分支，再创建 PR。",
+      "timed_out": "GitHub CLI 请求超时。请先检查已打开的 PR，再决定是否重试。",
+      "changed": "仓库或分支已变更，请重新核对目标。",
+      "invalid_draft": "请检查标题、描述和目标分支。",
+      "push_first": "请先将核对过的分支推送到 origin，再创建 PR。",
+      "unexpected": "GitHub 返回了无法识别的结果，请检查已打开的 PR。",
+      "cli_start": "无法启动 GitHub CLI（gh），请确认已安装。详细信息：{{detail}}",
+      "cli_error": "GitHub CLI 返回错误：{{detail}}"
+    },
     "ai": {
       "provider_http": "Provider {{provider}} 返回 HTTP {{status}}：{{detail}}",
       "all_attempts_failed": "全部 {{total}} 次 AI provider 尝试均失败，且未捕获到错误信息",
