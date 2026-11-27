@@ -1,14 +1,15 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { CommitInfoHeader } from "@/components/CommitInfoHeader";
 import { DiffViewer } from "@/components/DiffViewer";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { WorkbenchSplit } from "@/components/ui/WorkbenchSplit";
-import { File } from "lucide-react";
+import { HistoryFileTree } from "./HistoryFileTree";
+import { buildChangedFileTree } from "@/lib/changedFileTree";
 import { formatAppError, getDiffPreview } from "@/lib/api";
 import { EMPTY_SESSION, useWorkbenchStore } from "@/stores/workbenchStore";
 import { useLayoutStore } from "@/stores/layoutStore";
-import { cn } from "@/lib/utils";
 
 export function HistoryDetails({
   workspaceId,
@@ -32,6 +33,8 @@ export function HistoryDetails({
     enabled: !!sha,
     retry: false,
   });
+  const files = summary.data?.diff.files;
+  const tree = useMemo(() => buildChangedFileTree(files ?? []), [files]);
   if (!sha)
     return (
       <EmptyState
@@ -40,9 +43,8 @@ export function HistoryDetails({
         className="h-full"
       />
     );
-  const files = summary.data?.diff.files ?? [];
   const remembered = session.historyFile?.commit === sha ? session.historyFile.path : null;
-  const path = files.find((file) => file.path === remembered)?.path ?? files[0]?.path;
+  const path = remembered && tree.filePaths.has(remembered) ? remembered : tree.firstPath;
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-panel">
       <CommitInfoHeader workspaceId={workspaceId} sha={sha} />
@@ -55,33 +57,14 @@ export function HistoryDetails({
           max={48}
           collapsed={focused}
           first={
-            <div className="flex h-full min-h-0 flex-col bg-bg-elevated">
-              <div className="workbench-section-heading">
-                {t("app.workbench.files")} <span>{files.length}</span>
-              </div>
-              <div
-                className="min-h-0 flex-1 overflow-auto py-1"
-                role="group"
-                aria-label={t("app.workbench.files")}
-              >
-                {files.map((file) => (
-                  <button
-                    key={file.path}
-                    type="button"
-                    aria-pressed={path === file.path}
-                    title={file.path}
-                    onClick={() => update(scope, { historyFile: { commit: sha, path: file.path } })}
-                    className={cn(
-                      "workbench-file",
-                      path === file.path && "workbench-file-selected",
-                    )}
-                  >
-                    <File size={14} className="shrink-0" />
-                    <span className="min-w-0 flex-1 truncate font-mono text-left">{file.path}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            files && (
+              <HistoryFileTree
+                key={JSON.stringify([workspaceId, repoId, sha])}
+                tree={tree}
+                selected={path}
+                onSelect={(path) => update(scope, { historyFile: { commit: sha, path } })}
+              />
+            )
           }
           second={
             summary.isPending ? (
