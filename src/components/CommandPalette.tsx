@@ -93,7 +93,7 @@ export function CommandPalette({
     pageSize: 10,
     debounceMs: 300,
   });
-  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // App-standard global shortcut, same modifier check as Toolbar's Ctrl+,.
@@ -116,7 +116,7 @@ export function CommandPalette({
       setQuery("");
       setIntent(null);
       setIntentError(null);
-      setSelectedIndex(-1);
+      setSelectedId(null);
     }
   }
   useEffect(() => {
@@ -166,7 +166,7 @@ export function CommandPalette({
   const [previousScope, setPreviousScope] = useState(scopeKey);
   if (previousScope !== scopeKey) {
     setPreviousScope(scopeKey);
-    setSelectedIndex(-1);
+    setSelectedId(null);
   }
 
   const locateCommit = (sha: string): void => {
@@ -174,16 +174,22 @@ export function CommandPalette({
     requestLocate(sha);
   };
 
-  // Arrow keys walk commands and commit results as one list; Enter on an
-  // unselected input falls through to the form submit (Ask AI).
+  // Keep explicit selection by identity as paginated search results change.
   type PaletteRow =
     { kind: "command"; id: string; run: () => void } | { kind: "commit"; id: string; sha: string };
   const rows: PaletteRow[] = [
     ...filtered.map((c) => ({ kind: "command" as const, id: c.id, run: c.run })),
     ...commitResults.map((c) => ({ kind: "commit" as const, id: c.sha, sha: c.sha })),
   ];
-  const clampSelection = (next: number): void => {
-    setSelectedIndex(rows.length === 0 ? -1 : Math.min(Math.max(next, 0), rows.length - 1));
+  const selectedIndex = rows.length
+    ? Math.max(
+        0,
+        rows.findIndex((row) => row.id === selectedId),
+      )
+    : -1;
+  const moveSelection = (offset: number): void => {
+    const next = Math.min(Math.max(selectedIndex + offset, 0), rows.length - 1);
+    setSelectedId(rows[next]?.id ?? null);
   };
   const runRow = (row: PaletteRow): void => {
     if (row.kind === "command") row.run();
@@ -312,61 +318,61 @@ export function CommandPalette({
         className="w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-default bg-bg-elevated shadow-modal animate-in zoom-in-95"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (query.trim() && !askAi.isPending) {
-              setIntent(null);
-              setIntentError(null);
-              askAi.mutate();
-            }
-          }}
-        >
-          <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
-            {/* flex-1 makes the field span the row: the TextField is a plain
+        <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+          {/* flex-1 makes the field span the row: the TextField is a plain
                 flex child and would otherwise shrink to content width,
                 stopping short of the Ask AI button's edge. */}
-            <div className="min-w-0 flex-1">
-              <Input
-                ref={inputRef}
-                value={query}
-                onChange={(v) => {
-                  setQuery(v);
-                  setIntent(null);
-                  setIntentError(null);
-                  setSelectedIndex(-1);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.stopPropagation();
-                    setOpen(false);
-                  } else if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    clampSelection(selectedIndex + 1);
-                  } else if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    clampSelection(selectedIndex - 1);
-                  } else if (e.key === "Enter" && selectedIndex >= 0 && rows[selectedIndex]) {
-                    e.preventDefault();
-                    runRow(rows[selectedIndex]);
-                  }
-                }}
-                placeholder={t("palette.placeholder")}
-                variant="search"
-                /* Borderless transparent field: the palette header row is the
+          <div className="min-w-0 flex-1">
+            <Input
+              ref={inputRef}
+              value={query}
+              onChange={(v) => {
+                setQuery(v);
+                setIntent(null);
+                setIntentError(null);
+                setSelectedId(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  setOpen(false);
+                } else if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  moveSelection(1);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  moveSelection(-1);
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  const selected = rows[selectedIndex];
+                  if (!askAi.isPending && selected) runRow(selected);
+                }
+              }}
+              placeholder={t("palette.placeholder")}
+              variant="search"
+              /* Borderless transparent field: the palette header row is the
                    field — a filled InputGroup inside the elevated panel reads
                    as a glaring white box (and doubles the prefix search icon). */
-                className="border-0 bg-transparent shadow-none hover:bg-transparent focus-within:bg-transparent focus-visible:bg-transparent"
-              />
-            </div>
-            {query.trim() ? (
-              <Button type="submit" variant="primary" size="sm" disabled={askAi.isPending}>
-                <Sparkles size={13} />
-                {askAi.isPending ? t("palette.thinking") : t("palette.askAi")}
-              </Button>
-            ) : null}
+              className="border-0 bg-transparent shadow-none hover:bg-transparent focus-within:bg-transparent focus-visible:bg-transparent"
+            />
           </div>
-        </form>
+          {query.trim() ? (
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={askAi.isPending}
+              onClick={() => {
+                setIntent(null);
+                setIntentError(null);
+                askAi.mutate();
+              }}
+            >
+              <Sparkles size={13} />
+              {askAi.isPending ? t("palette.thinking") : t("palette.askAi")}
+            </Button>
+          ) : null}
+        </div>
 
         <div className="max-h-[46vh] overflow-y-auto">
           {askAi.isPending ? (
@@ -414,7 +420,8 @@ export function CommandPalette({
                   key={c.id}
                   type="button"
                   onClick={c.run}
-                  onMouseEnter={() => setSelectedIndex(i)}
+                  aria-current={selectedIndex === i || undefined}
+                  onMouseEnter={() => setSelectedId(c.id)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
                     "hover:bg-bg-secondary hover:text-text-primary",
@@ -477,7 +484,8 @@ export function CommandPalette({
                         key={c.sha}
                         type="button"
                         onClick={() => locateCommit(c.sha)}
-                        onMouseEnter={() => setSelectedIndex(rowIndex)}
+                        aria-current={selectedIndex === rowIndex || undefined}
+                        onMouseEnter={() => setSelectedId(c.sha)}
                         className={cn(
                           "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary",
                           "hover:bg-bg-secondary hover:text-text-primary",
@@ -505,10 +513,10 @@ export function CommandPalette({
                   {t("palette.askHint")}
                 </p>
               ) : null}
-              {query.trim() ? (
+              {rows.length > 0 ? (
                 <p className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-text-muted">
                   <CornerDownLeft size={11} />
-                  {t("palette.enterAsks")}
+                  {t("palette.enterRuns")}
                 </p>
               ) : null}
             </div>
