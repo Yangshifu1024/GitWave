@@ -1,5 +1,7 @@
 # GitWave · 功能列表
 
+> v0.12.0 交付：History 提交搜索、两提交比较与路径历史，Changes 按 hunk 或行暂存、冲突处理与交互式 rebase 键盘排序，会话操作记录、仓库 AI 离线设置、命令面板快捷键，以及 AI 脱敏预览和 GitHub PR 创建。
+
 > v0.11.0 交付：[F018](../features/F018-workbench-redesign.md) Tide 工作台第一阶段——双工作区导航、History / Changes 同级工作区、可调分栏、仓库级会话与写操作隔离、虚拟化 diff、受控弹窗确定性关闭。保留现有 Git 能力与确认保护；冲突、stash、工具、AI/设置的整体容器迁移属于后续阶段。见 [任务](../../tasks/feat-workbench-redesign/plan.md) 与 [设计](../../design/09-workbench-redesign.md)。
 
 > v0.10.4 交付：修复历史图节点与 merge 曲线几何、对齐 refs / SHA / 作者 / 时间列，隐藏横向滚动条并保留平移；同步依赖更新。见 [发布任务](../../tasks/chore-release-v0.10.4/plan.md)。
@@ -7,7 +9,7 @@
 > v0.10.3 交付：历史优先界面重整侧栏、健康摘要、提交图与文件详情的信息层级，完整 Git 能力和显式操作不变。见 [任务](../../tasks/feat-history-first-ui/plan.md) 与 [设计](../../design/08-history-first.md)。
 
 > 本文仅列出 GitWave 应具备的功能与明确不做的事。产品原则与 Workspace 概念作为内联说明融入对应功能小节。
-> 当前发布版本 **v0.11.0**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
+> 当前发布版本 **v0.12.0**。下文是产品意图，不是待办清单；已交付对照见 `02-scope.md` §3 与 `03-roadmap.md`。
 
 ## 1. 功能范围
 
@@ -17,7 +19,7 @@ GUI友好的 Git 全集是基本盘，不做简化版 Git GUI。
 
 clone / init / open · commit / amend / revert · branch / checkout / switch / create / delete · merge · rebase (interactive) · cherry-pick · push / pull / fetch · stash · tag
 
-开发版 Changes 可按 hunk 或变更行暂存或取消暂存。适用于模式未变、已跟踪的普通修改文件，UTF-8 文本补丁上限为 2 MiB，补丁涉及的行须有行终止符。[任务计划](../../tasks/feat-partial-staging/plan.md)
+v0.12.0 Changes 可按 hunk 或变更行暂存或取消暂存。适用于模式未变、已跟踪的普通修改文件，UTF-8 文本补丁上限为 2 MiB，补丁涉及的行须有行终止符。[任务计划](../../tasks/feat-partial-staging/plan.md)
 
 stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应用 / 应用并删除 / 删除）；详情窗口把文件列表与 diff 并排；应用前先检查工作区是否有未提交改动；丢弃前需确认；以未跟踪方式保存的文件也出现在 stash 内容里。
 
@@ -29,7 +31,7 @@ stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应�
 
 History graph（commit DAG，筛选 / 搜索；紧凑模式保持圆形节点与 merge 曲线几何，支持横向平移并对齐 refs / SHA / 作者 / 时间列）· 文件 diff（split / unified，character-level 高亮；Shiki 按需加载语言资源并高亮，小文件支持语法着色）· blame / annotate · file tree（**未交付**）· branch tree
 
-开发版 History 可先将当前选中的提交设为基点，再与另一提交比较。路径历史从选中提交沿第一父提交回溯，按仓库相对路径精确匹配，每页最多扫描 128 个提交。[任务计划](../../tasks/feat-compare-path-history/plan.md)
+v0.12.0 History 可先将当前选中的提交设为基点，再与另一提交比较。路径历史从选中提交沿第一父提交回溯，按仓库相对路径精确匹配，每页最多扫描 128 个提交。[任务计划](../../tasks/feat-compare-path-history/plan.md)
 
 ### 1.3 Advanced Git
 
@@ -64,8 +66,8 @@ RepoRef { id, path, nickname?, settingsOverride? }
 - 仓库标签栏在标签溢出时可用鼠标滚轮横向滚动，并把激活标签带回视野
 - 多 Workspace 同时打开，状态并行
 - 自动刷新：按可配置间隔刷新全部仓库的状态（一次刷新工作区里的每个仓库，默认 5 分钟，间隔可在设置里配置）
-- Workspace-scoped 配置：AI provider / prompt 模板 / commit 规范 / 主题 / key binding profile（schema 有字段；开发版命令面板快捷键保存在本机）
-- Per-repo 覆盖 Workspace 配置：开发版可为当前仓库单独启用 AI 离线模式
+- Workspace-scoped 配置：AI provider / prompt 模板 / commit 规范 / 主题 / key binding profile（schema 有字段；v0.12.0 命令面板快捷键保存在本机）
+- Per-repo 覆盖 Workspace 配置：v0.12.0 可为当前仓库单独启用 AI 离线模式
 
 本次迭代为仓库提供 AI 离线偏好。Workspace 强制离线时所有仓库均离线；允许联网时，单个仓库仍可选择离线。可在常规设置中为命令面板选择本机快捷键，适用于所有仓库。[任务计划](../../tasks/feat-workspace-preferences/plan.md)
 
@@ -103,7 +105,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 - Prompt 模板管理（commit / conflict / PR / reflog / health；后两套随 v0.3 恢复与 health 接入）
 - Per-repo AI rules（从 `.gitwave/` 目录读取）
 - Provider 故障转移
-- 发送前预览（待发布）：七个 AI 入口均可先查看脱敏后的系统提示、用户内容和替换计数，再决定是否发送；也支持直接生成。筛查范围包括已识别的凭证行、常见邮箱和电话号码。详见 [F019](../features/F019-ai-redaction-preview.md)。
+- 发送前预览（v0.12.0）：七个 AI 入口均可先查看脱敏后的系统提示、用户内容和替换计数，再决定是否发送；也支持直接生成。筛查范围包括已识别的凭证行、常见邮箱和电话号码。详见 [F019](../features/F019-ai-redaction-preview.md)。
 
 ### 1.7 Repo 添加 UX
 
@@ -121,7 +123,7 @@ RepoRef { id, path, nickname?, settingsOverride? }
 
 Remote 管理支持 GitHub、GitLab、Gitea 和自建服务器。GitLab MR、lightweight code review 和 Issue 链接仍待后续。
 
-开发版支持用已登录的 GitHub CLI 在 github.com 的 origin 仓库创建 PR。先推送当前分支，确认远端同名分支与本地 SHA 一致；在 PR 描述窗口核对目标分支、标题和正文后发起创建，成功后可打开 PR 链接。[任务计划](../../tasks/feat-github-pr/plan.md)
+v0.12.0 支持用已登录的 GitHub CLI 在 github.com 的 origin 仓库创建 PR。先推送当前分支，确认远端同名分支与本地 SHA 一致；在 PR 描述窗口核对目标分支、标题和正文后发起创建，成功后可打开 PR 链接。[任务计划](../../tasks/feat-github-pr/plan.md)
 
 ### 1.10 Platform & UX
 

@@ -2,9 +2,13 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.11.0 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
+**Status:** v0.12.0 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
-### Unreleased
+### What's new in v0.12.x
+
+- **v0.12.0** — Stage or unstage individual hunks and lines, search and compare commits, browse a file's history, and create a GitHub pull request from a reviewed draft.
+
+History groups changed files by directory and can locate a search result in the commit graph. Changes keeps the next file selected as you stage, lets you resize the commit editor, and offers a link to the resulting commit in History. Resolve conflicts in the workbench and reorder interactive rebase steps with the keyboard.
 
 All seven AI actions offer a local preview of the system and user messages. The preview counts credential lines, email addresses and phone numbers masked across both messages. Choose **Send and generate** to use that text, including when a backup provider takes over, or generate directly with the same filters.
 
@@ -38,6 +42,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **Workspace management** — multiple workspaces, drag-reorderable repo tabs that scroll horizontally with the mouse wheel once they overflow the window (the active tab stays in view), adding several local repositories at once (already-added paths and repeats inside the batch are skipped, unusable paths are reported without failing the batch), per-workspace AI context; a workspace is an abstraction, not a directory
 - **Tide Workbench** — the main area is split into peer History and Changes workspaces with a resizable history pane above a wide file/diff inspector; selections, drafts and the commit composer are scoped per repository, so switching repositories never mixes state. Diff content is virtualized to fill the pane, and working-copy writes stay pinned to the repository they started from even if you switch focus mid-operation
 - **Working copy** — stage / unstage, discard, ignore, commit with an optional conventional-commit type selector (amend the last commit included), commit message AI assist
+- **Session history** — Review up to 200 sync and working-copy actions from this session with their target repository and outcome. The toolbar, menus and command palette share fetch, pull and push actions.
 - **Branches & sync** — create / switch / delete / rename / set upstream tracking (the picker lists every remote-tracking branch, `origin/main` included), double-click a remote branch to create its tracked local branch and switch to it (DWIM), push / pull with a target-remote picker, tag pushes that send only the tags on the pushed commit (conflicting tags are skipped and named instead of failing the batch), fetch across all remotes with stale tracking-ref pruning, time-boxed network syncs with an in-flight cancel button, an in-app auth prompt that collects a username / token and retries in place when a remote challenges for credentials (optionally saved to your system keychain), merge (ff & no-ff) with a conflict panel that also exposes unresolved index entries outside an active merge, and a collapsible sidebar that groups prefixed branches into folders and auto-expands to the branch you check out
 - **History** — commit graph with fork-style edges, commit details, blame, reflog, tags, and right-click menus on commits / branch-tag badges (checkout, cherry-pick, revert, reset, copy info) that reveal the checked-out branch in the sidebar; a bounded preview preserves circular nodes and merge geometry with horizontal panning, aligned metadata columns and full topology access; subdued refs merge matching tracked remotes and expand to show all names
 - **Diff viewer** — compact file rows with full-row expansion and lazy content loading, side-by-side and unified views, character-level highlighting inside changed lines, and side-by-side image diffs (old / new versions rendered for png / jpg / gif / webp / bmp / ico / svg — for unstaged changes the new side reflects the live worktree)
@@ -49,7 +54,7 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **SSH key management** — generate / import keys, per-repo SSH configuration
 - **Platform UX** — a compact source-list sidebar with expandable health metrics, keyboard-resizable panes, a bottom operation-status bar, command palette, menu bar app mode, themes plus UI / monospace font family and size settings, one-click open of the active repo in the system file manager, a detected terminal, or a detected code editor (VS Code / Zed / VSCodium), Chinese / English interface with instant switching, and a self-drawn title bar that merges the app menu and the operation bar into a single row (traffic lights / window controls kept clear)
 
-On the development branch, History can search the active repository locally by SHA, author name or email, and commit message. Continue scanning to reach older matches, then select a result to locate it in the graph. [History search](./docs/tasks/feat-history-search/plan.md)
+History can search the active repository locally by SHA, author name or email, and commit message. Continue scanning to reach older matches, then select a result to locate it in the graph. [History search](./docs/tasks/feat-history-search/plan.md)
 
 History groups the selected commit’s changed files by directory. Select a file to read its diff. You can collapse its folder and keep reading the same diff. [Task plan](./docs/tasks/feat-history-file-tree/plan.md)
 
