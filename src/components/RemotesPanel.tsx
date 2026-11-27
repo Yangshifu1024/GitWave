@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Menu, Popover } from "@heroui/react";
@@ -7,7 +7,7 @@ import {
   addRemote,
   fetchRemote,
   formatAppError,
-  isAuthError,
+  isCancelledSyncError,
   listRemoteDetails,
   removeRemote,
   renameRemote,
@@ -17,7 +17,8 @@ import {
   type RemoteInfo,
 } from "@/lib/api";
 import { useWorkspaceUiStore } from "@/stores/workspaceStore";
-import { useAuthPromptStore } from "@/stores/authPromptStore";
+import { withAuthRetry, authPromptCancelledError } from "@/lib/authRetry";
+import { operationTarget, isCurrentTarget, trackFetch } from "@/stores/operationHistory";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -65,7 +66,6 @@ export function RemotesPanel(): React.JSX.Element {
   // epoch in deps: auto-refresh bumps it to re-run this manual effect.
   const historyEpoch = useWorkspaceUiStore((s) => s.historyEpoch);
   // Fetch attempts that already had one in-app auth retry (no loops).
-  const authRetried = useRef(new Set<string>());
 
   const query = useQuery({
     queryKey: ["remote-details", workspaceId, repoId, historyEpoch],
@@ -102,25 +102,24 @@ export function RemotesPanel(): React.JSX.Element {
     setError(null);
     startOp("remote-op");
     try {
-      await fn();
+      if (key.startsWith("fetch-")) {
+        const target = operationTarget(queryClient, workspaceId, repoId);
+        await trackFetch(target, () =>
+          withAuthRetry(key.slice("fetch-".length), (auth) =>
+            isCurrentTarget(target) ? fn(auth) : Promise.reject(authPromptCancelledError()),
+          ),
+        );
+      } else {
+        await fn();
+      }
       if (success) setStatus(success);
       await refresh();
       // Remote CRUD mutates config other panels read: BranchList's push menu
       // and the ActionBar dialogs consume the ["remotes", …] cache.
       void queryClient.invalidateQueries({ queryKey: ["remotes", workspaceId] });
-      authRetried.current.delete(key);
     } catch (e) {
-      if (isAuthError(e) && key.startsWith("fetch-") && !authRetried.current.has(key)) {
-        // F012: per-remote fetch failed on auth — collect credentials in-app
-        // and retry once through the prompt; a second failure surfaces as-is.
-        authRetried.current.add(key);
-        const name = key.slice("fetch-".length);
-        useAuthPromptStore.getState().show(name, (auth) => {
-          void run(key, () => fn(auth), success);
-        });
-        return;
-      }
-      setStatus(formatAppError(e), "danger");
+      if (isCancelledSyncError(e)) setStatus(t("status.sync.cancelled"));
+      else setStatus(formatAppError(e), "danger");
     } finally {
       setBusy(null);
       endOp("remote-op");

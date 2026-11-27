@@ -713,7 +713,7 @@ export function ActionBar({
           startAdd("local");
           break;
         case "repo:fetch":
-          wc.fetch();
+          if (!noRepo && !wc.isSyncBusy) wc.fetch();
           break;
         case "repo:lfs":
           setLfsOpen(true);
@@ -728,10 +728,10 @@ export function ActionBar({
           openBranchCreate();
           break;
         case "branch:pull":
-          openPullDialog();
+          if (!noRepo && !wc.isSyncBusy && !detached) openPullDialog();
           break;
         case "branch:push":
-          openPushDialog();
+          if (!noRepo && !wc.isSyncBusy && !detached) openPushDialog();
           break;
         case "branch:pr":
           setPrMode("generate");
@@ -843,7 +843,7 @@ export function ActionBar({
             icon={<ArrowDownUp size={14} />}
             label={t("commits.sync.fetch")}
             disabled={noRepo || wc.isSyncBusy}
-            onClick={wc.fetch}
+            onClick={() => useUiStore.getState().requestMenuAction("repo:fetch")}
           />
         </div>
         <Separator orientation="vertical" className="mx-1 h-8 w-px self-center bg-border-subtle" />
@@ -854,7 +854,7 @@ export function ActionBar({
             count={wc.data ? wc.data.behind : null}
             title={t("commits.sync.pullTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
-            onClick={openPullDialog}
+            onClick={() => useUiStore.getState().requestMenuAction("branch:pull")}
           />
           <ActionBarButton
             icon={<ArrowUp size={14} />}
@@ -862,7 +862,7 @@ export function ActionBar({
             count={wc.data ? wc.data.ahead : null}
             title={t("commits.sync.pushTitle")}
             disabled={noRepo || wc.isSyncBusy || detached}
-            onClick={openPushDialog}
+            onClick={() => useUiStore.getState().requestMenuAction("branch:push")}
           />
         </div>
       </TitleBar>
