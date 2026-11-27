@@ -1470,6 +1470,40 @@ async fn cmd_get_dirty_repos(
     local_git_task(move || get_dirty_repos(&ctx, &workspace_id)).await
 }
 
+use infrastructure::git::partial;
+
+#[tauri::command]
+async fn cmd_partial_preview(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+    path: String,
+    staged: bool,
+) -> Result<partial::Preview, AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        let root = application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+        partial::preview(&ctx.open_repo(&root)?, &path, staged)
+    })
+    .await
+}
+#[tauri::command]
+async fn cmd_partial_apply(
+    ctx: tauri::State<'_, AppContext>,
+    workspace_id: String,
+    repo_id: String,
+    path: String,
+    staged: bool,
+    selection: partial::Selection,
+) -> Result<(), AppError> {
+    let ctx = ctx.inner().clone();
+    local_git_task(move || {
+        let root = application::use_cases::selected_repo_path(&ctx, &workspace_id, &repo_id)?;
+        partial::apply(&ctx.open_repo(&root)?, &path, staged, selection)
+    })
+    .await
+}
+
 #[tauri::command]
 async fn cmd_stage_files(
     ctx: tauri::State<'_, AppContext>,
@@ -2162,6 +2196,8 @@ pub fn run() {
             cmd_interactive_rebase_paused,
             cmd_get_working_copy,
             cmd_get_dirty_repos,
+            cmd_partial_preview,
+            cmd_partial_apply,
             cmd_stage_files,
             cmd_unstage_files,
             cmd_stage_all,

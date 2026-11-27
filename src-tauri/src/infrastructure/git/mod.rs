@@ -31,3 +31,5 @@ pub mod worktree_guard;
 
 #[cfg(test)]
 pub(crate) mod test_helpers;
+
+pub mod partial;

@@ -135,6 +135,12 @@
       "resize": "Resize file list and diff",
       "expandDiff": "Expand diff",
       "restoreLayout": "Show file list"
+    },
+    "partial": {
+      "stage": "Stage selected changes",
+      "unstage": "Unstage selected changes",
+      "hunk": "Apply whole hunk",
+      "lines": "Apply selected lines ({{count}})"
     }
   }
 }

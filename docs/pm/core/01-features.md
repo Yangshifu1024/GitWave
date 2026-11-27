@@ -17,6 +17,8 @@ GUI友好的 Git 全集是基本盘，不做简化版 Git GUI。
 
 clone / init / open · commit / amend / revert · branch / checkout / switch / create / delete · merge · rebase (interactive) · cherry-pick · push / pull / fetch · stash · tag
 
+开发版 Changes 可按 hunk 或变更行暂存或取消暂存。适用于模式未变、已跟踪的普通修改文件，UTF-8 文本补丁上限为 2 MiB，补丁涉及的行须有行终止符。[任务计划](../../tasks/feat-partial-staging/plan.md)
+
 stash 面板：每条 stash 常驻一排带标签的操作按钮（查看 / 应用 / 应用并删除 / 删除）；详情窗口把文件列表与 diff 并排；应用前先检查工作区是否有未提交改动；丢弃前需确认；以未跟踪方式保存的文件也出现在 stash 内容里。
 
 未解决的 index 冲突即使没有进行中的合并，也计入「变更」数量并可打开冲突解决面板；拉取在 stash / fetch 前检查冲突及未完成的 Git 操作。
