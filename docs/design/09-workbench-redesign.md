@@ -6,7 +6,7 @@
 
 本轮实测修订：History 不再有重复标题栏和紧凑图切换，固定完整分支图（18px lane）；refs/SHA/作者/时间按固定列对齐；同一 commit 的 tag 优先展示，其次本地分支、远端分支，展开列表同序。单文件文本 diff 填满剩余高度且继续虚拟滚动。Changes 分组标题、计数和操作保持同一行，极窄面板横向滚动。Blame 的归属、行号和代码分列，长作者省略、完整归属保留，代码横向滚动，文件路径只显示一次。受控弹窗关闭立即卸载，避免退出动画被取消后残留遮罩。列表高亮统一为分支样式（直角、整行浅色底、左侧3px竖线）；文件多选底色与仅预览标线可区分。工具栏分支名使用剩余空间，空间足够时不截断。Blame 小于512px时缩减归属列并取消固定列，日期保留在完整信息提示。详见 [修复验证](../tasks/fix-workbench-interactions/plan.md)。
 
-后文是完整目标设计，**不代表全部已实现**：命令 registry/本地独立搜索、操作记录、布局备选、composer 内部可调高、commit 成功跳转、stash/recovery/tools/AI/conflict 容器迁移均待后续。第一阶段 History 搜索打开现有命令面板，stage 后追随同 path，文件消失清空选择；面板比例按设备保存，会话选择按 Workspace+repo 内存保存。
+本文描述工作台的目标设计。各项功能的开发进展、验收范围和版本归属见[产品路线图](../pm/core/03-roadmap.md#25-后续功能优先级)和下文各功能的任务计划。
 
 关联：[F018](../pm/features/F018-workbench-redesign.md) · [工程计划](../tasks/feat-workbench-redesign/plan.md)。
 

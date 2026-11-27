@@ -36,7 +36,10 @@
       "resolve": "Resolve conflicts",
       "commitType": "Commit type (optional)",
       "more": "More",
-      "fileActions": "File actions"
+      "fileActions": "File actions",
+      "searchHint": "Commit message, author or SHA",
+      "noSearchResults": "No matches in the commits searched.",
+      "searchLimit": "Search limited to the most recent {{count}} commits."
     }
   }
 }

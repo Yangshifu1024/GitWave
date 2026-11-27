@@ -158,6 +158,7 @@ function App(): React.JSX.Element {
           workspaceId={activeWorkspaceId}
           repoId={activeRepoId}
           onCommitSelect={handleCommitSelect}
+          onLocate={handlePaletteLocate}
           locateRequest={locateRequest}
           conflictCount={mergeConflicts.files.length}
           onResolveConflicts={() => setConflictPanelOpen(true)}
