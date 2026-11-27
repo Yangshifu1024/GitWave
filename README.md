@@ -41,6 +41,8 @@ Installers for macOS (Apple silicon, signed & notarized), Windows (NSIS) and Lin
 - **SSH key management** — generate / import keys, per-repo SSH configuration
 - **Platform UX** — a compact source-list sidebar with expandable health metrics, keyboard-resizable panes, a bottom operation-status bar, command palette, menu bar app mode, themes plus UI / monospace font family and size settings, one-click open of the active repo in the system file manager, a detected terminal, or a detected code editor (VS Code / Zed / VSCodium), Chinese / English interface with instant switching, and a self-drawn title bar that merges the app menu and the operation bar into a single row (traffic lights / window controls kept clear)
 
+On the development branch, History groups the selected commit’s changed files by directory. Select a file to read its diff. You can collapse its folder and keep reading the same diff. [Task plan](./docs/tasks/feat-history-file-tree/plan.md)
+
 ## Tech stack
 
 - **Frontend:** React 19 + TypeScript 6 + Vite 8, Tailwind CSS 4 + HeroUI v3, zustand, TanStack Query
