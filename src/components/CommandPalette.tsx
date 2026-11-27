@@ -1,3 +1,4 @@
+import { usePaletteShortcut, matchesPaletteShortcut } from "@/stores/paletteShortcut";
 import { AiPreviewButton } from "@/components/AiPreviewButton";
 // Global command palette (Cmd+K / Ctrl+K). Three layers:
 //  1. Static commands — navigation and quick ops, no AI needed.
@@ -106,7 +107,7 @@ function ScopedPalette({ requestLocate }: PaletteProps): React.JSX.Element | nul
   // App-standard global shortcut, same modifier check as Toolbar's Ctrl+,.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (matchesPaletteShortcut(e, usePaletteShortcut.getState().chord)) {
         e.preventDefault();
         setOpen(!useUiStore.getState().paletteOpen);
       }

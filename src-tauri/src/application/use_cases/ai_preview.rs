@@ -173,13 +173,18 @@ pub(super) async fn direct(
     language: Option<String>,
 ) -> Result<AiGenerateOutcome> {
     let ws = get_workspace(ctx, workspace_id.to_owned())?;
-    let chain = chain(&ws)?;
+    let chain = chain(&ws, task)?;
     let prompt = prepare(ctx, ws, task, language)?;
     generate_with_failover(chain, prompt).await
 }
 
-fn chain(ws: &Workspace) -> Result<Vec<ResolvedAiProvider>> {
-    resolve_ai_chain(&ws.settings, &|provider| {
+fn chain(ws: &Workspace, task: &AiTask) -> Result<Vec<ResolvedAiProvider>> {
+    let mut settings = ws.settings.clone();
+    settings.ai_offline |= repository(task, ws)?
+        .settings_override
+        .as_ref()
+        .is_some_and(|r| r.ai_offline);
+    resolve_ai_chain(&settings, &|provider| {
         crate::infrastructure::ai::get_api_key(&ws.id, provider)
     })
 }
@@ -202,11 +207,56 @@ pub async fn send_preview(
     if scope(ctx, &ws, task, &language)? != binding {
         return Err(expired());
     }
-    let outcome = generate_with_failover(chain(&ws)?, prompt).await?;
+    let outcome = generate_with_failover(chain(&ws, task)?, prompt).await?;
     Ok(match task {
         AiTask::Pr { .. } => AiReply::Pr(pr_description(outcome)),
         AiTask::Palette { .. } => AiReply::Intent(parse_palette_intent(&outcome.text)?),
         AiTask::Reflog { .. } | AiTask::Health => AiReply::Text(outcome.text),
         _ => AiReply::Generation(outcome),
     })
+}
+
+#[cfg(test)]
+mod offline_tests {
+    use super::*;
+    #[test]
+    fn effective_offline_uses_the_actual_task_repository_and_workspace_can_always_force_it() {
+        let repo = |id: &str, offline| RepoRef {
+            id: id.into(),
+            workspace_id: "ws".into(),
+            path: id.into(),
+            nickname: None,
+            settings_override: Some(WorkspaceSettings {
+                ai_offline: offline,
+                ..Default::default()
+            }),
+            status: RepoStatus::Active,
+            missing_since: None,
+            added_at: 0,
+        };
+        let mut ws = Workspace {
+            id: "ws".into(),
+            name: "Test".into(),
+            last_active_repo_id: Some("active".into()),
+            repos: vec![repo("active", false), repo("restricted", true)],
+            settings: WorkspaceSettings {
+                ai_provider: Some("ollama".into()),
+                ..Default::default()
+            },
+            created_at: 0,
+            updated_at: 0,
+        };
+        let explicit = AiTask::CommitMessage {
+            repo_id: Some("restricted".into()),
+        };
+        assert!(!chain(&ws, &AiTask::Health).unwrap()[0].offline);
+        assert!(chain(&ws, &explicit).unwrap()[0].offline);
+        ws.settings.ai_offline = true;
+        assert!(chain(&ws, &AiTask::Health).unwrap()[0].offline);
+        ws.settings.ai_base_url = Some("https://remote.example".into());
+        assert_eq!(
+            chain(&ws, &AiTask::Health).unwrap_err().code(),
+            codes::usecases::AI_OFFLINE_MODE
+        );
+    }
 }

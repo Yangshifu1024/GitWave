@@ -1,3 +1,4 @@
+import { ScopedPreferences } from "./ScopedPreferences";
 import { useEffect, useState } from "react";
 import {
   Globe,
@@ -126,7 +127,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps): React
         </nav>
 
         <div className="min-w-0 flex-1 overflow-auto pl-5">
-          {section === "general" ? <GeneralSection /> : null}
+          {section === "general" ? (
+            <>
+              <GeneralSection />
+              <ScopedPreferences />
+            </>
+          ) : null}
           {section === "appearance" ? <AppearanceSection /> : null}
           {section === "network" ? <NetworkSection /> : null}
           {section === "ssh" ? <SshKeyManager /> : null}
