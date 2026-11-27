@@ -1,0 +1,93 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { aiPaletteIntent, getCommitPage } from "@/lib/api";
+import { useUiStore } from "@/stores/uiStore";
+import { useWorkspaceUiStore } from "@/stores/workspaceStore";
+import { CommandPalette } from "./CommandPalette";
+
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock("@/lib/api", () => ({ aiPaletteIntent: vi.fn(), getCommitPage: vi.fn() }));
+
+function openPalette() {
+  const locate = vi.fn();
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <CommandPalette requestLocate={locate} />
+    </QueryClientProvider>,
+  );
+  return { input: screen.getByRole("searchbox"), locate };
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  useUiStore.setState({ paletteOpen: true, settingsOpen: false });
+  useWorkspaceUiStore.setState({ activeWorkspaceId: "ws", activeRepoId: "repo" });
+});
+afterEach(cleanup);
+
+it("runs the first matching local command when Enter is pressed", () => {
+  const { input } = openPalette();
+  fireEvent.change(input, { target: { value: "openSettings" } });
+  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+  expect(useUiStore.getState().settingsOpen).toBe(false);
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(useUiStore.getState().settingsOpen).toBe(true);
+  expect(aiPaletteIntent).not.toHaveBeenCalled();
+});
+
+it("selects the first incoming commit and lets arrow keys change the Enter target", async () => {
+  vi.mocked(getCommitPage).mockResolvedValue({
+    next_cursor: null,
+    has_more: false,
+    snapshot_truncated: false,
+    commits: ["aaaaaaa", "bbbbbbb"].map((sha) => ({
+      sha,
+      message_summary: "match",
+      author: "author",
+      author_email: "",
+      time: 0,
+      lane: 0,
+      parents: [],
+      refs: [],
+    })),
+    scanned: 2,
+    snapshot_size: 2,
+  });
+  const { input, locate } = openPalette();
+  fireEvent.change(input, { target: { value: "match" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(locate).not.toHaveBeenCalled();
+  const first = await screen.findByRole("button", { name: /aaaaaaa/ });
+  expect(first.getAttribute("aria-current")).toBe("true");
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(locate).toHaveBeenCalledWith("bbbbbbb");
+  expect(aiPaletteIntent).not.toHaveBeenCalled();
+});
+
+it("keeps unmatched input local until Ask AI is activated", async () => {
+  vi.mocked(getCommitPage).mockResolvedValue({
+    next_cursor: null,
+    has_more: false,
+    snapshot_truncated: false,
+    commits: [],
+    scanned: 0,
+    snapshot_size: 0,
+  });
+  vi.mocked(aiPaletteIntent).mockResolvedValue({
+    action: "none",
+    explanation: "",
+    params: {},
+    requires_confirm: false,
+  });
+  const { input } = openPalette();
+  fireEvent.change(input, { target: { value: "unmatched" } });
+  await screen.findByText("palette.askHint");
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect((input as HTMLInputElement).value).toBe("unmatched");
+  expect(aiPaletteIntent).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "palette.askAi" }));
+  await waitFor(() => expect(aiPaletteIntent).toHaveBeenCalledWith("ws", "unmatched"));
+});

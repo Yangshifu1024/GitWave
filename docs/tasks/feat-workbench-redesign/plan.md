@@ -70,6 +70,8 @@ Do not unmount an operation controller when changing the visible view. Conversel
 
 ## 5. Migration work packages
 
+For work following the v0.11.0 release, use the [product roadmap priorities](../../pm/core/03-roadmap.md#25-后续功能优先级) to schedule these packages.
+
 | Phase | Work | Exit evidence |
 |---|---|---|
 | A · baseline and design | Current screenshots/flow inventory; clickable History/Changes/Resolve illustration; identify source vs installed build | User chooses IA/visual direction; unresolved scope items listed |
