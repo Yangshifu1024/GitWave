@@ -121,6 +121,7 @@ function ScopedPalette({ requestLocate }: PaletteProps): React.JSX.Element | nul
   if (previousVisibility !== visibilityKey) {
     setPreviousVisibility(visibilityKey);
     if (open) {
+      setExplain(null);
       setQuery("");
       setIntent(null);
       setIntentError(null);

@@ -39,13 +39,18 @@ static EMAIL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)[a-z0-9_][a-z0-9._%+'-]*@[a-z0-9-]+(?:[.][a-z0-9-]+)*[.][a-z]{2,}").unwrap()
 });
 static PHONE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
+    let international = r"\+[1-9](?:[\x20().-]*[0-9]){6,14}";
+    let area_code = r"\([2-9][0-9]{2}\)[\x20]?";
+    let local_number = r"[0-9]{3}[\x20.-][0-9]{4}";
+    // Prefer two complete numbers before the international branch can consume the next area code.
+    Regex::new(&format!(
         r"(?x)
-        \+[1-9](?:[\x20().-]*[0-9]){6,14}
-        |1[3-9][0-9][\x20-]?[0-9]{4}[\x20-]?[0-9]{4}
-        |(?:\([2-9][0-9]{2}\)[\x20]?|[2-9][0-9]{2}[\x20.-])[0-9]{3}[\x20.-][0-9]{4}
-    ",
-    )
+        {international}(?P<gap>\x20+){area_code}{local_number}(?-u:\b)
+        |{international}
+        |1[3-9][0-9][\x20-]?[0-9]{{4}}[\x20-]?[0-9]{{4}}
+        |(?:{area_code}|[2-9][0-9]{{2}}[\x20.-]){local_number}
+        ",
+    ))
     .unwrap()
 });
 
@@ -55,14 +60,17 @@ fn mask_contacts(line: &str, counts: &mut RedactionCounts) -> String {
         let suffix = &line[matched.end()..];
         // Only exempt an identifiable Git remote. A colon also commonly
         // follows an ordinary contact address in prose and configuration.
-        let path = suffix
-            .strip_prefix(':')
-            .map(|s| s.split(char::is_whitespace).next().unwrap_or_default());
-        let remote = path.is_some_and(|p| {
-            p.contains('/')
-                || p.ends_with(".git")
-                || (matched.as_str().starts_with("git@")
-                    && p.starts_with(|c: char| c.is_ascii_alphabetic()))
+        let path = suffix.strip_prefix(':').and_then(|s| {
+            // split_whitespace would also accept a label followed by a space.
+            s.split(char::is_whitespace).next()
+        });
+        let remote = path.is_some_and(|path| {
+            let path = path.trim_end_matches(['"', '\'', ')', ']', '>', '.', ',', ';']);
+            !path.contains(':')
+                && (path.ends_with(".git")
+                    || (matched.as_str().starts_with("git@")
+                        && (path.contains('/')
+                            || path.starts_with(|c: char| c.is_ascii_alphabetic()))))
         });
         if remote {
             matched.as_str().to_owned()
@@ -82,10 +90,17 @@ fn mask_contacts(line: &str, counts: &mut RedactionCounts) -> String {
                 .strip_suffix('.')
                 .and_then(|s| s.chars().next_back())
                 .is_some_and(|c| c.is_ascii_digit());
-            if version_component
-                || before.is_some_and(in_identifier)
-                || after.is_some_and(in_identifier)
-            {
+            let starts_in_identifier = version_component || before.is_some_and(in_identifier);
+            if let Some(gap) = m.name("gap") {
+                counts.phones += 1;
+                let first = if starts_in_identifier {
+                    &email_masked[matched.start()..gap.start()]
+                } else {
+                    counts.phones += 1;
+                    "[PHONE]"
+                };
+                format!("{first}{}[PHONE]", gap.as_str())
+            } else if starts_in_identifier || after.is_some_and(in_identifier) {
                 matched.as_str().to_owned()
             } else {
                 counts.phones += 1;
@@ -349,6 +364,47 @@ mod contact_tests {
             prompt.user,
             "[EMAIL]:443 [EMAIL]:来电 git@host.example:repo user@host.example:org/repo.git"
         );
+    }
+
+    #[test]
+    fn masks_email_followed_by_a_url_or_contact_path() {
+        let prompt = PreparedPrompt::new(
+            "",
+            "alice@example.org:https://example.org owner@example.org:team/support git@example.org:demo/app.git",
+        );
+        assert_eq!(
+            prompt.user,
+            "[EMAIL]:https://example.org [EMAIL]:team/support git@example.org:demo/app.git"
+        );
+        assert_eq!(prompt.counts.emails, 2);
+    }
+
+    #[test]
+    fn separately_masks_adjacent_international_and_parenthesized_phones() {
+        for input in [
+            "+44 1632 960123 (202) 555-0142",
+            "+1 (415) 555-2671 (202) 555-0142",
+        ] {
+            let prompt = PreparedPrompt::new("", input);
+            assert_eq!(prompt.user, "[PHONE] [PHONE]");
+            assert_eq!(prompt.counts.phones, 2);
+        }
+    }
+
+    #[test]
+    fn keeps_masking_international_phones_with_parenthesized_groups() {
+        for input in ["+1 ( 415 ) 555-2671", "+44 20 (7946) 0958"] {
+            let prompt = PreparedPrompt::new("", input);
+            assert_eq!(prompt.user, "[PHONE]");
+            assert_eq!(prompt.counts.phones, 1);
+        }
+    }
+
+    #[test]
+    fn masks_parenthesized_phone_after_an_identifier() {
+        let prompt = PreparedPrompt::new("", "id+123456789012345 (202) 555-0142");
+        assert_eq!(prompt.user, "id+123456789012345 [PHONE]");
+        assert_eq!(prompt.counts.phones, 1);
     }
 
     #[test]
