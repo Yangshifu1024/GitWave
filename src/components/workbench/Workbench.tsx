@@ -7,7 +7,6 @@ import {
   Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
-  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { BranchIndicator } from "@/components/ui/BranchIndicator";
@@ -18,7 +17,7 @@ import { HistoryDetails } from "./HistoryDetails";
 import { ChangesWorkspace } from "./ChangesWorkspace";
 import { useWorkingCopy } from "@/hooks/useWorkingCopy";
 import { useLayoutStore } from "@/stores/layoutStore";
-import { useUiStore } from "@/stores/uiStore";
+import { HistorySearch } from "./HistorySearch";
 import { EMPTY_SESSION, useWorkbenchStore, type WorkbenchMode } from "@/stores/workbenchStore";
 import type { LocateRequest } from "@/lib/commitLocate";
 import { cn } from "@/lib/utils";
@@ -29,6 +28,7 @@ export function Workbench({
   repoId,
   sidebar,
   onCommitSelect,
+  onLocate,
   locateRequest,
   conflictCount,
   onResolveConflicts,
@@ -38,6 +38,7 @@ export function Workbench({
   repoId: string | null;
   sidebar: ReactNode;
   onCommitSelect: (sha: string) => void;
+  onLocate: (sha: string) => void;
   locateRequest: LocateRequest | null;
   conflictCount: number;
   onResolveConflicts: () => void;
@@ -140,16 +141,16 @@ export function Workbench({
               </div>
             )}
             <div className="ml-auto flex shrink-0 gap-1">
-              {session.mode === "history" && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={!repoId}
-                  onClick={() => useUiStore.getState().setPaletteOpen(true)}
-                >
-                  <Search size={14} />
-                  {t("app.workbench.search")}
-                </Button>
+              {session.mode === "history" && workspaceId && repoId && (
+                <HistorySearch
+                  key={scope}
+                  workspaceId={workspaceId}
+                  repoId={repoId}
+                  onLocate={(sha) => {
+                    setFocused(false);
+                    onLocate(sha);
+                  }}
+                />
               )}
               <Button
                 size="sm"

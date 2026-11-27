@@ -36,7 +36,10 @@
       "resolve": "解决冲突",
       "commitType": "Commit 类型（可选）",
       "more": "更多",
-      "fileActions": "文件操作"
+      "fileActions": "文件操作",
+      "searchHint": "提交说明、作者或 SHA",
+      "noSearchResults": "已搜索的提交中没有匹配项。",
+      "searchLimit": "搜索范围为最近 {{count}} 个提交。"
     }
   }
 }
