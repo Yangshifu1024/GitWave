@@ -74,7 +74,7 @@
 | [F017](./F017-repo-tab-wheel-scroll.md) | Repository Tab 溢出时滚轮横向滚动 + 激活 tab 入视野 | 已合并 | v0.9.x |
 | [F018](./F018-workbench-redesign.md) | 工作台与界面语言重设计 | 第一阶段已合并 | v0.11.0 |
 | [F019](./F019-ai-redaction-preview.md) | AI 发送前脱敏与本地预览 | 已接受 | 路线图 P0 |
-| [F020](./F020-terminal-picker.md) | 顶部终端与编辑器选择 | 已接受 | 未发布 |
+| [F020](./F020-terminal-picker.md) | 顶部终端与编辑器选择 | 已合并 | v0.12.2 |
 
 ## v0.8.8 起的登记方式
 

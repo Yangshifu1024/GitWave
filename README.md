@@ -2,14 +2,11 @@
 
 > Local-first Git client with AI collaboration. Website: **[gitwave.work](https://gitwave.work)**
 
-**Status:** v0.12.1 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
-
-### Unreleased
-
-The title bar remembers your terminal and editor separately. Choose an installed tool to open the active repository, then click its name to use it again or the arrow to switch. [Supported tools](./docs/pm/features/F020-terminal-picker.md)
+**Status:** v0.12.2 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
 ### What's new in v0.12.x
 
+- **v0.12.2** — Choose an installed terminal or editor from a compact title bar menu. GitWave remembers each choice across restarts. Click the name to reopen the active repository or use the arrow to switch tools. [Supported tools](./docs/pm/features/F020-terminal-picker.md)
 - **v0.12.1** — History and Changes now use Chinese labels in the Chinese interface. The title bar groups Fetch, Pull and Push beside Stash, and hovering over these buttons no longer interferes with clicks.
 - **v0.12.0** — Stage or unstage individual hunks and lines, search and compare commits, browse a file's history, and create a GitHub pull request from a reviewed draft.
 

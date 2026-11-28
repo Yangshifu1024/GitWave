@@ -1,6 +1,6 @@
 # F014 · Repository 标题栏外部打开按钮
 
-开发版的工具选择交互见 [F020](./F020-terminal-picker.md)。下文记录初版行为。
+v0.12.2 的工具选择交互见 [F020](./F020-terminal-picker.md)。下文记录初版行为。
 
 ## 背景
 
