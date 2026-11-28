@@ -99,3 +99,6 @@ keyring = { version = "3", default-features = false, features = ["sync-secret-se
 # Sprint 2 step 5: typed IPC — fallback to manual typed commands for Sprint 0
 # (tauri-specta may be added in Sprint 1 once adapter signatures stabilize).
 # See docs/tasks/feat-bootstrap-tau-app/plan.md.
+
+[dev-dependencies]
+tempfile = "3"

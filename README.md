@@ -4,6 +4,10 @@
 
 **Status:** v0.12.1 · [Release notes](https://github.com/Yangshifu1024/GitWave/releases) · [Product scope](./docs/pm/core/01-features.md) · [Engineering decisions](./docs/tech/README.md)
 
+### Unreleased
+
+The title bar remembers your terminal and editor separately. Choose an installed tool to open the active repository, then click its name to use it again or the arrow to switch. [Supported tools](./docs/pm/features/F020-terminal-picker.md)
+
 ### What's new in v0.12.x
 
 - **v0.12.1** — History and Changes now use Chinese labels in the Chinese interface. The title bar groups Fetch, Pull and Push beside Stash, and hovering over these buttons no longer interferes with clicks.

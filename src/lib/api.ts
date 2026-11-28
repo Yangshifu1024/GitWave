@@ -222,20 +222,22 @@ export function openInFileManager(path: string): Promise<void> {
   return invoke<void>("open_in_file_manager", { path });
 }
 
-/** Open a repo working tree in a detected terminal emulator, cwd = repo. */
-export function openInTerminal(path: string): Promise<void> {
-  return invoke<void>("open_in_terminal", { path });
-}
-
-/** An editor installed on this machine (F015), for the ActionBar dropdown. */
-export interface DetectedEditor {
+export interface DetectedTool {
   id: string;
   name: string;
 }
 
-/** Editors installed locally, in default order (first detected = default). */
-export function listEditors(): Promise<DetectedEditor[]> {
-  return invoke<DetectedEditor[]>("list_editors");
+export function listTerminals(): Promise<DetectedTool[]> {
+  return invoke<DetectedTool[]>("list_terminals");
+}
+
+/** Omitting terminalId preserves the platform's automatic choice. */
+export function openInTerminal(path: string, terminalId?: string): Promise<void> {
+  return invoke<void>("open_in_terminal", { path, terminalId });
+}
+
+export function listEditors(): Promise<DetectedTool[]> {
+  return invoke<DetectedTool[]>("list_editors");
 }
 
 /** Open a repo working tree in the chosen editor. */

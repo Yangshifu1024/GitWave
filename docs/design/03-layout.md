@@ -33,7 +33,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ File Workspace Repository Branch  [Workspace▾][📁][⌨][</>]  …  [Stash]  [Fetch │ Pull │ Push] │
+│ File Workspace Repository Branch  [Workspace▾][📁][终端 ▾][编辑器 ▾]  …  [Stash]  [Fetch │ Pull │ Push] │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -60,7 +60,7 @@
 |---|---|---|
 | App 菜单（File / Workspace / Repository / Branch） | 左 | Windows / Linux 栏内；macOS 为原生菜单 |
 | Workspace 下拉 | 左 | 切换工作区（恢复其 last active repo） |
-| 外部工具（文件管理器 / 终端 / 编辑器） | 左 | macOS 无菜单，空间充足；窄栏时文字折叠为图标 |
+| 外部工具（文件管理器 / 终端 / 编辑器） | 左 | 文件管理器打开当前仓库。终端与编辑器以文字显示，点击已选名称启动，箭头改选 |
 | Stash | 右 | 打开贮藏对话框 |
 | Fetch / Pull / Push | 右 | 同步按钮共用外框，Pull 显示 behind，Push 显示 ahead |
 | 同步状态区 | 底栏 | Fetch / Pull / Push 进度与最近一次操作结果 |
@@ -209,7 +209,7 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ [Workspace▾] [📁][⌨][</>]  ······  [Stash]  [Fetch │ Pull │ Push] │
+│ [Workspace▾] [📁][终端 ▾][编辑器 ▾]  ······  [Stash]  [Fetch │ Pull │ Push] │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -217,7 +217,7 @@ History 永远占中栏。其余功能收进 Sidebar 的 `SidebarSection`，不�
 - 「变更」及变更文件数显示在左侧导航，收起侧栏后由工作区顶部切换视图。
 - Stash（保存贮藏）/ Fetch / Pull（Fork 式对话框：Remote / Branch / Into + rebase + stash）/ Push
 - Workspace 新建 / 重命名 / AI Provider / 删除、Repository Init / Clone / Add Local 等低频操作在 App 菜单（F 组）
-- 窄栏时外部工具文字折叠为图标（`@6xl` 容器查询）；同步状态区位于底栏
+- 窄栏时文件管理器文字折叠为图标，终端与编辑器仍使用文字（`@6xl` 容器查询）；同步状态区位于底栏
 - 背景：`bg-bg-primary`。fetch / pull / push 错误经标题栏下方 ErrorAlert 呈现
 
 ### 6.2 WorkingCopyModal（历史布局）

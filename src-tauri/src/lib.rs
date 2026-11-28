@@ -12,6 +12,7 @@
 pub mod application;
 pub mod domain;
 pub mod infrastructure;
+mod terminals;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -118,122 +119,53 @@ fn open_in_file_manager(app: tauri::AppHandle, path: String) -> Result<(), Strin
 }
 
 /// Absolute path of `prog` if it sits in a PATH directory (std-only `which`).
+#[cfg(not(target_os = "macos"))]
 fn find_in_path(prog: &str) -> Option<std::path::PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
+        .filter(|dir| dir.is_absolute())
         .map(|dir| dir.join(prog))
-        .find(|candidate| candidate.is_file())
-}
-
-/// Full terminal launch argv per platform; the repo is also set as the
-/// child's cwd, so entries that take no dir flag (cmd.exe, `$TERMINAL`,
-/// kitty / alacritty / foot) still start in the repo.
-fn detect_terminal_command() -> Option<(String, Vec<String>)> {
-    let dir_arg = |flags: &[&str]| -> Vec<String> { flags.iter().map(|f| f.to_string()).collect() };
-    if cfg!(target_os = "windows") {
-        if find_in_path("wt.exe").is_some() {
-            Some(("wt.exe".into(), vec!["-d".into()]))
-        } else {
-            // Pre-Windows-Terminal boxes: a plain console on the repo dir.
-            Some(("cmd.exe".into(), vec![]))
-        }
-    } else if cfg!(target_os = "macos") {
-        let iterm = ["/Applications/iTerm.app", "~/Applications/iTerm.app"]
-            .iter()
-            .any(|p| {
-                let p = std::path::Path::new(p);
-                let p = p
-                    .strip_prefix("~")
-                    .map(|rest| {
-                        std::env::var("HOME").map(|h| std::path::PathBuf::from(h).join(rest))
-                    })
-                    .unwrap_or_else(|_| Ok(p.to_path_buf()));
-                p.map(|p| p.exists()).unwrap_or(false)
-            });
-        let prog = if iterm { "iTerm" } else { "Terminal" };
-        Some(("open".into(), vec!["-a".into(), prog.into()]))
-    } else {
-        // Linux/BSD: $TERMINAL first, then common emulators. Flag-less
-        // entries rely on the cwd set by the caller.
-        if let Ok(t) = std::env::var("TERMINAL") {
-            if !t.is_empty() {
-                return Some((t, vec![]));
+        .find(|candidate| {
+            #[cfg(unix)]
+            {
+                terminals::executable(candidate)
             }
-        }
-        let candidates: [(&str, &[&str]); 8] = [
-            ("gnome-terminal", &["--working-directory"]),
-            ("konsole", &["--workdir"]),
-            ("xfce4-terminal", &["--working-directory"]),
-            ("kgx", &["--working-directory"]),
-            ("kitty", &[]),
-            ("alacritty", &[]),
-            ("foot", &[]),
-            ("wezterm", &["start", "--cwd"]),
-        ];
-        candidates
-            .iter()
-            .find(|(prog, _)| find_in_path(prog).is_some())
-            .map(|(prog, flags)| ((*prog).to_string(), dir_arg(flags)))
-    }
+            #[cfg(windows)]
+            {
+                candidate.is_file()
+            }
+        })
 }
 
-/// Opens a repo working tree in a detected terminal emulator with the repo
-/// as the working directory. Detached from the app: windows gets a new
-/// console, unix a new process group.
 #[tauri::command]
-fn open_in_terminal(path: String) -> Result<(), String> {
-    use std::process::Command;
+async fn list_terminals() -> Result<Vec<DetectedTool>, String> {
+    tauri::async_runtime::spawn_blocking(terminals::list)
+        .await
+        .map_err(|err| err.to_string())
+}
 
-    let dir = std::path::PathBuf::from(&path);
-    if !dir.is_dir() {
-        return Err(format!("not a directory: {path}"));
-    }
-    let (prog, mut args) =
-        detect_terminal_command().ok_or_else(|| "no terminal emulator found".to_string())?;
-    // cmd.exe / `$TERMINAL` pass no dir flag — their argv stays empty so the
-    // cwd (set below) is the only directory source; everything else takes the
-    // repo as its final argument.
-    if !args.is_empty() {
-        args.push(dir.display().to_string());
-    }
-    let mut cmd = Command::new(&prog);
-    cmd.args(&args).current_dir(&dir);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        // wt.exe relays to WindowsTerminal.exe and exits; a hidden relay avoids
-        // a console flash. cmd.exe needs a real new console of its own.
-        cmd.creation_flags(if prog == "wt.exe" {
-            CREATE_NO_WINDOW
-        } else {
-            CREATE_NEW_CONSOLE
-        });
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
-    cmd.spawn()
-        .map_err(|e| format!("failed to launch {prog}: {e}"))?;
-    Ok(())
+#[tauri::command]
+async fn open_in_terminal(path: String, terminal_id: Option<String>) -> Result<(), String> {
+    let (command, name) = tauri::async_runtime::spawn_blocking(move || {
+        terminals::prepare(&path, terminal_id.as_deref())
+    })
+    .await
+    .map_err(|err| err.to_string())??;
+    launch_external(command, &name).await
 }
 
 // ─── External editors (F015) ─────────────────────────────────────────────
 
-/// Supported editors in default order; the first detected one leads the
-/// ActionBar dropdown.
+/// Supported editors in menu display order.
 const SUPPORTED_EDITORS: [(&str, &str); 3] = [
     ("vscode", "Visual Studio Code"),
     ("zed", "Zed"),
     ("vscodium", "VSCodium"),
 ];
 
-/// A locally installed editor offered in the ActionBar dropdown.
+/// Stable tool identity exposed to the toolbar; launch commands stay in Rust.
 #[derive(serde::Serialize)]
-struct DetectedEditor {
+struct DetectedTool {
     id: String,
     name: String,
 }
@@ -276,18 +208,19 @@ fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
         &env("ProgramFiles(x86)"),
     )
     .into_iter()
-    .find(|p| std::path::Path::new(p).is_file())
+    .find(|p| {
+        let path = std::path::Path::new(p);
+        path.is_absolute() && path.is_file()
+    })
     .map(|exe| (exe, Vec::new()))
-    .or_else(|| match id {
-        // Scoop / portable installs only expose the PATH shim; `.cmd` must
-        // relay through cmd.exe (spawned windowless by `open_in_editor`).
-        "vscode" => {
-            find_in_path("code.cmd").map(|_| ("cmd".into(), vec!["/c".into(), "code.cmd".into()]))
-        }
-        "zed" => find_in_path("zed.exe").map(|_| ("zed.exe".into(), Vec::new())),
-        "vscodium" => find_in_path("codium.cmd")
-            .map(|_| ("cmd".into(), vec!["/c".into(), "codium.cmd".into()])),
-        _ => None,
+    .or_else(|| {
+        let exe = match id {
+            "vscode" => "code.cmd",
+            "vscodium" => "codium.cmd",
+            "zed" => "zed.exe",
+            _ => return None,
+        };
+        find_in_path(exe).map(|path| (path.to_string_lossy().into_owned(), Vec::new()))
     })
 }
 
@@ -304,9 +237,9 @@ fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
         format!("/Applications/{app}.app"),
         format!("{home}/Applications/{app}.app"),
     ]
-    .iter()
-    .any(|p| std::path::Path::new(p).exists());
-    installed.then(|| ("open".to_string(), vec!["-a".to_string(), app.to_string()]))
+    .into_iter()
+    .find(|p| std::path::Path::new(p).is_dir())?;
+    Some(("/usr/bin/open".into(), vec!["-a".into(), installed]))
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
@@ -317,15 +250,15 @@ fn editor_launch(id: &str) -> Option<(String, Vec<String>)> {
         "vscodium" => "codium",
         _ => return None,
     };
-    find_in_path(bin).map(|_| (bin.to_string(), Vec::new()))
+    find_in_path(bin).map(|p| (p.to_string_lossy().into_owned(), Vec::new()))
 }
 
-/// Editors installed on this machine, in default order (first = default).
-fn detect_editors() -> Vec<DetectedEditor> {
+/// Editors installed on this machine, in display order.
+fn detect_editors() -> Vec<DetectedTool> {
     SUPPORTED_EDITORS
         .iter()
         .filter(|(id, _)| editor_launch(id).is_some())
-        .map(|(id, name)| DetectedEditor {
+        .map(|(id, name)| DetectedTool {
             id: (*id).to_string(),
             name: (*name).to_string(),
         })
@@ -333,43 +266,88 @@ fn detect_editors() -> Vec<DetectedEditor> {
 }
 
 #[tauri::command]
-fn list_editors() -> Vec<DetectedEditor> {
-    detect_editors()
+async fn list_editors() -> Result<Vec<DetectedTool>, String> {
+    tauri::async_runtime::spawn_blocking(detect_editors)
+        .await
+        .map_err(|err| err.to_string())
 }
 
 /// Opens a repo working tree in the chosen editor. Detached like the terminal
 /// opener; the dir is both the child's cwd and its final argument.
 #[tauri::command]
-fn open_in_editor(path: String, editor_id: String) -> Result<(), String> {
-    use std::process::Command;
+async fn open_in_editor(path: String, editor_id: String) -> Result<(), String> {
+    let id = editor_id.clone();
+    let command = tauri::async_runtime::spawn_blocking(move || editor_command(&path, &id))
+        .await
+        .map_err(|err| err.to_string())??;
+    launch_external(command, &editor_id).await
+}
 
-    let dir = std::path::PathBuf::from(&path);
+fn editor_command(path: &str, editor_id: &str) -> Result<std::process::Command, String> {
+    let dir = std::path::absolute(path).map_err(|err| err.to_string())?;
     if !dir.is_dir() {
         return Err(format!("not a directory: {path}"));
     }
-    let (prog, mut args) =
-        editor_launch(&editor_id).ok_or_else(|| format!("editor not found: {editor_id}"))?;
-    args.push(dir.display().to_string());
-    let mut cmd = Command::new(&prog);
-    cmd.args(&args).current_dir(&dir);
+    let (prog, args) =
+        editor_launch(editor_id).ok_or_else(|| format!("editor not found: {editor_id}"))?;
+    let mut cmd = std::process::Command::new(&prog);
+    cmd.args(args).arg(&dir).current_dir(&dir);
     #[cfg(windows)]
+    if std::path::Path::new(&prog)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("cmd"))
     {
         use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        // The `cmd /c code.cmd` shim would flash a console window; editor
-        // exes spawned directly open windowless.
-        if prog == "cmd" {
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
+        // pushd maps UNC shares to a drive for cmd.exe. Keep both filesystem
+        // paths outside the command text, including spaces and metacharacters.
+        let root = std::env::var_os("SystemRoot").ok_or("missing SystemRoot")?;
+        cmd = std::process::Command::new(std::path::Path::new(&root).join(r"System32\cmd.exe"));
+        cmd.current_dir(root)
+            .args(["/d", "/e:on", "/v:off", "/c"])
+            .raw_arg(r#"pushd "%GITWAVE_REPO_DIR%" && "%GITWAVE_EDITOR_SHIM%" ."#)
+            .env("GITWAVE_REPO_DIR", &dir)
+            .env("GITWAVE_EDITOR_SHIM", prog)
+            .creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
+    Ok(cmd)
+}
+
+/// Wait for the launch acknowledgement from short-lived OS relays. Other
+/// tools may own a GUI for hours: catch immediate errors, then reap in the background.
+async fn launch_external(cmd: std::process::Command, name: &str) -> Result<(), String> {
     #[cfg(unix)]
-    {
+    let cmd = {
         use std::os::unix::process::CommandExt;
+        let mut cmd = cmd;
         cmd.process_group(0);
-    }
-    cmd.spawn()
-        .map_err(|e| format!("failed to launch {prog}: {e}"))?;
-    Ok(())
+        cmd
+    };
+    let relay = cmd.get_program() == "/usr/bin/open"
+        || (cfg!(windows)
+            && std::path::Path::new(cmd.get_program())
+                .file_name()
+                .is_some_and(|n| n.eq_ignore_ascii_case("wt.exe")));
+    let failure = |err: std::io::Error| format!("could not open {name}: {err}");
+    let mut child = tokio::process::Command::from(cmd)
+        .spawn()
+        .map_err(failure)?;
+    let status = if relay {
+        child.wait().await.map_err(failure)?
+    } else {
+        match tokio::time::timeout(Duration::from_millis(200), child.wait()).await {
+            Ok(result) => result.map_err(failure)?,
+            Err(_) => {
+                tokio::spawn(async move {
+                    let _ = child.wait().await;
+                });
+                return Ok(());
+            }
+        }
+    };
+    status
+        .success()
+        .then_some(())
+        .ok_or_else(|| format!("could not open {name}: {status}"))
 }
 
 // ─── Workspace commands (Sprint 1) ───────────────────────────────────────
@@ -2178,6 +2156,7 @@ pub fn run() {
             is_appimage,
             open_data_dir,
             open_in_file_manager,
+            list_terminals,
             open_in_terminal,
             list_editors,
             open_in_editor,
