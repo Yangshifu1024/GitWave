@@ -11,17 +11,7 @@
 import { useLayoutEffect, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
-import {
-  ArrowDown,
-  ArrowDownUp,
-  ArrowUp,
-  Archive,
-  ChevronDown,
-  FolderOpen,
-  SquareCode,
-  SquareTerminal,
-  X,
-} from "lucide-react";
+import { ArrowDown, ArrowDownUp, ArrowUp, Archive, FolderOpen, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -35,10 +25,7 @@ import {
   formatAppError,
   importWorkspace,
   getBranches,
-  listEditors,
   openInFileManager,
-  openInEditor,
-  openInTerminal,
   initRepo,
   isAuthError,
   listRepos,
@@ -68,7 +55,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { PathInput } from "@/components/ui/PathInput";
 import { ErrorAlert } from "@/components/ui/ErrorAlert";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/DropdownMenu";
+import { ExternalToolPicker } from "@/components/ExternalToolPicker";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Label } from "@/components/ui/Label";
@@ -627,12 +614,6 @@ export function ActionBar({ conflictCount }: { conflictCount: number }): React.J
     op(externalRepo.path).catch((e: unknown) => wc.setActionError(formatAppError(e)));
   };
 
-  // Installed editors for the F015 dropdown; first detected = default.
-  const { data: editors = [] } = useQuery({
-    queryKey: ["detectedEditors"],
-    queryFn: listEditors,
-  });
-
   // ── Menu bar requests ──────────────────────────────────────────────────
   // AppMenuBar dispatches AppMenuAction requests; route each one to the same
   // handler its (former) ActionBar button used, so menu and button behavior
@@ -721,10 +702,7 @@ export function ActionBar({ conflictCount }: { conflictCount: number }): React.J
           <WorkspaceDropdown />
         </div>
 
-        {/* External tools for the active repo (F014). Labels collapse to the
-            icon on narrow bars — on Windows / Linux the in-app menu shares
-            this row, so the text would otherwise be clipped. */}
-        <div className="pointer-events-auto flex items-center gap-1">
+        <div className="pointer-events-auto flex min-w-0 items-center gap-1">
           <Tooltip content={t("workspace.openFileManager.title")}>
             <ActionBarButton
               icon={<FolderOpen size={14} />}
@@ -735,52 +713,16 @@ export function ActionBar({ conflictCount }: { conflictCount: number }): React.J
               onClick={() => openExternal(openInFileManager)}
             />
           </Tooltip>
-          <Tooltip content={t("workspace.openTerminal.title")}>
-            <ActionBarButton
-              icon={<SquareTerminal size={14} />}
-              label={t("workspace.openTerminal.label")}
-              ariaLabel={t("workspace.openTerminal.title")}
-              collapseLabel
-              disabled={!externalRepo}
-              onClick={() => openExternal(openInTerminal)}
-            />
-          </Tooltip>
-          {/* F015: dropdown of locally installed editors (VS Code / Zed /
-              VSCodium), first detected leading as the default. The Button
-              must stay the dropdown's direct child (trigger wiring), so the
-              hint rides on the native `title` instead of a Tooltip. */}
-          <DropdownMenu>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={!externalRepo}
-              title={t("workspace.openEditor.title")}
-              aria-label={t("workspace.openEditor.title")}
-              className="flex items-center gap-1.5 h-7 px-2.5 rounded-md text-xs text-text-secondary hover:bg-bg-elevated hover:text-text-primary disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <SquareCode size={14} />
-              <span className="hidden @6xl:inline">{t("workspace.openEditor.label")}</span>
-              <ChevronDown size={12} className="opacity-70" />
-            </Button>
-            <DropdownMenuContent placement="bottom start" className="min-w-[180px]">
-              {editors.map((editor) => (
-                <DropdownMenuItem
-                  key={editor.id}
-                  id={editor.id}
-                  textValue={editor.name}
-                  onSelect={() => openExternal((path) => openInEditor(path, editor.id))}
-                >
-                  <span className="truncate">{editor.name}</span>
-                </DropdownMenuItem>
-              ))}
-              {editors.length === 0 ? (
-                <DropdownMenuItem disabled textValue="none">
-                  {t("workspace.openEditor.noneDetected")}
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ExternalToolPicker
+            kind="terminal"
+            repoPath={externalRepo?.path ?? null}
+            onError={wc.setActionError}
+          />
+          <ExternalToolPicker
+            kind="editor"
+            repoPath={externalRepo?.path ?? null}
+            onError={wc.setActionError}
+          />
         </div>
 
         {/* Reserved middle zone between the selector and the ops. */}

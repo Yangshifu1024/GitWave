@@ -777,6 +777,28 @@
 }
 
 /* Tide Workbench geometry, shared by both palettes and both color schemes. */
+.external-tool-menu {
+  width: max-content;
+  min-width: 0;
+  max-width: 240px;
+  padding: 3px;
+}
+
+.external-tool-menu [role="menu"] {
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.external-tool-menu [role="menuitem"] {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
 .repo-action-group {
   @apply pointer-events-auto inline-flex shrink-0 items-center divide-x divide-border-subtle rounded-md border border-border-subtle;
 }

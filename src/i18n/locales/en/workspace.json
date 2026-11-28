@@ -14,14 +14,16 @@
       "label": "Files",
       "title": "Reveal in file manager"
     },
+    "toolCurrent": "Current",
     "openTerminal": {
       "label": "Terminal",
-      "title": "Open in terminal"
+      "choose": "Choose terminal",
+      "noneDetected": "No supported terminal detected"
     },
     "openEditor": {
       "label": "Editor",
-      "title": "Open in editor",
-      "noneDetected": "No supported editor detected"
+      "noneDetected": "No supported editor detected",
+      "choose": "Choose editor"
     },
     "create": {
       "namePlaceholder": "Workspace name",
